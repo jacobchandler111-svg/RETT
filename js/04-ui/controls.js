@@ -19,6 +19,15 @@ function showPage(id) {
             const tab = document.getElementById(tabId);
             if (tab) tab.classList.toggle('active', p === id);
       });
+      // When the Allocator tab is shown, re-render the latest tax comparison.
+      if (id === 'page-allocator') {
+            try {
+                  const host = document.getElementById('tax-comparison-host');
+                  if (host && typeof renderTaxComparison === 'function') {
+                        renderTaxComparison(host, window.__lastComparison);
+                  }
+            } catch(e) { console.warn('renderTaxComparison failed:', e && e.message); }
+      }
 }
 
 function _yearSchedule(cfg) {
