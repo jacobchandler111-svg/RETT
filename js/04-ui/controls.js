@@ -1,0 +1,85 @@
+// FILE: js/04-ui/controls.js
+// Page navigation and main run/reset wiring. The app has three pages
+// shown one at a time:
+//   - 'inputs'      : data entry form
+//   - 'projection'  : multi-year results table
+//   - 'allocator'   : year-1 allocator suggestions
+
+const PAGE_IDS = ['page-inputs', 'page-projection', 'page-allocator'];
+
+function showPage(id) {
+      PAGE_IDS.forEach(p => {
+                const el = document.getElementById(p);
+                if (el) el.style.display = (p === id) ? '' : 'none';
+      });
+}
+
+function _yearSchedule(cfg) {
+      // Build per-year schedule rows on demand so the user can fill in the
+    // multi-year sale structure. If a row already exists, leave it alone.
+    const host = document.getElementById('year-schedule');
+      if (!host) return;
+      host.innerHTML = '';
+      for (let i = 0; i < cfg.horizonYears; i++) {
+                const yr = cfg.year1 + i;
+                const row = document.createElement('div');
+                row.className = 'year-row';
+                row.innerHTML =
+                              '<span class="yr-label">' + yr + '</span>' +
+                              '<input data-field="ordinary"   type="text" placeholder="Ordinary income" />' +
+                              '<input data-field="short-gain" type="text" placeholder="Short-term gain" />' +
+                              '<input data-field="long-gain"  type="text" placeholder="Long-term gain" />' +
+                              '<input data-field="loss-rate"  type="text" placeholder="Loss rate %" />';
+                host.appendChild(row);
+      }
+}
+
+async function runProjection() {
+      if (!isTaxDataLoaded()) {
+                try { await loadTaxData(); }
+                catch (e) {
+                              alert('Failed to load tax brackets: ' + e.message);
+                              return;
+                }
+      }
+      const cfg = collectInputs();
+
+    const allocation = allocateBrooklyn({
+              availableCapital: cfg.availableCapital || cfg.investment,
+              year:             cfg.year1,
+              filingStatus:     cfg.filingStatus,
+              state:            cfg.state,
+              ordinaryIncome:   cfg.baseOrdinaryIncome,
+              shortTermGain:    cfg.baseShortTermGain,
+              longTermGain:     cfg.baseLongTermGain
+    });
+      renderAllocator(allocation);
+
+    const result = ProjectionEngine.run(cfg);
+      renderProjection(result);
+      showPage('page-projection');
+}
+
+function bindControls() {
+      const runBtn = document.getElementById('run-projection');
+      if (runBtn) runBtn.addEventListener('click', runProjection);
+
+    const buildSchedBtn = document.getElementById('build-year-schedule');
+      if (buildSchedBtn) {
+                buildSchedBtn.addEventListener('click', () => {
+                              const cfg = collectInputs();
+                              _yearSchedule(cfg);
+                });
+      }
+
+    const navInputs     = document.getElementById('nav-inputs');
+      const navProjection = document.getElementById('nav-projection');
+      const navAllocator  = document.getElementById('nav-allocator');
+      if (navInputs)     navInputs.addEventListener('click',     () => showPage('page-inputs'));
+      if (navProjection) navProjection.addEventListener('click', () => showPage('page-projection'));
+      if (navAllocator)  navAllocator.addEventListener('click',  () => showPage('page-allocator'));
+
+    showPage('page-inputs');
+}
+
+document.addEventListener('DOMContentLoaded', bindControls);
