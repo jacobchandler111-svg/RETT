@@ -194,3 +194,45 @@ body {
 .rec-table th { color: #93c5fd; text-align: right; font-weight: 600; }
 .rec-table th:first-child, .rec-table td:first-child { text-align: left; }
 .muted { color: #64748b; font-size: 0.85em; font-weight: 400; }
+
+
+/* ===== Tax Comparison Table (Brooklyn Allocator tab) ===== */
+.tax-comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 0.9em;
+}
+.tax-comparison-table th,
+.tax-comparison-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  text-align: right;
+}
+.tax-comparison-table th:first-child,
+.tax-comparison-table td:first-child {
+  text-align: left;
+}
+.tax-comparison-table thead th {
+  background: rgba(15,76,129,0.5);
+  font-weight: 600;
+}
+.tax-comparison-table .grp-head td {
+  background: rgba(15,76,129,0.4);
+  font-weight: 600;
+  text-align: left;
+  padding-top: 12px;
+}
+.tax-comparison-table .row-total td {
+  background: rgba(15,76,129,0.2);
+  font-weight: 600;
+}
+.tax-comparison-table .row-savings td {
+  background: rgba(46,160,67,0.25);
+  font-weight: 700;
+  color: #5fd97e;
+}
+.tax-savings-summary {
+  color: #fff;
+  font-size: 1.05em;
+}
