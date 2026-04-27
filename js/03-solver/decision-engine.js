@@ -140,7 +140,17 @@
 
     }
 
-    var recommendation = stage1RecommendsSingleYear ? 'single-year' : 'multi-year';
+    // Determine top-level recommendation. If the structured-sale
+    // optimizer marked the schedule as a shortfall, propagate that to
+    // the top-level value so callers see a consistent label.
+    var recommendation;
+    if (stage1RecommendsSingleYear) {
+      recommendation = 'single-year';
+    } else if (stage2 && stage2.recommendation === 'multi-year-shortfall') {
+      recommendation = 'multi-year-shortfall';
+    } else {
+      recommendation = 'multi-year';
+    }
     var summary;
     if (stage1RecommendsSingleYear) {
       var chosen = (stage1Source === 'preset')           ? stage1
