@@ -1,27 +1,24 @@
 // js/03-solver/single-year-solver.js
 // Stage 1: Can we wipe out the entire taxable amount in a single year using
-// a given Brooklyn strategy, and if so, what is the minimum leverage tier
-// that does the job?
+// a given Brooklyn strategy?
 //
-// Inputs:
-//   strategyKey   - "beta1" | "beta0" | "beta05" | "advisorManaged"
-//   gainToOffset  - dollars of taxable income that need short-term loss
-//                   (long-term gain + accelerated-depreciation recapture +
-//                    any other ordinary income the user wants offset)
-//   investedCapital - dollars allocated to the strategy
-//   yearFraction  - fraction (0-1] of the year remaining after the
-//                   implementation date. Year-1 loss generation is
-//                   time-weighted by this fraction. Defaults to 1.
+// Two modes are supported:
+//   "preset"   - try only the named tier ladder (Long-Only, 130/30, ...)
+//                and pick the lowest-leverage tier that wipes the gain.
+//   "variable" - walk every 1% short increment from minShort..maxShort
+//                using solveVariableSingleYear, picking the lowest-leverage
+//                point that wipes the gain. This is the "tailor-made"
+//                slider behaviour.
 //
-// Output:
+// Output (preset mode):
 //   {
-//     ok: boolean,
-//     tier: { ... } | null,
-//     loss: number,
-//     leverage: number,
-//     timeWeighted: boolean,
-//     yearFraction: number,
-//     tested: [ {leverage, loss, ok, tier}, ... ]
+//     mode: "preset",
+//     ok, tier, loss, leverage, timeWeighted, yearFraction, tested[]
+//   }
+// Output (variable mode):
+//   {
+//     mode: "variable",
+//     ok, point, loss, fees, leverage, timeWeighted, yearFraction, tested[]
 //   }
 
 (function (root) {
@@ -41,8 +38,7 @@
     return f;
   }
 
-  function solveSingleYear(opts) {
-    opts = opts || {};
+  function solvePreset(opts) {
     var strategyKey     = opts.strategyKey || 'beta1';
     var gainToOffset    = Number(opts.gainToOffset) || 0;
     var investedCapital = Number(opts.investedCapital) || 0;
@@ -55,26 +51,29 @@
 
     for (var i = 0; i < ladder.length; i++) {
       var lev = ladder[i];
-      var tier = (typeof window.brooklynInterpolate === 'function')
-        ? window.brooklynInterpolate(strategyKey, lev)
+      var tier = (typeof root.brooklynInterpolate === 'function')
+        ? root.brooklynInterpolate(strategyKey, lev)
         : null;
       if (!tier) continue;
 
       var weightedRate = tier.lossRate * yearFraction;
       var loss = investedCapital * weightedRate;
+      var fees = investedCapital * tier.feeRate;
       var ok = loss >= gainToOffset && gainToOffset > 0;
 
-      tested.push({ leverage: lev, loss: loss, ok: ok, tier: tier });
+      tested.push({ leverage: lev, loss: loss, fees: fees, ok: ok, tier: tier });
 
       if (!chosen && ok) {
-        chosen = { tier: tier, loss: loss, leverage: lev };
+        chosen = { tier: tier, loss: loss, fees: fees, leverage: lev };
       }
     }
 
     return {
+      mode: 'preset',
       ok: !!chosen,
       tier: chosen ? chosen.tier : null,
       loss: chosen ? chosen.loss : 0,
+      fees: chosen ? chosen.fees : 0,
       leverage: chosen ? chosen.leverage : null,
       timeWeighted: yearFraction < 1,
       yearFraction: yearFraction,
@@ -82,6 +81,27 @@
     };
   }
 
-  root.solveSingleYear = solveSingleYear;
+  function solveVariable(opts) {
+    if (typeof root.solveVariableSingleYear !== 'function') {
+      return { mode: 'variable', ok: false, reason: 'variable-leverage module not loaded' };
+    }
+    var r = root.solveVariableSingleYear(opts);
+    r.mode = 'variable';
+    if (r.point) {
+      r.tier = r.point;
+      r.leverage = r.point.leverage;
+    }
+    return r;
+  }
+
+  function solveSingleYear(opts) {
+    opts = opts || {};
+    if (opts.mode === 'variable') return solveVariable(opts);
+    return solvePreset(opts);
+  }
+
+  root.solveSingleYear              = solveSingleYear;
+  root.solveSingleYearPreset        = solvePreset;
+  root.solveSingleYearVariable      = solveVariable;
   root.PRESET_LEVERAGES_BY_STRATEGY = PRESET_LEVERAGES_BY_STRATEGY;
 })(window);
