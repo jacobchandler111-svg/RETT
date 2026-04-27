@@ -122,6 +122,22 @@
         years: years,
         yearFractionYear1: yf
       });
+
+      // Refine the multi-year schedule via the structured-sale optimizer:
+      // explore greedy/proportional/defer/backload payout schedules and
+      // pick the one that minimizes cumulative federal+state tax.  The
+      // refined result preserves all stage2 fields and adds a 'structured'
+      // metadata block describing the chosen schedule.
+      if (typeof root.optimizeStructuredSale === 'function' && stage2 && stage2.totalLossNeeded > 0) {
+        try {
+          stage2 = root.optimizeStructuredSale({ cfg: cfg, stage2: stage2 });
+        } catch (e) {
+          // If the optimizer fails for any reason, fall back to the raw
+          // proportional schedule produced by solveMultiYear.
+          stage2 = Object.assign({}, stage2, { structured: { enabled: false, error: String(e) } });
+        }
+      }
+
     }
 
     var recommendation = stage1RecommendsSingleYear ? 'single-year' : 'multi-year';
