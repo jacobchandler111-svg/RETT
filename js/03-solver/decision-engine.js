@@ -8,18 +8,8 @@
 //      always uses leverage <= the matching preset)
 //   3. preset solver result
 //
-// Inputs:
-//   {
-//     salePrice, costBasis,
-//     acceleratedDepreciation,
-//     implementationDate,                      // YYYY-MM-DD
-//     strategyKey,                             // beta1 | beta0 | beta05 | advisorManaged
-//     investedCapital,
-//     leverageCap,
-//     years,
-//     useVariableLeverage,                     // boolean (default true)
-//     manualVariableShortPct                   // optional integer override
-//   }
+// If gainToOffset === 0 the engine short-circuits to recommendation
+// "no-action" without invoking either solver.
 
 (function (root) {
   'use strict';
@@ -44,6 +34,24 @@
     var yf = (typeof root.yearFractionRemaining === 'function' && cfg.implementationDate)
       ? root.yearFractionRemaining(cfg.implementationDate)
       : 1;
+
+    // Short-circuit on no-gain
+    if (gainToOffset === 0) {
+      return {
+        longTermGain: 0,
+        recapture: 0,
+        gain: 0,
+        yearFraction: yf,
+        stage1: null,
+        stage1Variable: null,
+        stage1Manual: null,
+        stage1RecommendsSingleYear: false,
+        stage1Source: null,
+        stage2: null,
+        recommendation: 'no-action',
+        summary: { source: 'no-action', note: 'no taxable gain to offset' }
+      };
+    }
 
     // Stage 1a: preset ladder
     var stage1 = root.solveSingleYearPreset({
@@ -90,7 +98,6 @@
       }
     }
 
-    // Choose source: manual > variable (lower leverage) > preset.
     var stage1Source = null;
     var stage1RecommendsSingleYear = false;
     if (manualShort != null && manualPoint && manualPoint.ok) {
