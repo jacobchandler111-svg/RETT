@@ -1,42 +1,67 @@
 // FILE: js/02-tax-engine/tax-calc-state.js
-// State income tax computation. Supports three table shapes:
-//   - 'progressive' : list of bracket {min, max, rate} objects
-//   - 'flat'        : single flatRate applied above standardDeduction
-//   - 'none'        : no state income tax (returns 0)
+// State income tax computation. Reads the per-state record via tax-lookups
+// helpers and handles the special-cases that appear in the source data:
 //
-// State capital-gains treatment is driven by the 'capitalGainsTreatment'
-// field on the state record. Currently supported values:
-//   - 'ordinary'  : capital gains taxed at the same rates as ordinary income
-//   - 'exempt'    : capital gains excluded from state taxable income
-//   - 'partial'   : a partial-exclusion percentage (state.partialExclusionRate)
+//   - noIncomeTax: true                  -> returns 0
+//   - flatRate: true                     -> single-rate progressive shape
+//   - mentalHealthSurcharge (CA)         -> 1% over $1M
+//   - millionaireSurcharge (MA)          -> 4% over $1M
+//   - capitalGainsTax (WA)               -> 7% on LT gains over $270k
 //
-// The function expects the caller to pass a single combined "income" value
-// representing the state-taxable income. Callers that need to split capital
-// gains differently should pre-process and call multiple times.
+// Capital gains in most states are taxed as ordinary income; the engine
+// passes the combined (ordinary + ST gain + LT gain) figure as 'income'
+// unless the caller pre-splits.
 
-function _stateBracketTax(amount, brackets) {
-      if (amount <= 0 || !brackets || !brackets.length) return 0;
-      let tax = 0;
-      for (const b of brackets) {
-                if (amount <= b.min) break;
-                const slabMax = Math.min(amount, b.max);
-                tax += (slabMax - b.min) * b.rate;
-      }
-      return tax;
+function _flatBracketTaxState(amount, brackets) {
+          if (amount <= 0 || !brackets || !brackets.length) return 0;
+          let tax = 0, prevMax = 0;
+          for (const b of brackets) {
+                        const cap = b[0], rate = b[1];
+                        if (amount <= prevMax) break;
+                        const slabMax = Math.min(amount, cap);
+                        tax += (slabMax - prevMax) * rate;
+                        prevMax = cap;
+                        if (amount <= cap) break;
+          }
+          return tax;
 }
 
 function computeStateTax(income, year, stateCode, status, opts) {
-      if (!stateCode || stateCode === 'NONE') return 0;
-      opts = opts || {};
-      const itemized = Math.max(0, opts.itemized || 0);
-      const cfg = getStateBrackets(year, stateCode, status);
-      if (!cfg || cfg.type === 'none') return 0;
+          if (!stateCode || stateCode === 'NONE') return 0;
+          if (isStateNoIncomeTax(year, stateCode)) {
+                        // WA has a stand-alone capital gains tax even though there's no
+              // income tax. Caller can opt-in via opts.longTermGain.
+              const sur = getStateSurcharges(year, stateCode);
+                        if (sur.capitalGainsTax && opts && opts.longTermGain) {
+                                          const t   = sur.capitalGainsTax.threshold;
+                                          const r   = sur.capitalGainsTax.rate;
+                                          const lt  = Math.max(0, opts.longTermGain);
+                                          return Math.max(0, lt - t) * r;
+                        }
+                        return 0;
+          }
 
-    const deduction = Math.max(cfg.standardDeduction || 0, itemized);
-      const taxable = Math.max(0, income - deduction);
+    opts = opts || {};
+          const itemized = Math.max(0, opts.itemized || 0);
+          const stdDed   = getStateStandardDeduction(year, stateCode, status);
+          const deduction = Math.max(stdDed, itemized);
+          const taxable   = Math.max(0, income - deduction);
 
-    if (cfg.type === 'flat') {
-              return taxable * (cfg.flatRate || 0);
-    }
-      return _stateBracketTax(taxable, cfg.ordinary);
+    const brackets = getStateBrackets(year, stateCode, status);
+          let tax = _flatBracketTaxState(taxable, brackets);
+
+    // Surcharges.
+    const sur = getStateSurcharges(year, stateCode);
+          if (sur.mentalHealthSurcharge) {
+                        const t = sur.mentalHealthSurcharge.threshold;
+                        const r = sur.mentalHealthSurcharge.rate;
+                        tax += Math.max(0, taxable - t) * r;
+          }
+          if (sur.millionaireSurcharge) {
+                        const t = sur.millionaireSurcharge.threshold;
+                        const r = sur.millionaireSurcharge.rate;
+                        tax += Math.max(0, taxable - t) * r;
+          }
+
+    return tax;
 }
