@@ -2,60 +2,48 @@
 // Variable-leverage solver / lookup.
 //
 // Each named Brooklyn tier has a long% and short% pair where
-//   longPct = 100 + shortPct  (you must hold a base 100% long, and any
-//                              short dollar must be matched by an extra
-//                              long dollar to keep gross exposure paired)
+//   longPct = 100 + shortPct
 //   leverage = shortPct / 100
 //
-// The original Brookhaven UI exposed two sliders that step in 1% increments
-// on each side, letting the user pick any integer (long, short) point along
-// the curve instead of being limited to the named tiers. The loss-rate and
-// fee-rate at any point are obtained by linear interpolation across the
-// regression-fit data points already stored in BROOKLYN_STRATEGIES, which
-// is exactly what brooklynInterpolate(strategyKey, leverage) does.
+// The original Brookhaven UI exposed sliders that step in 1% increments,
+// letting the user pick any (long, short) point along the curve instead
+// of being limited to the named tiers. The loss-rate and fee-rate at any
+// integer point come from linear interpolation across the regression-fit
+// data points, which is what brooklynInterpolate(strategyKey, leverage)
+// already does.
 //
 // This module exposes:
-//   - getStrategyBounds(strategyKey)     -> { minShort, maxShort, minLong, maxLong, maxLeverage }
-//   - lookupVariable(strategyKey, shortPct)    -> { longPct, shortPct, leverage, lossRate, feeRate, label, minInvestment }
-//   - solveVariableSingleYear(opts)            -> { ok, point, loss, fees, ... }
+//   getStrategyBounds(strategyKey)  -> { minShort, maxShort, minLong, maxLong, minLeverage, maxLeverage }
+//   lookupVariable(strategyKey, shortPct) -> { longPct, shortPct, leverage, lossRate, feeRate, label, minInvestment }
+//   solveVariableSingleYear(opts)         -> { ok, point, loss, fees, ... }
 
 (function (root) {
   'use strict';
 
-  function getStrategyTiers(strategyKey) {
-    var strats = root.BROOKLYN_STRATEGIES || {};
-    var s = strats[strategyKey];
-    if (!s || !s.dataPoints || !s.dataPoints.length) return null;
-    return s.dataPoints;
-  }
+  // Hardcoded ladder bounds extracted from the regression data points:
+  //   beta1, advisorManaged: long-only -> 325/225  (max short = 225)
+  //   beta0:                100/100   -> 275/275  (max short = 275)
+  //   beta05:               200/100   -> 325/225  (max short = 225, min short = 100)
+  var STRATEGY_BOUNDS = {
+    beta1:           { minShort: 0,   maxShort: 225 },
+    beta0:           { minShort: 100, maxShort: 275 },
+    beta05:          { minShort: 100, maxShort: 225 },
+    advisorManaged:  { minShort: 0,   maxShort: 225 }
+  };
 
   function getStrategyBounds(strategyKey) {
-    var pts = getStrategyTiers(strategyKey);
-    if (!pts) return null;
-    var minShort = Infinity, maxShort = -Infinity, minLong = Infinity, maxLong = -Infinity;
-    var minLev = Infinity, maxLev = -Infinity;
-    for (var i = 0; i < pts.length; i++) {
-      var p = pts[i];
-      if (p.shortPct < minShort) minShort = p.shortPct;
-      if (p.shortPct > maxShort) maxShort = p.shortPct;
-      if (p.longPct  < minLong)  minLong  = p.longPct;
-      if (p.longPct  > maxLong)  maxLong  = p.longPct;
-      if (p.leverage < minLev)   minLev   = p.leverage;
-      if (p.leverage > maxLev)   maxLev   = p.leverage;
-    }
+    var b = STRATEGY_BOUNDS[strategyKey];
+    if (!b) return null;
     return {
-      minShort: minShort,
-      maxShort: maxShort,
-      minLong:  minLong,
-      maxLong:  maxLong,
-      minLeverage: minLev,
-      maxLeverage: maxLev
+      minShort: b.minShort,
+      maxShort: b.maxShort,
+      minLong: 100 + b.minShort,
+      maxLong: 100 + b.maxShort,
+      minLeverage: b.minShort / 100,
+      maxLeverage: b.maxShort / 100
     };
   }
 
-  // For a given short% (in integer 1% steps), return the full point.
-  // longPct is fixed at 100 + shortPct because that is the structural
-  // relationship in every named tier.
   function lookupVariable(strategyKey, shortPct) {
     var bounds = getStrategyBounds(strategyKey);
     if (!bounds) return null;
@@ -76,9 +64,6 @@
     };
   }
 
-  // Walk every 1% short increment and pick the lowest one that wipes
-  // out gainToOffset given investedCapital and (optional) yearFraction
-  // time-weighting.
   function solveVariableSingleYear(opts) {
     opts = opts || {};
     var strategyKey     = opts.strategyKey || 'beta1';
@@ -121,4 +106,5 @@
   root.getStrategyBounds       = getStrategyBounds;
   root.lookupVariable          = lookupVariable;
   root.solveVariableSingleYear = solveVariableSingleYear;
+  root.STRATEGY_BOUNDS         = STRATEGY_BOUNDS;
 })(window);
