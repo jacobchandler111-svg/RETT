@@ -236,3 +236,23 @@ body {
   color: #fff;
   font-size: 1.05em;
 }
+
+
+/* === Future Year Income Estimates === */
+.future-years { margin: 1rem 0; padding: .5rem 0; border-top: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; }
+.future-years > summary { cursor: pointer; padding: .5rem 0; user-select: none; }
+.future-years > summary::marker { color: #4b5563; }
+#future-years-host { display: flex; flex-direction: column; gap: .35rem; margin-top: .5rem; }
+#future-years-host .year-row {
+  display: grid;
+  grid-template-columns: 140px 1fr 1fr 1fr;
+  gap: .5rem;
+  align-items: center;
+}
+#future-years-host .yr-label { font-size: .9rem; color: #374151; font-weight: 500; }
+#future-years-host input[type="text"] {
+  padding: .35rem .5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: .9rem;
+}
