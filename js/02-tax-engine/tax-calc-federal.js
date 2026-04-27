@@ -184,9 +184,10 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
             }
       }
 
-      const amti      = taxableOrdinary + ltAmount;
-      const amt       = _computeAmt(amti, year, status);
-      const amtTopUp  = Math.max(0, amt - (ordinaryTax + ltTax));
+      const amtAmti     = taxableOrdinary;
+      const amtOrdOnly  = _computeAmt(amtAmti, year, status);
+      const amtTotal    = amtOrdOnly + ltTax;
+      const amtTopUp    = Math.max(0, amtTotal - (ordinaryTax + ltTax));
 
       const magi = ordinaryIncome + ltAmount;
       const niit = _computeNiit(investmentIncome, magi, year, status);
