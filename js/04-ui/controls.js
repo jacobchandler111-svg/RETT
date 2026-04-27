@@ -9,8 +9,15 @@ const PAGE_IDS = ['page-inputs', 'page-projection', 'page-allocator'];
 
 function showPage(id) {
       PAGE_IDS.forEach(p => {
-                const el = document.getElementById(p);
-                if (el) el.style.display = (p === id) ? '' : 'none';
+            const el = document.getElementById(p);
+            if (el) {
+              const isActive = (p === id);
+              el.classList.toggle('active', isActive);
+              el.style.display = isActive ? '' : 'none';
+            }
+            const tabId = p.replace('page-', 'nav-');
+            const tab = document.getElementById(tabId);
+            if (tab) tab.classList.toggle('active', p === id);
       });
 }
 
