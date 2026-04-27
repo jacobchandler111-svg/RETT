@@ -4,145 +4,164 @@
 // Given a year-1 client snapshot, a Brooklyn fund tier, a leverage tier,
 // and a horizon (in years), this engine rolls the strategy forward year
 // by year and produces:
-//   - Each year's federal and state tax liability (with and without Brooklyn).
+//   - Each year's federal and state tax liability (with and without Brooklyn)
 //   - Brooklyn fees paid each year.
-//   - Capital-loss carryforwards.
+//   - Capital-loss carryforwards (short-term only by default).
 //   - Cumulative net tax savings over the horizon.
 //
-// The engine is intentionally unaware of the DOM. It takes plain inputs and
-// returns plain output objects. The UI layer (04-ui/projection-render.js) is
-// responsible for formatting and display.
+// Loss treatment:
+//   All Brooklyn-generated losses are treated as SHORT-TERM. There is no
+//   60/40 split. A future per-year loss-projection table (provided by the
+//   user) will replace the constant lossRate and may vary year to year.
+//
+// Sale-structuring inflows:
+//   The engine accepts an optional perYearInflows[] array that adds gain
+//   recognition events in any year (e.g. installment-sale principal,
+//   deferred earn-outs). Brooklyn-generated short-term losses offset these
+//   gains directly; any unused short-term loss falls through to ordinary
+//   income up to the $3,000 / $1,500 cap and the remainder carries forward
+//   as short-term.
 //
 // Dependencies (provided by other subsystems via globals):
-//   BROOKLYN_STRATEGIES                          (01-brooklyn/brooklyn-data)
-//   brooklynInterpolate(tierKey, leverage)       (01-brooklyn/brooklyn-interpolation)
-//   brooklynFee(tierKey, leverage, investment)   (03-solver/fees)
-//   computeFederalTax(income, year, status)      (02-tax-engine/tax-calc-federal)
-//   computeStateTax(income, year, state, status) (02-tax-engine/tax-calc-state)
-//   CarryforwardTracker                          (05-projections/carryforward-tracker)
+//   BROOKLYN_STRATEGIES                         (01-brooklyn/brooklyn-data)
+//   brooklynInterpolate(tierKey, leverage)      (01-brooklyn/brooklyn-interp)
+//   brooklynFee(tierKey, leverage, investment)  (03-solver/fees)
+//   computeFederalTax(income, year, status)     (02-tax-engine/tax-calc-fed)
+//   computeStateTax(income, year, state, status)(02-tax-engine/tax-calc-state)
+//   CarryforwardTracker                         (05-projections/carryforward)
 
 const ProjectionEngine = {
-    /**
-         * Run a multi-year Brooklyn projection.
-     *
-         * @param {object} cfg
-     * @param {number} cfg.startingYear        - First tax year of the projection (e.g. 2026).
-     * @param {number} cfg.horizonYears        - Number of years to project (e.g. 5).
-     * @param {string} cfg.filingStatus        - 'single' | 'mfj' | 'mfs' | 'hoh'
-     * @param {string} cfg.state               - Two-letter state code, or '' for federal-only.
-     * @param {object} cfg.year1Income         - { w2, se, qualifiedDividends, ordinaryDividends }
-     * @param {object} cfg.year1Gains          - { stGains, ltGains }  (pre-Brooklyn realized gains)
-     * @param {object} cfg.growthRates         - { wage, gains } in decimal (0.03 = 3%)
-     * @param {object} cfg.brooklyn
-     * @param {string} cfg.brooklyn.tier       - 'beta1' | 'beta05' | 'beta0' | 'advisorManaged'
-     * @param {number} cfg.brooklyn.leverage   - Selected leverage tier.
-     * @param {number} cfg.brooklyn.investment - Initial dollars allocated to Brooklyn.
-     * @returns {object} projection result
-     */
-    run(cfg) {
-          const interp = brooklynInterpolate(cfg.brooklyn.tier, cfg.brooklyn.leverage);
-          const tracker = new CarryforwardTracker(cfg.filingStatus);
-          const years = [];
+        /**
+                 * Run a multi-year Brooklyn projection.
+         *
+                 * @param {object} cfg
+         * @param {number} cfg.year1                - First calendar year of the projection.
+         * @param {number} cfg.horizonYears         - Number of years to project (e.g. 5).
+         * @param {string} cfg.filingStatus         - 'single' | 'mfj' | 'mfs' | 'hoh'
+         * @param {string} cfg.state                - Two-letter state code (or 'NONE').
+         * @param {number} cfg.investment           - Brooklyn investment amount (year-1).
+         * @param {string} cfg.tierKey              - Brooklyn fund tier key.
+         * @param {number} cfg.leverage             - Selected leverage multiple.
+         * @param {number} cfg.baseOrdinaryIncome   - Ordinary income (year-1, pre-Brooklyn).
+         * @param {number} cfg.baseShortTermGain    - Short-term capital gain (year-1, pre-Brooklyn).
+         * @param {number} cfg.baseLongTermGain     - Long-term capital gain (year-1, pre-Brooklyn).
+         * @param {number[]} [cfg.ordinaryByYear]   - Optional: ordinary income per year (length = horizonYears).
+         * @param {number[]} [cfg.shortGainByYear]  - Optional: short-term gain per year.
+         * @param {number[]} [cfg.longGainByYear]   - Optional: long-term gain per year.
+         * @param {number[]} [cfg.lossRateByYear]   - Optional: per-year loss rate (decimal). Overrides flat lossRate.
+         *
+                 * @returns {object} projection results: { years[], totals, ... }
+         */
+        run(cfg) {
+                    const horizon = Math.max(1, cfg.horizonYears | 0);
+                    const tracker = new CarryforwardTracker(cfg.filingStatus);
 
-      let wages = (cfg.year1Income.w2 || 0) + (cfg.year1Income.se || 0);
-          let qDiv = cfg.year1Income.qualifiedDividends || 0;
-          let oDiv = cfg.year1Income.ordinaryDividends || 0;
-          let stGains = cfg.year1Gains.stGains || 0;
-          let ltGains = cfg.year1Gains.ltGains || 0;
+            // Year-1 strategy snapshot (drives default loss rate when no per-year table is supplied).
+            const snap = brooklynInterpolate(cfg.tierKey, cfg.leverage);
+                    const flatLossRate = snap ? snap.lossRate : 0;
 
-      for (let i = 0; i < cfg.horizonYears; i++) {
-              const taxYear = cfg.startingYear + i;
+            const yearRows = [];
+                    let cumulativeSavings = 0;
+                    let cumulativeFees = 0;
 
-            // Brooklyn loss generation for this year. The lossRate reflects the
-            // expected annual loss harvest as a fraction of investment notional.
-            // Short/long character is split based on observed historical mix.
-            // Default split: roughly 60% short-term, 40% long-term per source data.
-            const annualLoss = cfg.brooklyn.investment * interp.lossRate;
-              const stLoss = annualLoss * 0.60;
-              const ltLoss = annualLoss * 0.40;
-              const fee = brooklynFee(
-                        cfg.brooklyn.tier,
-                        cfg.brooklyn.leverage,
-                        cfg.brooklyn.investment
-                      );
+            for (let i = 0; i < horizon; i++) {
+                            const year = cfg.year1 + i;
+                            const ordinary = (cfg.ordinaryByYear && cfg.ordinaryByYear[i] != null)
+                                ? cfg.ordinaryByYear[i] : cfg.baseOrdinaryIncome;
+                            const shortGain = (cfg.shortGainByYear && cfg.shortGainByYear[i] != null)
+                                ? cfg.shortGainByYear[i] : (i === 0 ? cfg.baseShortTermGain : 0);
+                            const longGain = (cfg.longGainByYear && cfg.longGainByYear[i] != null)
+                                ? cfg.longGainByYear[i] : (i === 0 ? cfg.baseLongTermGain : 0);
 
-            // Apply this year's gains and losses (with carryforward).
-            const cf = tracker.applyYear({
-                      stGains: stGains,
-                      stLosses: stLoss,
-                      ltGains: ltGains,
-                      ltLosses: ltLoss
-            });
+                        const lossRate = (cfg.lossRateByYear && cfg.lossRateByYear[i] != null)
+                                ? cfg.lossRateByYear[i] : flatLossRate;
 
-            // Build taxable-income inputs for the tax engine.
-            // Without Brooklyn: full pre-strategy gains, no harvested losses.
-            // With Brooklyn: net gains from the carryforward tracker, plus
-            // ordinary offset reduction.
-            const incomeWithout = {
-                      ordinary: wages + oDiv,
-                      stGains: stGains,
-                      ltGains: ltGains,
-                      qualifiedDividends: qDiv
+                        // Brooklyn investment sized only in year 1 by default.
+                        const investmentThisYear = (i === 0) ? cfg.investment : 0;
+                            const grossLoss = investmentThisYear * cfg.leverage * lossRate;
+                            const fee = (i === 0)
+                                ? brooklynFee(cfg.tierKey, cfg.leverage, cfg.investment)
+                                                : 0;
+
+                        // All losses are short-term.
+                        const newShortLoss = grossLoss;
+                            const newLongLoss = 0;
+
+                        // Apply current-year gains + new losses + carryforwards.
+                        const applied = tracker.applyYear({
+                                            shortTermGain: shortGain,
+                                            longTermGain:  longGain,
+                                            newShortTermLoss: newShortLoss,
+                                            newLongTermLoss:  newLongLoss
+                        });
+
+                        // Taxable income WITH Brooklyn.
+                        const taxableOrdWith = ordinary + applied.ordinaryOffsetUsed * -1 + applied.netShortTermAfter > 0
+                                ? ordinary + Math.max(0, applied.netShortTermAfter) - applied.ordinaryOffsetUsed
+                                            : ordinary - applied.ordinaryOffsetUsed;
+                            const fedWith = computeFederalTax(
+                                                Math.max(0, ordinary - applied.ordinaryOffsetUsed) + Math.max(0, applied.netShortTermAfter),
+                                                year, cfg.filingStatus,
+                                { longTermGain: Math.max(0, applied.netLongTermAfter) }
+                                            );
+                            const stateWith = computeStateTax(
+                                                Math.max(0, ordinary - applied.ordinaryOffsetUsed)
+                                                  + Math.max(0, applied.netShortTermAfter)
+                                                  + Math.max(0, applied.netLongTermAfter),
+                                                year, cfg.state, cfg.filingStatus
+                                            );
+
+                        // Taxable income WITHOUT Brooklyn (baseline: just gains, no offset).
+                        const fedNo = computeFederalTax(
+                                            ordinary + Math.max(0, shortGain),
+                                            year, cfg.filingStatus,
+                            { longTermGain: Math.max(0, longGain) }
+                                        );
+                            const stateNo = computeStateTax(
+                                                ordinary + Math.max(0, shortGain) + Math.max(0, longGain),
+                                                year, cfg.state, cfg.filingStatus
+                                            );
+
+                        const taxWith = fedWith + stateWith;
+                            const taxNo   = fedNo   + stateNo;
+                            const savings = taxNo - taxWith - fee;
+
+                        cumulativeSavings += savings;
+                            cumulativeFees    += fee;
+
+                        yearRows.push({
+                                            year,
+                                            ordinary,
+                                            shortGain,
+                                            longGain,
+                                            investmentThisYear,
+                                            lossRate,
+                                            grossLoss,
+                                            fee,
+                                            shortTermLossUsedAgainstGains: applied.shortLossUsedAgainstGains,
+                                            longTermLossUsedAgainstGains:  applied.longLossUsedAgainstGains,
+                                            ordinaryOffsetUsed:            applied.ordinaryOffsetUsed,
+                                            shortCarryforwardEnd:          applied.shortCarryforwardEnd,
+                                            longCarryforwardEnd:           applied.longCarryforwardEnd,
+                                            fedTaxWithBrooklyn:    fedWith,
+                                            stateTaxWithBrooklyn:  stateWith,
+                                            fedTaxNoBrooklyn:      fedNo,
+                                            stateTaxNoBrooklyn:    stateNo,
+                                            taxWithBrooklyn:       taxWith,
+                                            taxNoBrooklyn:         taxNo,
+                                            netSavingsThisYear:    savings
+                        });
+            }
+
+            return {
+                            config: cfg,
+                            years: yearRows,
+                            totals: {
+                                                cumulativeFees,
+                                                cumulativeNetSavings: cumulativeSavings,
+                                                finalShortCarryforward: tracker.shortCarryforward,
+                                                finalLongCarryforward:  tracker.longCarryforward
+                            }
             };
-              const incomeWith = {
-                        ordinary: wages + oDiv - cf.ordinaryOffset,
-                        stGains: cf.netST,
-                        ltGains: cf.netLT,
-                        qualifiedDividends: qDiv
-              };
-
-            const fedWithout = computeFederalTax(incomeWithout, taxYear, cfg.filingStatus);
-              const fedWith    = computeFederalTax(incomeWith,    taxYear, cfg.filingStatus);
-              const stateWithout = cfg.state
-                ? computeStateTax(incomeWithout, taxYear, cfg.state, cfg.filingStatus)
-                        : 0;
-              const stateWith    = cfg.state
-                ? computeStateTax(incomeWith,    taxYear, cfg.state, cfg.filingStatus)
-                        : 0;
-
-            const grossSavings = (fedWithout + stateWithout) - (fedWith + stateWith);
-              const netSavings = grossSavings - fee;
-
-            years.push({
-                      taxYear,
-                      wages,
-                      qDiv,
-                      oDiv,
-                      stGainsPre: stGains,
-                      ltGainsPre: ltGains,
-                      brooklynStLoss: stLoss,
-                      brooklynLtLoss: ltLoss,
-                      carryforward: cf,
-                      fee,
-                      fedWithout,
-                      fedWith,
-                      stateWithout,
-                      stateWith,
-                      grossSavings,
-                      netSavings
-            });
-
-            // Roll forward income / gains for next year.
-            wages *= (1 + cfg.growthRates.wage);
-              qDiv  *= (1 + cfg.growthRates.wage);
-              oDiv  *= (1 + cfg.growthRates.wage);
-              stGains *= (1 + cfg.growthRates.gains);
-              ltGains *= (1 + cfg.growthRates.gains);
-      }
-
-      const totalNetSavings = years.reduce((s, y) => s + y.netSavings, 0);
-          const totalFees       = years.reduce((s, y) => s + y.fee, 0);
-
-      return {
-              config: cfg,
-              interpolation: interp,
-              years,
-              totals: {
-                        netSavings: totalNetSavings,
-                        fees: totalFees,
-                        finalStCarry: tracker.stCarry,
-                        finalLtCarry: tracker.ltCarry
-              }
-      };
-    }
+        }
 };
