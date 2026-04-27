@@ -79,7 +79,14 @@ function bindControls() {
       if (navProjection) navProjection.addEventListener('click', () => showPage('page-projection'));
       if (navAllocator)  navAllocator.addEventListener('click',  () => showPage('page-allocator'));
 
-    showPage('page-inputs');
+    const contBtn = document.getElementById('continue-to-projection');
+      if (contBtn) contBtn.addEventListener('click', () => {
+        showPage('page-projection');
+        const recBtn = document.getElementById('run-recommendation');
+        if (recBtn) recBtn.click();
+      });
+
+      showPage('page-inputs');
 }
 
 document.addEventListener('DOMContentLoaded', bindControls);
