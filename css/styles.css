@@ -173,3 +173,24 @@ body {
     font-size: 1.1em;
     margin-bottom: 8px;
 }
+
+/* ============ Recommendation panel ============ */
+.recommendation {
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 22px 26px;
+    border-radius: 8px;
+    border-left: 4px solid #5fa8ff;
+    margin-top: 24px;
+}
+.recommendation h3 { color: #5fa8ff; font-size: 1.2em; margin-bottom: 12px; }
+.recommendation h4 { color: #93c5fd; font-size: 1.0em; margin: 16px 0 8px; }
+.rec-row { margin: 4px 0; }
+.rec-good { color: #4ade80; font-weight: 600; margin: 8px 0; }
+.rec-warning { color: #fbbf24; margin: 8px 0; }
+.rec-error { color: #f87171; margin: 8px 0; }
+.rec-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+.rec-table th, .rec-table td { padding: 6px 10px; text-align: right; border-bottom: 1px solid #1e293b; }
+.rec-table th { color: #93c5fd; text-align: right; font-weight: 600; }
+.rec-table th:first-child, .rec-table td:first-child { text-align: left; }
+.muted { color: #64748b; font-size: 0.85em; font-weight: 400; }
