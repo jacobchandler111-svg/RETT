@@ -21,7 +21,34 @@
   <!-- ============ PAGE: CLIENT INPUTS ============ -->
   <div id="page-inputs" class="page active">
     <h2>Client Financial Inputs</h2>
-    <p class="subtitle">Year 1 is the base year. The engine projects forward using the per-year sale schedule below.</p>
+    <p class="subtitle">Step 1: enter the property sale details. The decision engine first checks whether a single-year Brooklyn wipeout is feasible at or below your leverage cap; if not, it falls through to a multi-year structured-sale schedule.</p>
+
+    <div class="section-title">Property Sale</div>
+    <div class="input-grid">
+      <div class="input-group">
+        <label>Sale Price ($)</label>
+        <input type="number" id="sale-price" placeholder="e.g. 10000000" step="1">
+      </div>
+      <div class="input-group">
+        <label>Cost Basis ($)</label>
+        <input type="number" id="cost-basis" placeholder="e.g. 5000000" step="1">
+      </div>
+      <div class="input-group">
+        <label>Long-Term Gain ($) <span class="muted">(auto-computed)</span></label>
+        <input type="text" id="computed-gain" readonly placeholder="0">
+      </div>
+      <div class="input-group">
+        <label>Maximum Acceptable Leverage</label>
+        <select id="leverage-cap">
+          <option value="0">Long-Only (no leverage)</option>
+          <option value="0.30">130/30</option>
+          <option value="0.45">145/45</option>
+          <option value="1.00" selected>200/100</option>
+          <option value="1.50">250/150</option>
+          <option value="2.25">325/225</option>
+        </select>
+      </div>
+    </div>
 
     <div class="section-title">Filing Information</div>
     <div class="input-grid">
@@ -63,31 +90,22 @@
       </div>
     </div>
 
-    <div class="section-title">Year 1 Income (Base)</div>
-    <p class="subtitle">These are the year-1 amounts. The per-year schedule below overrides on a year-by-year basis when filled in.</p>
+    <div class="section-title">Year 1 Income (Base, ex-property)</div>
+    <p class="subtitle">Ordinary income excludes the property gain. Short/long gain fields here are for OTHER capital activity outside the property sale; the property gain comes from the section above.</p>
     <div class="input-grid">
       <div class="input-group">
         <label>Ordinary Income (W-2 + SE + non-qualified divs + interest)</label>
         <input type="number" id="ordinary-income" placeholder="0" step="1">
       </div>
       <div class="input-group">
-        <label>Short-Term Capital Gain</label>
+        <label>Other Short-Term Capital Gain</label>
         <input type="number" id="short-term-gain" placeholder="0" step="1">
       </div>
       <div class="input-group">
-        <label>Long-Term Capital Gain (incl. qualified divs)</label>
+        <label>Other Long-Term Capital Gain</label>
         <input type="number" id="long-term-gain" placeholder="0" step="1">
       </div>
     </div>
-
-    <div class="section-title">Multi-Year Sale Schedule</div>
-    <p class="subtitle">Optional per-year overrides. Leave a year blank to roll forward the year-1 base. Loss rate is the Brooklyn short-term loss generated as % of invested capital that year. Defaults are loaded from js/01-brooklyn/defaults.js.</p>
-    <div class="input-grid">
-      <div class="input-group" style="grid-column: 1 / -1;">
-        <button type="button" id="build-year-schedule" class="btn-secondary">Build / Refresh Year Schedule</button>
-      </div>
-    </div>
-    <div id="year-schedule"></div>
 
     <div class="section-title">Brooklyn Configuration</div>
     <div class="input-grid">
@@ -96,15 +114,16 @@
         <input type="number" id="available-capital" placeholder="e.g. 5000000" step="1">
       </div>
       <div class="input-group">
-        <label>Initial Investment ($)</label>
+        <label>Brooklyn Investment ($)</label>
         <input type="number" id="investment" placeholder="e.g. 1000000" step="1">
       </div>
       <div class="input-group">
-        <label>Strategy Tier</label>
+        <label>Strategy</label>
         <select id="tier-key">
-          <option value="brooklynBeta1">Brooklyn Beta 1</option>
-          <option value="brooklynBeta2" selected>Brooklyn Beta 2</option>
-          <option value="brooklynAdvisor">Brooklyn Advisor Managed</option>
+          <option value="beta1" selected>S&amp;P 500 - Brooklyn Beta 1</option>
+          <option value="beta0">CASH - Brooklyn Beta 0</option>
+          <option value="beta05">CASH/S&amp;P 500 - Brooklyn Beta 0.5</option>
+          <option value="advisorManaged">S&amp;P 500 - Advisor Managed</option>
         </select>
       </div>
       <div class="input-group">
@@ -112,19 +131,29 @@
         <input type="number" id="beta1" value="50" step="1" min="0" max="100">
       </div>
       <div class="input-group">
-        <label>Leverage Tier</label>
-        <select id="leverage">
-          <option value="0">Long-Only</option>
-          <option value="0.30">130/30</option>
-          <option value="0.45">145/45</option>
-          <option value="1.00" selected>200/100</option>
+        <label>Distribution (multi-year fallback)</label>
+        <select id="distribution">
+          <option value="even" selected>Even across years</option>
+          <option value="front">Front-loaded</option>
+          <option value="back">Back-loaded</option>
         </select>
       </div>
     </div>
 
-    <div class="actions">
-      <button type="button" id="run-projection" class="btn-primary">Run Multi-Year Projection</button>
+    <div class="section-title">Multi-Year Sale Schedule (advanced override)</div>
+    <p class="subtitle">Optional. If the multi-year solver runs, it will populate this schedule. You can also override values manually here.</p>
+    <div class="input-grid">
+      <div class="input-group" style="grid-column: 1 / -1;">
+        <button type="button" id="build-year-schedule" class="btn-secondary">Build / Refresh Year Schedule</button>
+      </div>
     </div>
+    <div id="year-schedule"></div>
+
+    <div class="actions">
+      <button type="button" id="run-projection" class="btn-primary">Run Decision Engine</button>
+    </div>
+
+    <div id="recommendation-panel"></div>
   </div>
 
   <!-- ============ PAGE: PROJECTION ============ -->
@@ -155,6 +184,9 @@
 
   <script src="js/03-solver/fees.js"></script>
   <script src="js/03-solver/brooklyn-allocator.js"></script>
+  <script src="js/03-solver/single-year-solver.js"></script>
+  <script src="js/03-solver/multi-year-solver.js"></script>
+  <script src="js/03-solver/decision-engine.js"></script>
 
   <script src="js/05-projections/bracket-projector.js"></script>
   <script src="js/05-projections/carryforward-tracker.js"></script>
@@ -164,8 +196,9 @@
   <script src="js/04-ui/inputs-collector.js"></script>
   <script src="js/04-ui/controls.js"></script>
   <script src="js/04-ui/projection-render.js"></script>
+  <script src="js/04-ui/recommendation-render.js"></script>
 
-  <!-- Load defaults LAST so the auto-populate hook runs after controls.js wires the build button -->
+  <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
   <script src="js/01-brooklyn/defaults.js"></script>
 </body>
 </html>
