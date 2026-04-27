@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RETT - Brooklyn Multi-Year Projector</title>
-  <link rel="stylesheet" href="css/styles.css?v=1777317600344">
+  <link rel="stylesheet" href="css/styles.css?v=1777318456322">
 </head>
 <body>
   <div class="header">
@@ -77,6 +77,13 @@
       <div class="input-group"><label>Retirement Distributions ($)</label><input type="number" id="retirement-distributions" placeholder="0" step="1"></div>
     </div>
 
+
+    <!-- Future Year Income Estimates (collapsible). Default = blank, which falls through to Year-1 base values during projection. -->
+    <details id="future-years-details" class="future-years">
+      <summary class="section-title">Future Year Income Estimates (optional)</summary>
+      <p class="subtitle">Provide income estimates for each projected year. Leave blank to default to Year 1. The projection horizon (set above) controls how many years are shown.</p>
+      <div id="future-years-host"></div>
+    </details>
     <div class="section-title">Property Sale</div>
     <div class="input-grid">
       <div class="input-group">
@@ -216,37 +223,37 @@
   </div>
 
   <!-- ============ Subsystem load order: 01 -> 02 -> 03 -> 05 -> 04 ============ -->
-  <script src="js/01-brooklyn/brooklyn-data.js?v=1777317600344"></script>
-  <script src="js/01-brooklyn/date-utils.js?v=1777317600344"></script>
-  <script src="js/01-brooklyn/time-weight.js?v=1777317600344"></script>
-  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777317600344"></script>
-  <script src="js/01-brooklyn/variable-leverage.js?v=1777317600344"></script>
+  <script src="js/01-brooklyn/brooklyn-data.js?v=1777318456322"></script>
+  <script src="js/01-brooklyn/date-utils.js?v=1777318456322"></script>
+  <script src="js/01-brooklyn/time-weight.js?v=1777318456322"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777318456322"></script>
+  <script src="js/01-brooklyn/variable-leverage.js?v=1777318456322"></script>
 
-  <script src="js/02-tax-engine/tax-data.js?v=1777317600344"></script>
-  <script src="js/02-tax-engine/tax-loader.js?v=1777317600344"></script>
-  <script src="js/02-tax-engine/tax-lookups.js?v=1777317600344"></script>
-  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777317600344"></script>
-  <script src="js/02-tax-engine/tax-calc-state.js?v=1777317600344"></script>
-  <script src="js/02-tax-engine/tax-baseline.js?v=1777317600344"></script>
-  <script src="js/02-tax-engine/tax-comparison.js?v=1777317600344"></script>
+  <script src="js/02-tax-engine/tax-data.js?v=1777318456322"></script>
+  <script src="js/02-tax-engine/tax-loader.js?v=1777318456322"></script>
+  <script src="js/02-tax-engine/tax-lookups.js?v=1777318456322"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777318456322"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js?v=1777318456322"></script>
+  <script src="js/02-tax-engine/tax-baseline.js?v=1777318456322"></script>
+  <script src="js/02-tax-engine/tax-comparison.js?v=1777318456322"></script>
 
-  <script src="js/03-solver/fees.js?v=1777317600344"></script>
-  <script src="js/03-solver/brooklyn-allocator.js?v=1777317600344"></script>
-  <script src="js/03-solver/single-year-solver.js?v=1777317600344"></script>
-  <script src="js/03-solver/multi-year-solver.js?v=1777317600344"></script>
-  <script src="js/03-solver/decision-engine.js?v=1777317600344"></script>
+  <script src="js/03-solver/fees.js?v=1777318456322"></script>
+  <script src="js/03-solver/brooklyn-allocator.js?v=1777318456322"></script>
+  <script src="js/03-solver/single-year-solver.js?v=1777318456322"></script>
+  <script src="js/03-solver/multi-year-solver.js?v=1777318456322"></script>
+  <script src="js/03-solver/decision-engine.js?v=1777318456322"></script>
 
-  <script src="js/05-projections/bracket-projector.js?v=1777317600344"></script>
-  <script src="js/05-projections/carryforward-tracker.js?v=1777317600344"></script>
-  <script src="js/05-projections/projection-engine.js?v=1777317600344"></script>
+  <script src="js/05-projections/bracket-projector.js?v=1777318456322"></script>
+  <script src="js/05-projections/carryforward-tracker.js?v=1777318456322"></script>
+  <script src="js/05-projections/projection-engine.js?v=1777318456322"></script>
 
-  <script src="js/04-ui/format-helpers.js?v=1777317600344"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1777317600344"></script>
-  <script src="js/04-ui/controls.js?v=1777317600344"></script>
-  <script src="js/04-ui/projection-render.js?v=1777317600344"></script>
-  <script src="js/04-ui/recommendation-render.js?v=1777317600344"></script>
+  <script src="js/04-ui/format-helpers.js?v=1777318456322"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1777318456322"></script>
+  <script src="js/04-ui/controls.js?v=1777318456322"></script>
+  <script src="js/04-ui/projection-render.js?v=1777318456322"></script>
+  <script src="js/04-ui/recommendation-render.js?v=1777318456322"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1777317600344"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1777318456322"></script>
 </body>
 </html>
