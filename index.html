@@ -81,7 +81,7 @@
     </div>
 
     <div class="section-title">Multi-Year Sale Schedule</div>
-    <p class="subtitle">Optional per-year overrides. Leave a year blank to roll forward the year-1 base. Loss rate is the Brooklyn short-term loss generated as % of invested capital that year.</p>
+    <p class="subtitle">Optional per-year overrides. Leave a year blank to roll forward the year-1 base. Loss rate is the Brooklyn short-term loss generated as % of invested capital that year. Defaults are loaded from js/01-brooklyn/defaults.js.</p>
     <div class="input-grid">
       <div class="input-group" style="grid-column: 1 / -1;">
         <button type="button" id="build-year-schedule" class="btn-secondary">Build / Refresh Year Schedule</button>
@@ -164,5 +164,8 @@
   <script src="js/04-ui/inputs-collector.js"></script>
   <script src="js/04-ui/controls.js"></script>
   <script src="js/04-ui/projection-render.js"></script>
+
+  <!-- Load defaults LAST so the auto-populate hook runs after controls.js wires the build button -->
+  <script src="js/01-brooklyn/defaults.js"></script>
 </body>
 </html>
