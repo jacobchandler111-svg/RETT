@@ -45,6 +45,19 @@ function _sumIncomeSources() {
       return sum;
 }
 
+function _buildPerYearArray(field, year1Base) {
+    // Always include Year 1 at index 0 from base inputs.
+    // Then read Year 2..N from #future-years-host (blank => fall through to Year-1 base).
+    const out = [year1Base || 0];
+    const rows = document.querySelectorAll('#future-years-host .year-row');
+    rows.forEach(r => {
+        const inp = r.querySelector('[data-field="' + field + '"]');
+        const raw = inp ? inp.value.trim() : '';
+        out.push(raw === '' ? (year1Base || 0) : parseUSD(raw));
+    });
+    return out;
+}
+
 function collectInputs() {
       const horizon = parseInt(_val('projection-years'), 10) || 5;
       const year1   = parseInt(_val('year1'), 10) || (new Date()).getFullYear();
@@ -62,10 +75,12 @@ function collectInputs() {
                 baseLongTermGain:    parseUSD(_val('long-term-gain')),
                 // Per-year overrides (optional - leave blank to use the year-1
                 // base values for every projected year).
-                ordinaryByYear:      _arrayFromRows('.year-row', 'ordinary'),
-                shortGainByYear:     _arrayFromRows('.year-row', 'short-gain'),
-                longGainByYear:      _arrayFromRows('.year-row', 'long-gain'),
-                lossRateByYear:      _arrayPctFromRows('.year-row', 'loss-rate')
+                // Per-year arrays: index 0 = Year 1 (uses base inputs), index 1+ = Year 2+
+                // from #future-years-host. Empty future-year inputs fall through to Year-1 base.
+                ordinaryByYear:    _buildPerYearArray('ordinary',   _sumIncomeSources()),
+                shortGainByYear:   _buildPerYearArray('short-gain', parseUSD(_val('short-term-gain'))),
+                longGainByYear:    _buildPerYearArray('long-gain',  parseUSD(_val('long-term-gain'))),
+                lossRateByYear:    _arrayPctFromRows('#future-years-host .year-row', 'loss-rate')
       };
       return cfg;
 }
