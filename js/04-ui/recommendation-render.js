@@ -167,27 +167,40 @@
     var result = root.recommendSale(inputs);
     renderRecommendation(result);
 
-    // Compute and stash tax comparison for the Allocator tab and rec-panel summary.
+    // Compute tax comparison: needs the multi-year cfg shape (year1/horizon/
+    // filingStatus/state/baseOrdinaryIncome) plus the loss/gain from result.
     try {
-      var comparison = computeTaxComparison(inputs, result);
-      window.__lastComparison = comparison;
-      var panel = document.getElementById('recommendation-panel');
-      if (panel && comparison) {
-        var summary = document.createElement('div');
-        summary.className = 'tax-savings-summary';
-        summary.style.marginTop = '16px';
-        summary.style.padding = '12px';
-        summary.style.background = '#0f4c81';
-        summary.style.borderRadius = '6px';
-        summary.innerHTML = '<strong>Estimated Tax Savings:</strong> $' +
-              Math.round(comparison.totalSavings).toLocaleString() +
-              ' over ' + comparison.rows.length + ' year(s).' +
-              ' &nbsp;<span style="opacity:0.85">See full breakdown on the Brooklyn Allocator tab.</span>';
-        panel.appendChild(summary);
+      var multiCfg = (typeof collectInputs === 'function') ? collectInputs() : null;
+      if (multiCfg) {
+        // Synthesize a normalized recommendation shape the comparison expects:
+        //   { recommendation, longTermGain, lossGenerated, schedule? }
+        var lossGen = (result.summary && result.summary.loss) || (result.stage1 && result.stage1.loss) || 0;
+        var normRec = {
+              recommendation: result.recommendation,
+              longTermGain: result.longTermGain || 0,
+              lossGenerated: lossGen,
+              schedule: result.stage2 && (result.stage2.schedule || result.stage2.years) ? (result.stage2.schedule || result.stage2.years) : null
+        };
+        var comparison = computeTaxComparison(multiCfg, normRec);
+        window.__lastComparison = comparison;
+        var panel = document.getElementById('recommendation-panel');
+        if (panel && comparison) {
+          var summary = document.createElement('div');
+          summary.className = 'tax-savings-summary';
+          summary.style.marginTop = '16px';
+          summary.style.padding = '12px';
+          summary.style.background = '#0f4c81';
+          summary.style.borderRadius = '6px';
+          summary.innerHTML = '<strong>Estimated Tax Savings:</strong> $' +
+                Math.round(comparison.totalSavings).toLocaleString() +
+                ' over ' + comparison.rows.length + ' year(s).' +
+                ' &nbsp;<span style="opacity:0.85">See full breakdown on the Brooklyn Allocator tab.</span>';
+          panel.appendChild(summary);
+        }
+        var allocHost = document.getElementById('tax-comparison-host');
+        if (allocHost) renderTaxComparison(allocHost, comparison);
       }
-      var allocHost = document.getElementById('tax-comparison-host');
-      if (allocHost) renderTaxComparison(allocHost, comparison);
-    } catch(e) { console.warn('Tax comparison failed:', e && e.message); }
+    } catch(e) { console.warn('Tax comparison failed:', e && e.message, e && e.stack); }
 
     return result;
   }
