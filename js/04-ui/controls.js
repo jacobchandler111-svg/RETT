@@ -50,6 +50,43 @@ function _yearSchedule(cfg) {
       }
 }
 
+// Render Year-2..Year-N future income override rows on the Client Inputs page.
+// Each row writes to data-field attributes that collectInputs() reads via
+// _arrayFromRows('.year-row', ...). Empty inputs fall through to year-1 base values.
+// These rows are written to #future-years-host (separate from #year-schedule).
+function _buildFutureYearsUI() {
+    const host = document.getElementById('future-years-host');
+    if (!host) return;
+    const horizon = parseInt((document.getElementById('projection-years') || {}).value, 10) || 5;
+    const year1   = parseInt((document.getElementById('year1') || {}).value, 10) || (new Date()).getFullYear();
+    // Preserve existing values when re-rendering
+    const existing = {};
+    host.querySelectorAll('.year-row').forEach(r => {
+        const y = parseInt(r.getAttribute('data-year'), 10);
+        if (!Number.isFinite(y)) return;
+        existing[y] = {};
+        r.querySelectorAll('input[data-field]').forEach(inp => {
+            existing[y][inp.getAttribute('data-field')] = inp.value;
+        });
+    });
+    host.innerHTML = '';
+    // Years 2..horizon (Year 1 already entered above as the 'Income Sources' block)
+    for (let i = 1; i < horizon; i++) {
+        const yr = year1 + i;
+        const prev = existing[yr] || {};
+        const row = document.createElement('div');
+        row.className = 'year-row';
+        row.setAttribute('data-year', yr);
+        row.innerHTML =
+            '<span class="yr-label">Year ' + (i + 1) + ' (' + yr + ')</span>' +
+            '<input data-field="ordinary"   type="text" placeholder="Ordinary income" value="' + (prev.ordinary || '') + '" />' +
+            '<input data-field="short-gain" type="text" placeholder="Short-term gain"  value="' + (prev['short-gain'] || '') + '" />' +
+            '<input data-field="long-gain"  type="text" placeholder="Long-term gain"   value="' + (prev['long-gain'] || '') + '" />';
+        host.appendChild(row);
+    }
+}
+
+
 async function runProjection() {
       if (!isTaxDataLoaded()) {
                 try { await loadTaxData(); }
@@ -102,7 +139,18 @@ function bindControls() {
         if (recBtn) recBtn.click();
       });
 
-      showPage('page-inputs');
+  
+    // Re-render Future Year Estimates rows whenever horizon, year1, or details panel toggles
+    const projYrsSel = document.getElementById('projection-years');
+    if (projYrsSel) projYrsSel.addEventListener('change', _buildFutureYearsUI);
+    const year1Inp = document.getElementById('year1');
+    if (year1Inp) year1Inp.addEventListener('change', _buildFutureYearsUI);
+    const futureDetails = document.getElementById('future-years-details');
+    if (futureDetails) futureDetails.addEventListener('toggle', () => { if (futureDetails.open) _buildFutureYearsUI(); });
+    // Also build once on initial load so values persist if user opens the panel later
+    _buildFutureYearsUI();
+
+        showPage('page-inputs');
 }
 
 document.addEventListener('DOMContentLoaded', bindControls);
