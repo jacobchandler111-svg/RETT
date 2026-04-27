@@ -4,6 +4,10 @@
 // shortGainByYear, longGainByYear, lossRateByYear) are pulled from
 // repeated input rows when present so the user can structure a
 // multi-year sale.
+//
+// Year-1 baseOrdinaryIncome is the sum of the granular income inputs:
+//   W-2 wages + self-employment + business + rental + dividend + retirement.
+// (Capital gains are tracked separately.)
 
 function _val(id) {
       const el = document.getElementById(id);
@@ -12,26 +16,37 @@ function _val(id) {
 
 function _arrayFromRows(rowSelector, fieldName) {
       const rows = document.querySelectorAll(rowSelector);
-      const out  = [];
+      const out = [];
       rows.forEach(r => {
-                const el = r.querySelector('[data-field="' + fieldName + '"]');
-                if (el && el.value !== '') out.push(parseUSD(el.value));
+            const inp = r.querySelector('[data-field="' + fieldName + '"]');
+            if (inp) out.push(parseUSD(inp.value));
       });
       return out.length ? out : null;
 }
 
 function _arrayPctFromRows(rowSelector, fieldName) {
       const rows = document.querySelectorAll(rowSelector);
-      const out  = [];
+      const out = [];
       rows.forEach(r => {
-                const el = r.querySelector('[data-field="' + fieldName + '"]');
-                if (el && el.value !== '') out.push(parsePct(el.value));
+            const inp = r.querySelector('[data-field="' + fieldName + '"]');
+            if (inp) out.push(parseFloat(inp.value) / 100);
       });
       return out.length ? out : null;
 }
 
+function _sumIncomeSources() {
+      const ids = ['w2-wages', 'se-income', 'biz-revenue', 'rental-income',
+                   'dividend-income', 'retirement-distributions'];
+      let sum = 0;
+      for (const id of ids) {
+            const v = parseUSD(_val(id));
+            if (v) sum += v;
+      }
+      return sum;
+}
+
 function collectInputs() {
-      const horizon = parseInt(_val('horizon-years'), 10) || 5;
+      const horizon = parseInt(_val('projection-years'), 10) || 5;
       const year1   = parseInt(_val('year1'), 10) || (new Date()).getFullYear();
       const cfg = {
                 year1:               year1,
@@ -39,10 +54,10 @@ function collectInputs() {
                 filingStatus:        _val('filing-status') || 'single',
                 state:               _val('state-code')    || 'NONE',
                 availableCapital:    parseUSD(_val('available-capital')),
-                investment:          parseUSD(_val('investment')),
-                tierKey:             _val('tier-key')      || 'beta1',
+                investment:          parseUSD(_val('invested-capital')),
+                tierKey:             _val('strategy-select') || 'beta1',
                 leverage:            parseFloat(_val('leverage')) || 1,
-                baseOrdinaryIncome:  parseUSD(_val('ordinary-income')),
+                baseOrdinaryIncome:  _sumIncomeSources(),
                 baseShortTermGain:   parseUSD(_val('short-term-gain')),
                 baseLongTermGain:    parseUSD(_val('long-term-gain')),
                 // Per-year overrides (optional - leave blank to use the year-1
