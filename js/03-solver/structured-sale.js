@@ -132,10 +132,22 @@
       });
     }
     var rec = { recommendation: 'multi-year', schedule: schedule, years: horizon };
-    var cmp = root.computeTaxComparison(
-      Object.assign({}, cfg, { horizonYears: horizon }),
-      rec
-    );
+    // Ensure cfg has the keys that computeTaxComparison requires.
+    // year1 defaults to the implementation-date year if available, else
+    // the current calendar year.
+    var defaultYear1 = (function () {
+      if (cfg && cfg.year1) return Number(cfg.year1);
+      if (cfg && cfg.implementationDate) {
+        var m = String(cfg.implementationDate).match(/^(\d{4})/);
+        if (m) return Number(m[1]);
+      }
+      return new Date().getFullYear();
+    })();
+    var scoreCfg = Object.assign({}, cfg, {
+      horizonYears: horizon,
+      year1: defaultYear1
+    });
+    var cmp = root.computeTaxComparison(scoreCfg, rec);
     return {
       totalWithStrategy: cmp.totalWithStrategy,
       totalBaseline: cmp.totalBaseline,
