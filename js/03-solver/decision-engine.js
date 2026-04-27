@@ -1,31 +1,24 @@
 // js/03-solver/decision-engine.js
 // Two-stage decision tree with partial-year time-weighting and accelerated
-// depreciation recapture, plus optional variable-leverage refinement.
+// depreciation recapture, plus variable-leverage refinement.
+//
+// Priority within Stage 1:
+//   1. manual override (user pinned a specific shortPct on the slider)
+//   2. variable solver result if useVariableLeverage is on (preferred:
+//      always uses leverage <= the matching preset)
+//   3. preset solver result
 //
 // Inputs:
 //   {
-//     salePrice, costBasis,                    // basis-only gain
-//     acceleratedDepreciation,                 // recaptured at ordinary
+//     salePrice, costBasis,
+//     acceleratedDepreciation,
 //     implementationDate,                      // YYYY-MM-DD
 //     strategyKey,                             // beta1 | beta0 | beta05 | advisorManaged
-//     investedCapital,                         // dollars allocated
-//     leverageCap,                             // max preset leverage to try
-//     years,                                   // multi-year horizon if needed
+//     investedCapital,
+//     leverageCap,
+//     years,
 //     useVariableLeverage,                     // boolean (default true)
 //     manualVariableShortPct                   // optional integer override
-//   }
-//
-// Output:
-//   {
-//     longTermGain, recapture, gain,
-//     yearFraction,
-//     stage1:        {...}    // preset solve result
-//     stage1Variable:{...}    // variable solve result (if enabled)
-//     stage1RecommendsSingleYear,
-//     stage1Source,           // "preset" | "variable" | null
-//     stage2:        {...}    // multi-year solve (only if stage1 fails both)
-//     recommendation,
-//     summary
 //   }
 
 (function (root) {
@@ -59,7 +52,6 @@
       investedCapital: investedCapital,
       yearFraction: yf
     });
-    // honour leverageCap for the preset stage
     if (stage1.ok && stage1.leverage > leverageCap) {
       stage1 = Object.assign({}, stage1, { ok: false, capped: true });
     }
@@ -73,15 +65,12 @@
         investedCapital: investedCapital,
         yearFraction: yf
       });
-      // honour leverageCap on the variable point too
       if (stage1Variable.ok && stage1Variable.leverage > leverageCap) {
         stage1Variable = Object.assign({}, stage1Variable, { ok: false, capped: true });
       }
     }
 
-    // Manual override: if the caller pinned a specific shortPct, look it
-    // up and treat that as the chosen variable point regardless of
-    // automatic selection.
+    // Manual override
     var manualPoint = null;
     if (manualShort != null && typeof root.lookupVariable === 'function') {
       var pt = root.lookupVariable(strategyKey, manualShort);
@@ -90,7 +79,7 @@
         var loss = investedCapital * weightedRate;
         manualPoint = {
           mode: 'manual-variable',
-          ok: loss >= gainToOffset && gainToOffset > 0,
+          ok: loss >= gainToOffset && gainToOffset > 0 && pt.leverage <= leverageCap,
           point: pt,
           loss: loss,
           fees: investedCapital * pt.feeRate,
@@ -101,18 +90,17 @@
       }
     }
 
-    // Choose source: preset takes precedence (cheaper labelled tier),
-    // then variable, then manual override (only if user pinned it).
+    // Choose source: manual > variable (lower leverage) > preset.
     var stage1Source = null;
     var stage1RecommendsSingleYear = false;
     if (manualShort != null && manualPoint && manualPoint.ok) {
       stage1Source = 'manual-variable';
       stage1RecommendsSingleYear = true;
-    } else if (stage1 && stage1.ok) {
-      stage1Source = 'preset';
-      stage1RecommendsSingleYear = true;
     } else if (stage1Variable && stage1Variable.ok) {
       stage1Source = 'variable';
+      stage1RecommendsSingleYear = true;
+    } else if (stage1 && stage1.ok) {
+      stage1Source = 'preset';
       stage1RecommendsSingleYear = true;
     }
 
@@ -120,6 +108,7 @@
     if (!stage1RecommendsSingleYear) {
       stage2 = root.solveMultiYear({
         strategyKey: strategyKey,
+        totalGain: gainToOffset,
         gain: gainToOffset,
         investedCapital: investedCapital,
         leverageCap: leverageCap,
@@ -131,9 +120,9 @@
     var recommendation = stage1RecommendsSingleYear ? 'single-year' : 'multi-year';
     var summary;
     if (stage1RecommendsSingleYear) {
-      var chosen = (stage1Source === 'preset') ? stage1
-                 : (stage1Source === 'variable') ? stage1Variable
-                 : manualPoint;
+      var chosen = (stage1Source === 'preset')           ? stage1
+                  : (stage1Source === 'variable')        ? stage1Variable
+                  :                                        manualPoint;
       summary = {
         source: stage1Source,
         leverage: chosen.leverage,
@@ -151,7 +140,7 @@
         yearFraction: yf
       };
     } else {
-      summary = stage2 && stage2.summary ? stage2.summary : (stage2 || {});
+      summary = stage2 || {};
     }
 
     return {
