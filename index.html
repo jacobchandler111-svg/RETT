@@ -21,7 +21,7 @@
   <!-- ============ PAGE: CLIENT INPUTS ============ -->
   <div id="page-inputs" class="page active">
     <h2>Client Financial Inputs</h2>
-    <p class="subtitle">Step 1: enter the property sale details. The decision engine first checks whether a single-year Brooklyn wipeout is feasible at or below your leverage cap; if not, it falls through to a multi-year structured-sale schedule.</p>
+    <p class="subtitle">Step 1: enter the property sale details and the strategy implementation date. Brooklyn loss generation is time-weighted by the fraction of year-1 remaining after implementation. The decision engine first checks single-year wipeout; if not feasible at your leverage cap it falls through to a multi-year structured-sale plan.</p>
 
     <div class="section-title">Property Sale</div>
     <div class="input-grid">
@@ -34,8 +34,28 @@
         <input type="number" id="cost-basis" placeholder="e.g. 5000000" step="1">
       </div>
       <div class="input-group">
-        <label>Long-Term Gain ($) <span class="muted">(auto-computed)</span></label>
+        <label>Accelerated Depreciation Taken ($)</label>
+        <input type="number" id="accelerated-depreciation" placeholder="e.g. 1000000" step="1">
+      </div>
+      <div class="input-group">
+        <label>Long-Term Gain ($) <span class="muted">(auto)</span></label>
         <input type="text" id="computed-gain" readonly placeholder="0">
+      </div>
+      <div class="input-group">
+        <label>Total Taxable to Offset ($) <span class="muted">(gain + recapture, auto)</span></label>
+        <input type="text" id="computed-total-taxable" readonly placeholder="0">
+      </div>
+    </div>
+
+    <div class="section-title">Implementation Timing</div>
+    <div class="input-grid">
+      <div class="input-group">
+        <label>Strategy Implementation Date</label>
+        <input type="date" id="implementation-date">
+      </div>
+      <div class="input-group">
+        <label>Year-1 Fraction Remaining <span class="muted">(auto)</span></label>
+        <input type="text" id="year-fraction-remaining" readonly placeholder="(enter date)">
       </div>
       <div class="input-group">
         <label>Maximum Acceptable Leverage</label>
@@ -46,6 +66,14 @@
           <option value="1.00" selected>200/100</option>
           <option value="1.50">250/150</option>
           <option value="2.25">325/225</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <label>Distribution (multi-year fallback)</label>
+        <select id="distribution">
+          <option value="even" selected>Even (pro-rata by capacity)</option>
+          <option value="front">Front-loaded</option>
+          <option value="back">Back-loaded</option>
         </select>
       </div>
     </div>
@@ -91,7 +119,7 @@
     </div>
 
     <div class="section-title">Year 1 Income (Base, ex-property)</div>
-    <p class="subtitle">Ordinary income excludes the property gain. Short/long gain fields here are for OTHER capital activity outside the property sale; the property gain comes from the section above.</p>
+    <p class="subtitle">Income excluding the property sale and depreciation recapture above.</p>
     <div class="input-grid">
       <div class="input-group">
         <label>Ordinary Income (W-2 + SE + non-qualified divs + interest)</label>
@@ -130,18 +158,10 @@
         <label>Beta-1 Allocation (%)</label>
         <input type="number" id="beta1" value="50" step="1" min="0" max="100">
       </div>
-      <div class="input-group">
-        <label>Distribution (multi-year fallback)</label>
-        <select id="distribution">
-          <option value="even" selected>Even across years</option>
-          <option value="front">Front-loaded</option>
-          <option value="back">Back-loaded</option>
-        </select>
-      </div>
     </div>
 
     <div class="section-title">Multi-Year Sale Schedule (advanced override)</div>
-    <p class="subtitle">Optional. If the multi-year solver runs, it will populate this schedule. You can also override values manually here.</p>
+    <p class="subtitle">Optional. The decision engine populates this when a multi-year structured sale is recommended; you can override values manually here.</p>
     <div class="input-grid">
       <div class="input-group" style="grid-column: 1 / -1;">
         <button type="button" id="build-year-schedule" class="btn-secondary">Build / Refresh Year Schedule</button>
@@ -173,6 +193,7 @@
   <!-- ============ Subsystem load order: 01 -> 02 -> 03 -> 05 -> 04 ============ -->
   <script src="js/01-brooklyn/brooklyn-data.js"></script>
   <script src="js/01-brooklyn/date-utils.js"></script>
+  <script src="js/01-brooklyn/time-weight.js"></script>
   <script src="js/01-brooklyn/brooklyn-interpolation.js"></script>
 
   <script src="js/02-tax-engine/tax-data.js"></script>
