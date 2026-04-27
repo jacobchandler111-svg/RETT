@@ -142,3 +142,61 @@ function computeFederalTax(ordinaryIncome, year, status, opts) {
 
     return ordinaryTax + ltTax + amtTopUp + niit + addlMed;
 }
+
+
+function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
+      opts = opts || {};
+      const longTermGain      = Math.max(0, opts.longTermGain || 0);
+      const qualifiedDividend = Math.max(0, opts.qualifiedDividend || 0);
+      const investmentIncome  = Math.max(0, opts.investmentIncome != null
+                                          ? opts.investmentIncome : (longTermGain + qualifiedDividend));
+      const wages             = Math.max(0, opts.wages != null ? opts.wages : ordinaryIncome);
+      const itemized          = Math.max(0, opts.itemized || 0);
+
+      const stdDed   = getFederalStandardDeduction(year, status);
+      const ordBrk   = getFederalBrackets(year, status);
+      const ltBrk    = getFederalLTCGBrackets(year, status);
+
+      const deduction = Math.max(stdDed, itemized);
+      const taxableOrdinary = Math.max(0, ordinaryIncome - deduction);
+
+      const ordinaryTax = _flatBracketTax(taxableOrdinary, ordBrk);
+
+      let ltTax = 0;
+      const ltAmount = longTermGain + qualifiedDividend;
+      if (ltAmount > 0 && ltBrk && ltBrk.length) {
+            let remaining = ltAmount;
+            let stackBase = taxableOrdinary;
+            let prevMax = 0;
+            for (const b of ltBrk) {
+                  const cap = b[0], rate = b[1];
+                  if (remaining <= 0) break;
+                  const slabRoom = Math.max(0, cap - Math.max(stackBase, prevMax));
+                  if (slabRoom <= 0) { prevMax = cap; continue; }
+                  const slabUse = Math.min(slabRoom, remaining);
+                  ltTax    += slabUse * rate;
+                  remaining -= slabUse;
+                  stackBase += slabUse;
+                  prevMax = cap;
+            }
+      }
+
+      const amti      = taxableOrdinary + ltAmount;
+      const amt       = _computeAmt(amti, year, status);
+      const amtTopUp  = Math.max(0, amt - (ordinaryTax + ltTax));
+
+      const magi = ordinaryIncome + ltAmount;
+      const niit = _computeNiit(investmentIncome, magi, year, status);
+
+      const addlMed = _computeAddlMedicare(wages, status);
+
+      const total = ordinaryTax + ltTax + amtTopUp + niit + addlMed;
+      return {
+            ordinaryTax: ordinaryTax,
+            ltTax: ltTax,
+            amtTopUp: amtTopUp,
+            niit: niit,
+            addlMedicare: addlMed,
+            total: total
+      };
+}
