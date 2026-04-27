@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>RETT - Brooklyn Multi-Year Projector</title>
+    <link rel="stylesheet" href="css/styles.css">
+  </head>
+<body>
+    <div class="header">
+          <h1>RETT</h1>
+        <h2>Brooklyn Multi-Year Tax Strategy Projector</h2>
+    </div>div>
+
+  <div class="nav">
+      <div class="nav-tab active" onclick="showPage('page1')">1. Client Inputs</div>div>
+      <div class="nav-tab" onclick="showPage('page2')">2. Brooklyn Configuration</div>div>
+      <div class="nav-tab" onclick="showPage('page3')">3. Multi-Year Projection</div>div>
+  </div>div>
+
+  <!-- PAGE 1: CLIENT INPUTS -->
+  <div id="page1" class="page active">
+      <h2>Client Financial Inputs</h2>
+      <p class="subtitle">Year 1 (current year) inputs. Subsequent years are projected by the engine.</p>p>
+  
+      <div class="section-title">Filing Information</div>div>
+      <div class="input-grid">
+            <div class="input-group">
+                    <label>Starting Tax Year</label>
+                    <select id="starting_year">
+                              <option value="2026" selected>2026</option>option>
+                              <option value="2025">2025</option>option>
+                    </select>select>
+            </div>div>
+            <div class="input-group">
+                    <label>Filing Status</label>
+                    <select id="filing_status">
+                              <option value="single">Single</option>option>
+                              <option value="mfj" selected>Married Filing Jointly</option>option>
+                              <option value="mfs">Married Filing Separately</option>option>
+                              <option value="hoh">Head of Household</option>option>
+                    </select>select>
+            </div>div>
+            <div class="input-group">
+                    <label>State</label>
+                    <select id="state"></select>select>
+            </div>div>
+            <div class="input-group">
+                    <label>Projection Horizon (years)</label>
+                    <select id="horizon_years">
+                              <option value="3">3 years</option>option>
+                              <option value="5" selected>5 years</option>option>
+                              <option value="7">7 years</option>option>
+                    </select>select>
+            </div>div>
+      </div>div>
+  
+      <div class="section-title">Year 1 Income</div>div>
+      <div class="input-grid">
+            <div class="input-group"><label>W-2 Wages</label><input type="text" id="w2_wages" placeholder="0"></div>div>
+            <div class="input-group"><label>Self-Employment Income</label><input type="text" id="se_income" placeholder="0"></div>div>
+            <div class="input-group"><label>Dividend Income (Qualified)</label><input type="text" id="qualified_div" placeholder="0"></div>div>
+            <div class="input-group"><label>Dividend Income (Ordinary)</label><input type="text" id="ordinary_div" placeholder="0"></div>div>
+      </div>div>
+  
+      <div class="section-title">Year 1 Capital Gains</div>div>
+      <div class="input-grid">
+            <div class="input-group"><label>Short-Term Capital Gains</label><input type="text" id="st_gains" placeholder="0"></div>div>
+            <div class="input-group"><label>Long-Term Capital Gains</label><input type="text" id="lt_gains" placeholder="0"></div>div>
+      </div>div>
+  
+      <div class="section-title">Annual Income Growth Assumptions</div>div>
+      <div class="input-grid">
+            <div class="input-group"><label>Wage / SE Growth (% per year)</label><input type="number" id="wage_growth" step="0.1" value="3.0"></div>div>
+            <div class="input-group"><label>Capital Gains Growth (% per year)</label><input type="number" id="gains_growth" step="0.1" value="0.0"></div>div>
+      </div>div>
+  
+      <div style="margin-top:30px;display:flex;gap:15px">
+            <button class="btn btn-primary" onclick="showPage('page2')">Continue to Brooklyn Configuration &rarr;</button>button>
+      </div>div>
+  </div>div>
+
+  <!-- PAGE 2: BROOKLYN CONFIGURATION -->
+  <div id="page2" class="page">
+      <h2>Brooklyn Configuration</h2>
+      <p class="subtitle">Choose a fund tier and leverage. The same allocation is rolled forward each year unless the engine adjusts for capital constraints.</p>p>
+  
+      <div class="section-title">Fund Selection</div>div>
+      <div class="input-grid">
+            <div class="input-group">
+                    <label>Beta Tier</label>
+                    <select id="beta_tier">
+                              <option value="beta1">Beta 1 (S&amp;P 500)</option>option>
+                              <option value="beta05">Beta 0.5 (CASH/S&amp;P 500)</option>option>
+                              <option value="beta0">Beta 0 (CASH)</option>option>
+                              <option value="advisorManaged">Advisor Managed</option>option>
+                    </select>select>
+            </div>div>
+            <div class="input-group">
+                    <label>Initial Investment ($)</label>
+                    <input type="text" id="initial_investment" placeholder="e.g. 1000000">
+            </div>div>
+            <div class="input-group">
+                    <label>Leverage Tier</label>
+                    <select id="leverage_tier">
+                              <option value="0">Long-Only</option>option>
+                              <option value="0.30">130/30</option>option>
+                              <option value="0.45">145/45</option>option>
+                              <option value="1.00" selected>200/100</option>option>
+                              <option value="1.50">250/150</option>option>
+                              <option value="2.25">325/225</option>option>
+                    </select>select>
+            </div>div>
+      </div>div>
+  
+      <div style="margin-top:30px;display:flex;gap:15px">
+            <button class="btn btn-secondary" onclick="showPage('page1')">&larr; Back</button>button>
+            <button class="btn btn-primary" onclick="runProjection()">Run Multi-Year Projection &rarr;</button>button>
+      </div>div>
+  </div>div>
+
+  <!-- PAGE 3: MULTI-YEAR PROJECTION -->
+  <div id="page3" class="page">
+      <h2>Multi-Year Projection</h2>
+      <div id="projection-output"></div>div>
+  </div>div>
+
+  <!-- Subsystem load order: 01 -> 02 -> 03 -> 05 -> 04 -->
+  <script src="js/01-brooklyn/brooklyn-data.js"></script>
+  <script src="js/01-brooklyn/date-utils.js"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js"></script>
+
+  <script src="js/02-tax-engine/tax-data.js"></script>
+  <script src="js/02-tax-engine/tax-loader.js"></script>
+  <script src="js/02-tax-engine/tax-lookups.js"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js"></script>
+  <script src="js/02-tax-engine/tax-baseline.js"></script>
+
+  <script src="js/03-solver/fees.js"></script>
+  <script src="js/03-solver/brooklyn-allocator.js"></script>
+
+  <script src="js/05-projections/bracket-projector.js"></script>
+  <script src="js/05-projections/carryforward-tracker.js"></script>
+  <script src="js/05-projections/projection-engine.js"></script>
+
+  <script src="js/04-ui/format-helpers.js"></script>
+  <script src="js/04-ui/inputs-collector.js"></script>
+  <script src="js/04-ui/controls.js"></script>
+  <script src="js/04-ui/projection-render.js"></script>
+</body>
+</html>html>
+</label></label></h2></h1>
+</body></title>
+  </head>
