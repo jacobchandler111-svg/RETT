@@ -6,16 +6,13 @@
 // Years 2..N capacity = invested * lossRate(cap)              (full year)
 //
 // Accepts `totalGain` (preferred) or `gain` (alias) as the dollars to
-// distribute. Outputs both raw fields and aliases consumed by the
-// decision-engine / UI layer (`years`, `leverageUsed`, `leverageLabel`,
-// `totalLossNeeded`, `totalFees`).
+// distribute. Reports leverageUsed as the EFFECTIVE leverage (clamped
+// to the strategy's max tier), not the raw cap value.
 
 (function (root) {
   'use strict';
 
   function invertLossRate(strategyKey, requiredRate) {
-    // Walk fine 1% increments and find the lowest leverage tier whose
-    // lossRate >= requiredRate. Falls back to max if none satisfy.
     var bounds = (typeof root.getStrategyBounds === 'function')
       ? root.getStrategyBounds(strategyKey)
       : { minShort: 0, maxShort: 225 };
@@ -30,6 +27,17 @@
     return { leverage: maxLev, info: root.brooklynInterpolate(strategyKey, maxLev) };
   }
 
+  function effectiveLeverage(strategyKey, requestedCap) {
+    // Clamp the requested cap to the strategy's actual max leverage.
+    var bounds = (typeof root.getStrategyBounds === 'function')
+      ? root.getStrategyBounds(strategyKey)
+      : { minLeverage: 0, maxLeverage: 2.25 };
+    if (!bounds) return requestedCap;
+    if (requestedCap > bounds.maxLeverage) return bounds.maxLeverage;
+    if (requestedCap < bounds.minLeverage) return bounds.minLeverage;
+    return requestedCap;
+  }
+
   function solveMultiYear(opts) {
     opts = opts || {};
     var strategyKey      = opts.strategyKey || 'beta1';
@@ -37,7 +45,7 @@
                           : (opts.gain != null)     ? Number(opts.gain)
                           : 0;
     var investedCapital  = Number(opts.investedCapital) || 0;
-    var leverageCap      = (opts.leverageCap != null) ? Number(opts.leverageCap) : 2.25;
+    var requestedCap     = (opts.leverageCap != null) ? Number(opts.leverageCap) : 2.25;
     var horizon          = Number(opts.years) || 5;
     var yfYear1          = (opts.yearFractionYear1 != null) ? Number(opts.yearFractionYear1)
                           : (opts.yearFraction != null)     ? Number(opts.yearFraction)
@@ -46,9 +54,12 @@
     if (yfYear1 > 1) yfYear1 = 1;
     var distribution     = opts.distribution || 'capacity';
 
+    var leverageCap = effectiveLeverage(strategyKey, requestedCap);
+
     if (totalGain <= 0) {
       return {
         feasible: true,
+        recommendation: 'no-action',
         years: 0, yearsUsed: 0, yearsNeeded: 0,
         gainByYear: new Array(horizon).fill(0),
         lossByYear: new Array(horizon).fill(0),
@@ -56,6 +67,7 @@
         leverageByYear: new Array(horizon).fill(null),
         capLossRate: 0,
         leverageUsed: 0,
+        leverageRequested: requestedCap,
         leverageLabel: null,
         annualCap: 0,
         totalLossNeeded: 0,
@@ -75,7 +87,6 @@
       return { feasible: false, error: 'cap leverage produces zero loss' };
     }
 
-    // Per-year loss capacity. Year 1 is partial; years 2..N full.
     var capByYear = [];
     for (var i = 0; i < horizon; i++) {
       capByYear.push(i === 0 ? annualCap * yfYear1 : annualCap);
@@ -90,7 +101,6 @@
     var yearsUsed = 0;
 
     if (distribution === 'front') {
-      // fill year 1 to capacity, then year 2, etc., until gain is absorbed
       var remaining = totalGain;
       for (var i2 = 0; i2 < horizon && remaining > 0; i2++) {
         var take = Math.min(capByYear[i2], remaining);
@@ -109,10 +119,6 @@
         yearsUsed = horizon - i3;
       }
     } else {
-      // 'capacity' (default): pro-rata by per-year capacity. If capacity
-      // covers the gain, each year gets gainByYear = capByYear * (gain /
-      // totalCapacity). Otherwise we distribute first by capacity, then
-      // overflow goes nowhere (shortfall flagged).
       var fillable = Math.min(totalGain, totalCapacity);
       for (var i4 = 0; i4 < horizon; i4++) {
         gainByYear[i4] = capByYear[i4] * (fillable / totalCapacity);
@@ -121,11 +127,8 @@
       yearsUsed = horizon;
     }
 
-    // Per-year required loss rate (loss / invested); look up the variable
-    // leverage point that delivers it and record its leverage.
     for (var i5 = 0; i5 < horizon; i5++) {
       var reqRate = lossByYear[i5] / Math.max(1, investedCapital);
-      // for year 1 we have to back out the partial-year scaling
       if (i5 === 0 && yfYear1 > 0) reqRate = reqRate / yfYear1;
       var hit = invertLossRate(strategyKey, reqRate);
       leverageByYear[i5] = hit ? hit.leverage : null;
@@ -136,6 +139,7 @@
 
     return {
       feasible: feasibleWithinHorizon,
+      recommendation: feasibleWithinHorizon ? 'multi-year' : 'multi-year-shortfall',
       years: yearsUsed,
       yearsUsed: yearsUsed,
       yearsNeeded: feasibleWithinHorizon ? yearsUsed : horizon,
@@ -145,6 +149,7 @@
       leverageByYear: leverageByYear,
       capLossRate: info.lossRate,
       leverageUsed: leverageCap,
+      leverageRequested: requestedCap,
       leverageLabel: info.label || null,
       annualCap: annualCap,
       totalLossNeeded: totalLossNeeded,
