@@ -21,65 +21,17 @@
   <!-- ============ PAGE: CLIENT INPUTS ============ -->
   <div id="page-inputs" class="page active">
     <h2>Client Financial Inputs</h2>
-    <p class="subtitle">Step 1: enter the property sale details and the strategy implementation date. Brooklyn loss generation is time-weighted by the fraction of year-1 remaining after implementation. The decision engine first checks single-year wipeout; if not feasible at your leverage cap it falls through to a multi-year structured-sale plan.</p>
-
-    <div class="section-title">Property Sale</div>
-    <div class="input-grid">
-      <div class="input-group">
-        <label>Sale Price ($)</label>
-        <input type="number" id="sale-price" placeholder="e.g. 10000000" step="1">
-      </div>
-      <div class="input-group">
-        <label>Cost Basis ($)</label>
-        <input type="number" id="cost-basis" placeholder="e.g. 5000000" step="1">
-      </div>
-      <div class="input-group">
-        <label>Accelerated Depreciation Taken ($)</label>
-        <input type="number" id="accelerated-depreciation" placeholder="e.g. 1000000" step="1">
-      </div>
-      <div class="input-group">
-        <label>Long-Term Gain ($) <span class="muted">(auto)</span></label>
-        <input type="text" id="computed-gain" readonly placeholder="0">
-      </div>
-      <div class="input-group">
-        <label>Total Taxable to Offset ($) <span class="muted">(gain + recapture, auto)</span></label>
-        <input type="text" id="computed-total-taxable" readonly placeholder="0">
-      </div>
-    </div>
-
-    <div class="section-title">Implementation Timing</div>
-    <div class="input-grid">
-      <div class="input-group">
-        <label>Strategy Implementation Date</label>
-        <input type="date" id="implementation-date">
-      </div>
-      <div class="input-group">
-        <label>Year-1 Fraction Remaining <span class="muted">(auto)</span></label>
-        <input type="text" id="year-fraction-remaining" readonly placeholder="(enter date)">
-      </div>
-      <div class="input-group">
-        <label>Maximum Acceptable Leverage</label>
-        <select id="leverage-cap">
-          <option value="0">Long-Only (no leverage)</option>
-          <option value="0.30">130/30</option>
-          <option value="0.45">145/45</option>
-          <option value="1.00" selected>200/100</option>
-          <option value="1.50">250/150</option>
-          <option value="2.25">325/225</option>
-        </select>
-      </div>
-      <div class="input-group">
-        <label>Distribution (multi-year fallback)</label>
-        <select id="distribution">
-          <option value="even" selected>Even (pro-rata by capacity)</option>
-          <option value="front">Front-loaded</option>
-          <option value="back">Back-loaded</option>
-        </select>
-      </div>
-    </div>
+    <p class="subtitle">Enter financial details for accurate strategy calculations. Brooklyn loss generation is time-weighted by the strategy implementation date in the background.</p>
 
     <div class="section-title">Filing Information</div>
     <div class="input-grid">
+      <div class="input-group">
+        <label>Tax Year</label>
+        <select id="year1">
+          <option value="2026" selected>2026</option>
+          <option value="2025">2025</option>
+        </select>
+      </div>
       <div class="input-group">
         <label>Filing Status</label>
         <select id="filing-status">
@@ -105,10 +57,6 @@
         </select>
       </div>
       <div class="input-group">
-        <label>Year 1 (Base Year)</label>
-        <input type="number" id="year1" value="2025" min="2025" max="2035">
-      </div>
-      <div class="input-group">
         <label>Projection Horizon (years)</label>
         <select id="projection-years">
           <option value="3">3 years</option>
@@ -118,20 +66,67 @@
       </div>
     </div>
 
-    <div class="section-title">Year 1 Income (Base, ex-property)</div>
-    <p class="subtitle">Income excluding the property sale and depreciation recapture above.</p>
+    <div class="section-title">Income Sources (Year 1, ex-property)</div>
+    <p class="subtitle">Annual income excluding the property sale and depreciation recapture entered below.</p>
+    <div class="input-grid">
+      <div class="input-group"><label>W-2 Wages ($)</label><input type="number" id="w2-wages" placeholder="0" step="1"></div>
+      <div class="input-group"><label>Self-Employment Income ($)</label><input type="number" id="se-income" placeholder="0" step="1"></div>
+      <div class="input-group"><label>Business Income / Distributions ($)</label><input type="number" id="biz-revenue" placeholder="0" step="1"></div>
+      <div class="input-group"><label>Rental Income ($)</label><input type="number" id="rental-income" placeholder="0" step="1"></div>
+      <div class="input-group"><label>Dividend Income ($)</label><input type="number" id="dividend-income" placeholder="0" step="1"></div>
+      <div class="input-group"><label>Retirement Distributions ($)</label><input type="number" id="retirement-distributions" placeholder="0" step="1"></div>
+    </div>
+
+    <div class="section-title">Property Sale</div>
     <div class="input-grid">
       <div class="input-group">
-        <label>Ordinary Income (W-2 + SE + non-qualified divs + interest)</label>
-        <input type="number" id="ordinary-income" placeholder="0" step="1">
+        <label>Sale Price ($)</label>
+        <input type="number" id="sale-price" placeholder="e.g. 10000000" step="1">
       </div>
       <div class="input-group">
-        <label>Other Short-Term Capital Gain</label>
+        <label>Cost Basis ($)</label>
+        <input type="number" id="cost-basis" placeholder="e.g. 5000000" step="1">
+      </div>
+      <div class="input-group">
+        <label>Accelerated Depreciation Taken ($)</label>
+        <input type="number" id="accelerated-depreciation" placeholder="e.g. 1000000" step="1">
+      </div>
+      <div class="input-group">
+        <label>Long-Term Capital Gain ($) <span class="muted">(auto)</span></label>
+        <input type="text" id="computed-gain" readonly placeholder="0">
+      </div>
+      <div class="input-group">
+        <label>Total Taxable to Offset ($) <span class="muted">(LTCG + recapture, auto)</span></label>
+        <input type="text" id="computed-total-taxable" readonly placeholder="0">
+      </div>
+    </div>
+
+    <div class="section-title">Other Capital Gains</div>
+    <p class="subtitle">Capital gains from outside the property sale (other portfolio activity in the same year).</p>
+    <div class="input-grid">
+      <div class="input-group">
+        <label>Other Short-Term Capital Gain ($)</label>
         <input type="number" id="short-term-gain" placeholder="0" step="1">
       </div>
       <div class="input-group">
-        <label>Other Long-Term Capital Gain</label>
+        <label>Other Long-Term Capital Gain ($)</label>
         <input type="number" id="long-term-gain" placeholder="0" step="1">
+      </div>
+    </div>
+
+    <div class="section-title">Implementation Timing</div>
+    <div class="input-grid">
+      <div class="input-group">
+        <label>Strategy Implementation Date</label>
+        <input type="date" id="implementation-date">
+      </div>
+      <div class="input-group">
+        <label>Distribution (multi-year fallback)</label>
+        <select id="distribution">
+          <option value="even" selected>Even (pro-rata by capacity)</option>
+          <option value="front">Front-loaded</option>
+          <option value="back">Back-loaded</option>
+        </select>
       </div>
     </div>
 
@@ -148,10 +143,10 @@
       <div class="input-group">
         <label>Strategy</label>
         <select id="strategy-select">
-          <option value="beta1" selected>S&amp;P 500 - Brooklyn Beta 1</option>
+          <option value="beta1" selected>RIA - Brooklyn Beta 1</option>
           <option value="beta0">CASH - Brooklyn Beta 0</option>
-          <option value="beta05">CASH/S&amp;P 500 - Brooklyn Beta 0.5</option>
-          <option value="advisorManaged">S&amp;P 500 - Advisor Managed</option>
+          <option value="beta05">Brooklyn Beta 0.5</option>
+          <option value="advisorManaged">Brooklyn Advisor-Managed</option>
         </select>
       </div>
       <div class="input-group">
@@ -160,10 +155,29 @@
       </div>
     </div>
 
+    <div class="input-group" id="variable-leverage-block">
+      <label><input type="checkbox" id="use-variable-leverage" checked> Use Variable Leverage (1% increments)</label>
+      <div class="variable-readouts">
+        <span><strong>Long%:</strong> <span id="variable-readout-long">100%</span></span>
+        <span><strong>Short%:</strong> <span id="variable-readout-short">0%</span></span>
+        <span><strong>Label:</strong> <span id="variable-readout-label">Long-Only</span></span>
+        <span><strong>Leverage:</strong> <span id="variable-readout-lev">0.00x</span></span>
+        <span><strong>Loss Rate:</strong> <span id="variable-readout-loss">10.40%</span></span>
+        <span><strong>Fee Rate:</strong> <span id="variable-readout-fee">0.170%</span></span>
+      </div>
+      <div class="manual-variable-row">
+        <label><input type="checkbox" id="use-manual-variable"> Pin manual variable point (override auto-solve)</label>
+      </div>
+      <div class="slider-row">
+        <label>Manual Short %</label>
+        <input type="range" id="variable-short-slider" min="0" max="225" step="1" value="0">
+      </div>
+    </div>
+
     <div class="section-title">Multi-Year Sale Schedule (advanced override)</div>
-    <p class="subtitle">Optional. The decision engine populates this when a multi-year structured sale is recommended; you can override values manually here.</p>
+    <p class="subtitle">Optional: structure the sale across multiple years. Leave blank to use the engine's automatic distribution.</p>
     <div class="input-grid">
-      <div class="input-group" style="grid-column: 1 / -1;">
+      <div class="input-group">
         <button type="button" id="build-year-schedule" class="btn-secondary">Build / Refresh Year Schedule</button>
       </div>
     </div>
@@ -173,74 +187,54 @@
       <button type="button" id="run-recommendation" class="btn-primary">Run Decision Engine</button>
     </div>
 
-    
-      <div class="input-group" id="variable-leverage-block">
-        <label><input type="checkbox" id="use-variable-leverage" checked> Use Variable Leverage (1% increments)</label>
-        <div class="variable-readout" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:12px;font-size:13px;">
-          <span><strong>Long%:</strong> <span id="variable-readout-long">100%</span></span>
-          <span><strong>Short%:</strong> <span id="variable-readout-short">0%</span></span>
-          <span><strong>Label:</strong> <span id="variable-readout-label">Long-Only</span></span>
-          <span><strong>Leverage:</strong> <span id="variable-readout-lev">0.00x</span></span>
-          <span><strong>Loss Rate:</strong> <span id="variable-readout-loss">10.40%</span></span>
-          <span><strong>Fee Rate:</strong> <span id="variable-readout-fee">0.170%</span></span>
-        </div>
-        <div style="margin-top:10px;">
-          <label><input type="checkbox" id="use-manual-variable"> Pin manual variable point (override auto-solve)</label>
-        </div>
-        <div style="margin-top:6px;">
-          <label for="variable-short-slider" style="display:block;font-size:12px;color:#555;">Short % (drag to adjust):</label>
-          <input type="range" id="variable-short-slider" min="0" max="225" step="1" value="0" style="width:100%;">
-        </div>
-      </div>
-
-      <div id="recommendation-panel"></div>
+    <div id="recommendation-panel"></div>
   </div>
 
   <!-- ============ PAGE: PROJECTION ============ -->
-  <div id="page-projection" class="page" style="display:none;">
+  <div id="page-projection" class="page">
     <h2>Multi-Year Projection Results</h2>
     <p class="subtitle">Year-by-year federal + state baseline tax, Brooklyn-generated short-term losses, and net tax after offsets.</p>
     <div id="projection-table"></div>
   </div>
 
   <!-- ============ PAGE: ALLOCATOR ============ -->
-  <div id="page-allocator" class="page" style="display:none;">
+  <div id="page-allocator" class="page">
     <h2>Brooklyn Allocator</h2>
     <p class="subtitle">Single-fund allocator with minimum-investment and fee schedule applied.</p>
     <div id="allocator-output"></div>
   </div>
 
   <!-- ============ Subsystem load order: 01 -> 02 -> 03 -> 05 -> 04 ============ -->
-  <script src="js/01-brooklyn/brooklyn-data.js?v=1777309208444"></script>
-  <script src="js/01-brooklyn/date-utils.js?v=1777309208444"></script>
-  <script src="js/01-brooklyn/time-weight.js?v=1777309208444"></script>
-  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777309208444"></script>
-  <script src="js/01-brooklyn/variable-leverage.js?v=1777309208444"></script>
+  <script src="js/01-brooklyn/brooklyn-data.js?v=1777313561699"></script>
+  <script src="js/01-brooklyn/date-utils.js?v=1777313561699"></script>
+  <script src="js/01-brooklyn/time-weight.js?v=1777313561699"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777313561699"></script>
+  <script src="js/01-brooklyn/variable-leverage.js?v=1777313561699"></script>
 
-  <script src="js/02-tax-engine/tax-data.js?v=1777309208444"></script>
-  <script src="js/02-tax-engine/tax-loader.js?v=1777309208444"></script>
-  <script src="js/02-tax-engine/tax-lookups.js?v=1777309208444"></script>
-  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777309208444"></script>
-  <script src="js/02-tax-engine/tax-calc-state.js?v=1777309208444"></script>
-  <script src="js/02-tax-engine/tax-baseline.js?v=1777309208444"></script>
+  <script src="js/02-tax-engine/tax-data.js?v=1777313561699"></script>
+  <script src="js/02-tax-engine/tax-loader.js?v=1777313561699"></script>
+  <script src="js/02-tax-engine/tax-lookups.js?v=1777313561699"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777313561699"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js?v=1777313561699"></script>
+  <script src="js/02-tax-engine/tax-baseline.js?v=1777313561699"></script>
 
-  <script src="js/03-solver/fees.js?v=1777309208444"></script>
-  <script src="js/03-solver/brooklyn-allocator.js?v=1777309208444"></script>
-  <script src="js/03-solver/single-year-solver.js?v=1777309208444"></script>
-  <script src="js/03-solver/multi-year-solver.js?v=1777309208444"></script>
-  <script src="js/03-solver/decision-engine.js?v=1777309208444"></script>
+  <script src="js/03-solver/fees.js?v=1777313561699"></script>
+  <script src="js/03-solver/brooklyn-allocator.js?v=1777313561699"></script>
+  <script src="js/03-solver/single-year-solver.js?v=1777313561699"></script>
+  <script src="js/03-solver/multi-year-solver.js?v=1777313561699"></script>
+  <script src="js/03-solver/decision-engine.js?v=1777313561699"></script>
 
-  <script src="js/05-projections/bracket-projector.js?v=1777309208444"></script>
-  <script src="js/05-projections/carryforward-tracker.js?v=1777309208444"></script>
-  <script src="js/05-projections/projection-engine.js?v=1777309208444"></script>
+  <script src="js/05-projections/bracket-projector.js?v=1777313561699"></script>
+  <script src="js/05-projections/carryforward-tracker.js?v=1777313561699"></script>
+  <script src="js/05-projections/projection-engine.js?v=1777313561699"></script>
 
-  <script src="js/04-ui/format-helpers.js?v=1777309208444"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1777309208444"></script>
-  <script src="js/04-ui/controls.js?v=1777309208444"></script>
-  <script src="js/04-ui/projection-render.js?v=1777309208444"></script>
-  <script src="js/04-ui/recommendation-render.js?v=1777309208444"></script>
+  <script src="js/04-ui/format-helpers.js?v=1777313561699"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1777313561699"></script>
+  <script src="js/04-ui/controls.js?v=1777313561699"></script>
+  <script src="js/04-ui/projection-render.js?v=1777313561699"></script>
+  <script src="js/04-ui/recommendation-render.js?v=1777313561699"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1777309208444"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1777313561699"></script>
 </body>
 </html>
