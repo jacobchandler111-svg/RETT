@@ -73,3 +73,14 @@ window.RETT_DEFAULTS = {
     setTimeout(applyDefaults, 0);
   }
 })();
+
+// Preload tax data on page init so any consumer can call lookups immediately.
+(function () {
+  if (typeof window.loadTaxData === 'function') {
+    try {
+      window.loadTaxData().catch(function (e) { console.warn('Tax data preload failed:', e); });
+    } catch (e) {
+      console.warn('Tax data preload threw:', e);
+    }
+  }
+})();
