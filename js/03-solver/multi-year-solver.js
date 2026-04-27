@@ -1,148 +1,162 @@
-// FILE: js/03-solver/multi-year-solver.js
+// js/03-solver/multi-year-solver.js
 // Stage-2 solver for the two-stage decision tree, with partial-year
 // time-weighting in year 1.
 //
 // Year-1 capacity = invested * lossRate(cap) * yearFraction
-// Years 2..N capacity = invested * lossRate(cap)        (full year)
+// Years 2..N capacity = invested * lossRate(cap)              (full year)
 //
-// All Brooklyn-generated losses are short-term.
+// Accepts `totalGain` (preferred) or `gain` (alias) as the dollars to
+// distribute. Outputs both raw fields and aliases consumed by the
+// decision-engine / UI layer (`years`, `leverageUsed`, `leverageLabel`,
+// `totalLossNeeded`, `totalFees`).
 
-(function () {
+(function (root) {
+  'use strict';
 
-  function solveMultiYear({
-    strategyKey,
-    totalGain,
-    investedCapital,
-    leverageCap,
-    horizonYears,
-    yearFraction,
-    distribution = 'even'
-  }) {
-    const yf = (yearFraction == null) ? 1 : Math.max(0, Math.min(1, yearFraction));
-    const horizon = horizonYears || 5;
+  function invertLossRate(strategyKey, requiredRate) {
+    // Walk fine 1% increments and find the lowest leverage tier whose
+    // lossRate >= requiredRate. Falls back to max if none satisfy.
+    var bounds = (typeof root.getStrategyBounds === 'function')
+      ? root.getStrategyBounds(strategyKey)
+      : { minShort: 0, maxShort: 225 };
+    if (!bounds) return null;
+    for (var s = bounds.minShort; s <= bounds.maxShort; s++) {
+      var info = root.brooklynInterpolate(strategyKey, s / 100);
+      if (info && info.lossRate >= requiredRate) {
+        return { leverage: s / 100, info: info };
+      }
+    }
+    var maxLev = bounds.maxShort / 100;
+    return { leverage: maxLev, info: root.brooklynInterpolate(strategyKey, maxLev) };
+  }
 
-    if (!(totalGain > 0)) {
+  function solveMultiYear(opts) {
+    opts = opts || {};
+    var strategyKey      = opts.strategyKey || 'beta1';
+    var totalGain        = (opts.totalGain != null) ? Number(opts.totalGain)
+                          : (opts.gain != null)     ? Number(opts.gain)
+                          : 0;
+    var investedCapital  = Number(opts.investedCapital) || 0;
+    var leverageCap      = (opts.leverageCap != null) ? Number(opts.leverageCap) : 2.25;
+    var horizon          = Number(opts.years) || 5;
+    var yfYear1          = (opts.yearFractionYear1 != null) ? Number(opts.yearFractionYear1)
+                          : (opts.yearFraction != null)     ? Number(opts.yearFraction)
+                          : 1;
+    if (yfYear1 < 0) yfYear1 = 0;
+    if (yfYear1 > 1) yfYear1 = 1;
+    var distribution     = opts.distribution || 'capacity';
+
+    if (totalGain <= 0) {
       return {
         feasible: true,
-        years: 0,
+        years: 0, yearsUsed: 0, yearsNeeded: 0,
         gainByYear: new Array(horizon).fill(0),
         lossByYear: new Array(horizon).fill(0),
-        capByYear: new Array(horizon).fill(0),
-        yearFraction: yf,
+        capByYear:  new Array(horizon).fill(0),
+        leverageByYear: new Array(horizon).fill(null),
+        capLossRate: 0,
+        leverageUsed: 0,
+        leverageLabel: null,
+        annualCap: 0,
+        totalLossNeeded: 0,
+        totalFees: 0,
+        yearFraction: yfYear1,
         note: 'no gain to spread'
       };
     }
-    if (!(investedCapital > 0)) {
-      return { feasible: false, error: 'invested capital must be > 0' };
-    }
-    const info = brooklynInterpolate(strategyKey, leverageCap);
-    if (!info || !info.lossRate) {
-      return { feasible: false, error: 'cannot interpolate loss rate at cap leverage ' + leverageCap };
+
+    var info = root.brooklynInterpolate(strategyKey, leverageCap);
+    if (!info) {
+      return { feasible: false, error: 'cannot interpolate at cap leverage ' + leverageCap };
     }
 
-    const annualCap = investedCapital * info.lossRate;
+    var annualCap = investedCapital * info.lossRate;
     if (annualCap <= 0) {
       return { feasible: false, error: 'cap leverage produces zero loss' };
     }
 
-    // Per-year loss capacity at the cap. Year 1 is partial; rest are full.
-    const capByYear = new Array(horizon).fill(annualCap);
-    capByYear[0] = annualCap * yf;
+    // Per-year loss capacity. Year 1 is partial; years 2..N full.
+    var capByYear = [];
+    for (var i = 0; i < horizon; i++) {
+      capByYear.push(i === 0 ? annualCap * yfYear1 : annualCap);
+    }
+    var totalCapacity = capByYear.reduce(function (a, b) { return a + b; }, 0);
 
-    // Total capacity over the horizon.
-    const totalCapacity = capByYear.reduce((s, x) => s + x, 0);
-    const feasibleWithinHorizon = totalCapacity >= totalGain - 1e-6;
+    var gainByYear = new Array(horizon).fill(0);
+    var lossByYear = new Array(horizon).fill(0);
+    var leverageByYear = new Array(horizon).fill(null);
 
-    // Distribute the gain across years according to capByYear and chosen mode.
-    const gainByYear = new Array(horizon).fill(0);
-    let remaining = totalGain;
+    var feasibleWithinHorizon = totalCapacity >= totalGain;
+    var yearsUsed = 0;
 
     if (distribution === 'front') {
-      // Pack as much as possible into earliest years up to each year's capacity.
-      for (let i = 0; i < horizon && remaining > 0; i++) {
-        const take = Math.min(capByYear[i], remaining);
-        gainByYear[i] = take;
+      // fill year 1 to capacity, then year 2, etc., until gain is absorbed
+      var remaining = totalGain;
+      for (var i2 = 0; i2 < horizon && remaining > 0; i2++) {
+        var take = Math.min(capByYear[i2], remaining);
+        gainByYear[i2] = take;
+        lossByYear[i2] = take;
         remaining -= take;
+        yearsUsed = i2 + 1;
       }
     } else if (distribution === 'back') {
-      for (let i = horizon - 1; i >= 0 && remaining > 0; i--) {
-        const take = Math.min(capByYear[i], remaining);
-        gainByYear[i] = take;
-        remaining -= take;
+      var remaining2 = totalGain;
+      for (var i3 = horizon - 1; i3 >= 0 && remaining2 > 0; i3--) {
+        var take2 = Math.min(capByYear[i3], remaining2);
+        gainByYear[i3] = take2;
+        lossByYear[i3] = take2;
+        remaining2 -= take2;
+        yearsUsed = horizon - i3;
       }
     } else {
-      // 'even' but respecting per-year capacity (year 1 is smaller).
-      // Strategy: pro-rata by capacity. If totalCapacity >= totalGain,
-      // each year gets gain = capByYear[i] * (totalGain / totalCapacity);
-      // otherwise each year is filled to its cap and remainder is shortfall.
-      if (feasibleWithinHorizon) {
-        const ratio = totalGain / totalCapacity;
-        for (let i = 0; i < horizon; i++) {
-          gainByYear[i] = capByYear[i] * ratio;
-        }
-        remaining = 0;
-      } else {
-        for (let i = 0; i < horizon; i++) {
-          gainByYear[i] = capByYear[i];
-          remaining -= capByYear[i];
-        }
+      // 'capacity' (default): pro-rata by per-year capacity. If capacity
+      // covers the gain, each year gets gainByYear = capByYear * (gain /
+      // totalCapacity). Otherwise we distribute first by capacity, then
+      // overflow goes nowhere (shortfall flagged).
+      var fillable = Math.min(totalGain, totalCapacity);
+      for (var i4 = 0; i4 < horizon; i4++) {
+        gainByYear[i4] = capByYear[i4] * (fillable / totalCapacity);
+        lossByYear[i4] = gainByYear[i4];
       }
+      yearsUsed = horizon;
     }
 
-    // Compute years actually used (any with gain > 0).
-    let yearsUsed = 0;
-    for (let i = 0; i < horizon; i++) if (gainByYear[i] > 0) yearsUsed = i + 1;
+    // Per-year required loss rate (loss / invested); look up the variable
+    // leverage point that delivers it and record its leverage.
+    for (var i5 = 0; i5 < horizon; i5++) {
+      var reqRate = lossByYear[i5] / Math.max(1, investedCapital);
+      // for year 1 we have to back out the partial-year scaling
+      if (i5 === 0 && yfYear1 > 0) reqRate = reqRate / yfYear1;
+      var hit = invertLossRate(strategyKey, reqRate);
+      leverageByYear[i5] = hit ? hit.leverage : null;
+    }
 
-    // Required leverage per year (assuming fixed invested capital).
-    // year 1: required-rate = gain / (invested * yf)
-    // year n: required-rate = gain / invested
-    const leverageByYear = gainByYear.map((g, i) => {
-      if (g <= 0) return 0;
-      const denom = (i === 0) ? (investedCapital * yf) : investedCapital;
-      if (denom <= 0) return null;
-      const reqRate = g / denom;
-      return invertLossRate(strategyKey, reqRate);
-    });
+    var totalLossNeeded = lossByYear.reduce(function (a, b) { return a + b; }, 0);
+    var totalFees = investedCapital * (info.feeRate || 0) * yearsUsed;
 
     return {
       feasible: feasibleWithinHorizon,
+      years: yearsUsed,
+      yearsUsed: yearsUsed,
       yearsNeeded: feasibleWithinHorizon ? yearsUsed : horizon,
-      yearsUsed,
+      gainByYear: gainByYear,
+      lossByYear: lossByYear,
+      capByYear: capByYear,
+      leverageByYear: leverageByYear,
       capLossRate: info.lossRate,
-      annualCap,
-      capByYear,
-      gainByYear,
-      lossByYear: gainByYear.slice(),
-      leverageByYear,
-      yearFraction: yf,
-      shortfall: feasibleWithinHorizon ? 0 : Math.max(0, totalGain - totalCapacity),
+      leverageUsed: leverageCap,
+      leverageLabel: info.label || null,
+      annualCap: annualCap,
+      totalLossNeeded: totalLossNeeded,
+      totalFees: totalFees,
+      yearFraction: yfYear1,
+      shortfall: Math.max(0, totalGain - totalCapacity),
       note: feasibleWithinHorizon
         ? 'gain fully absorbed within horizon at or below cap leverage'
-        : 'gain exceeds horizon-wide capacity at the leverage cap'
+        : 'gain exceeds capacity within horizon at cap leverage'
     };
   }
 
-  // Inverse of brooklynInterpolate: given target lossRate, find leverage.
-  function invertLossRate(strategyKey, targetRate) {
-    const presets = (window.PRESET_LEVERAGES || {})[strategyKey] || [];
-    if (!presets.length) return null;
-    if (targetRate <= 0) return 0;
-
-    let prev = null;
-    for (let i = 0; i < presets.length; i++) {
-      const lev = presets[i];
-      const info = brooklynInterpolate(strategyKey, lev);
-      const rate = info ? info.lossRate : 0;
-      if (rate >= targetRate) {
-        if (prev === null) return lev;
-        const t = (targetRate - prev.rate) / (rate - prev.rate);
-        return prev.lev + t * (lev - prev.lev);
-      }
-      prev = { lev, rate };
-    }
-    return presets[presets.length - 1];
-  }
-
-  window.solveMultiYear = solveMultiYear;
-  window.invertLossRate = invertLossRate;
-})();
+  root.solveMultiYear   = solveMultiYear;
+  root.invertLossRate   = invertLossRate;
+})(window);
