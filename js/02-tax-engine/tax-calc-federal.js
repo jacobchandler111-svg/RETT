@@ -128,10 +128,13 @@ function computeFederalTax(ordinaryIncome, year, status, opts) {
                         }
           }
 
-    // AMT (top-up only).
-    const amti     = taxableOrdinary + ltAmount;
-          const amt      = _computeAmt(amti, year, status);
-          const amtTopUp = Math.max(0, amt - (ordinaryTax + ltTax));
+    // AMT (top-up only). Per IRS Form 6251 Part III, LTCG/qualified dividends are
+    // taxed at LTCG rates *within* AMT, not at 26/28%. We compute AMT on the
+    // ordinary-only portion, then add the regular LTCG tax back.
+    const amtAmti     = taxableOrdinary;
+    const amtOrdOnly  = _computeAmt(amtAmti, year, status);
+    const amtTotal    = amtOrdOnly + ltTax;
+    const amtTopUp    = Math.max(0, amtTotal - (ordinaryTax + ltTax));
 
     // NIIT.
     const magi = ordinaryIncome + ltAmount;
