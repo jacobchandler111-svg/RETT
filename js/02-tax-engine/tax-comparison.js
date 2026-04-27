@@ -58,19 +58,40 @@ function _yearTaxes(scenario) {
 }
 
 function _applyLossesToScenario(scenario, lossAvailable) {
-      // Brooklyn losses are short-term. They first wipe short-term gain,
-      // then offset ordinary income (no $3,000 cap because losses are
-      // generated to specifically offset realized property gain treated
-      // as ordinary recapture / short-term).
+      // Brooklyn-generated losses are SHORT-TERM. IRS netting rules:
+      //   1) Short-term loss first offsets short-term gain (netted at ST level).
+      //   2) Net ST loss then offsets long-term gain dollar-for-dollar.
+      //   3) Any remaining net loss offsets ordinary income (subject to the
+      //      $3,000/yr personal cap, but for a structured-sale strategy we
+      //      apply the loss to ordinary up to the offset capacity since the
+      //      loss is sized specifically against the property recognition).
       const out = Object.assign({}, scenario);
       let loss = lossAvailable;
-      const offsetShort = Math.min(out.shortTermGain, loss);
-      out.shortTermGain -= offsetShort;
+
+      // Step 1: against short-term gain
+      const offsetShort = Math.min(out.shortTermGain || 0, loss);
+      out.shortTermGain = (out.shortTermGain || 0) - offsetShort;
       loss -= offsetShort;
-      const offsetOrd = Math.min(out.ordinaryIncome, loss);
-      out.ordinaryIncome -= offsetOrd;
-      out.wages = Math.min(out.wages, out.ordinaryIncome);
-      loss -= offsetOrd;
+
+      // Step 2: against long-term gain (qualified div NOT a capital gain;
+      // it's taxed at LTCG rates but loss netting only applies to actual gains)
+      if (loss > 0) {
+            const offsetLong = Math.min(out.longTermGain || 0, loss);
+            out.longTermGain = (out.longTermGain || 0) - offsetLong;
+            // investmentIncome should track LTG since NIIT applies to net inv income
+            out.investmentIncome = Math.max(0, (out.investmentIncome || 0) - offsetLong);
+            loss -= offsetLong;
+      }
+
+      // Step 3: against ordinary income
+      if (loss > 0) {
+            const offsetOrd = Math.min(out.ordinaryIncome || 0, loss);
+            out.ordinaryIncome = (out.ordinaryIncome || 0) - offsetOrd;
+            // Wages can't go below new ordinary income (Additional Medicare base)
+            out.wages = Math.min(out.wages || 0, out.ordinaryIncome);
+            loss -= offsetOrd;
+      }
+
       out._lossUsed = lossAvailable - loss;
       out._lossUnused = loss;
       return out;
