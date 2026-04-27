@@ -174,14 +174,11 @@
       </div>
     </div>
 
-    <div class="section-title">Multi-Year Sale Schedule (advanced override)</div>
-    <p class="subtitle">Optional: structure the sale across multiple years. Leave blank to use the engine's automatic distribution.</p>
-    <div class="input-grid">
-      <div class="input-group">
-        <button type="button" id="build-year-schedule" class="btn-secondary">Build / Refresh Year Schedule</button>
-      </div>
-    </div>
-    <div id="year-schedule"></div>
+    <!-- Multi-Year Sale Schedule (background-only). The engine auto-structures
+         the sale across years when a single-year offset isn't achievable. The
+         hidden host below preserves DOM contracts for defensive consumers
+         (controls.js / recommendation-render.js / inputs-collector.js). -->
+    <div id="year-schedule" style="display:none"></div>
 
     <div class="actions">
       <button type="button" id="run-recommendation" class="btn-primary">Run Decision Engine</button>
@@ -205,36 +202,36 @@
   </div>
 
   <!-- ============ Subsystem load order: 01 -> 02 -> 03 -> 05 -> 04 ============ -->
-  <script src="js/01-brooklyn/brooklyn-data.js?v=1777314518573"></script>
-  <script src="js/01-brooklyn/date-utils.js?v=1777314518573"></script>
-  <script src="js/01-brooklyn/time-weight.js?v=1777314518573"></script>
-  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777314518573"></script>
-  <script src="js/01-brooklyn/variable-leverage.js?v=1777314518573"></script>
+  <script src="js/01-brooklyn/brooklyn-data.js?v=1777315093842"></script>
+  <script src="js/01-brooklyn/date-utils.js?v=1777315093842"></script>
+  <script src="js/01-brooklyn/time-weight.js?v=1777315093842"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777315093842"></script>
+  <script src="js/01-brooklyn/variable-leverage.js?v=1777315093842"></script>
 
-  <script src="js/02-tax-engine/tax-data.js?v=1777314518573"></script>
-  <script src="js/02-tax-engine/tax-loader.js?v=1777314518573"></script>
-  <script src="js/02-tax-engine/tax-lookups.js?v=1777314518573"></script>
-  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777314518573"></script>
-  <script src="js/02-tax-engine/tax-calc-state.js?v=1777314518573"></script>
-  <script src="js/02-tax-engine/tax-baseline.js?v=1777314518573"></script>
+  <script src="js/02-tax-engine/tax-data.js?v=1777315093842"></script>
+  <script src="js/02-tax-engine/tax-loader.js?v=1777315093842"></script>
+  <script src="js/02-tax-engine/tax-lookups.js?v=1777315093842"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777315093842"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js?v=1777315093842"></script>
+  <script src="js/02-tax-engine/tax-baseline.js?v=1777315093842"></script>
 
-  <script src="js/03-solver/fees.js?v=1777314518573"></script>
-  <script src="js/03-solver/brooklyn-allocator.js?v=1777314518573"></script>
-  <script src="js/03-solver/single-year-solver.js?v=1777314518573"></script>
-  <script src="js/03-solver/multi-year-solver.js?v=1777314518573"></script>
-  <script src="js/03-solver/decision-engine.js?v=1777314518573"></script>
+  <script src="js/03-solver/fees.js?v=1777315093842"></script>
+  <script src="js/03-solver/brooklyn-allocator.js?v=1777315093842"></script>
+  <script src="js/03-solver/single-year-solver.js?v=1777315093842"></script>
+  <script src="js/03-solver/multi-year-solver.js?v=1777315093842"></script>
+  <script src="js/03-solver/decision-engine.js?v=1777315093842"></script>
 
-  <script src="js/05-projections/bracket-projector.js?v=1777314518573"></script>
-  <script src="js/05-projections/carryforward-tracker.js?v=1777314518573"></script>
-  <script src="js/05-projections/projection-engine.js?v=1777314518573"></script>
+  <script src="js/05-projections/bracket-projector.js?v=1777315093842"></script>
+  <script src="js/05-projections/carryforward-tracker.js?v=1777315093842"></script>
+  <script src="js/05-projections/projection-engine.js?v=1777315093842"></script>
 
-  <script src="js/04-ui/format-helpers.js?v=1777314518573"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1777314518573"></script>
-  <script src="js/04-ui/controls.js?v=1777314518573"></script>
-  <script src="js/04-ui/projection-render.js?v=1777314518573"></script>
-  <script src="js/04-ui/recommendation-render.js?v=1777314518573"></script>
+  <script src="js/04-ui/format-helpers.js?v=1777315093842"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1777315093842"></script>
+  <script src="js/04-ui/controls.js?v=1777315093842"></script>
+  <script src="js/04-ui/projection-render.js?v=1777315093842"></script>
+  <script src="js/04-ui/recommendation-render.js?v=1777315093842"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1777314518573"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1777315093842"></script>
 </body>
 </html>
