@@ -235,7 +235,34 @@
     var taxHostHtml = existingTaxHost ? existingTaxHost.outerHTML : '<div id="tax-comparison-host"></div>';
     var allocHtml = existingAllocator ? existingAllocator.outerHTML : '<div id="allocator-output"></div>';
 
-    // If we have no projection result yet, render an empty-state.
+    // If we have no projection result yet, try to compute one on demand
+    // using the same inputs the recommendation engine already read.
+    if ((!result || !result.years || !result.years.length) &&
+        typeof collectInputs === 'function' &&
+        typeof ProjectionEngine !== 'undefined' && ProjectionEngine.run) {
+      try {
+        var cfgOnDemand = collectInputs();
+        // Pull property-sale inputs the recommendation flow uses.
+        var sp = Number((document.getElementById('sale-price') || {}).value) || 0;
+        var cb = Number((document.getElementById('cost-basis') || {}).value) || 0;
+        var ad = Number((document.getElementById('accelerated-depreciation') || {}).value) || 0;
+        if (sp) cfgOnDemand.salePrice = sp;
+        if (cb) cfgOnDemand.costBasis = cb;
+        if (ad) cfgOnDemand.acceleratedDepreciation = ad;
+        cfgOnDemand.strategyKey = cfgOnDemand.tierKey;
+        cfgOnDemand.investedCapital = cfgOnDemand.investment;
+        cfgOnDemand.years = cfgOnDemand.horizonYears;
+        result = ProjectionEngine.run(cfgOnDemand);
+        window.__lastResult = result;
+        // Also re-derive recommendation if missing
+        if (!recommendation && typeof recommendSale === 'function') {
+          recommendation = recommendSale(cfgOnDemand);
+          window.__lastRecommendation = recommendation;
+        }
+      } catch (e) {
+        console.warn('Strategy summary on-demand run failed:', e && e.message);
+      }
+    }
     if (!result || !result.years || !result.years.length) {
       page.innerHTML = '<h2 style="font-size:1.4em;font-weight:700;margin-bottom:4px;">Strategy Summary &amp; Optimization</h2>' +
         '<p class="subtitle">Run the Decision Engine on the Projection page to populate the strategy summary.</p>' +
