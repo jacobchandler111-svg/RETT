@@ -110,7 +110,7 @@ function computeTaxComparison(cfg, recommendation) {
                         gainThisYear = recommendation.longTermGain || 0;
                         lossThisYear = recommendation.lossGenerated || 0;
                   }
-            } else if (recommendation && recommendation.recommendation === 'multi-year') {
+            } else if (recommendation && (recommendation.recommendation === 'multi-year' || recommendation.recommendation === 'multi-year-shortfall')) {
                   const sched = recommendation.schedule || recommendation.years || [];
                   const slot = sched[i];
                   if (slot) {
