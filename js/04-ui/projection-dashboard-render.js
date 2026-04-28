@@ -241,15 +241,23 @@
     // year-by-year baseline-vs-with numbers as the source of truth.
     var years = null;
     if (comp && Array.isArray(comp.rows) && comp.rows.length) {
+      // No-action detection: when the engine recommended no investment
+      // (zero gain to offset, or all rows show zero strategy activity), we
+      // must NOT apply the per-year fee from the projection engine, since
+      // the user wouldn't actually invest. Treat the dashboard as $0/$0/$0.
+      var isNoAction = comp.totalSavings === 0 && comp.rows.every(function (r) {
+        return (!r.gainRecognized || r.gainRecognized === 0) &&
+               (!r.lossApplied || r.lossApplied === 0);
+      });
       years = comp.rows.map(function (r, idx) {
         var resYr = (result && result.years && result.years[idx]) || {};
         return {
           year: r.year,
           taxNoBrooklyn: r.baseline ? r.baseline.total : (resYr.taxNoBrooklyn || 0),
           taxWithBrooklyn: r.withStrategy ? r.withStrategy.total : (resYr.taxWithBrooklyn || resYr.taxNoBrooklyn || 0),
-          investmentThisYear: resYr.investmentThisYear || 0,
+          investmentThisYear: isNoAction ? 0 : (resYr.investmentThisYear || 0),
           grossLoss: r.lossApplied != null ? r.lossApplied : (resYr.grossLoss || 0),
-          fee: resYr.fee || 0
+          fee: isNoAction ? 0 : (resYr.fee || 0)
         };
       });
     } else if (result && result.years && result.years.length) {
