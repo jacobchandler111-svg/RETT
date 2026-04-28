@@ -88,6 +88,12 @@ function _buildFutureYearsUI() {
 
 
 async function runProjection() {
+      const _custSel0 = document.getElementById('custodian-select');
+      if (_custSel0 && !_custSel0.value) {
+              alert('Please select a custodian first (Page 1 → Custodian).');
+              showPage('page-inputs');
+              return;
+      }
       if (!isTaxDataLoaded()) {
                 try { await loadTaxData(); }
                 catch (e) {
@@ -111,6 +117,115 @@ async function runProjection() {
     const result = ProjectionEngine.run(cfg);
       renderProjection(result);
       showPage('page-projection');
+}
+
+function _populateCustodian() {
+  const sel = document.getElementById('custodian-select');
+  if (!sel) return;
+  if (typeof listCustodians !== 'function') return;
+  const items = listCustodians();
+  while (sel.options.length > 1) sel.remove(1);
+  items.forEach(it => {
+    const opt = document.createElement('option');
+    opt.value = it.id;
+    opt.textContent = it.label;
+    sel.appendChild(opt);
+  });
+}
+
+function _onCustodianChange() {
+  const custSel = document.getElementById('custodian-select');
+  const lcSel = document.getElementById('leverage-cap-select');
+  const stratSel = document.getElementById('strategy-select');
+  const info = document.getElementById('custodian-info');
+  if (!custSel || !lcSel) return;
+  const id = custSel.value;
+  const c = (typeof getCustodian === 'function') ? getCustodian(id) : null;
+  while (lcSel.options.length > 0) lcSel.remove(0);
+  if (!c) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = '-- choose custodian first --';
+    lcSel.appendChild(opt);
+    lcSel.disabled = true;
+    if (info) info.textContent = 'No custodian selected. Pick a custodian above to unlock strategies and leverage caps.';
+    if (stratSel) Array.from(stratSel.options).forEach(o => { o.disabled = false; });
+    return;
+  }
+  c.allowedLeverageCaps.forEach((lev, idx) => {
+    const opt = document.createElement('option');
+    opt.value = String(lev);
+    opt.textContent = lev.toFixed(2) + 'x';
+    if (idx === c.allowedLeverageCaps.length - 1) opt.selected = true;
+    lcSel.appendChild(opt);
+  });
+  lcSel.disabled = false;
+  if (stratSel) {
+    Array.from(stratSel.options).forEach(o => {
+      const allowed = c.allowedStrategies.indexOf(o.value) !== -1;
+      o.disabled = !allowed;
+      if (!allowed && stratSel.value === o.value) {
+        stratSel.value = c.allowedStrategies[0];
+      }
+    });
+  }
+  if (info) {
+    const minStrat = stratSel ? stratSel.value : c.allowedStrategies[0];
+    const minInv = (typeof getMinInvestment === 'function') ? getMinInvestment(id, minStrat) : 0;
+    info.textContent = c.label + ' • ' + c.allowedStrategies.length + ' strategies offered • ' +
+      'leverage caps: ' + c.allowedLeverageCaps.map(v => v.toFixed(2) + 'x').join(', ') +
+      (minInv ? ' • minimum investment for ' + minStrat + ': 
+      const runBtn = document.getElementById('run-projection');
+      if (runBtn) runBtn.addEventListener('click', runProjection);
+
+    const buildSchedBtn = document.getElementById('build-year-schedule');
+      if (buildSchedBtn) {
+                buildSchedBtn.addEventListener('click', () => {
+                              const cfg = collectInputs();
+                              _yearSchedule(cfg);
+                });
+      }
+
+    const navInputs     = document.getElementById('nav-inputs');
+      const navProjection = document.getElementById('nav-projection');
+      const navAllocator  = document.getElementById('nav-allocator');
+      if (navInputs)     navInputs.addEventListener('click',     () => showPage('page-inputs'));
+      if (navProjection) navProjection.addEventListener('click', () => showPage('page-projection'));
+      if (navAllocator)  navAllocator.addEventListener('click',  () => showPage('page-allocator'));
+
+    const contBtn = document.getElementById('continue-to-projection');
+      if (contBtn) contBtn.addEventListener('click', () => {
+        const _cs = document.getElementById('custodian-select');
+        if (_cs && !_cs.value) { alert('Please select a custodian first.'); return; }
+        showPage('page-projection');
+        const recBtn = document.getElementById('run-recommendation');
+        if (recBtn) recBtn.click();
+      });
+
+  
+    // Re-render Future Year Estimates rows whenever horizon, year1, or details panel toggles
+    const projYrsSel = document.getElementById('projection-years');
+    if (projYrsSel) projYrsSel.addEventListener('change', _buildFutureYearsUI);
+    const year1Inp = document.getElementById('year1');
+    if (year1Inp) year1Inp.addEventListener('change', _buildFutureYearsUI);
+    const futureDetails = document.getElementById('future-years-details');
+    if (futureDetails) futureDetails.addEventListener('toggle', () => { if (futureDetails.open) _buildFutureYearsUI(); });
+    // Also build once on initial load so values persist if user opens the panel later
+    _buildFutureYearsUI();
+
+        _populateCustodian();
+        const _custSel = document.getElementById('custodian-select');
+        if (_custSel) _custSel.addEventListener('change', _onCustodianChange);
+        const _stratSel = document.getElementById('strategy-select');
+        if (_stratSel) _stratSel.addEventListener('change', _onCustodianChange);
+        _onCustodianChange();
+
+        showPage('page-inputs');
+}
+
+document.addEventListener('DOMContentLoaded', bindControls);
+ + minInv.toLocaleString() : '');
+  }
 }
 
 function bindControls() {
