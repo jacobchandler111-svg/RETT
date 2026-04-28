@@ -235,14 +235,34 @@
     host = host || document.getElementById('projection-table');
     if (!host) return;
     var result = window.__lastResult;
-    if (!result || !result.years || !result.years.length) {
+    var comp = window.__lastComparison;
+
+    // If we have a comparison (from Run Decision Engine), use its richer
+    // year-by-year baseline-vs-with numbers as the source of truth.
+    var years = null;
+    if (comp && Array.isArray(comp.rows) && comp.rows.length) {
+      years = comp.rows.map(function (r, idx) {
+        var resYr = (result && result.years && result.years[idx]) || {};
+        return {
+          year: r.year,
+          taxNoBrooklyn: r.baseline ? r.baseline.total : (resYr.taxNoBrooklyn || 0),
+          taxWithBrooklyn: r.withStrategy ? r.withStrategy.total : (resYr.taxWithBrooklyn || resYr.taxNoBrooklyn || 0),
+          investmentThisYear: resYr.investmentThisYear || 0,
+          grossLoss: r.lossApplied != null ? r.lossApplied : (resYr.grossLoss || 0),
+          fee: resYr.fee || 0
+        };
+      });
+    } else if (result && result.years && result.years.length) {
+      years = result.years;
+    }
+
+    if (!years || !years.length) {
       host.innerHTML = '<div class="muted" style="padding:12px 0;">' +
         'Run the Decision Engine above to populate the multi-year projection.' +
         '</div>';
       return;
     }
-    var years = result.years;
-    var totals = result.totals || {};
+    var totals = (result && result.totals) || {};
 
     var html = '<div class="rett-dashboard">';
     html += _buildKpiRow(years, totals);
