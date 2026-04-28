@@ -34,6 +34,10 @@
     var yf = (typeof root.yearFractionRemaining === 'function' && cfg.implementationDate)
       ? root.yearFractionRemaining(cfg.implementationDate)
       : 1;
+    // Guard: if implementationDate is malformed, yearFractionRemaining may
+    // return null. Treat as full year remaining (yf=1) so downstream math
+    // never sees NaN.
+    if (yf == null || !Number.isFinite(Number(yf))) yf = 1;
 
     // Short-circuit on no-gain
     if (gainToOffset === 0) {
