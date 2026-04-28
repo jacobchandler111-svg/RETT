@@ -271,6 +271,16 @@
       return;
     }
     var totals = (result && result.totals) || {};
+    // If the comparison shows no taxable activity (engine recommended no-action),
+    // suppress projection-engine fees so the dashboard reflects the engine's recommendation.
+    if (comp && Array.isArray(comp.rows) && comp.rows.length &&
+        comp.totalSavings === 0 &&
+        comp.rows.every(function (r) {
+          return (!r.gainRecognized || r.gainRecognized === 0) &&
+                 (!r.lossApplied || r.lossApplied === 0);
+        })) {
+      totals = { cumulativeFees: 0, cumulativeNetSavings: 0 };
+    }
 
     var html = '<div class="rett-dashboard">';
     html += _buildKpiRow(years, totals);
