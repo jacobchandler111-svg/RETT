@@ -96,18 +96,18 @@ const ProjectionEngine = {
                         });
 
                         // Taxable income WITH Brooklyn.
-                        const taxableOrdWith = ordinary + applied.ordinaryOffsetUsed * -1 + applied.netShortTermAfter > 0
-                                ? ordinary + Math.max(0, applied.netShortTermAfter) - applied.ordinaryOffsetUsed
-                                            : ordinary - applied.ordinaryOffsetUsed;
+                        const taxableOrdWith = ordinary + applied.ordinaryOffset * -1 + applied.netST > 0
+                                ? ordinary + Math.max(0, applied.netST) - applied.ordinaryOffset
+                                            : ordinary - applied.ordinaryOffset;
                             const fedWith = computeFederalTax(
-                                                Math.max(0, ordinary - applied.ordinaryOffsetUsed) + Math.max(0, applied.netShortTermAfter),
+                                                Math.max(0, ordinary - applied.ordinaryOffset) + Math.max(0, applied.netST),
                                                 year, cfg.filingStatus,
-                                { longTermGain: Math.max(0, applied.netLongTermAfter) }
+                                { longTermGain: Math.max(0, applied.netLT) }
                                             );
                             const stateWith = computeStateTax(
-                                                Math.max(0, ordinary - applied.ordinaryOffsetUsed)
-                                                  + Math.max(0, applied.netShortTermAfter)
-                                                  + Math.max(0, applied.netLongTermAfter),
+                                                Math.max(0, ordinary - applied.ordinaryOffset)
+                                                  + Math.max(0, applied.netST)
+                                                  + Math.max(0, applied.netLT),
                                                 year, cfg.state, cfg.filingStatus
                                             );
 
@@ -138,11 +138,11 @@ const ProjectionEngine = {
                                             lossRate,
                                             grossLoss,
                                             fee,
-                                            shortTermLossUsedAgainstGains: applied.shortLossUsedAgainstGains,
-                                            longTermLossUsedAgainstGains:  applied.longLossUsedAgainstGains,
-                                            ordinaryOffsetUsed:            applied.ordinaryOffsetUsed,
-                                            shortCarryforwardEnd:          applied.shortCarryforwardEnd,
-                                            longCarryforwardEnd:           applied.longCarryforwardEnd,
+                                            shortTermLossUsedAgainstGains: 0,
+                                            longTermLossUsedAgainstGains: 0,
+                                            ordinaryOffsetUsed: applied.ordinaryOffset,
+                                            shortCarryforwardEnd: applied.stCarryOut,
+                                            longCarryforwardEnd: applied.ltCarryOut,
                                             fedTaxWithBrooklyn:    fedWith,
                                             stateTaxWithBrooklyn:  stateWith,
                                             fedTaxNoBrooklyn:      fedNo,
