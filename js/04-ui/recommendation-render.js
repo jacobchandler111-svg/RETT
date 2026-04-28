@@ -179,7 +179,19 @@
               recommendation: result.recommendation,
               longTermGain: result.longTermGain || 0,
               lossGenerated: lossGen,
-              schedule: result.stage2 && (result.stage2.schedule || result.stage2.years) ? (result.stage2.schedule || result.stage2.years) : null
+              schedule: (function () {
+        if (result.stage2 && Array.isArray(result.stage2.schedule)) return result.stage2.schedule;
+        if (result.stage2 && Array.isArray(result.stage2.gainByYear)) {
+          return result.stage2.gainByYear.map(function (g, i) {
+            return {
+              year: i,
+              gainTaken: g || 0,
+              lossGenerated: (result.stage2.lossByYear && result.stage2.lossByYear[i]) || 0
+            };
+          });
+        }
+        return null;
+      })()
         };
         var comparison = computeTaxComparison(multiCfg, normRec);
         window.__lastComparison = comparison;
