@@ -20,10 +20,27 @@
     var salePrice              = Number(cfg.salePrice) || 0;
     var costBasis              = Number(cfg.costBasis) || 0;
     var acceleratedDepreciation = Number(cfg.acceleratedDepreciation) || 0;
-    var strategyKey            = cfg.strategyKey || 'beta1';
+    var strategyKey = (function () {
+      var k = cfg.strategyKey;
+      var valid = (typeof root.STRATEGY_BOUNDS === 'object' && root.STRATEGY_BOUNDS) ? Object.keys(root.STRATEGY_BOUNDS) : ['beta1','beta0','beta05','advisorManaged'];
+      if (k && valid.indexOf(k) !== -1) return k;
+      return 'beta1';
+    })();
     var investedCapital        = Number(cfg.investedCapital) || 0;
-    var leverageCap            = (cfg.leverageCap != null) ? Number(cfg.leverageCap) : 2.25;
-    var years                  = Number(cfg.years) || 5;
+    var leverageCap = (function () {
+      if (cfg.leverageCap == null) return 2.25;
+      var n = Number(cfg.leverageCap);
+      if (!Number.isFinite(n) || n < 0) return 2.25;
+      return n;
+    })();
+    var years = (function () {
+      var n = Number(cfg.years);
+      if (!Number.isFinite(n)) return 5;
+      n = Math.floor(n);
+      if (n < 1) return 1;
+      if (n > 50) return 50;
+      return n;
+    })();
     var useVariableLeverage    = (cfg.useVariableLeverage !== false);
     var manualShort            = (cfg.manualVariableShortPct != null) ? Number(cfg.manualVariableShortPct) : null;
 
