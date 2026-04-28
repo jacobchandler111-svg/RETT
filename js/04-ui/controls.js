@@ -24,6 +24,33 @@ function showPage(id) {
       if (typeof renderStrategySummary === 'function') renderStrategySummary();
     } catch(e) { console.warn('renderStrategySummary failed:', e && e.message); }
   }
+
+    if (id === 'page-projection') {
+      try {
+        if (typeof renderProjectionDashboard === 'function') {
+          // If we already have a result, render immediately.
+          if (window.__lastResult && window.__lastResult.years && window.__lastResult.years.length) {
+            renderProjectionDashboard();
+          } else if (typeof collectInputs === 'function' && typeof ProjectionEngine !== 'undefined' && ProjectionEngine.run) {
+            // Try an on-demand run so the dashboard is never empty on entry.
+            try {
+              const _cfg = collectInputs();
+              const _sp = Number((document.getElementById('sale-price') || {}).value) || 0;
+              const _cb = Number((document.getElementById('cost-basis') || {}).value) || 0;
+              const _ad = Number((document.getElementById('accelerated-depreciation') || {}).value) || 0;
+              if (_sp) _cfg.salePrice = _sp;
+              if (_cb) _cfg.costBasis = _cb;
+              if (_ad) _cfg.acceleratedDepreciation = _ad;
+              _cfg.strategyKey = _cfg.tierKey;
+              _cfg.investedCapital = _cfg.investment;
+              _cfg.years = _cfg.horizonYears;
+              window.__lastResult = ProjectionEngine.run(_cfg);
+              renderProjectionDashboard();
+            } catch (e) { console.warn('on-demand projection failed:', e && e.message); }
+          }
+        }
+      } catch(e) { console.warn('renderProjectionDashboard failed:', e && e.message); }
+    }
   if (id === 'page-allocator-legacy-tax') {
     try {
       const host = document.getElementById('tax-comparison-host');
@@ -176,6 +203,34 @@ async function runProjection() {
 }
 
 function bindControls() {
+    // Hook: when "Run Decision Engine" fires, also run the multi-year projection
+    // engine and render the new dashboard into #projection-table so the
+    // Year-by-Year Tax Projection section is populated.
+    const recBtn0 = document.getElementById('run-recommendation');
+    if (recBtn0) {
+      recBtn0.addEventListener('click', function () {
+        // Defer slightly so the recommendation handler runs first and
+        // window.__lastRecommendation is populated.
+        setTimeout(function () {
+          try {
+            if (typeof collectInputs !== 'function' || typeof ProjectionEngine === 'undefined') return;
+            var cfg = collectInputs();
+            var sp = Number((document.getElementById('sale-price') || {}).value) || 0;
+            var cb = Number((document.getElementById('cost-basis') || {}).value) || 0;
+            var ad = Number((document.getElementById('accelerated-depreciation') || {}).value) || 0;
+            if (sp) cfg.salePrice = sp;
+            if (cb) cfg.costBasis = cb;
+            if (ad) cfg.acceleratedDepreciation = ad;
+            cfg.strategyKey = cfg.tierKey;
+            cfg.investedCapital = cfg.investment;
+            cfg.years = cfg.horizonYears;
+            window.__lastResult = ProjectionEngine.run(cfg);
+            if (typeof renderProjectionDashboard === 'function') renderProjectionDashboard();
+          } catch (e) { console.warn('post-recommendation projection failed:', e && e.message); }
+        }, 60);
+      });
+    }
+
   const runBtn = document.getElementById('run-projection');
   if (runBtn) runBtn.addEventListener('click', runProjection);
 
