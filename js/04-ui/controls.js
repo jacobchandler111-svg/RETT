@@ -26,31 +26,35 @@ function showPage(id) {
   }
 
     if (id === 'page-projection') {
-      try {
-        if (typeof renderProjectionDashboard === 'function') {
-          // If we already have a result, render immediately.
-          if (window.__lastResult && window.__lastResult.years && window.__lastResult.years.length) {
+    try {
+      // Auto-run the full decision-engine + tax-comparison + dashboard pipeline.
+      // The engine itself decides single-year (max Year-1 deduction) vs multi-year
+      // structured-sale based on whether the gain can be fully offset in one year.
+      if (typeof runRecommendation === 'function') {
+        try { runRecommendation(); } catch(e) { console.warn('runRecommendation failed:', e && e.message); }
+      }
+      if (typeof renderProjectionDashboard === 'function') {
+        if (window.__lastResult && window.__lastResult.years && window.__lastResult.years.length) {
+          renderProjectionDashboard();
+        } else if (typeof collectInputs === 'function' && typeof ProjectionEngine !== 'undefined' && ProjectionEngine.run) {
+          try {
+            const _cfg = collectInputs();
+            const _sp = Number((document.getElementById('sale-price') || {}).value) || 0;
+            const _cb = Number((document.getElementById('cost-basis') || {}).value) || 0;
+            const _ad = Number((document.getElementById('accelerated-depreciation') || {}).value) || 0;
+            if (_sp) _cfg.salePrice = _sp;
+            if (_cb) _cfg.costBasis = _cb;
+            if (_ad) _cfg.acceleratedDepreciation = _ad;
+            _cfg.strategyKey = _cfg.tierKey;
+            _cfg.investedCapital = _cfg.investment;
+            _cfg.years = _cfg.horizonYears;
+            window.__lastResult = ProjectionEngine.run(_cfg);
             renderProjectionDashboard();
-          } else if (typeof collectInputs === 'function' && typeof ProjectionEngine !== 'undefined' && ProjectionEngine.run) {
-            // Try an on-demand run so the dashboard is never empty on entry.
-            try {
-              const _cfg = collectInputs();
-              const _sp = Number((document.getElementById('sale-price') || {}).value) || 0;
-              const _cb = Number((document.getElementById('cost-basis') || {}).value) || 0;
-              const _ad = Number((document.getElementById('accelerated-depreciation') || {}).value) || 0;
-              if (_sp) _cfg.salePrice = _sp;
-              if (_cb) _cfg.costBasis = _cb;
-              if (_ad) _cfg.acceleratedDepreciation = _ad;
-              _cfg.strategyKey = _cfg.tierKey;
-              _cfg.investedCapital = _cfg.investment;
-              _cfg.years = _cfg.horizonYears;
-              window.__lastResult = ProjectionEngine.run(_cfg);
-              renderProjectionDashboard();
-            } catch (e) { console.warn('on-demand projection failed:', e && e.message); }
-          }
+          } catch (e) { console.warn('on-demand projection failed:', e && e.message); }
         }
-      } catch(e) { console.warn('renderProjectionDashboard failed:', e && e.message); }
-    }
+      }
+    } catch(e) { console.warn('page-projection auto-run failed:', e && e.message); }
+  }
   if (id === 'page-allocator-legacy-tax') {
     try {
       const host = document.getElementById('tax-comparison-host');
@@ -230,6 +234,38 @@ function bindControls() {
         }, 60);
       });
     }
+
+  // Auto-recalc when Brooklyn Configuration inputs change. The Run Decision
+  // Engine button is now hidden; the engine fires automatically on Page 2 entry
+  // and on any of these field changes.
+  ['available-capital', 'invested-capital', 'strategy-select', 'beta1'].forEach(function (fid) {
+    const el = document.getElementById(fid);
+    if (!el) return;
+    const evt = (el.tagName === 'SELECT') ? 'change' : 'input';
+    let _t;
+    el.addEventListener(evt, function () {
+      clearTimeout(_t);
+      _t = setTimeout(function () {
+        try {
+          if (typeof runRecommendation === 'function') runRecommendation();
+          if (typeof collectInputs === 'function' && typeof ProjectionEngine !== 'undefined' && ProjectionEngine.run) {
+            const _cfg = collectInputs();
+            const _sp = Number((document.getElementById('sale-price') || {}).value) || 0;
+            const _cb = Number((document.getElementById('cost-basis') || {}).value) || 0;
+            const _ad = Number((document.getElementById('accelerated-depreciation') || {}).value) || 0;
+            if (_sp) _cfg.salePrice = _sp;
+            if (_cb) _cfg.costBasis = _cb;
+            if (_ad) _cfg.acceleratedDepreciation = _ad;
+            _cfg.strategyKey = _cfg.tierKey;
+            _cfg.investedCapital = _cfg.investment;
+            _cfg.years = _cfg.horizonYears;
+            window.__lastResult = ProjectionEngine.run(_cfg);
+          }
+          if (typeof renderProjectionDashboard === 'function') renderProjectionDashboard();
+        } catch (e) { console.warn('auto-recalc failed:', e && e.message); }
+      }, 250);
+    });
+  });
 
   const runBtn = document.getElementById('run-projection');
   if (runBtn) runBtn.addEventListener('click', runProjection);
