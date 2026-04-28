@@ -21,6 +21,11 @@ function showPage(id) {
   });
   if (id === 'page-allocator') {
     try {
+      if (typeof renderStrategySummary === 'function') renderStrategySummary();
+    } catch(e) { console.warn('renderStrategySummary failed:', e && e.message); }
+  }
+  if (id === 'page-allocator-legacy-tax') {
+    try {
       const host = document.getElementById('tax-comparison-host');
       if (host && typeof renderTaxComparison === 'function') {
         renderTaxComparison(host, window.__lastComparison);
@@ -164,6 +169,8 @@ async function runProjection() {
   });
   renderAllocator(allocation);
   const result = ProjectionEngine.run(cfg);
+  window.__lastResult = result;
+  window.__lastAllocation = allocation;
   renderProjection(result);
   showPage('page-projection');
 }
