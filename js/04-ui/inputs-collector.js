@@ -61,7 +61,11 @@ function _buildPerYearArray(field, year1Base) {
 function collectInputs() {
       const horizon = parseInt(_val('projection-years'), 10) || 5;
       const year1   = parseInt(_val('year1'), 10) || (new Date()).getFullYear();
-      const cfg = {
+      const custodianId = _val('custodian-select') || '';
+        const leverageCapVal = parseFloat(_val('leverage-cap-select'));
+        const cfg = {
+                custodian:           custodianId,
+                leverageCap:         (Number.isFinite(leverageCapVal) && leverageCapVal > 0) ? leverageCapVal : null,
                 year1:               year1,
                 horizonYears:        horizon,
                 filingStatus:        _val('filing-status') || 'single',
