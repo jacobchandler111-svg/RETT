@@ -256,3 +256,206 @@ body {
   border-radius: 4px;
   font-size: .9rem;
 }
+
+
+/* ============================================================ */
+/* RETT Strategy Summary tables (Page 3) - unified styling      */
+/* ============================================================ */
+
+.rett-table-wrap {
+  background: rgba(13, 34, 64, 0.6);
+  border: 1px solid #1a3a6e;
+  border-radius: 6px;
+  padding: 14px 18px;
+  margin-bottom: 8px;
+  overflow-x: auto;
+}
+
+.rett-kv-table,
+.rett-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92em;
+}
+
+.rett-kv-table td,
+.rett-data-table td,
+.rett-data-table th {
+  padding: 7px 12px;
+  border-bottom: 1px solid rgba(95, 168, 255, 0.08);
+}
+
+.rett-kv-table tr:last-child td,
+.rett-data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.rett-kv-table td:first-child {
+  color: #b3d4ff;
+  text-align: left;
+  font-weight: 500;
+  width: 60%;
+}
+.rett-kv-table td:last-child {
+  color: #ffffff;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.rett-data-table thead th {
+  color: #5fa8ff;
+  background: rgba(15, 76, 129, 0.35);
+  text-align: right;
+  font-weight: 700;
+  border-bottom: 1px solid #1a3a6e;
+}
+.rett-data-table th:first-child,
+.rett-data-table td:first-child {
+  text-align: left;
+}
+.rett-data-table td {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #e6edf3;
+}
+
+.rett-total-row td {
+  background: rgba(15, 76, 129, 0.25);
+  color: #ffffff !important;
+  font-weight: 700;
+  border-top: 1px solid rgba(95, 168, 255, 0.25);
+}
+
+.rett-savings-row td {
+  background: rgba(46, 160, 67, 0.18);
+  color: #5fd97e !important;
+  font-weight: 700;
+}
+
+.rett-savings-cell {
+  color: #5fd97e;
+  font-weight: 600;
+}
+
+.rett-strategy-card {
+  background: rgba(21, 101, 192, 0.15);
+  border: 1px solid rgba(66, 165, 245, 0.3);
+  border-radius: 8px;
+  padding: 18px 22px;
+  text-align: center;
+  max-width: 380px;
+  margin: 4px auto;
+}
+.rett-strategy-card-title {
+  font-weight: 700;
+  font-size: 1.05em;
+  color: #90caf9;
+  margin-bottom: 6px;
+}
+.rett-strategy-card-detail {
+  font-size: 0.88em;
+  color: #b0bec5;
+  margin-bottom: 10px;
+}
+.rett-strategy-card-savings {
+  font-size: 1.3em;
+  font-weight: 700;
+  color: #4fc3f7;
+}
+
+.rett-action-row {
+  margin-top: 32px;
+  display: flex;
+  gap: 14px;
+}
+
+.page-title {
+  font-size: 1.5em;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+/* ============================================================ */
+/* RETT Multi-Year Projection Dashboard (Page 2)                */
+/* ============================================================ */
+
+.rett-dashboard {
+  margin-top: 18px;
+}
+
+.rett-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.rett-kpi-tile {
+  background: linear-gradient(135deg, rgba(15, 76, 129, 0.45) 0%, rgba(13, 34, 64, 0.65) 100%);
+  border: 1px solid #1a3a6e;
+  border-left: 3px solid #5fa8ff;
+  border-radius: 6px;
+  padding: 14px 18px;
+}
+.rett-kpi-tile.kpi-positive { border-left-color: #5fd97e; }
+.rett-kpi-tile.kpi-negative { border-left-color: #f87171; }
+
+.rett-kpi-label {
+  font-size: 0.78em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8fb3e0;
+  margin-bottom: 6px;
+}
+.rett-kpi-value {
+  font-size: 1.5em;
+  font-weight: 700;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+.rett-kpi-tile.kpi-positive .rett-kpi-value { color: #5fd97e; }
+.rett-kpi-tile.kpi-negative .rett-kpi-value { color: #f87171; }
+.rett-kpi-sub {
+  font-size: 0.78em;
+  color: #8899aa;
+  margin-top: 4px;
+}
+
+.rett-chart-wrap {
+  background: rgba(13, 34, 64, 0.6);
+  border: 1px solid #1a3a6e;
+  border-radius: 6px;
+  padding: 18px;
+  margin-bottom: 18px;
+}
+.rett-chart-title {
+  color: #5fa8ff;
+  font-size: 0.95em;
+  font-weight: 700;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.rett-chart-legend {
+  display: flex;
+  gap: 14px;
+  font-size: 0.82em;
+  font-weight: 500;
+  color: #b3d4ff;
+}
+.rett-legend-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+.swatch-without { background: #5fa8ff; }
+.swatch-with { background: #2c5aa0; }
+.swatch-cumulative { background: #5fd97e; }
+
+.rett-chart-svg { width: 100%; height: auto; display: block; }
