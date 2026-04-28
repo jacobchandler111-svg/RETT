@@ -171,6 +171,24 @@
     var capByYear = (stage2.capByYear || []).map(function (v) { return _num(v, 0); });
     var totalGain = _num(stage2.totalLossNeeded, 0);
     var horizon   = capByYear.length;
+    // Total recognizable gain — derived from raw cfg if not on stage2.
+    // (stage2.totalLossNeeded is already capped at horizon capacity.)
+    var actualGain = (function () {
+      if (stage2.gainNeeded != null) return _num(stage2.gainNeeded, 0);
+      var ltgRaw = (cfg && cfg.longTermGain != null) ? Number(cfg.longTermGain) : NaN;
+      var recRaw = (cfg && cfg.recapture != null) ? Number(cfg.recapture) : NaN;
+      if (Number.isFinite(ltgRaw) || Number.isFinite(recRaw)) {
+        return (Number.isFinite(ltgRaw) ? ltgRaw : 0) + (Number.isFinite(recRaw) ? recRaw : 0);
+      }
+      var sp = _num(cfg && cfg.salePrice, 0);
+      var cb = _num(cfg && cfg.costBasis, 0);
+      var ad = _num(cfg && cfg.acceleratedDepreciation, 0);
+      return Math.max(0, sp - cb - ad) + Math.max(0, ad);
+    })();
+    if (actualGain < totalGain) actualGain = totalGain;
+    // Gain that cannot be absorbed within horizon at chosen leverage; it must
+    // still eventually be recognized and taxed (we project it as a balloon).
+    var shortfallGain = Math.max(0, _num(stage2.shortfall, actualGain - totalGain));
 
     if (horizon === 0 || totalGain <= 0) {
       return Object.assign({}, stage2, {
@@ -233,6 +251,62 @@
     });
     var chosen = pool[0];
 
+    // ---- Shortfall tax: gain that exceeds horizon capacity is still owed.
+    //      Project a balloon recognition in year H+1 and add its tax to the
+    //      chosen schedule's tax so chosenSavings reflects reality.
+    var shortfallTax = 0;
+    if (shortfallGain > 0 && typeof root.computeTaxComparison === 'function') {
+      try {
+        var balloonYearN = (function () {
+          if (cfg && cfg.year1) return Number(cfg.year1) + horizon;
+          if (cfg && cfg.implementationDate) {
+            var m = String(cfg.implementationDate).match(/^(\d{4})/);
+            if (m) return Number(m[1]) + horizon;
+          }
+          return new Date().getFullYear() + horizon;
+        })();
+        var balloonOrd = (cfg && cfg.ordinaryByYear && cfg.ordinaryByYear[horizon] != null)
+          ? _num(cfg.ordinaryByYear[horizon], 0)
+          : _num(cfg && cfg.baseOrdinaryIncome, 0);
+        var ts = root.computeTaxComparison(
+          {
+            year1: balloonYearN,
+            horizonYears: 1,
+            filingStatus: (cfg && cfg.filingStatus) || 'mfj',
+            state: (cfg && cfg.state) || 'NY',
+            baseOrdinaryIncome: balloonOrd
+          },
+          {
+            recommendation: 'single-year',
+            longTermGain: shortfallGain,
+            lossGenerated: 0
+          }
+        );
+        var bts = root.computeTaxComparison(
+          {
+            year1: balloonYearN,
+            horizonYears: 1,
+            filingStatus: (cfg && cfg.filingStatus) || 'mfj',
+            state: (cfg && cfg.state) || 'NY',
+            baseOrdinaryIncome: balloonOrd
+          },
+          {
+            recommendation: 'single-year',
+            longTermGain: 0,
+            lossGenerated: 0
+          }
+        );
+        var withGainTotal = (ts && ts.rows && ts.rows[0] && ts.rows[0].withStrategy)
+          ? _num(ts.rows[0].withStrategy.total, 0) : 0;
+        var noGainTotal = (bts && bts.rows && bts.rows[0] && bts.rows[0].withStrategy)
+          ? _num(bts.rows[0].withStrategy.total, 0) : 0;
+        shortfallTax = Math.max(0, withGainTotal - noGainTotal);
+      } catch (e) {
+        // Conservative fallback: LTCG 20% + NIIT 3.8% + 5% state proxy ≈ 28.8%.
+        shortfallTax = shortfallGain * 0.288;
+      }
+    }
+
     return Object.assign({}, stage2, {
       // Replace the per-year arrays with the optimizer's choice.
       gainByYear: chosen.gainByYear,
@@ -242,8 +316,10 @@
       structured: {
         enabled: true,
         chosen: chosen.name,
-        chosenTax: chosen.totalWithStrategy,
-        chosenSavings: chosen.totalSavings,
+        chosenTax: chosen.totalWithStrategy + shortfallTax,
+        chosenSavings: chosen.totalSavings - shortfallTax,
+        shortfallGain: shortfallGain,
+        shortfallTax: shortfallTax,
         candidates: scored,
         // The structured-sale product holds whatever was not recognized
         // in year 1 -- payouts on Jan 1 of years 2..N for amounts equal
@@ -253,7 +329,7 @@
         }),
         // Initial deposit into the product = total gain minus year-1
         // recognition.
-        initialDeposit: Math.max(0, totalGain - (chosen.gainByYear[0] || 0))
+        initialDeposit: Math.max(0, actualGain - (chosen.gainByYear[0] || 0))
       }
     });
   }
