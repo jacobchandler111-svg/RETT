@@ -17,6 +17,26 @@
   function recommendSale(cfg) {
     cfg = cfg || {};
 
+    // Custodian gate: if a custodian is selected, validate before any solver runs.
+    if (cfg.custodian && typeof root.validateAgainstCustodian === 'function') {
+      var custVal = root.validateAgainstCustodian({
+        custodian: cfg.custodian,
+        strategyKey: cfg.strategyKey,
+        leverageCap: cfg.leverageCap,
+        investedCapital: cfg.investedCapital
+      });
+      if (custVal && custVal.ok === false) {
+        return {
+          longTermGain: 0, recapture: 0, gain: 0, yearFraction: 1,
+          stage1: null, stage1Variable: null, stage1Manual: null,
+          stage1RecommendsSingleYear: false, stage1Source: null,
+          stage2: null,
+          recommendation: 'custodian-violation',
+          custodianViolation: custVal,
+          summary: { source: 'custodian-violation', note: custVal.message }
+        };
+      }
+    }
     var salePrice              = Number(cfg.salePrice) || 0;
     var costBasis              = Number(cfg.costBasis) || 0;
     var acceleratedDepreciation = Number(cfg.acceleratedDepreciation) || 0;
