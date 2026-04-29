@@ -107,10 +107,10 @@ const ProjectionEngine = {
 
                         // Apply current-year gains + new losses + carryforwards.
                         const applied = tracker.applyYear({
-                                            shortTermGain: shortGain,
-                                            longTermGain:  longGain,
-                                            newShortTermLoss: newShortLoss,
-                                            newLongTermLoss:  newLongLoss
+                                            stGains:        shortGain,
+                                            ltGains:        longGain,
+                                            stLosses:         newShortLoss,
+                                            ltLosses:         newLongLoss
                         });
 
                         // Taxable income WITH Brooklyn.
@@ -177,8 +177,8 @@ const ProjectionEngine = {
                             totals: {
                                                 cumulativeFees,
                                                 cumulativeNetSavings: cumulativeSavings,
-                                                finalShortCarryforward: tracker.shortCarryforward,
-                                                finalLongCarryforward:  tracker.longCarryforward
+                                                finalShortCarryforward: tracker.stCarry,
+                                                finalLongCarryforward:  tracker.ltCarry
                             }
             };
         }
