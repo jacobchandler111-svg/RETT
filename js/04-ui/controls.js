@@ -155,6 +155,29 @@ function _onCustodianChange() {
     lcSel.appendChild(opt);
   });
   lcSel.disabled = false;
+
+  // Schwab combo override: when custodian is Charles Schwab, replace the
+  // numeric leverage-cap options with the Schwab table's leverage labels
+  // (e.g. "145/45", "200/100"), filtered to the leverages available for the
+  // currently-selected strategy. The cfg layer will resolve (strategy,
+  // leverageLabel) to a Schwab combo via findSchwabCombo.
+  if (c.id === 'schwab' && typeof listSchwabCombos === 'function') {
+    var currentStrat = stratSel ? stratSel.value : null;
+    var schwabLeverages = listSchwabCombos()
+      .filter(function (sc) { return !currentStrat || sc.strategyKey === currentStrat; })
+      .map(function (sc) { return sc.leverageLabel; });
+    if (schwabLeverages.length) {
+      while (lcSel.options.length > 0) lcSel.remove(0);
+      schwabLeverages.forEach(function (lev, i) {
+        var opt = document.createElement('option');
+        opt.value = lev;
+        opt.textContent = lev;
+        if (i === 0) opt.selected = true;
+        lcSel.appendChild(opt);
+      });
+      lcSel.disabled = false;
+    }
+  }
   if (stratSel) {
     Array.from(stratSel.options).forEach(o => {
       const allowed = c.allowedStrategies.indexOf(o.value) !== -1;

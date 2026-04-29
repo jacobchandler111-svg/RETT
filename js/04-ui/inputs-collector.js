@@ -86,5 +86,20 @@ function collectInputs() {
                 longGainByYear:    _buildPerYearArray('long-gain',  parseUSD(_val('long-term-gain'))),
                 lossRateByYear:    _arrayPctFromRows('#future-years-host .year-row', 'loss-rate')
       };
+      // Schwab combo resolution: when the custodian is Charles Schwab, resolve
+      // the (strategy, leverageLabel) pair to a Schwab combo and inject
+      // cfg.comboId so the projection engine uses the multi-year tranche curve.
+      // Implementation date drives the 365-day tranche anchor.
+      if (cfg.custodian === 'schwab' && typeof findSchwabCombo === 'function') {
+        var leverageLabel = _val('leverage-cap-select') || '';
+        var combo = findSchwabCombo(cfg.tierKey, leverageLabel);
+        if (combo) {
+          cfg.comboId = combo.id;
+          cfg.leverageLabel = leverageLabel;
+          var implDate = _val('implementation-date') || '';
+          cfg.implementationDate = implDate || (cfg.year1 + '-01-01');
+        }
+      }
+
       return cfg;
 }
