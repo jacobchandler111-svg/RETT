@@ -47,11 +47,19 @@ function fmtUSD(n, opts) {
                                                                                                                                                 }
                                                                                                                                                 
                                                                                                                                                 function parsePct(s) {
-                                                                                                                                                    if (s == null) return 0;
-                                                                                                                                                        if (typeof s === 'number') return s;
-                                                                                                                                                            const cleaned = String(s).replace(/[^0-9.\-]/g, '');
-                                                                                                                                                                const n = parseFloat(cleaned);
-                                                                                                                                                                    if (isNaN(n)) return 0;
-                                                                                                                                                                        return n > 1 ? n / 100 : n;
-                                                                                                                                                                        }
+    // Returns a decimal fraction. Examples:
+    //   parsePct("5")   => 0.05      (whole-number percent)
+    //   parsePct("5%")  => 0.05
+    //   parsePct("0.5") => 0.005     (whole-number percent, not 50%)
+    //   parsePct("0")   => 0
+    // If you want to pass a fraction directly use the value as-is in calling code.
+    // This convention matches the labeled "Loss rate %" input field where users
+    // enter whole percent numbers (e.g. "59" for the beta1 200/100 strategy).
+    if (s == null) return 0;
+    if (typeof s === 'number') return s >= 1 ? s / 100 : s;
+    const cleaned = String(s).replace(/[^0-9.\-]/g, '');
+    const n = parseFloat(cleaned);
+    if (isNaN(n)) return 0;
+    return n / 100;
+}
                                                                                                                                                                         
