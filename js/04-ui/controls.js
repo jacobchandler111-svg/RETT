@@ -176,16 +176,19 @@ function _onCustodianChange() {
       var validLevels = schwabCombosForStrat.map(function(sc){ return sc.leverageLabel; });
       var preserveIdx = validLevels.indexOf(prevLev);
       while (lcSel.options.length > 0) lcSel.remove(0);
-      schwabCombosForStrat.forEach(function (sc, i) {
+      schwabCombosForStrat.forEach(function (sc) {
         var opt = document.createElement('option');
         opt.value = sc.leverageLabel;
         opt.textContent = sc.leverageLabel + ' (' + sc.longPct + '/' + sc.shortPct + ')';
-        // Preserve previous leverage selection if still valid; otherwise default to first.
-        if ((preserveIdx >= 0 && i === preserveIdx) || (preserveIdx < 0 && i === 0)) {
-          opt.selected = true;
-        }
         lcSel.appendChild(opt);
       });
+      // Restore previous leverage selection if still valid; otherwise the
+      // browser's default (first option) takes effect. Setting select.value
+      // AFTER appending options is the reliable way to programmatically
+      // pick a specific option.
+      if (preserveIdx >= 0) {
+        lcSel.value = prevLev;
+      }
       lcSel.disabled = false;
     }
   }
