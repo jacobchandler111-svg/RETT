@@ -51,7 +51,7 @@
   }
 
   function updateComputedReadouts(inputs) {
-    var lt = Math.max(0, inputs.salePrice - inputs.costBasis - inputs.acceleratedDepreciation);
+    var lt = Math.max(0, inputs.salePrice - inputs.costBasis);
     var rec = Math.max(0, inputs.acceleratedDepreciation);
     var total = lt + rec;
     var gainEl  = $('computed-gain');
