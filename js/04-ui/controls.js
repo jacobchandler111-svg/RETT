@@ -136,7 +136,9 @@ function _onCustodianChange() {
   if (!custSel || !lcSel) return;
   const id = custSel.value;
   const c = (typeof getCustodian === 'function') ? getCustodian(id) : null;
+
   while (lcSel.options.length > 0) lcSel.remove(0);
+
   if (!c) {
     const opt = document.createElement('option');
     opt.value = '';
@@ -147,6 +149,8 @@ function _onCustodianChange() {
     if (stratSel) Array.from(stratSel.options).forEach(o => { o.disabled = false; });
     return;
   }
+
+  // Default (non-Schwab): populate numeric leverage caps from custodian record.
   c.allowedLeverageCaps.forEach((lev, idx) => {
     const opt = document.createElement('option');
     opt.value = String(lev);
@@ -156,28 +160,30 @@ function _onCustodianChange() {
   });
   lcSel.disabled = false;
 
-  // Schwab combo override: when custodian is Charles Schwab, replace the
-  // numeric leverage-cap options with the Schwab table's leverage labels
-  // (e.g. "145/45", "200/100"), filtered to the leverages available for the
-  // currently-selected strategy. The cfg layer will resolve (strategy,
-  // leverageLabel) to a Schwab combo via findSchwabCombo.
-  if (c.id === 'schwab' && typeof listSchwabCombos === 'function') {
+  // Schwab combo override: populate the leverage-cap dropdown with the
+  // Schwab table's leverage labels (e.g. "145/45", "200/100"), filtered to
+  // the leverages available for the currently-selected strategy. The cfg
+  // layer resolves (strategy, leverageLabel) to a Schwab combo via
+  // findSchwabCombo. Leverage is already baked into the combo's loss curve.
+  var isSchwab = (c.id === 'schwab' && typeof listSchwabCombos === 'function');
+  if (isSchwab) {
     var currentStrat = stratSel ? stratSel.value : null;
-    var schwabLeverages = listSchwabCombos()
-      .filter(function (sc) { return !currentStrat || sc.strategyKey === currentStrat; })
-      .map(function (sc) { return sc.leverageLabel; });
-    if (schwabLeverages.length) {
+    var schwabCombosForStrat = listSchwabCombos().filter(function (sc) {
+      return !currentStrat || sc.strategyKey === currentStrat;
+    });
+    if (schwabCombosForStrat.length) {
       while (lcSel.options.length > 0) lcSel.remove(0);
-      schwabLeverages.forEach(function (lev, i) {
+      schwabCombosForStrat.forEach(function (sc, i) {
         var opt = document.createElement('option');
-        opt.value = lev;
-        opt.textContent = lev;
+        opt.value = sc.leverageLabel;
+        opt.textContent = sc.leverageLabel + ' (' + sc.longPct + '/' + sc.shortPct + ')';
         if (i === 0) opt.selected = true;
         lcSel.appendChild(opt);
       });
       lcSel.disabled = false;
     }
   }
+
   if (stratSel) {
     Array.from(stratSel.options).forEach(o => {
       const allowed = c.allowedStrategies.indexOf(o.value) !== -1;
@@ -187,13 +193,78 @@ function _onCustodianChange() {
       }
     });
   }
+
   if (info) {
-    const minStrat = stratSel ? stratSel.value : c.allowedStrategies[0];
-    const minInv = (typeof getMinInvestment === 'function') ? getMinInvestment(id, minStrat) : 0;
     const dollarSign = String.fromCharCode(36);
-    info.textContent = c.label + ' • ' + c.allowedStrategies.length + ' strategies offered • ' +
-      'leverage caps: ' + c.allowedLeverageCaps.map(v => v.toFixed(2) + 'x').join(', ') +
-      (minInv ? ' • minimum investment for ' + minStrat + ': ' + dollarSign + minInv.toLocaleString() : '');
+    if (isSchwab) {
+      // Combo-aware Schwab info line. Surface the real Brooklyn-notation
+      // pairs from the schwab-strategies catalog, plus the per-combo
+      // minimum investment for the currently-selected combo.
+      var allCombos = listSchwabCombos();
+      var currentStrat2 = stratSel ? stratSel.value : null;
+      var currentLev = lcSel ? lcSel.value : null;
+      var leveragePairs = allCombos
+        .filter(function (sc) { return !currentStrat2 || sc.strategyKey === currentStrat2; })
+        .map(function (sc) { return sc.leverageLabel; });
+      var pickedCombo = (typeof findSchwabCombo === 'function')
+        ? findSchwabCombo(currentStrat2, currentLev)
+        : null;
+      var minTxt = '';
+      if (pickedCombo && pickedCombo.minInvestment) {
+        minTxt = ' • minimum investment for ' + pickedCombo.strategyLabel
+              + ' ' + pickedCombo.leverageLabel
+              + ': ' + dollarSign + pickedCombo.minInvestment.toLocaleString();
+      }
+      info.textContent = c.label
+        + ' • ' + allCombos.length + ' combos available'
+        + ' • leverage pairs for selected strategy: '
+        + (leveragePairs.length ? leveragePairs.join(', ') : 'none')
+        + minTxt;
+    } else {
+      const minStrat = stratSel ? stratSel.value : c.allowedStrategies[0];
+      const minInv = (typeof getMinInvestment === 'function') ? getMinInvestment(id, minStrat) : 0;
+      info.textContent = c.label + ' • '
+        + c.allowedStrategies.length + ' strategies offered • '
+        + 'leverage caps: ' + c.allowedLeverageCaps.map(v => v.toFixed(2) + 'x').join(', ')
+        + (minInv ? ' • minimum investment for ' + minStrat + ': ' + dollarSign + minInv.toLocaleString() : '');
+    }
+  }
+
+  // Below-minimum warning for Schwab combos: shows when the user has entered
+  // an invested capital amount that's less than the selected combo's minimum.
+  // Looks for #invested-capital on Page 2 (Brooklyn Configuration) and writes
+  // a soft warning into a sibling element if the value is below the threshold.
+  if (isSchwab) {
+    try {
+      var invInp = document.getElementById('invested-capital');
+      var currentStrat3 = stratSel ? stratSel.value : null;
+      var currentLev3 = lcSel ? lcSel.value : null;
+      var picked3 = (typeof findSchwabCombo === 'function')
+        ? findSchwabCombo(currentStrat3, currentLev3)
+        : null;
+      if (invInp && picked3 && picked3.minInvestment) {
+        var invVal = Number(invInp.value) || 0;
+        var warnId = 'schwab-below-min-warning';
+        var warnEl = document.getElementById(warnId);
+        if (invVal > 0 && invVal < picked3.minInvestment) {
+          if (!warnEl) {
+            warnEl = document.createElement('p');
+            warnEl.id = warnId;
+            warnEl.className = 'subtitle';
+            warnEl.style.color = '#c53030';
+            warnEl.style.marginTop = '6px';
+            invInp.parentNode.appendChild(warnEl);
+          }
+          var dollarSign2 = String.fromCharCode(36);
+          warnEl.textContent = 'Warning: Schwab requires a minimum of '
+            + dollarSign2 + picked3.minInvestment.toLocaleString()
+            + ' for ' + picked3.strategyLabel + ' ' + picked3.leverageLabel
+            + '. You entered ' + dollarSign2 + invVal.toLocaleString() + '.';
+        } else if (warnEl) {
+          warnEl.textContent = '';
+        }
+      }
+    } catch (e) { /* non-fatal */ }
   }
 }
 
@@ -333,6 +404,13 @@ function bindControls() {
   if (_custSel) _custSel.addEventListener('change', _onCustodianChange);
   const _stratSel = document.getElementById('strategy-select');
   if (_stratSel) _stratSel.addEventListener('change', _onCustodianChange);
+
+  // Refresh custodian info / Schwab combo warnings when the leverage-cap
+  // dropdown or invested-capital change too.
+  const _lcSel = document.getElementById('leverage-cap-select');
+  if (_lcSel) _lcSel.addEventListener('change', _onCustodianChange);
+  const _invInp = document.getElementById('invested-capital');
+  if (_invInp) _invInp.addEventListener('input', _onCustodianChange);
   _onCustodianChange();
 
   showPage('page-inputs');
