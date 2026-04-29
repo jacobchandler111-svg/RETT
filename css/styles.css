@@ -459,3 +459,45 @@ body {
 .swatch-cumulative { background: #5fd97e; }
 
 .rett-chart-svg { width: 100%; height: auto; display: block; }
+
+
+/* ============================================================
+   Accounting-format dollar styling (added by tax-strategy-fixes)
+   - .currency-prefix wraps an <input> and prepends a $ sign that
+     stays flush-left while the digits right-align inside the input.
+   - .accounting-amount renders read-only dollar text with right
+     alignment, tabular numerals, parentheses for negatives, and a
+     dim placeholder for zero values.
+   These rules are additive only and do not override existing styles.
+   ============================================================ */
+.currency-prefix {
+  position: relative;
+  display: block;
+}
+.currency-prefix::before {
+  content: "$";
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #5fa8ff;
+  font-weight: 600;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+.currency-prefix > input {
+  padding-left: 22px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.accounting-amount {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+.accounting-amount.neg {
+  color: #d35454;
+}
+.accounting-amount.zero {
+  color: #6a7c92;
+}
