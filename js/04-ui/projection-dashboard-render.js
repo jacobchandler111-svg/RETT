@@ -1,4 +1,4 @@
-undefined// FILE: js/04-ui/projection-dashboard-render.js
+// FILE: js/04-ui/projection-dashboard-render.js
 // Multi-year projection dashboard for the Projection page (Page 2).
 // Renders into #projection-table:
 //   1. KPI tile row (Total Tax Saved, Cumulative Fees, Net Benefit, ROI)
