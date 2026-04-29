@@ -89,8 +89,11 @@ const ProjectionEngine = {
       // Brooklyn investment sized only in year 1 by default.
       const investmentThisYear = (i === 0) ? cfg.investment : 0;
       // Schwab combos: leverage already baked in, so skip the * leverage step.
+      // Schwab combos generate fresh losses each tranche year against the
+      // original principal — the position stays open through the full curve.
+      // Legacy path retains year-1-only investment behavior.
       const grossLoss = _schwabCombo
-        ? investmentThisYear * lossRate
+        ? cfg.investment * lossRate
         : investmentThisYear * cfg.leverage * lossRate;
       const fee = (i === 0)
         ? (_schwabCombo
