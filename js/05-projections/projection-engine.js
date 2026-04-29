@@ -106,11 +106,6 @@ const ProjectionEngine = {
                                             newShortTermLoss: newShortLoss,
                                             newLongTermLoss:  newLongLoss
                         });
-
-                        // Taxable income WITH Brooklyn.
-                        const taxableOrdWith = ordinary + applied.ordinaryOffset * -1 + applied.netST > 0
-                                ? ordinary + Math.max(0, applied.netST) - applied.ordinaryOffset
-                                            : ordinary - applied.ordinaryOffset;
                             const fedWith = computeFederalTax(
                                                 Math.max(0, ordinary - applied.ordinaryOffset) + Math.max(0, applied.netST),
                                                 year, cfg.filingStatus,
@@ -150,8 +145,8 @@ const ProjectionEngine = {
                                             lossRate,
                                             grossLoss,
                                             fee,
-                                            shortTermLossUsedAgainstGains: 0,
-                                            longTermLossUsedAgainstGains: 0,
+                                            shortTermLossUsedAgainstGains: Math.max(0, shortGain - Math.max(0, applied.netST)),
+                                            longTermLossUsedAgainstGains: Math.max(0, longGain - Math.max(0, applied.netLT)),
                                             ordinaryOffsetUsed: applied.ordinaryOffset,
                                             shortCarryforwardEnd: applied.stCarryOut,
                                             longCarryforwardEnd: applied.ltCarryOut,
