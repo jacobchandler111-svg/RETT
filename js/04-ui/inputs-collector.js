@@ -74,6 +74,19 @@ function collectInputs() {
                 investment:          parseUSD(_val('invested-capital')),
                 tierKey:             _val('strategy-select') || 'beta1',
                 leverage:            parseFloat(_val('leverage')) || 1,
+                // Property sale gain & depreciation recapture, derived
+                // from the Property Sale section. propertyGain is the
+                // long-term capital gain after subtracting cost basis
+                // and accelerated depreciation taken; recapture is
+                // the accelerated depreciation amount taxed as ordinary
+                // income in the year of sale (Sec 1250). Both default
+                // to 0 when no property sale is entered. (Added by
+                // tax-strategy-fixes branch.)
+                salePrice:               parseUSD(_val('sale-price')),
+                costBasis:               parseUSD(_val('cost-basis')),
+                acceleratedDepreciation: parseUSD(_val('accelerated-depreciation')),
+                propertyGain:            Math.max(0, parseUSD(_val('sale-price')) - parseUSD(_val('cost-basis')) - parseUSD(_val('accelerated-depreciation'))),
+                recapture:               Math.max(0, parseUSD(_val('accelerated-depreciation'))),
                 baseOrdinaryIncome:  _sumIncomeSources(),
                 baseShortTermGain:   parseUSD(_val('short-term-gain')),
                 baseLongTermGain:    parseUSD(_val('long-term-gain')),
