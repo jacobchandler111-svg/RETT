@@ -66,12 +66,24 @@ const ProjectionEngine = {
 
             for (let i = 0; i < horizon; i++) {
                             const year = cfg.year1 + i;
-                            const ordinary = (cfg.ordinaryByYear && cfg.ordinaryByYear[i] != null)
+                            let   ordinary = (cfg.ordinaryByYear && cfg.ordinaryByYear[i] != null)
                                 ? cfg.ordinaryByYear[i] : cfg.baseOrdinaryIncome;
                             const shortGain = (cfg.shortGainByYear && cfg.shortGainByYear[i] != null)
                                 ? cfg.shortGainByYear[i] : (i === 0 ? cfg.baseShortTermGain : 0);
-                            const longGain = (cfg.longGainByYear && cfg.longGainByYear[i] != null)
+                            let   longGain = (cfg.longGainByYear && cfg.longGainByYear[i] != null)
                                 ? cfg.longGainByYear[i] : (i === 0 ? cfg.baseLongTermGain : 0);
+
+                            // Year-1 property-sale injection: a property
+                            // sale entered on the Inputs page surfaces here
+                            // as cfg.propertyGain (long-term capital gain) and
+                            // cfg.recapture (depreciation recapture, taxed as
+                            // ordinary income in the year of sale). Both default
+                            // to 0 when no sale is entered. (Added by
+                            // tax-strategy-fixes branch.)
+                            if (i === 0) {
+                                ordinary += (Number(cfg.recapture)    || 0);
+                                longGain += (Number(cfg.propertyGain) || 0);
+                            }
 
                         const lossRate = (cfg.lossRateByYear && cfg.lossRateByYear[i] != null)
                                 ? cfg.lossRateByYear[i] : flatLossRate;
