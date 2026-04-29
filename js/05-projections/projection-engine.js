@@ -60,6 +60,15 @@ const ProjectionEngine = {
             const snap = brooklynInterpolate(cfg.tierKey, cfg.leverage);
                     const flatLossRate = snap ? snap.lossRate : 0;
 
+  // Schwab combo override: when cfg.comboId resolves to a Schwab combo,
+  // the loss factors already include leverage. We override lossRateByYear
+  // with the tranche-derived array and skip the * cfg.leverage multiplier.
+  const _schwabCombo = (cfg.comboId && typeof getSchwabCombo === 'function')
+    ? getSchwabCombo(cfg.comboId) : null;
+  const _schwabRates = (_schwabCombo && typeof schwabLossRateByYear === 'function')
+    ? schwabLossRateByYear(cfg.comboId, cfg.implementationDate || (cfg.year1 + '-01-01'), horizon)
+    : null;
+
             const yearRows = [];
                     let cumulativeSavings = 0;
                     let cumulativeFees = 0;
@@ -73,15 +82,21 @@ const ProjectionEngine = {
                             const longGain = (cfg.longGainByYear && cfg.longGainByYear[i] != null)
                                 ? cfg.longGainByYear[i] : (i === 0 ? cfg.baseLongTermGain : 0);
 
-                        const lossRate = (cfg.lossRateByYear && cfg.lossRateByYear[i] != null)
-                                ? cfg.lossRateByYear[i] : flatLossRate;
+                        const lossRate = _schwabRates ? _schwabRates[i]
+      : (cfg.lossRateByYear && cfg.lossRateByYear[i] != null)
+        ? cfg.lossRateByYear[i] : flatLossRate;
 
-                        // Brooklyn investment sized only in year 1 by default.
-                        const investmentThisYear = (i === 0) ? cfg.investment : 0;
-                            const grossLoss = investmentThisYear * cfg.leverage * lossRate;
-                            const fee = (i === 0)
-                                ? brooklynFee(cfg.tierKey, cfg.leverage, cfg.investment)
-                                                : 0;
+      // Brooklyn investment sized only in year 1 by default.
+      const investmentThisYear = (i === 0) ? cfg.investment : 0;
+      // Schwab combos: leverage already baked in, so skip the * leverage step.
+      const grossLoss = _schwabCombo
+        ? investmentThisYear * lossRate
+        : investmentThisYear * cfg.leverage * lossRate;
+      const fee = (i === 0)
+        ? (_schwabCombo
+            ? cfg.investment * _schwabCombo.feeRate
+            : brooklynFee(cfg.tierKey, cfg.leverage, cfg.investment))
+        : 0;
 
                         // All losses are short-term.
                         const newShortLoss = grossLoss;
