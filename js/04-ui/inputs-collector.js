@@ -85,7 +85,7 @@ function collectInputs() {
                 salePrice:               parseUSD(_val('sale-price')),
                 costBasis:               parseUSD(_val('cost-basis')),
                 acceleratedDepreciation: parseUSD(_val('accelerated-depreciation')),
-                propertyGain:            Math.max(0, parseUSD(_val('sale-price')) - parseUSD(_val('cost-basis')) - parseUSD(_val('accelerated-depreciation'))),
+                propertyGain:            Math.max(0, parseUSD(_val('sale-price')) - parseUSD(_val('cost-basis'))),
                 recapture:               Math.max(0, parseUSD(_val('accelerated-depreciation'))),
                 baseOrdinaryIncome:  _sumIncomeSources(),
                 baseShortTermGain:   parseUSD(_val('short-term-gain')),
@@ -97,7 +97,7 @@ function collectInputs() {
                 ordinaryByYear:    _buildPerYearArray('ordinary',   _sumIncomeSources()),
                 shortGainByYear:   _buildPerYearArray('short-gain', parseUSD(_val('short-term-gain'))),
                 longGainByYear:    _buildPerYearArray('long-gain',  parseUSD(_val('long-term-gain'))),
-                lossRateByYear:    _arrayPctFromRows('#future-years-host .year-row', 'loss-rate')
+                lossRateByYear:    (function(){ var arr=_arrayPctFromRows('#future-years-host .year-row', 'loss-rate'); return arr ? [null].concat(arr) : null; })()
       };
       return cfg;
 }
