@@ -49,6 +49,25 @@ class CarryforwardTracker {
    * @returns {object} resolution: { netST, netLT, ordinaryOffset, stCarryOut, ltCarryOut }
    */
   applyYear(year) {
+        // Backwards-compatible parameter normalizer. Older callers
+        // pass {stGains, stLosses, ltGains, ltLosses}; the projection
+        // engine passes {shortTermGain, longTermGain,
+        // newShortTermLoss, newLongTermLoss}. Translate the engine
+        // shape into the canonical bucket names used internally so
+        // both call sites work with the same logic. (Added by
+        // tax-strategy-fixes branch.)
+        if (year && (
+          year.shortTermGain !== undefined || year.longTermGain !== undefined ||
+          year.newShortTermLoss !== undefined || year.newLongTermLoss !== undefined
+        )) {
+          year = {
+            stGains:   (year.stGains   != null) ? year.stGains   : (year.shortTermGain    || 0),
+            ltGains:   (year.ltGains   != null) ? year.ltGains   : (year.longTermGain     || 0),
+            stLosses:  (year.stLosses  != null) ? year.stLosses  : (year.newShortTermLoss || 0),
+            ltLosses:  (year.ltLosses  != null) ? year.ltLosses  : (year.newLongTermLoss  || 0)
+          };
+        }
+
         // Pull prior carryforwards into this year's loss buckets.
     const stLossesTotal = (year.stLosses || 0) + this.stCarry;
     const ltLossesTotal = (year.ltLosses || 0) + this.ltCarry;
