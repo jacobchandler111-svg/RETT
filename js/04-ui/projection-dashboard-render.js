@@ -1,4 +1,4 @@
-// FILE: js/04-ui/projection-dashboard-render.js
+undefined// FILE: js/04-ui/projection-dashboard-render.js
 // Multi-year projection dashboard for the Projection page (Page 2).
 // Renders into #projection-table:
 //   1. KPI tile row (Total Tax Saved, Cumulative Fees, Net Benefit, ROI)
@@ -251,13 +251,20 @@
       });
       years = comp.rows.map(function (r, idx) {
         var resYr = (result && result.years && result.years[idx]) || {};
+        // Stagger-aware per-year overrides: use stage2.investmentByYear /
+        // feeByYear when the structured-sale optimizer produced them.
+        var stage2 = (window.__lastRecommendation && window.__lastRecommendation.stage2) || {};
+        var invOverride = (stage2.investmentByYear && stage2.investmentByYear[idx] != null)
+          ? stage2.investmentByYear[idx] : null;
+        var feeOverride = (stage2.feeByYear && stage2.feeByYear[idx] != null)
+          ? stage2.feeByYear[idx] : null;
         return {
           year: r.year,
           taxNoBrooklyn: r.baseline ? r.baseline.total : (resYr.taxNoBrooklyn || 0),
           taxWithBrooklyn: r.withStrategy ? r.withStrategy.total : (resYr.taxWithBrooklyn || resYr.taxNoBrooklyn || 0),
-          investmentThisYear: isNoAction ? 0 : (resYr.investmentThisYear || 0),
+          investmentThisYear: isNoAction ? 0 : (invOverride != null ? invOverride : (resYr.investmentThisYear || 0)),
           grossLoss: r.lossApplied != null ? r.lossApplied : (resYr.grossLoss || 0),
-          fee: isNoAction ? 0 : (resYr.fee || 0)
+          fee: isNoAction ? 0 : (feeOverride != null ? feeOverride : (resYr.fee || 0))
         };
       });
     } else if (result && result.years && result.years.length) {
