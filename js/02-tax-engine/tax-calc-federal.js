@@ -14,10 +14,11 @@
 // ---- Hard-coded AMT + Additional Medicare tables (per IRS) ----
 // Filing-status keys here use snake_case to match the JSON.
 const FED_AMT_2026 = {
-          single:           { exemption: 90400,  phaseoutStart: 642850,  rate26Threshold: 244000, rate26: 0.26, rate28: 0.28 },
-          married_joint:    { exemption: 140565, phaseoutStart: 1285650, rate26Threshold: 244000, rate26: 0.26, rate28: 0.28 },
-          married_separate: { exemption: 70283,  phaseoutStart: 642825,  rate26Threshold: 122000, rate26: 0.26, rate28: 0.28 },
-          head_household:   { exemption: 90400,  phaseoutStart: 642850,  rate26Threshold: 244000, rate26: 0.26, rate28: 0.28 }
+          // Per IRS Rev. Proc. 2025-32 (Sec. 4.10).
+          single:           { exemption: 90100,  phaseoutStart: 500000,  rate26Threshold: 244500, rate26: 0.26, rate28: 0.28 },
+          married_joint:    { exemption: 140200, phaseoutStart: 1000000, rate26Threshold: 244500, rate26: 0.26, rate28: 0.28 },
+          married_separate: { exemption: 70100,  phaseoutStart: 500000,  rate26Threshold: 122250, rate26: 0.26, rate28: 0.28 },
+          head_household:   { exemption: 90100,  phaseoutStart: 500000,  rate26Threshold: 244500, rate26: 0.26, rate28: 0.28 }
 };
 const FED_AMT_2025 = {
           single:           { exemption: 88100,  phaseoutStart: 626350,  rate26Threshold: 239100, rate26: 0.26, rate28: 0.28 },
