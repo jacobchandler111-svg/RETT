@@ -27,9 +27,15 @@
       });
       if (custVal && custVal.ok === false) {
         return {
-          longTermGain: 0, recapture: 0, gain: 0, yearFraction: 1,
-          stage1: null, stage1Variable: null, stage1Manual: null,
-          stage1RecommendsSingleYear: false, stage1Source: null,
+          longTermGain: 0,
+          recapture: 0,
+          gain: 0,
+          yearFraction: 1,
+          stage1: null,
+          stage1Variable: null,
+          stage1Manual: null,
+          stage1RecommendsSingleYear: false,
+          stage1Source: null,
           stage2: null,
           recommendation: 'custodian-violation',
           custodianViolation: custVal,
@@ -37,16 +43,21 @@
         };
       }
     }
-    var salePrice              = Number(cfg.salePrice) || 0;
-    var costBasis              = Number(cfg.costBasis) || 0;
+
+    var salePrice = Number(cfg.salePrice) || 0;
+    var costBasis = Number(cfg.costBasis) || 0;
     var acceleratedDepreciation = Number(cfg.acceleratedDepreciation) || 0;
+
     var strategyKey = (function () {
       var k = cfg.strategyKey;
-      var valid = (typeof root.STRATEGY_BOUNDS === 'object' && root.STRATEGY_BOUNDS) ? Object.keys(root.STRATEGY_BOUNDS) : ['beta1','beta0','beta05','advisorManaged'];
+      var valid = (typeof root.STRATEGY_BOUNDS === 'object' && root.STRATEGY_BOUNDS)
+        ? Object.keys(root.STRATEGY_BOUNDS)
+        : ['beta1','beta0','beta05','advisorManaged'];
       if (k && valid.indexOf(k) !== -1) return k;
       return 'beta1';
     })();
-    var investedCapital        = Number(cfg.investedCapital) || 0;
+
+    var investedCapital = Number(cfg.investedCapital) || 0;
     var leverageCap = (function () {
       if (cfg.leverageCap == null) return 2.25;
       var n = Number(cfg.leverageCap);
@@ -61,22 +72,19 @@
       if (n > 50) return 50;
       return n;
     })();
-    var useVariableLeverage    = (cfg.useVariableLeverage !== false);
-    var manualShort            = (cfg.manualVariableShortPct != null) ? Number(cfg.manualVariableShortPct) : null;
+
+    var useVariableLeverage = (cfg.useVariableLeverage !== false);
+    var manualShort = (cfg.manualVariableShortPct != null) ? Number(cfg.manualVariableShortPct) : null;
 
     var longTermGain = Math.max(0, salePrice - costBasis - acceleratedDepreciation);
-    var recapture    = Math.max(0, acceleratedDepreciation);
+    var recapture = Math.max(0, acceleratedDepreciation);
     var gainToOffset = longTermGain + recapture;
 
     var yf = (typeof root.yearFractionRemaining === 'function' && cfg.implementationDate)
       ? root.yearFractionRemaining(cfg.implementationDate)
       : 1;
-    // Guard: if implementationDate is malformed, yearFractionRemaining may
-    // return null. Treat as full year remaining (yf=1) so downstream math
-    // never sees NaN.
     if (yf == null || !Number.isFinite(Number(yf))) yf = 1;
 
-    // Short-circuit on no-gain
     if (gainToOffset === 0) {
       return {
         longTermGain: 0,
@@ -164,26 +172,40 @@
         yearFractionYear1: yf
       });
 
-      // Refine the multi-year schedule via the structured-sale optimizer:
-      // explore greedy/proportional/defer/backload payout schedules and
-      // pick the one that minimizes cumulative federal+state tax.  The
-      // refined result preserves all stage2 fields and adds a 'structured'
-      // metadata block describing the chosen schedule.
-      if (typeof root.optimizeStructuredSale === 'function' && stage2 && stage2.totalLossNeeded > 0) {
-        try {
-          stage2 = root.optimizeStructuredSale({ cfg: cfg, stage2: stage2 });
-        } catch (e) {
-          // If the optimizer fails for any reason, fall back to the raw
-          // proportional schedule produced by solveMultiYear.
-          stage2 = Object.assign({}, stage2, { structured: { enabled: false, error: String(e) } });
+      // Annotate stage2 with the fee rate so the structured-sale optimizer
+      // can compute per-year fees from the staggered investment vector.
+      if (stage2 && stage2.leverageUsed != null && typeof root.brooklynInterpolate === 'function') {
+        var info = root.brooklynInterpolate(strategyKey, stage2.leverageUsed);
+        if (info && info.feeRate != null) {
+          stage2 = Object.assign({}, stage2, { feeRate: info.feeRate });
         }
       }
 
+      // Refine the multi-year schedule via the structured-sale optimizer.
+      // Inject the LTCG / recapture split, the strategyKey, and a year1
+      // hint so the optimizer can enforce the 15-month hold.
+      if (typeof root.optimizeStructuredSale === 'function' && stage2 && stage2.totalLossNeeded > 0) {
+        try {
+          var optCfg = Object.assign({}, cfg, {
+            longTermGain: longTermGain,
+            recapture: recapture,
+            strategyKey: strategyKey,
+            investedCapital: investedCapital,
+            year1: cfg.year1 || (function () {
+              if (cfg.implementationDate) {
+                var m = String(cfg.implementationDate).match(/^(\d{4})/);
+                if (m) return Number(m[1]);
+              }
+              return new Date().getFullYear();
+            })()
+          });
+          stage2 = root.optimizeStructuredSale({ cfg: optCfg, stage2: stage2 });
+        } catch (e) {
+          stage2 = Object.assign({}, stage2, { structured: { enabled: false, error: String(e) } });
+        }
+      }
     }
 
-    // Determine top-level recommendation. If the structured-sale
-    // optimizer marked the schedule as a shortfall, propagate that to
-    // the top-level value so callers see a consistent label.
     var recommendation;
     if (stage1RecommendsSingleYear) {
       recommendation = 'single-year';
@@ -192,25 +214,20 @@
     } else {
       recommendation = 'multi-year';
     }
+
     var summary;
     if (stage1RecommendsSingleYear) {
-      var chosen = (stage1Source === 'preset')           ? stage1
-                  : (stage1Source === 'variable')        ? stage1Variable
-                  :                                        manualPoint;
+      var chosen = (stage1Source === 'preset') ? stage1
+                  : (stage1Source === 'variable') ? stage1Variable
+                  : manualPoint;
       summary = {
         source: stage1Source,
         leverage: chosen.leverage,
         loss: chosen.loss,
         fees: chosen.fees,
-        label: chosen.tier ? chosen.tier.label
-              : chosen.point ? chosen.point.label
-              : null,
-        longPct: chosen.tier ? chosen.tier.longPct
-              : chosen.point ? chosen.point.longPct
-              : null,
-        shortPct: chosen.tier ? chosen.tier.shortPct
-              : chosen.point ? chosen.point.shortPct
-              : null,
+        label: chosen.tier ? chosen.tier.label : chosen.point ? chosen.point.label : null,
+        longPct: chosen.tier ? chosen.tier.longPct : chosen.point ? chosen.point.longPct : null,
+        shortPct: chosen.tier ? chosen.tier.shortPct : chosen.point ? chosen.point.shortPct : null,
         yearFraction: yf
       };
     } else {
