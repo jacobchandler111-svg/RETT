@@ -164,7 +164,7 @@
   function runRecommendation() {
     var inputs = readInputs();
     updateComputedReadouts(inputs);
-    var result = root.recommendSale(inputs);
+    var result = root.recommendSale(inputs); window.__lastRecommendation = result;
     renderRecommendation(result);
 
     // Compute tax comparison: needs the multi-year cfg shape (year1/horizon/
