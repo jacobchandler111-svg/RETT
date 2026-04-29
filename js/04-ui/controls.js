@@ -172,12 +172,18 @@ function _onCustodianChange() {
       return !currentStrat || sc.strategyKey === currentStrat;
     });
     if (schwabCombosForStrat.length) {
+      var prevLev = lcSel.value;
+      var validLevels = schwabCombosForStrat.map(function(sc){ return sc.leverageLabel; });
+      var preserveIdx = validLevels.indexOf(prevLev);
       while (lcSel.options.length > 0) lcSel.remove(0);
       schwabCombosForStrat.forEach(function (sc, i) {
         var opt = document.createElement('option');
         opt.value = sc.leverageLabel;
         opt.textContent = sc.leverageLabel + ' (' + sc.longPct + '/' + sc.shortPct + ')';
-        if (i === 0) opt.selected = true;
+        // Preserve previous leverage selection if still valid; otherwise default to first.
+        if ((preserveIdx >= 0 && i === preserveIdx) || (preserveIdx < 0 && i === 0)) {
+          opt.selected = true;
+        }
         lcSel.appendChild(opt);
       });
       lcSel.disabled = false;
@@ -228,6 +234,12 @@ function _onCustodianChange() {
         + 'leverage caps: ' + c.allowedLeverageCaps.map(v => v.toFixed(2) + 'x').join(', ')
         + (minInv ? ' • minimum investment for ' + minStrat + ': ' + dollarSign + minInv.toLocaleString() : '');
     }
+  }
+
+  // When custodian is not Schwab, clear any leftover Schwab warning.
+  if (!isSchwab) {
+    var leftover = document.getElementById('schwab-below-min-warning');
+    if (leftover) leftover.textContent = '';
   }
 
   // Below-minimum warning for Schwab combos: shows when the user has entered
