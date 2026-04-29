@@ -209,7 +209,8 @@
       while (cursor < yearEnd) {
         var daysFromImpl = _daysBetween(impl, cursor);
         var trancheIdx = Math.floor(daysFromImpl / 365);
-        if (trancheIdx > lastIdx) trancheIdx = lastIdx;
+        // Past the 10-year curve: no more losses generated for this combo.
+        if (trancheIdx > lastIdx) { cursor = yearEnd; continue; }
         var trancheStartDay = trancheIdx * 365;
         var trancheEndDay = (trancheIdx + 1) * 365;
         var daysLeftInTranche = trancheEndDay - daysFromImpl;
