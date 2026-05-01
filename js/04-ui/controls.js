@@ -6,6 +6,25 @@
 //   - 'allocator'  : year-1 allocator suggestions
 
 const PAGE_IDS = ['page-inputs', 'page-projection', 'page-allocator'];
+const PROJECTION_SUBPAGE_IDS = ['subpage-summary', 'subpage-details'];
+
+function showProjectionSubpage(id) {
+  PROJECTION_SUBPAGE_IDS.forEach(function (sid) {
+    var panel = document.getElementById(sid);
+    if (panel) {
+      var isActive = (sid === id);
+      panel.classList.toggle('active', isActive);
+      if (isActive) panel.removeAttribute('hidden');
+      else panel.setAttribute('hidden', '');
+    }
+    var tabId = sid.replace('subpage-', 'subnav-');
+    var tab = document.getElementById(tabId);
+    if (tab) {
+      tab.classList.toggle('active', sid === id);
+      tab.setAttribute('aria-selected', sid === id ? 'true' : 'false');
+    }
+  });
+}
 
 function resetAllInputs() {
   // Reset all editable form fields on Page 1 and Page 2 to their initial state.
@@ -459,6 +478,12 @@ function bindControls() {
   if (navInputs)     navInputs.addEventListener('click', () => showPage('page-inputs'));
   if (navProjection) navProjection.addEventListener('click', () => showPage('page-projection'));
   if (navAllocator)  navAllocator.addEventListener('click', () => showPage('page-allocator'));
+
+  // Sub-tabs on Page 2 (Summary | Details).
+  const subnavSummary = document.getElementById('subnav-summary');
+  const subnavDetails = document.getElementById('subnav-details');
+  if (subnavSummary) subnavSummary.addEventListener('click', () => showProjectionSubpage('subpage-summary'));
+  if (subnavDetails) subnavDetails.addEventListener('click', () => showProjectionSubpage('subpage-details'));
 
   const contBtn = document.getElementById('continue-to-projection');
   if (contBtn) contBtn.addEventListener('click', () => {

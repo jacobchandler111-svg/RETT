@@ -195,6 +195,38 @@
     return _section('Strategy Breakdown', inner);
   }
 
+  // Build the hero savings tile shown at the top of the Strategy Summary
+  // page. Single dominant number — total cumulative tax savings — with a
+  // smaller sub-line showing fees and net benefit. Pattern borrowed from
+  // Holistiplan / Instead (formerly Corvee): one big "savings result"
+  // callout that anchors the page.
+  function _buildHeroSavingsTile(years, totals) {
+    var totalSave = 0, cumFees = 0;
+    (years || []).forEach(function (y) {
+      var no = y.taxNoBrooklyn || 0;
+      var w = (y.taxWithBrooklyn != null) ? y.taxWithBrooklyn : no;
+      totalSave += (no - w);
+      cumFees += (y.fee || 0);
+    });
+    if (totals && totals.cumulativeFees != null) cumFees = totals.cumulativeFees;
+    var net = totalSave - cumFees;
+    var horizon = (years && years.length) ? years.length : 0;
+
+    var heroKind = totalSave > 0 ? 'hero-positive' : (totalSave < 0 ? 'hero-negative' : '');
+    var sign = totalSave > 0 ? '+' : (totalSave < 0 ? '\u2212' : '');
+    var displayAmount = sign + _fmt(Math.abs(totalSave)).replace('-', '');
+
+    return '<div class="rett-hero-tile ' + heroKind + '" role="status" aria-live="polite">' +
+      '<div class="rett-hero-label">Estimated Tax Savings</div>' +
+      '<div class="rett-hero-value">' + displayAmount + '</div>' +
+      '<div class="rett-hero-sub">' +
+        'Cumulative over ' + horizon + ' year' + (horizon === 1 ? '' : 's') +
+        ' \u2022 Net of fees: <strong>' + _fmt(net) + '</strong>' +
+        ' \u2022 Brooklyn fees: ' + _fmt(cumFees) +
+      '</div>' +
+    '</div>';
+  }
+
   // Public entry point. Reads result + comparison from globals stored by controls.js.
   function renderStrategySummary() {
     var page = document.getElementById('page-allocator');
@@ -250,6 +282,8 @@
     var html = '';
     html += '<h2 class="page-title">Strategy Summary &amp; Optimization</h2>' +
             '<p class="subtitle">Optimized tax strategy allocation based on your inputs.</p>';
+
+    html += _buildHeroSavingsTile(result.years, totals);
 
     html += _buildBaselineTable(cfg, y1);
     html += _buildPlanningTable(cfg, y1, recommendation);
