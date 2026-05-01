@@ -279,6 +279,19 @@
           ? stage2.investmentByYear[idx] : null;
         var feeOverride = (stage2.feeByYear && stage2.feeByYear[idx] != null)
           ? stage2.feeByYear[idx] : null;
+        // Deferred-comparison rows carry their own per-year investment, fee,
+        // and lossGenerated values that are authoritative — ignore the
+        // projection-engine row when present.
+        if (comp.deferred) {
+          return {
+            year: r.year,
+            taxNoBrooklyn: r.baseline ? r.baseline.total : 0,
+            taxWithBrooklyn: r.withStrategy ? r.withStrategy.total : 0,
+            investmentThisYear: r.investmentThisYear || 0,
+            grossLoss: r.lossGenerated || r.lossApplied || 0,
+            fee: r.fee || 0
+          };
+        }
         return {
           year: r.year,
           taxNoBrooklyn: r.baseline ? r.baseline.total : (resYr.taxNoBrooklyn || 0),

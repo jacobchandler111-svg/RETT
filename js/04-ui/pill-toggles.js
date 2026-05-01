@@ -50,6 +50,23 @@
     return opts;
   }
 
+  // Recognition options track the Horizon. We never let recognition exceed
+  // (horizon - 1) since otherwise the gain would be force-recognized in the
+  // final year with no offset capacity.
+  function _readRecognitionOptions() {
+    var horSel = document.getElementById('projection-years');
+    var horizon = horSel ? (parseInt(horSel.value, 10) || 5) : 5;
+    var opts = [];
+    var maxStart = Math.min(horizon, 4);
+    for (var y = 1; y <= maxStart; y++) {
+      var label;
+      if (y === 1) label = 'Year 1 (immediate)';
+      else label = 'Year ' + y + ' (defer ' + (y - 1) + ' yr)';
+      opts.push({ value: String(y), label: label });
+    }
+    return opts;
+  }
+
   function _renderTrack(trackId, opts, currentValue) {
     var track = document.getElementById(trackId);
     if (!track) return;
@@ -77,17 +94,22 @@
   function buildPillToggles() {
     var levSel  = document.getElementById('leverage-cap-select');
     var horSel  = document.getElementById('projection-years');
+    var recSel  = document.getElementById('recognition-start-select');
     _renderTrack('leverage-pill-track', _readLeverageOptions(),
       levSel ? levSel.value : '');
     _renderTrack('horizon-pill-track',  _readHorizonOptions(),
       horSel ? horSel.value : '');
+    _renderTrack('recognition-pill-track', _readRecognitionOptions(),
+      recSel ? recSel.value : '1');
   }
 
   function syncPillSelection() {
     var levSel = document.getElementById('leverage-cap-select');
     var horSel = document.getElementById('projection-years');
+    var recSel = document.getElementById('recognition-start-select');
     var levVal = levSel ? levSel.value : '';
     var horVal = horSel ? horSel.value : '';
+    var recVal = recSel ? recSel.value : '1';
     document.querySelectorAll('#leverage-pill-track .pill').forEach(function (b) {
       var on = (b.getAttribute('data-value') === levVal);
       b.classList.toggle('active', on);
@@ -95,6 +117,11 @@
     });
     document.querySelectorAll('#horizon-pill-track .pill').forEach(function (b) {
       var on = (b.getAttribute('data-value') === horVal);
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+    document.querySelectorAll('#recognition-pill-track .pill').forEach(function (b) {
+      var on = (b.getAttribute('data-value') === recVal);
       b.classList.toggle('active', on);
       b.setAttribute('aria-checked', on ? 'true' : 'false');
     });
@@ -136,11 +163,15 @@
   }
 
   // Run the recommendation + comparison + projection pipeline for every
-  // (leverage, horizon) combination available to the current custodian.
-  // Pick the combo with the highest NET savings (comparison-based tax
-  // savings minus projection-engine cumulative fees). The comparison is
-  // the same model the savings ribbon and KPI tiles display, so the
-  // auto-pick aligns with what the user sees post-pick.
+  // (leverage, horizon, recognition) combination. Pick the combo with the
+  // highest NET benefit (comparison savings minus Brooklyn fees). For
+  // deferred recognition (recognition year > 1) we use the deferred
+  // comparison function which respects loss carryforward across years
+  // and tranches.
+  //
+  // Tie-breaker: when two combos produce the same net (within $1k), prefer
+  // the one with the SHORTEST gain-recognition duration. Matches the
+  // user's stated preference for shorter structured-sale lockups.
   function runAutoPick() {
     if (typeof collectInputs !== 'function') return null;
     if (typeof ProjectionEngine === 'undefined' || !ProjectionEngine.run) return null;
@@ -152,80 +183,106 @@
     // across iterations and restore if no improvement is found.
     var levSel = document.getElementById('leverage-cap-select');
     var horSel = document.getElementById('projection-years');
+    var recSel = document.getElementById('recognition-start-select');
     var prevLev = levSel ? levSel.value : '';
     var prevHor = horSel ? horSel.value : '';
+    var prevRec = recSel ? recSel.value : '1';
 
     var best = null;
     levOpts.forEach(function (lev) {
       horOpts.forEach(function (hor) {
-        if (levSel) levSel.value = lev.value;
-        if (horSel) horSel.value = hor.value;
-        var cfg;
-        try { cfg = collectInputs(); }
-        catch (e) { return; }
-        var sp = Number((document.getElementById('sale-price') || {}).value) || 0;
-        var cb = Number((document.getElementById('cost-basis') || {}).value) || 0;
-        var ad = Number((document.getElementById('accelerated-depreciation') || {}).value) || 0;
-        if (sp) cfg.salePrice = sp;
-        if (cb) cfg.costBasis = cb;
-        if (ad) cfg.acceleratedDepreciation = ad;
-        cfg.strategyKey = cfg.tierKey;
-        cfg.investedCapital = cfg.investment;
-        cfg.years = cfg.horizonYears;
+        var horizonNum = parseInt(hor.value, 10) || 5;
+        // Recognition options track horizon — never let recognition year
+        // exceed (horizon - 1) so there's at least one year of offset.
+        var maxRec = Math.min(horizonNum, 4);
+        for (var rStart = 1; rStart <= maxRec; rStart++) {
+          if (levSel) levSel.value = lev.value;
+          if (horSel) horSel.value = hor.value;
+          if (recSel) recSel.value = String(rStart);
+          var cfg;
+          try { cfg = collectInputs(); }
+          catch (e) { continue; }
+          var sp = Number((document.getElementById('sale-price') || {}).value) || 0;
+          var cb = Number((document.getElementById('cost-basis') || {}).value) || 0;
+          var ad = Number((document.getElementById('accelerated-depreciation') || {}).value) || 0;
+          if (sp) cfg.salePrice = sp;
+          if (cb) cfg.costBasis = cb;
+          if (ad) cfg.acceleratedDepreciation = ad;
+          cfg.strategyKey = cfg.tierKey;
+          cfg.investedCapital = cfg.investment;
+          cfg.years = cfg.horizonYears;
+          cfg.recognitionStartYearIndex = rStart - 1;
 
-        // Cumulative fees come from the projection engine.
-        var projResult;
-        try { projResult = ProjectionEngine.run(cfg); }
-        catch (e) { return; }
-        if (!projResult || !projResult.years || !projResult.years.length) return;
-        var cumFees = 0;
-        projResult.years.forEach(function (y) { cumFees += (y.fee || 0); });
-        if (projResult.totals && projResult.totals.cumulativeFees != null) {
-          cumFees = projResult.totals.cumulativeFees;
-        }
+          var totalSave = 0;
+          var cumFees = 0;
+          var duration = 0;
 
-        // Tax savings come from the same comparison model the ribbon /
-        // KPI tiles display. We strip cfg.custodian for the recommend
-        // call because the normal recommendation flow uses a custodian-
-        // less readInputs shape — passing custodian here trips a
-        // validation gate when Schwab combo leverage strings (like
-        // "200/100") parse to junk numerics. Falls back to projection-
-        // engine raw deltas if the recommendation helpers aren't loaded.
-        var totalSave = 0;
-        if (typeof root.recommendSale === 'function' &&
-            typeof root.computeTaxComparison === 'function') {
-          try {
-            var recCfg = Object.assign({}, cfg);
-            delete recCfg.custodian;
-            // For Schwab combos the parsed leverageCap is a junk number
-            // (e.g. 200 from "200/100"); use 2.25 as the recommendation
-            // engine's default — same fallback readInputs uses.
-            if (typeof recCfg.leverageCap === 'number' && recCfg.leverageCap > 3) {
-              recCfg.leverageCap = 2.25;
-            }
-            var rec = root.recommendSale(recCfg);
-            var normRec = _normalizeRec(rec, cfg);
-            var comp = root.computeTaxComparison(cfg, normRec);
-            if (comp && Array.isArray(comp.rows)) {
-              if (comp.totalSavings != null) {
-                totalSave = comp.totalSavings;
-              } else {
-                comp.rows.forEach(function (r) { totalSave += (r.savings || 0); });
+          if (rStart > 1 && typeof root.computeDeferredTaxComparison === 'function') {
+            // Deferred path: comparison + fees come from the same engine
+            // since it tracks tranches and per-year fees.
+            try {
+              var defComp = root.computeDeferredTaxComparison(cfg);
+              if (defComp && defComp.rows && defComp.rows.length) {
+                totalSave = defComp.totalSavings || 0;
+                cumFees = defComp.totalFees || 0;
+                duration = defComp.durationYears || 0;
               }
+            } catch (e) { continue; }
+          } else {
+            // Immediate-recognition path: use the existing recommendation +
+            // comparison pipeline, plus projection-engine fees.
+            var projResult;
+            try { projResult = ProjectionEngine.run(cfg); }
+            catch (e) { continue; }
+            if (!projResult || !projResult.years || !projResult.years.length) continue;
+            projResult.years.forEach(function (y) { cumFees += (y.fee || 0); });
+            if (projResult.totals && projResult.totals.cumulativeFees != null) {
+              cumFees = projResult.totals.cumulativeFees;
             }
-          } catch (e) { /* fall back to projection engine */ }
-        }
-        if (!totalSave) {
-          projResult.years.forEach(function (y) {
-            var no = y.taxNoBrooklyn || 0;
-            var w  = (y.taxWithBrooklyn != null) ? y.taxWithBrooklyn : no;
-            totalSave += (no - w);
-          });
-        }
+            if (typeof root.recommendSale === 'function' &&
+                typeof root.computeTaxComparison === 'function') {
+              try {
+                var recCfg = Object.assign({}, cfg);
+                delete recCfg.custodian;
+                if (typeof recCfg.leverageCap === 'number' && recCfg.leverageCap > 3) {
+                  recCfg.leverageCap = 2.25;
+                }
+                var rec = root.recommendSale(recCfg);
+                var normRec = _normalizeRec(rec, cfg);
+                var comp = root.computeTaxComparison(cfg, normRec);
+                if (comp && Array.isArray(comp.rows)) {
+                  if (comp.totalSavings != null) {
+                    totalSave = comp.totalSavings;
+                  } else {
+                    comp.rows.forEach(function (r) { totalSave += (r.savings || 0); });
+                  }
+                }
+              } catch (e) { /* fall back below */ }
+            }
+            if (!totalSave) {
+              projResult.years.forEach(function (y) {
+                var no = y.taxNoBrooklyn || 0;
+                var w  = (y.taxWithBrooklyn != null) ? y.taxWithBrooklyn : no;
+                totalSave += (no - w);
+              });
+            }
+            duration = 1;
+          }
 
-        var net = totalSave - cumFees;
-        if (!best || net > best.net) {
-          best = { lev: lev.value, hor: hor.value, net: net, save: totalSave, fees: cumFees };
+          var net = totalSave - cumFees;
+          // Tie-breaker: prefer shorter recognition duration when nets are
+          // within $1,000 — matches the user's preference for shorter
+          // structured-sale lockups.
+          var better = false;
+          if (!best) better = true;
+          else if (net > best.net + 1000) better = true;
+          else if (Math.abs(net - best.net) <= 1000 && duration < best.duration) better = true;
+          if (better) {
+            best = {
+              lev: lev.value, hor: hor.value, rec: String(rStart),
+              net: net, save: totalSave, fees: cumFees, duration: duration
+            };
+          }
         }
       });
     });
@@ -234,13 +291,16 @@
     if (best) {
       _setSelect('leverage-cap-select', best.lev);
       _setSelect('projection-years', best.hor);
+      _setSelect('recognition-start-select', best.rec);
       _showAutoHint('leverage');
       _showAutoHint('horizon');
+      _showAutoHint('recognition');
       root.__lastAutoPick = best;
     } else {
       // Restore (no improvement found).
       if (levSel) levSel.value = prevLev;
       if (horSel) horSel.value = prevHor;
+      if (recSel) recSel.value = prevRec;
     }
     return best;
   }
@@ -270,6 +330,9 @@
     } else if (trackId === 'horizon-pill-track') {
       _setSelect('projection-years', value);
       _hideAutoHint('horizon');
+    } else if (trackId === 'recognition-pill-track') {
+      _setSelect('recognition-start-select', value);
+      _hideAutoHint('recognition');
     } else {
       return;
     }

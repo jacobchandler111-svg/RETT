@@ -199,31 +199,46 @@
 
     // Compute tax comparison: needs the multi-year cfg shape (year1/horizon/
     // filingStatus/state/baseOrdinaryIncome) plus the loss/gain from result.
+    // When the user has chosen deferred gain recognition (recognition year
+    // > 1) we dispatch to the dedicated deferred comparison function which
+    // tracks loss carryforward across years and adds reinvestment tranches
+    // as gain is recognized.
     try {
       var multiCfg = (typeof collectInputs === 'function') ? collectInputs() : null;
       if (multiCfg) {
-        // Synthesize a normalized recommendation shape the comparison expects:
-        //   { recommendation, longTermGain, lossGenerated, schedule? }
-        var lossGen = (result.summary && result.summary.loss) || (result.stage1 && result.stage1.loss) || 0;
-        var normRec = {
-              recommendation: result.recommendation,
-              longTermGain: result.longTermGain || 0,
-              lossGenerated: lossGen,
-              schedule: (function () {
-        if (result.stage2 && Array.isArray(result.stage2.schedule)) return result.stage2.schedule;
-        if (result.stage2 && Array.isArray(result.stage2.gainByYear)) {
-          return result.stage2.gainByYear.map(function (g, i) {
-            return {
-              year: i,
-              gainTaken: g || 0,
-              lossGenerated: (result.stage2.lossByYear && result.stage2.lossByYear[i]) || 0
-            };
-          });
+        // Make sure the recommendation engine's choice carries over (so the
+        // recommendation panel + summary aren't blank in deferred mode).
+        if (multiCfg.salePrice == null) multiCfg.salePrice = inputs.salePrice;
+        if (multiCfg.costBasis == null) multiCfg.costBasis = inputs.costBasis;
+        if (multiCfg.acceleratedDepreciation == null) multiCfg.acceleratedDepreciation = inputs.acceleratedDepreciation;
+
+        var comparison;
+        var deferred = (multiCfg.recognitionStartYearIndex || 0) >= 1;
+        if (deferred && typeof computeDeferredTaxComparison === 'function') {
+          comparison = computeDeferredTaxComparison(multiCfg);
+        } else {
+          // Synthesize a normalized recommendation shape the comparison expects.
+          var lossGen = (result.summary && result.summary.loss) || (result.stage1 && result.stage1.loss) || 0;
+          var normRec = {
+                recommendation: result.recommendation,
+                longTermGain: result.longTermGain || 0,
+                lossGenerated: lossGen,
+                schedule: (function () {
+          if (result.stage2 && Array.isArray(result.stage2.schedule)) return result.stage2.schedule;
+          if (result.stage2 && Array.isArray(result.stage2.gainByYear)) {
+            return result.stage2.gainByYear.map(function (g, i) {
+              return {
+                year: i,
+                gainTaken: g || 0,
+                lossGenerated: (result.stage2.lossByYear && result.stage2.lossByYear[i]) || 0
+              };
+            });
+          }
+          return null;
+        })()
+          };
+          comparison = computeTaxComparison(multiCfg, normRec);
         }
-        return null;
-      })()
-        };
-        var comparison = computeTaxComparison(multiCfg, normRec);
         window.__lastComparison = comparison;
         var panel = document.getElementById('recommendation-panel');
         if (panel && comparison) {

@@ -69,7 +69,11 @@
       } else {
         comp.rows.forEach(function (r) { totalSave += (r.savings || 0); });
       }
-      years.forEach(function (y) { cumFees += (y.fee || 0); });
+      if (comp.deferred && comp.totalFees != null) {
+        cumFees = comp.totalFees;
+      } else {
+        years.forEach(function (y) { cumFees += (y.fee || 0); });
+      }
     } else {
       years.forEach(function (y) {
         var no = y.taxNoBrooklyn || 0;
@@ -78,7 +82,7 @@
         cumFees += (y.fee || 0);
       });
     }
-    if (totals.cumulativeFees != null) cumFees = totals.cumulativeFees;
+    if (!(comp && comp.deferred) && totals.cumulativeFees != null) cumFees = totals.cumulativeFees;
     var net = totalSave - cumFees;
 
     // Invested capital: prefer the cfg.investment that the projection

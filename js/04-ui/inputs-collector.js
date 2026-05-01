@@ -91,6 +91,13 @@ function collectInputs() {
                 longGainByYear:    _buildPerYearArray('long-gain',  parseUSD(_val('long-term-gain'))),
                 lossRateByYear:    _arrayPctFromRows('#future-years-host .year-row', 'loss-rate')
       };
+      // Recognition-start year (1-indexed user year, 1 = immediate). Stored
+      // on cfg as a 0-indexed offset so engine code can use it as an array
+      // index directly. Default 0 = recognize gain in year 1 (today's
+      // behavior).
+      var recRaw = parseInt(_val('recognition-start-select'), 10);
+      cfg.recognitionStartYearIndex = (Number.isFinite(recRaw) && recRaw >= 1) ? (recRaw - 1) : 0;
+
       // Schwab combo resolution: when the custodian is Charles Schwab, resolve
       // the (strategy, leverageLabel) pair to a Schwab combo and inject
       // cfg.comboId so the projection engine uses the multi-year tranche curve.

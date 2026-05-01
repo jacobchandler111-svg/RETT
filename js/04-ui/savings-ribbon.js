@@ -64,8 +64,16 @@
       totalSave += (no - w);
       cumFees += (y.fee || 0);
     });
-    var totals = (result && result.totals) || {};
-    if (totals.cumulativeFees != null) cumFees = totals.cumulativeFees;
+    // For deferred-recognition comparisons, the comparison's per-year
+    // fees are the source of truth (the projection engine doesn't know
+    // about the deferred schedule's reinvested-gain tranche). Prefer
+    // comp.totalFees when present.
+    if (comp && comp.deferred && comp.totalFees != null) {
+      cumFees = comp.totalFees;
+    } else {
+      var totals = (result && result.totals) || {};
+      if (totals.cumulativeFees != null) cumFees = totals.cumulativeFees;
+    }
     var net = totalSave - cumFees;
 
     var saveKind = totalSave > 0 ? 'positive' : (totalSave < 0 ? 'negative' : '');

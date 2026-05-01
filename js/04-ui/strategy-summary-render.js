@@ -214,7 +214,14 @@
       } else {
         comp.rows.forEach(function (r) { totalSave += (r.savings || 0); });
       }
-      (years || []).forEach(function (y) { cumFees += (y.fee || 0); });
+      // Deferred comparisons own their per-year fees (reinvested gain
+      // tranche). Trust comp.totalFees when present; otherwise fall back
+      // to the projection-engine years array.
+      if (comp.deferred && comp.totalFees != null) {
+        cumFees = comp.totalFees;
+      } else {
+        (years || []).forEach(function (y) { cumFees += (y.fee || 0); });
+      }
     } else {
       (years || []).forEach(function (y) {
         var no = y.taxNoBrooklyn || 0;
@@ -223,7 +230,7 @@
         cumFees += (y.fee || 0);
       });
     }
-    if (totals && totals.cumulativeFees != null) cumFees = totals.cumulativeFees;
+    if (!(comp && comp.deferred) && totals && totals.cumulativeFees != null) cumFees = totals.cumulativeFees;
     var net = totalSave - cumFees;
     var horizon = (years && years.length) ? years.length : 0;
 

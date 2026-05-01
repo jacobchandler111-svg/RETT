@@ -144,6 +144,198 @@ function computeTaxComparison(cfg, recommendation) {
       };
 }
 
+// ============================================================
+// Deferred-recognition comparison.
+// Models a structured-sale scenario where:
+//   - Year 1: cost-basis cash is invested in Brooklyn (gain locked up
+//     in a structured-sale agreement with an insurance company).
+//   - Years 1..(R-1): Brooklyn generates short-term losses with no
+//     gain to absorb them. Per IRS rules, only $3,000 of those losses
+//     can offset ordinary income each year; the rest carries forward
+//     as short-term capital loss.
+//   - Year R onwards: a portion of the gain is paid out (Jan 1 so it
+//     gets a full year of fresh STL). The accumulated CF + same-year
+//     Brooklyn loss offsets the recognized gain. Recognized gain cash
+//     is reinvested in Brooklyn as a NEW tranche.
+//   - Greedy schedule: each eligible year, recognize as much gain as
+//     accumulated capacity will absorb. If gain still remains in the
+//     final horizon year, force-recognize the remainder (it gets taxed).
+//
+// Tranche math: each tranche tracks (capital, startYearIdx). The Year-i
+// loss for tranche t = t.capital * lossRate(i - t.startYearIdx). For
+// non-Schwab strategies the rate is year-independent (brooklynInterpolate
+// returns one number); for Schwab combos the rate comes from the
+// combo's lossByYear array indexed by the tranche's age in years.
+//
+// Returns the same shape as computeTaxComparison plus a deferred:true
+// flag and a recognitionSchedule[] for display.
+
+function _applyLossesWithSTCfCap(scenario, lossAvailable, capOrdinary) {
+      capOrdinary = capOrdinary != null ? capOrdinary : 3000;
+      const out = Object.assign({}, scenario);
+      let loss = lossAvailable;
+
+      // Step 1: ST gain (none expected in deferred scenarios but kept for safety).
+      const offsetShort = Math.min(out.shortTermGain || 0, loss);
+      out.shortTermGain = (out.shortTermGain || 0) - offsetShort;
+      loss -= offsetShort;
+
+      // Step 2: LT gain (the recognized property gain in year R).
+      if (loss > 0) {
+            const offsetLong = Math.min(out.longTermGain || 0, loss);
+            out.longTermGain = (out.longTermGain || 0) - offsetLong;
+            out.investmentIncome = Math.max(0, (out.investmentIncome || 0) - offsetLong);
+            loss -= offsetLong;
+      }
+
+      // Step 3: ordinary income, capped at $3,000 (or $1,500 for MFS).
+      if (loss > 0) {
+            const cap = Math.min(out.ordinaryIncome || 0, capOrdinary);
+            const offsetOrd = Math.min(cap, loss);
+            out.ordinaryIncome = (out.ordinaryIncome || 0) - offsetOrd;
+            out.wages = Math.min(out.wages || 0, out.ordinaryIncome);
+            loss -= offsetOrd;
+      }
+
+      out._lossUsed = lossAvailable - loss;
+      out._lossUnused = loss;
+      return out;
+}
+
+function computeDeferredTaxComparison(cfg) {
+      const horizon = Math.max(1, cfg.horizonYears || cfg.years || 5);
+      const startIdx = Math.max(1, Math.min(horizon - 1,
+            (cfg.recognitionStartYearIndex != null ? cfg.recognitionStartYearIndex : 1)));
+      const ordCap = (cfg.filingStatus === 'mfs') ? 1500 : 3000;
+
+      const totalLT = Math.max(0,
+            (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0));
+      const recapture = Math.max(0, cfg.acceleratedDepreciation || 0);
+      // For MVP we treat the recapture as part of the deferred LT bucket so
+      // the math reflects a structured sale that defers the entire gain
+      // recognition. (Recapture is technically ordinary-rate income; this
+      // is a known approximation flagged in the UI.)
+      const totalGainBucket = totalLT + recapture;
+      const basisCash = Math.max(0, cfg.costBasis || 0);
+
+      const combo = (cfg.comboId && typeof getSchwabCombo === 'function')
+            ? getSchwabCombo(cfg.comboId) : null;
+      const feeRate = combo ? (combo.feeRate || 0) : (function () {
+            if (typeof brooklynInterpolate !== 'function') return 0;
+            const snap = brooklynInterpolate(cfg.tierKey || 'beta1', cfg.leverage || cfg.leverageCap || 2.25);
+            return snap ? (snap.feeRate || 0) : 0;
+      })();
+      const lossRateForTrancheYear = (function () {
+            if (combo && Array.isArray(combo.lossByYear)) {
+                  return function (j) { return combo.lossByYear[j] || 0; };
+            }
+            const snap = (typeof brooklynInterpolate === 'function')
+                  ? brooklynInterpolate(cfg.tierKey || 'beta1', cfg.leverage || cfg.leverageCap || 2.25)
+                  : null;
+            const flatRate = snap ? (snap.lossRate || 0) : 0;
+            return function () { return flatRate; };
+      })();
+
+      // Tranche state. tranches[k] = { capital, startIdx } where startIdx is
+      // the cfg-relative year (0 = year1).
+      const tranches = [];
+      if (basisCash > 0) tranches.push({ capital: basisCash, startIdx: 0 });
+
+      let stCF = 0;
+      let gainRemaining = totalGainBucket;
+      const rows = [];
+      const recognitionSchedule = [];
+
+      for (let i = 0; i < horizon; i++) {
+            const year = (cfg.year1 || (new Date()).getFullYear()) + i;
+
+            // Compute Brooklyn loss + fees from active tranches this year.
+            let yearLoss = 0;
+            let yearFee = 0;
+            let yearInvested = 0;
+            tranches.forEach(function (t) {
+                  const trancheAge = i - t.startIdx;
+                  if (trancheAge < 0) return;
+                  yearLoss += t.capital * lossRateForTrancheYear(trancheAge);
+                  yearFee += t.capital * feeRate;
+                  yearInvested += t.capital;
+            });
+
+            // Decide gain to recognize this year. Constraint: not before
+            // startIdx. Greedy: recognize as much as accumulated CF +
+            // current-year loss can absorb. Final-year fallback: recognize
+            // any remaining gain even if it can't be fully offset.
+            let gainRecThisYear = 0;
+            if (i >= startIdx && gainRemaining > 0) {
+                  const capacity = stCF + yearLoss;
+                  gainRecThisYear = Math.min(gainRemaining, capacity);
+                  if (i === horizon - 1 && gainRemaining > gainRecThisYear) {
+                        gainRecThisYear = gainRemaining;
+                  }
+                  gainRemaining -= gainRecThisYear;
+            }
+
+            recognitionSchedule.push({ year: year, gainRecognized: gainRecThisYear });
+
+            const baseline = _baseScenarioForYear(cfg, year, gainRecThisYear);
+            const baselineTax = _yearTaxes(baseline);
+
+            const totalLossAvail = stCF + yearLoss;
+            const withStrat = _applyLossesWithSTCfCap(baseline, totalLossAvail, ordCap);
+            const withStratTax = _yearTaxes(withStrat);
+
+            stCF = Math.max(0, withStrat._lossUnused || 0);
+
+            rows.push({
+                  year: year,
+                  gainRecognized: gainRecThisYear,
+                  lossGenerated: yearLoss,
+                  lossApplied: withStrat._lossUsed || 0,
+                  stCarryForward: stCF,
+                  investmentThisYear: yearInvested,
+                  fee: yearFee,
+                  baseline: baselineTax,
+                  withStrategy: withStratTax,
+                  savings: baselineTax.total - withStratTax.total
+            });
+
+            // Recognized gain becomes new investable capital starting NEXT year
+            // (received Jan 1 effectively means it works the full following year
+            // — keep our model conservative by lagging one year).
+            if (gainRecThisYear > 0) {
+                  tranches.push({ capital: gainRecThisYear, startIdx: i + 1 });
+            }
+      }
+
+      let totalBaseline = 0, totalWith = 0, totalFees = 0;
+      rows.forEach(function (r) {
+            totalBaseline += r.baseline.total;
+            totalWith += r.withStrategy.total;
+            totalFees += r.fee;
+      });
+
+      // Effective duration = number of years over which gain was recognized
+      // (used by the optimizer's tie-breaker to prefer shorter lockups).
+      const recognitionYears = recognitionSchedule.filter(function (r) {
+            return r.gainRecognized > 0;
+      }).map(function (r) { return r.year; });
+      const durationYears = recognitionYears.length
+            ? (recognitionYears[recognitionYears.length - 1] - recognitionYears[0] + 1)
+            : 0;
+
+      return {
+            rows: rows,
+            totalBaseline: totalBaseline,
+            totalWithStrategy: totalWith,
+            totalSavings: totalBaseline - totalWith,
+            totalFees: totalFees,
+            recognitionSchedule: recognitionSchedule,
+            durationYears: durationYears,
+            unrecognizedGain: gainRemaining,
+            deferred: true
+      };
+}
+
 function _fmtUSD(n) {
       if (typeof n !== 'number' || !isFinite(n)) return '-';
       const sign = n < 0 ? '-' : '';
