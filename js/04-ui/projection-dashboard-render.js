@@ -340,6 +340,10 @@
     if (typeof root.renderBracketViz === 'function') {
       try { root.renderBracketViz(); } catch (e) { /* non-fatal */ }
     }
+    // Animate any KPI / hero / ribbon numbers that just changed.
+    if (typeof root.animateRettNumbers === 'function') {
+      try { root.animateRettNumbers(); } catch (e) { /* non-fatal */ }
+    }
   }
 
   root.renderProjectionDashboard = renderProjectionDashboard;

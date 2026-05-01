@@ -233,6 +233,25 @@ body {
     border-left: 3px solid #5fa8ff;
 }
 
+/* Form section cards on Page 1. Wrap each section's inputs in a subtle
+   card to give visual grouping. Pattern: Holistiplan/RightCapital both
+   group form fields into cards rather than presenting one long form. */
+#page-inputs .input-grid {
+    background: rgba(13, 34, 64, 0.4);
+    border: 1px solid rgba(26, 58, 110, 0.6);
+    border-radius: 6px;
+    padding: 16px 18px;
+    margin-bottom: 18px;
+}
+#page-inputs .input-grid + .section-title {
+    margin-top: 16px;
+}
+@media (max-width: 768px) {
+    #page-inputs .input-grid {
+        padding: 12px 14px;
+    }
+}
+
 .input-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));

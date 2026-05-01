@@ -301,6 +301,11 @@
 
     page.innerHTML = html;
 
+    // Animate the hero savings tile + any other numeric values on this page.
+    if (typeof window.animateRettNumbers === 'function') {
+      try { window.animateRettNumbers(page); } catch (e) { /* non-fatal */ }
+    }
+
     try {
       var host = document.getElementById('tax-comparison-host');
       if (host && typeof renderTaxComparison === 'function' && comparison) {
