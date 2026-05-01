@@ -3,6 +3,42 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Accessibility helpers */
+.visually-hidden {
+    position: absolute !important;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+.skip-link {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    background: #2c5aa0;
+    color: #fff;
+    padding: 10px 16px;
+    z-index: 1000;
+    text-decoration: none;
+    font-weight: 600;
+}
+.skip-link:focus {
+    left: 8px;
+    top: 8px;
+}
+
+/* Visible keyboard focus ring for buttons and tabs */
+.nav-tab:focus-visible,
+.btn:focus-visible,
+button:focus-visible {
+    outline: 2px solid #5fa8ff;
+    outline-offset: 2px;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
     background: #0a1929;
@@ -32,6 +68,39 @@ body {
     font-weight: 400;
     color: #b3d4ff;
     margin: 0;
+}
+
+.app-banner {
+    padding: 12px 40px;
+    font-size: 0.92em;
+    font-weight: 500;
+    border-bottom: 1px solid;
+}
+.app-banner.banner-error {
+    background: #4a1414;
+    color: #fca5a5;
+    border-bottom-color: #7f1d1d;
+}
+.app-banner.banner-warning {
+    background: #4a3a14;
+    color: #fde68a;
+    border-bottom-color: #92400e;
+}
+.app-banner.banner-info {
+    background: #0f3a5a;
+    color: #b3d4ff;
+    border-bottom-color: #1a3a6e;
+}
+.app-banner .banner-close {
+    float: right;
+    background: transparent;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    font-size: 1.1em;
+    font-weight: 700;
+    padding: 0 6px;
+    line-height: 1;
 }
 
 .nav {
@@ -114,6 +183,14 @@ body {
 .input-group select:focus {
     outline: none;
     border-color: #5fa8ff;
+}
+
+.input-group input.input-error,
+.input-group select.input-error,
+input.input-error,
+select.input-error {
+    border-color: #f87171 !important;
+    background: #2a1414;
 }
 
 .btn {
@@ -459,3 +536,98 @@ body {
 .swatch-cumulative { background: #5fd97e; }
 
 .rett-chart-svg { width: 100%; height: auto; display: block; }
+
+/* ============================================================ */
+/* Mobile / responsive                                          */
+/* ============================================================ */
+
+/* Wide tables (projection, comparison) get horizontal scroll on small viewports
+   so the columns stay legible instead of crushing or wrapping. */
+#projection-table,
+#tax-comparison-host,
+#allocator-output,
+#recommendation-panel {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 768px) {
+    .header {
+        padding: 14px 18px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+    .header h1 { font-size: 1.4em; letter-spacing: 3px; }
+    .header h2 { font-size: 0.85em; }
+
+    .app-banner { padding: 10px 18px; font-size: 0.88em; }
+
+    .nav {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .nav-tab {
+        padding: 12px 14px;
+        font-size: 0.85em;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    .page {
+        padding: 18px 16px;
+    }
+    .page h2 { font-size: 1.25em; }
+
+    .input-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .section-title {
+        font-size: 1em;
+        margin-top: 18px;
+    }
+
+    .projection-table,
+    .tax-comparison-table,
+    .rett-data-table {
+        font-size: 0.82em;
+    }
+    .projection-table th,
+    .projection-table td,
+    .tax-comparison-table th,
+    .tax-comparison-table td,
+    .rett-data-table th,
+    .rett-data-table td {
+        padding: 6px 8px;
+    }
+
+    .rett-kpi-row {
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+    .rett-kpi-tile { padding: 10px 12px; }
+    .rett-kpi-value { font-size: 1.2em; }
+
+    #future-years-host .year-row {
+        grid-template-columns: 1fr;
+        gap: 6px;
+    }
+
+    .rett-action-row {
+        flex-direction: column;
+        gap: 10px;
+    }
+    .rett-action-row .btn,
+    .rett-action-row button {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .rett-kpi-row {
+        grid-template-columns: 1fr;
+    }
+    .header h1 { font-size: 1.2em; }
+}

@@ -4,54 +4,59 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RETT - Brooklyn Multi-Year Projector</title>
-  <link rel="stylesheet" href="css/styles.css?v=1777500000005">
+  <link rel="stylesheet" href="css/styles.css?v=1777500000006">
 </head>
 <body>
-  <div class="header">
+  <a href="#page-inputs" class="skip-link">Skip to main content</a>
+
+  <header class="header">
     <h1>RETT</h1>
     <h2>Brooklyn Multi-Year Tax Strategy Projector</h2>
-  </div>
+  </header>
 
-  <div class="nav">
-    <button id="nav-inputs" class="nav-tab active">1. Client Inputs</button>
-    <button id="nav-projection" class="nav-tab">2. Projection</button>
-    <button id="nav-allocator" class="nav-tab">3. Strategy Summary</button>
-  </div>
+  <div id="app-banner" class="app-banner" role="alert" aria-live="assertive" hidden></div>
 
+  <nav class="nav" role="tablist" aria-label="Workflow steps">
+    <button id="nav-inputs" class="nav-tab active" role="tab" aria-selected="true" aria-controls="page-inputs" type="button">1. Client Inputs</button>
+    <button id="nav-projection" class="nav-tab" role="tab" aria-selected="false" aria-controls="page-projection" type="button">2. Projection</button>
+    <button id="nav-allocator" class="nav-tab" role="tab" aria-selected="false" aria-controls="page-allocator" type="button">3. Strategy Summary</button>
+  </nav>
+
+  <main>
   <!-- ============ PAGE: CLIENT INPUTS ============ -->
-  <div id="page-inputs" class="page active">
+  <section id="page-inputs" class="page active" role="tabpanel" aria-labelledby="nav-inputs">
     <h2>Client Financial Inputs</h2>
 
-    <div class="section-title">Custodian</div>
+    <h3 class="section-title">Custodian</h3>
     <div class="input-grid">
       <div class="input-group">
-        <label>Custodian</label>
-        <select id="custodian-select">
+        <label for="custodian-select">Custodian</label>
+        <select id="custodian-select" required aria-required="true">
           <option value="" selected>-- Select Custodian --</option>
         </select>
       </div>
       <div class="input-group">
-        <label>Allowed Leverage Caps <span class="muted">(custodian-dependent)</span></label>
+        <label for="leverage-cap-select">Allowed Leverage Caps <span class="muted">(custodian-dependent)</span></label>
         <select id="leverage-cap-select" disabled>
           <option value="" selected>-- choose custodian first --</option>
         </select>
       </div>
       <div class="input-group" style="grid-column: 1 / -1;">
-        <p id="custodian-info" class="subtitle" style="margin:0;color:#555;">No custodian selected.</p>
+        <p id="custodian-info" class="subtitle" style="margin:0;color:#555;" aria-live="polite">No custodian selected.</p>
       </div>
     </div>
 
-    <div class="section-title">Filing Information</div>
+    <h3 class="section-title">Filing Information</h3>
     <div class="input-grid">
       <div class="input-group">
-        <label>Tax Year</label>
+        <label for="year1">Tax Year</label>
         <select id="year1">
           <option value="2026" selected>2026</option>
           <option value="2025">2025</option>
         </select>
       </div>
       <div class="input-group">
-        <label>Filing Status</label>
+        <label for="filing-status">Filing Status</label>
         <select id="filing-status">
           <option value="single">Single</option>
           <option value="mfj" selected>Married Filing Jointly</option>
@@ -60,7 +65,7 @@
         </select>
       </div>
       <div class="input-group">
-        <label>State</label>
+        <label for="state-code">State</label>
         <select id="state-code">
           <option value="NY" selected>New York</option>
           <option value="CA">California</option>
@@ -75,7 +80,7 @@
         </select>
       </div>
       <div class="input-group">
-        <label>Projection Horizon (years)</label>
+        <label for="projection-years">Projection Horizon (years)</label>
         <select id="projection-years">
           <option value="3">3 years</option>
           <option value="5" selected>5 years</option>
@@ -84,15 +89,15 @@
       </div>
     </div>
 
-    <div class="section-title">Income Sources (Year 1, ex-property)</div>
+    <h3 class="section-title">Income Sources (Year 1, ex-property)</h3>
     <p class="subtitle">Annual income excluding the property sale and depreciation recapture entered below.</p>
     <div class="input-grid">
-      <div class="input-group"><label>W-2 Wages ($)</label><input type="number" id="w2-wages" placeholder="0" step="1"></div>
-      <div class="input-group"><label>Self-Employment Income ($)</label><input type="number" id="se-income" placeholder="0" step="1"></div>
-      <div class="input-group"><label>Business Income / Distributions ($)</label><input type="number" id="biz-revenue" placeholder="0" step="1"></div>
-      <div class="input-group"><label>Rental Income ($)</label><input type="number" id="rental-income" placeholder="0" step="1"></div>
-      <div class="input-group"><label>Dividend Income ($)</label><input type="number" id="dividend-income" placeholder="0" step="1"></div>
-      <div class="input-group"><label>Retirement Distributions ($)</label><input type="number" id="retirement-distributions" placeholder="0" step="1"></div>
+      <div class="input-group"><label for="w2-wages">W-2 Wages ($)</label><input type="number" id="w2-wages" placeholder="0" step="1" min="0" inputmode="numeric"></div>
+      <div class="input-group"><label for="se-income">Self-Employment Income ($)</label><input type="number" id="se-income" placeholder="0" step="1" min="0" inputmode="numeric"></div>
+      <div class="input-group"><label for="biz-revenue">Business Income / Distributions ($)</label><input type="number" id="biz-revenue" placeholder="0" step="1" min="0" inputmode="numeric"></div>
+      <div class="input-group"><label for="rental-income">Rental Income ($)</label><input type="number" id="rental-income" placeholder="0" step="1" min="0" inputmode="numeric"></div>
+      <div class="input-group"><label for="dividend-income">Dividend Income ($)</label><input type="number" id="dividend-income" placeholder="0" step="1" min="0" inputmode="numeric"></div>
+      <div class="input-group"><label for="retirement-distributions">Retirement Distributions ($)</label><input type="number" id="retirement-distributions" placeholder="0" step="1" min="0" inputmode="numeric"></div>
     </div>
 
 
@@ -101,51 +106,54 @@
       <summary class="section-title">Future Year Income Estimates (optional)</summary>
       <div id="future-years-host"></div>
     </details>
-    <div class="section-title">Property Sale</div>
+
+    <h3 class="section-title">Property Sale</h3>
     <div class="input-grid">
       <div class="input-group">
-        <label>Sale Price ($)</label>
-        <input type="number" id="sale-price" placeholder="e.g. 10000000" step="1">
+        <label for="sale-price">Sale Price ($)</label>
+        <input type="number" id="sale-price" placeholder="e.g. 10000000" step="1" min="0" inputmode="numeric">
       </div>
       <div class="input-group">
-        <label>Cost Basis ($)</label>
-        <input type="number" id="cost-basis" placeholder="e.g. 5000000" step="1">
+        <label for="cost-basis">Cost Basis ($)</label>
+        <input type="number" id="cost-basis" placeholder="e.g. 5000000" step="1" min="0" inputmode="numeric">
       </div>
       <div class="input-group">
-        <label>Accelerated Depreciation Taken ($)</label>
-        <input type="number" id="accelerated-depreciation" placeholder="e.g. 1000000" step="1">
+        <label for="accelerated-depreciation">Accelerated Depreciation Taken ($)</label>
+        <input type="number" id="accelerated-depreciation" placeholder="e.g. 1000000" step="1" min="0" inputmode="numeric">
       </div>
       <div class="input-group">
-        <label>Long-Term Capital Gain ($) <span class="muted">(auto)</span></label>
-        <input type="text" id="computed-gain" readonly placeholder="0">
+        <label for="computed-gain">Long-Term Capital Gain ($) <span class="muted">(auto)</span></label>
+        <input type="text" id="computed-gain" readonly placeholder="0" aria-readonly="true" aria-describedby="computed-gain-hint">
+        <span id="computed-gain-hint" class="visually-hidden">Calculated as sale price minus cost basis.</span>
       </div>
       <div class="input-group">
-        <label>Total Taxable to Offset ($) <span class="muted">(LTCG + recapture, auto)</span></label>
-        <input type="text" id="computed-total-taxable" readonly placeholder="0">
+        <label for="computed-total-taxable">Total Taxable to Offset ($) <span class="muted">(LTCG + recapture, auto)</span></label>
+        <input type="text" id="computed-total-taxable" readonly placeholder="0" aria-readonly="true" aria-describedby="computed-total-hint">
+        <span id="computed-total-hint" class="visually-hidden">Sum of long-term capital gain plus accelerated depreciation recapture.</span>
       </div>
     </div>
 
-    <div class="section-title">Other Capital Gains</div>
+    <h3 class="section-title">Other Capital Gains</h3>
     <p class="subtitle">Capital gains from outside the property sale (other portfolio activity in the same year).</p>
     <div class="input-grid">
       <div class="input-group">
-        <label>Other Short-Term Capital Gain ($)</label>
-        <input type="number" id="short-term-gain" placeholder="0" step="1">
+        <label for="short-term-gain">Other Short-Term Capital Gain ($)</label>
+        <input type="number" id="short-term-gain" placeholder="0" step="1" min="0" inputmode="numeric">
       </div>
       <div class="input-group">
-        <label>Other Long-Term Capital Gain ($)</label>
-        <input type="number" id="long-term-gain" placeholder="0" step="1">
+        <label for="long-term-gain">Other Long-Term Capital Gain ($)</label>
+        <input type="number" id="long-term-gain" placeholder="0" step="1" min="0" inputmode="numeric">
       </div>
     </div>
 
-    <div class="section-title">Implementation Timing</div>
+    <h3 class="section-title">Implementation Timing</h3>
     <div class="input-grid">
       <div class="input-group">
-        <label>Strategy Implementation Date</label>
+        <label for="implementation-date">Strategy Implementation Date</label>
         <input type="date" id="implementation-date">
       </div>
       <div class="input-group">
-        <label>Distribution (multi-year fallback)</label>
+        <label for="distribution">Distribution (multi-year fallback)</label>
         <select id="distribution">
           <option value="even" selected>Even (pro-rata by capacity)</option>
           <option value="front">Front-loaded</option>
@@ -155,26 +163,27 @@
     </div>
 
     <div class="actions">
-      <button type="button" id="continue-to-projection" class="btn-primary">Continue to Projection &rarr;</button>
+      <button type="button" id="continue-to-projection" class="btn btn-primary">Continue to Projection &rarr;</button>
+      <button type="button" id="reset-form" class="btn btn-secondary" aria-label="Reset all form inputs to defaults">Reset Form</button>
     </div>
-  </div>
+  </section>
 
   <!-- ============ PAGE: PROJECTION ============ -->
-  <div id="page-projection" class="page">
+  <section id="page-projection" class="page" role="tabpanel" aria-labelledby="nav-projection">
     <h2>Projection</h2>
 
-    <div class="section-title">Brooklyn Configuration</div>
+    <h3 class="section-title">Brooklyn Configuration</h3>
     <div class="input-grid">
       <div class="input-group">
-        <label>Available Capital ($)</label>
-        <input type="number" id="available-capital" placeholder="e.g. 5000000" step="1">
+        <label for="available-capital">Available Capital ($)</label>
+        <input type="number" id="available-capital" placeholder="e.g. 5000000" step="1" min="0" inputmode="numeric">
       </div>
       <div class="input-group">
-        <label>Brooklyn Investment ($)</label>
-        <input type="number" id="invested-capital" placeholder="e.g. 1000000" step="1">
+        <label for="invested-capital">Brooklyn Investment ($)</label>
+        <input type="number" id="invested-capital" placeholder="e.g. 1000000" step="1" min="0" inputmode="numeric">
       </div>
       <div class="input-group">
-        <label>Strategy</label>
+        <label for="strategy-select">Strategy</label>
         <select id="strategy-select">
           <option value="beta1" selected>RIA - Brooklyn Beta 1</option>
           <option value="beta0">CASH - Brooklyn Beta 0</option>
@@ -183,12 +192,13 @@
         </select>
       </div>
       <div class="input-group">
-        <label>Beta-1 Allocation (%)</label>
-        <input type="number" id="beta1" value="50" step="1" min="0" max="100">
+        <label for="beta1">Beta-1 Allocation (%)</label>
+        <input type="number" id="beta1" value="50" step="1" min="0" max="100" inputmode="numeric">
       </div>
     </div>
 
-    <div class="input-group" id="variable-leverage-block" style="display:none">
+    <fieldset class="input-group" id="variable-leverage-block" style="display:none">
+      <legend class="visually-hidden">Variable Leverage Configuration</legend>
       <label><input type="checkbox" id="use-variable-leverage" checked> Use Variable Leverage</label>
       <div class="variable-readouts">
         <span><strong>Proposed Plan:</strong> <span id="variable-readout-label">100/0</span></span>
@@ -202,40 +212,35 @@
         <label><input type="checkbox" id="use-manual-variable"> Pin manual variable point (override auto-solve)</label>
       </div>
       <div class="slider-row">
-        <label>Manual Short %</label>
+        <label for="variable-short-slider">Manual Short %</label>
         <input type="range" id="variable-short-slider" min="0" max="225" step="1" value="0">
       </div>
-    </div>
-
-    <!-- Multi-Year Sale Schedule (background-only). The engine auto-structures
-         the sale across years when a single-year offset isn't achievable. The
-         hidden host below preserves DOM contracts for defensive consumers
-         (controls.js / recommendation-render.js / inputs-collector.js). -->
-    <div id="year-schedule" style="display:none"></div>
+    </fieldset>
 
     <div class="actions" style="display:none">
-      <button type="button" id="run-recommendation" class="btn-primary">Run Decision Engine</button>
+      <button type="button" id="run-recommendation" class="btn btn-primary">Run Decision Engine</button>
     </div>
 
-    <div id="recommendation-panel" style="display:none"></div>
+    <div id="recommendation-panel" style="display:none" aria-live="polite"></div>
 
-    <div class="section-title" style="margin-top:24px;">Year-by-Year Tax Projection</div>
-    <div id="projection-table"></div>
-  </div>
+    <h3 class="section-title" style="margin-top:24px;">Year-by-Year Tax Projection</h3>
+    <div id="projection-table" aria-live="polite"></div>
+  </section>
 
   <!-- ============ PAGE: ALLOCATOR ============ -->
-  <div id="page-allocator" class="page">
+  <section id="page-allocator" class="page" role="tabpanel" aria-labelledby="nav-allocator">
     <h2>Strategy Summary</h2>
 
-    <div class="section-title">Tax Savings Comparison</div>
+    <h3 class="section-title">Tax Savings Comparison</h3>
     <p class="subtitle">Run the Decision Engine on the Projection page to populate.</p>
-    <div id="tax-comparison-host"></div>
+    <div id="tax-comparison-host" aria-live="polite"></div>
 
-    <div class="section-title" style="margin-top:24px;">Allocator Detail</div>
-    <div id="allocator-output"></div>
-  </div>
+    <h3 class="section-title" style="margin-top:24px;">Allocator Detail</h3>
+    <div id="allocator-output" aria-live="polite"></div>
+  </section>
+  </main>
 
-  <!-- ============ Subsystem load order: 01 -> 02 -> 03 -> 05 -> 04 ============ -->
+  <!-- ============ Subsystem load order: 00 -> 01 -> 02 -> 03 -> 05 -> 04 ============ -->
   <script src="js/00-data/custodians.js?v=1777500000005"></script>
   <script src="js/00-data/schwab-strategies.js?v=1777500000005"></script>
   <script src="js/01-brooklyn/brooklyn-data.js?v=1777500000005"></script>
@@ -263,15 +268,17 @@
   <script src="js/05-projections/carryforward-tracker.js?v=1777500000005"></script>
   <script src="js/05-projections/projection-engine.js?v=1777500000005"></script>
 
+  <script src="js/04-ui/banner.js?v=1777500000006"></script>
   <script src="js/04-ui/format-helpers.js?v=1777500000005"></script>
+  <script src="js/04-ui/input-validation.js?v=1777500000006"></script>
   <script src="js/04-ui/inputs-collector.js?v=1777500000005"></script>
-  <script src="js/04-ui/controls.js?v=1777500000005"></script>
+  <script src="js/04-ui/controls.js?v=1777500000006"></script>
   <script src="js/04-ui/projection-render.js?v=1777500000005"></script>
   <script src="js/04-ui/recommendation-render.js?v=1777500000005"></script>
   <script src="js/04-ui/projection-dashboard-render.js?v=1777500000005"></script>
   <script src="js/04-ui/strategy-summary-render.js?v=1777500000005"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1777500000005"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1777500000006"></script>
 </body>
 </html>

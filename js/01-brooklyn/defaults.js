@@ -1,8 +1,8 @@
 // FILE: js/01-brooklyn/defaults.js
 // Live, drop-in defaults for the multi-year sale-structuring schedule and
 // loss-projection table. When the user provides finalized numbers, edit ONLY
-// the arrays in window.RETT_DEFAULTS below and the year-schedule rows will
-// auto-populate on page load.
+// the arrays in window.RETT_DEFAULTS below and the Future Year Income
+// Estimates rows will auto-populate on page load.
 //
 // Index 0 corresponds to year 1 (the base year set by #year1 in the UI).
 // Leave any slot as null to roll forward the year-1 base income on that
@@ -38,9 +38,9 @@ window.RETT_DEFAULTS = {
 };
 
 // ----- Auto-populate hook -----
-// Runs after DOMContentLoaded and after controls.js has wired up the
-// year-schedule builder. Triggers the build (so rows exist) then fills
-// each row's inputs from RETT_DEFAULTS where values are present.
+// Runs after DOMContentLoaded and after controls.js has built the Future Year
+// Income Estimates rows. Fills each row's inputs from RETT_DEFAULTS where
+// values are present.
 (function () {
   function fmt(n) {
     if (n === null || n === undefined || n === '') return '';
@@ -49,21 +49,19 @@ window.RETT_DEFAULTS = {
 
   function applyDefaults() {
     const D = window.RETT_DEFAULTS || {};
-    const buildBtn = document.getElementById('build-year-schedule');
-    if (buildBtn) buildBtn.click();
-
-    const host = document.getElementById('year-schedule');
+    // Apply per-year defaults to the visible Future Year Income Estimates rows
+    // (#future-years-host). Index 0 = Year 2 (Year 1 lives in the base inputs).
+    const host = document.getElementById('future-years-host');
     if (!host) return;
     const rows = host.querySelectorAll('.year-row');
     rows.forEach((row, i) => {
+      const j = i + 1; // skip Year 1; defaults arrays are 0-indexed at Year 1.
       const ord = row.querySelector('[data-field="ordinary"]');
       const sg  = row.querySelector('[data-field="short-gain"]');
       const lg  = row.querySelector('[data-field="long-gain"]');
-      const lr  = row.querySelector('[data-field="loss-rate"]');
-      if (ord && D.ordinaryByYear  && D.ordinaryByYear[i]  != null) ord.value = fmt(D.ordinaryByYear[i]);
-      if (sg  && D.shortGainByYear && D.shortGainByYear[i] != null) sg.value  = fmt(D.shortGainByYear[i]);
-      if (lg  && D.longGainByYear  && D.longGainByYear[i]  != null) lg.value  = fmt(D.longGainByYear[i]);
-      if (lr  && D.lossRateByYear  && D.lossRateByYear[i]  != null) lr.value  = fmt(D.lossRateByYear[i]);
+      if (ord && D.ordinaryByYear  && D.ordinaryByYear[j]  != null) ord.value = fmt(D.ordinaryByYear[j]);
+      if (sg  && D.shortGainByYear && D.shortGainByYear[j] != null) sg.value  = fmt(D.shortGainByYear[j]);
+      if (lg  && D.longGainByYear  && D.longGainByYear[j]  != null) lg.value  = fmt(D.longGainByYear[j]);
     });
   }
 
@@ -75,12 +73,26 @@ window.RETT_DEFAULTS = {
 })();
 
 // Preload tax data on page init so any consumer can call lookups immediately.
+// On failure, surface a visible banner so the user knows calculations will
+// be unreliable (and how to recover).
 (function () {
-  if (typeof window.loadTaxData === 'function') {
-    try {
-      window.loadTaxData().catch(function (e) { console.warn('Tax data preload failed:', e); });
-    } catch (e) {
-      console.warn('Tax data preload threw:', e);
+  function notifyFailure(err) {
+    var msg = (err && err.message) ? err.message : String(err);
+    console.error('Tax data preload failed:', err);
+    if (typeof window.showBanner === 'function') {
+      window.showBanner(
+        'error',
+        'Could not load tax brackets (' + msg + '). Reload the page or check your connection — projections will be inaccurate until this loads.'
+      );
     }
+  }
+  if (typeof window.loadTaxData !== 'function') {
+    notifyFailure(new Error('loadTaxData function not available'));
+    return;
+  }
+  try {
+    window.loadTaxData().catch(notifyFailure);
+  } catch (e) {
+    notifyFailure(e);
   }
 })();

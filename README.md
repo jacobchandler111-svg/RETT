@@ -12,29 +12,70 @@ Deferred to future versions: Delphi (Class A/B) and Helix funds, the multi-strat
 
 ## Bracket Projection Methodology
 
-The IRS does not publish brackets beyond 2026. For 2027 through 2031, this engine takes each 2026 bracket threshold and multiplies it by 1.02 raised to the power of (year minus 2026). Rates are held constant. Thresholds are kept at full floating-point precision because this is a planning model, not a return preparation tool. The assumption is configurable in js/05-projections/bracket-projector.js.
+The IRS does not publish brackets beyond 2026. For 2027 through 2031, this engine takes each 2026 bracket threshold and multiplies it by 1.02 raised to the power of (year minus 2026). Rates are held constant. Thresholds are kept at full floating-point precision because this is a planning model, not a return preparation tool. The assumption is configurable in `js/05-projections/bracket-projector.js`.
 
 ## Project Structure
 
-- index.html
-- - README.md
-  - - css/styles.css
-    - - data/taxBrackets.json
-      - - js/01-brooklyn/ (brooklyn-data.js, date-utils.js, brooklyn-interpolation.js)
-        - - js/02-tax-engine/ (tax-data.js, tax-loader.js, tax-lookups.js, tax-calc-federal.js, tax-calc-state.js, tax-baseline.js)
-          - - js/03-solver/ (fees.js, brooklyn-allocator.js)
-            - - js/04-ui/ (format-helpers.js, inputs-collector.js, controls.js, projection-render.js)
-              - - js/05-projections/ (bracket-projector.js, carryforward-tracker.js, projection-engine.js)
-               
-                - ## Script Load Order
-               
-                - Subsystems load in numeric order: 01 then 02 then 03 then 05 then 04. The UI layer loads last because it depends on every primitive, lookup, calculator, and projection routine below it.
-               
-                - ## Adding a New Year of IRS Data
-               
-                - When the IRS publishes 2027 brackets, replace the synthetic projection by adding the published 2027 block to data/taxBrackets.json for federal and each state, then update js/05-projections/bracket-projector.js to start its synthetic roll from 2027 instead of 2026.
-               
-                - ## License
-               
-                - Proprietary — internal use only.
-                - 
+```
+index.html
+README.md
+.gitignore
+css/styles.css
+data/taxBrackets.json
+js/
+  00-data/             custodians.js, schwab-strategies.js
+  01-brooklyn/         brooklyn-data.js, date-utils.js, time-weight.js,
+                       brooklyn-interpolation.js, variable-leverage.js,
+                       defaults.js
+  02-tax-engine/       tax-data.js, tax-loader.js, tax-lookups.js,
+                       tax-calc-federal.js, tax-calc-state.js,
+                       tax-baseline.js, tax-comparison.js
+  03-solver/           fees.js, brooklyn-allocator.js, single-year-solver.js,
+                       multi-year-solver.js, structured-sale.js,
+                       decision-engine.js
+  04-ui/               banner.js, format-helpers.js, input-validation.js,
+                       inputs-collector.js, controls.js, projection-render.js,
+                       recommendation-render.js,
+                       projection-dashboard-render.js,
+                       strategy-summary-render.js
+  05-projections/      bracket-projector.js, carryforward-tracker.js,
+                       projection-engine.js
+```
+
+## Script Load Order
+
+Subsystems load in numeric order: `00 → 01 → 02 → 03 → 05 → 04`. The UI layer loads last because it depends on every primitive, lookup, calculator, and projection routine below it. Inside `04-ui`, `banner.js` loads first so other modules can call `showBanner()` for non-blocking error feedback.
+
+## Adding a New Year of IRS Data
+
+When the IRS publishes 2027 brackets, replace the synthetic projection by adding the published 2027 block to `data/taxBrackets.json` for federal and each state, then update `js/05-projections/bracket-projector.js` to start its synthetic roll from 2027 instead of 2026.
+
+## Deployment (GitHub Pages)
+
+This is a static site — no build step.
+
+1. Push to `main`.
+2. In the repo on GitHub: **Settings → Pages**.
+3. **Source**: Deploy from a branch.
+4. **Branch**: `main`, folder `/ (root)`. Save.
+5. Within ~1 minute the site is live at `https://<your-username>.github.io/RETT/`.
+
+To bust caches after a release, bump the `?v=...` query string on the `<link>` and `<script>` tags in `index.html`.
+
+## Local Development
+
+Open `index.html` directly in a browser, **or** run any static file server. The app needs to fetch `data/taxBrackets.json`, which most browsers block from `file://` origins, so a server is recommended:
+
+```
+# Python 3
+python -m http.server 8000
+
+# Node
+npx serve .
+```
+
+Then visit `http://localhost:8000`.
+
+## License
+
+Proprietary — internal use only.

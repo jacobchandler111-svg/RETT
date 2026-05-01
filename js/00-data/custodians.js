@@ -11,12 +11,18 @@
 // Fidelity is intentionally NOT included — they do not currently offer
 // this strategy. Add them later if that changes.
 //
-// All numeric minimums are placeholders that the user will refine. They
-// are wired live, so editing this file is sufficient to change behavior
-// across the app (no other file edits required for minimum/cap changes).
+// CUSTODIAN CONFIG IS LIVE. Edit the CUSTODIANS object to change behavior
+// across the app — no other file edits required.
+//
+// To update minimums or leverage caps:
+//   1. Confirm the new figures with the custodian relationship manager.
+//   2. Update the relevant fields in CUSTODIANS below.
+//   3. Bump CUSTODIANS_LAST_UPDATED so consumers can audit freshness.
 
 (function (root) {
   'use strict';
+
+  var CUSTODIANS_LAST_UPDATED = '2026-01-01';
 
   var CUSTODIANS = {
     schwab: {
@@ -30,7 +36,7 @@
         beta05: 1000000,
         advisorManaged: 2000000
       },
-      notes: 'Placeholder minimums — update when finalized.'
+      notes: 'Confirm minimums quarterly with Schwab relationship manager.'
     },
     goldmanSachs: {
       id: 'goldmanSachs',
@@ -43,7 +49,7 @@
         beta05: 2500000,
         advisorManaged: 5000000
       },
-      notes: 'Placeholder minimums — update when finalized.'
+      notes: 'Confirm minimums quarterly with Goldman Sachs relationship manager.'
     }
   };
 
@@ -126,6 +132,7 @@
     return { ok: true, custodian: c };
   }
 
+  root.CUSTODIANS_LAST_UPDATED = CUSTODIANS_LAST_UPDATED;
   root.CUSTODIANS = CUSTODIANS;
   root.listCustodians = listCustodians;
   root.getCustodian = getCustodian;

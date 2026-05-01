@@ -1,0 +1,30 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# IDE
+.vscode/
+.idea/
+*.iml
+*.code-workspace
+
+# Local tooling (Claude Code preview launch config, etc.)
+.claude/
+
+# Local config / secrets — never commit
+.env
+.env.*
+*.local.json
+*.local.js
+
+# Build / cache
+.cache/
+node_modules/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log

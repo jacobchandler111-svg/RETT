@@ -7,6 +7,83 @@
 
 const PAGE_IDS = ['page-inputs', 'page-projection', 'page-allocator'];
 
+function resetAllInputs() {
+  // Reset all editable form fields on Page 1 and Page 2 to their initial state.
+  // Resets the underlying defaults selected in HTML — does NOT clear localStorage
+  // (the app does not persist anything yet).
+  const resetIds = [
+    // Page 1: Filing
+    'year1', 'filing-status', 'state-code', 'projection-years',
+    // Page 1: Income
+    'w2-wages', 'se-income', 'biz-revenue', 'rental-income',
+    'dividend-income', 'retirement-distributions',
+    // Page 1: Property
+    'sale-price', 'cost-basis', 'accelerated-depreciation',
+    'computed-gain', 'computed-total-taxable',
+    // Page 1: Other gains, timing
+    'short-term-gain', 'long-term-gain',
+    'implementation-date', 'distribution',
+    // Page 1: Custodian
+    'custodian-select', 'leverage-cap-select',
+    // Page 2: Brooklyn config
+    'available-capital', 'invested-capital', 'strategy-select', 'beta1'
+  ];
+  resetIds.forEach(function (id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.tagName === 'SELECT') {
+      // Restore the option marked `selected` in HTML, or fall back to first option.
+      let restored = false;
+      for (let i = 0; i < el.options.length; i++) {
+        if (el.options[i].defaultSelected) {
+          el.selectedIndex = i;
+          restored = true;
+          break;
+        }
+      }
+      if (!restored && el.options.length) el.selectedIndex = 0;
+    } else if (el.type === 'checkbox' || el.type === 'radio') {
+      el.checked = el.defaultChecked;
+    } else {
+      el.value = el.defaultValue || '';
+    }
+    el.classList.remove('input-error');
+  });
+
+  // Cleared computed-gain/computed-total-taxable above; trigger re-derivation
+  // by dispatching input events on the source fields.
+  ['sale-price', 'cost-basis', 'accelerated-depreciation'].forEach(function (id) {
+    const el = document.getElementById(id);
+    if (el) el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+
+  // Repopulate custodian-driven UI (leverage caps, strategy availability).
+  if (typeof _onCustodianChange === 'function') {
+    try { _onCustodianChange(); } catch (e) { /* non-fatal */ }
+  }
+
+  // Stash and rebuild future-years rows.
+  if (typeof _buildFutureYearsUI === 'function') {
+    try { _buildFutureYearsUI(); } catch (e) { /* non-fatal */ }
+  }
+
+  // Clear any rendered output panels.
+  ['recommendation-panel', 'projection-table', 'tax-comparison-host', 'allocator-output'].forEach(function (id) {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
+  window.__lastResult = null;
+  window.__lastAllocation = null;
+  window.__lastComparison = null;
+  window.__lastRecommendation = null;
+
+  if (typeof hideBanner === 'function') hideBanner();
+  if (typeof showBanner === 'function') showBanner('info', 'Form reset.');
+  setTimeout(function () { if (typeof hideBanner === 'function') hideBanner(); }, 2000);
+
+  showPage('page-inputs');
+}
+
 function _debounce(fn, ms) {
   let t;
   return function () {
@@ -26,7 +103,10 @@ function showPage(id) {
     }
     const tabId = p.replace('page-', 'nav-');
     const tab = document.getElementById(tabId);
-    if (tab) tab.classList.toggle('active', p === id);
+    if (tab) {
+      tab.classList.toggle('active', p === id);
+      tab.setAttribute('aria-selected', p === id ? 'true' : 'false');
+    }
   });
   if (id === 'page-allocator') {
     try {
@@ -63,33 +143,6 @@ function showPage(id) {
         }
       }
     } catch(e) { console.warn('page-projection auto-run failed:', e && e.message); }
-  }
-  if (id === 'page-allocator-legacy-tax') {
-    try {
-      const host = document.getElementById('tax-comparison-host');
-      if (host && typeof renderTaxComparison === 'function') {
-        renderTaxComparison(host, window.__lastComparison);
-      }
-    } catch(e) {
-      console.warn('renderTaxComparison failed:', e && e.message);
-    }
-  }
-}
-
-function _yearSchedule(cfg) {
-  const host = document.getElementById('year-schedule');
-  if (!host) return;
-  host.innerHTML = '';
-  for (let i = 0; i < cfg.horizonYears; i++) {
-    const yr = cfg.year1 + i;
-    const row = document.createElement('div');
-    row.className = 'year-row';
-    row.innerHTML = '<span class="yr-label">' + yr + '</span>'
-                  + '<input data-field="ordinary"   type="text" placeholder="Ordinary income" />'
-                  + '<input data-field="short-gain" type="text" placeholder="Short-term gain" />'
-                  + '<input data-field="long-gain"  type="text" placeholder="Long-term gain" />'
-                  + '<input data-field="loss-rate"  type="text" placeholder="Loss rate %" />';
-    host.appendChild(row);
   }
 }
 
@@ -310,7 +363,11 @@ async function runProjection() {
   if (!isTaxDataLoaded()) {
     try { await loadTaxData(); }
     catch (e) {
-      alert('Failed to load tax brackets: ' + e.message);
+      if (typeof showBanner === 'function') {
+        showBanner('error', 'Failed to load tax brackets: ' + e.message + '. Reload the page to retry.');
+      } else {
+        alert('Failed to load tax brackets: ' + e.message);
+      }
       return;
     }
   }
@@ -396,14 +453,6 @@ function bindControls() {
   const runBtn = document.getElementById('run-projection');
   if (runBtn) runBtn.addEventListener('click', runProjection);
 
-  const buildSchedBtn = document.getElementById('build-year-schedule');
-  if (buildSchedBtn) {
-    buildSchedBtn.addEventListener('click', () => {
-      const cfg = collectInputs();
-      _yearSchedule(cfg);
-    });
-  }
-
   const navInputs = document.getElementById('nav-inputs');
   const navProjection = document.getElementById('nav-projection');
   const navAllocator = document.getElementById('nav-allocator');
@@ -413,11 +462,18 @@ function bindControls() {
 
   const contBtn = document.getElementById('continue-to-projection');
   if (contBtn) contBtn.addEventListener('click', () => {
-    const _cs = document.getElementById('custodian-select');
-    if (_cs && !_cs.value) { alert('Please select a custodian first.'); return; }
+    if (typeof validateAndReport === 'function' && !validateAndReport('client')) {
+      return;
+    }
     showPage('page-projection');
     const recBtn = document.getElementById('run-recommendation');
     if (recBtn) recBtn.click();
+  });
+
+  const resetBtn = document.getElementById('reset-form');
+  if (resetBtn) resetBtn.addEventListener('click', () => {
+    if (!window.confirm('Reset all inputs to defaults? Any unsaved values will be lost.')) return;
+    resetAllInputs();
   });
 
   const projYrsSel = document.getElementById('projection-years');
