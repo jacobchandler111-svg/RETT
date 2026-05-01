@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RETT - Brooklyn Multi-Year Projector</title>
-  <link rel="stylesheet" href="css/styles.css?v=1777500000004">
+  <link rel="stylesheet" href="css/styles.css?v=1777500000005">
 </head>
 <body>
   <div class="header">
@@ -21,10 +21,8 @@
   <!-- ============ PAGE: CLIENT INPUTS ============ -->
   <div id="page-inputs" class="page active">
     <h2>Client Financial Inputs</h2>
-    <p class="subtitle">Enter financial details for accurate strategy calculations. Brooklyn loss generation is time-weighted by the strategy implementation date in the background.</p>
 
     <div class="section-title">Custodian</div>
-    <p class="subtitle">Select the client's custodial relationship. This determines which Brooklyn strategies and leverage caps are available.</p>
     <div class="input-grid">
       <div class="input-group">
         <label>Custodian</label>
@@ -101,7 +99,6 @@
     <!-- Future Year Income Estimates (collapsible). Default = blank, which falls through to Year-1 base values during projection. -->
     <details id="future-years-details" class="future-years">
       <summary class="section-title">Future Year Income Estimates (optional)</summary>
-      <p class="subtitle">Provide income estimates for each projected year. Leave blank to default to Year 1. The projection horizon (set above) controls how many years are shown.</p>
       <div id="future-years-host"></div>
     </details>
     <div class="section-title">Property Sale</div>
@@ -165,7 +162,6 @@
   <!-- ============ PAGE: PROJECTION ============ -->
   <div id="page-projection" class="page">
     <h2>Projection</h2>
-    <p class="subtitle">Strategy configuration, recommendation, and year-by-year tax projection.</p>
 
     <div class="section-title">Brooklyn Configuration</div>
     <div class="input-grid">
@@ -224,61 +220,58 @@
     <div id="recommendation-panel" style="display:none"></div>
 
     <div class="section-title" style="margin-top:24px;">Year-by-Year Tax Projection</div>
-    <p class="subtitle">Federal + state baseline tax, Brooklyn-generated short-term losses, and net tax after offsets.</p>
     <div id="projection-table"></div>
   </div>
 
   <!-- ============ PAGE: ALLOCATOR ============ -->
   <div id="page-allocator" class="page">
     <h2>Strategy Summary</h2>
-    <p class="subtitle">Optimized tax strategy allocation, multi-year savings, and Brooklyn allocator detail.</p>
 
     <div class="section-title">Tax Savings Comparison</div>
-    <p class="subtitle">Side-by-side baseline tax (without strategy) vs. post-strategy tax across the projection horizon. Run the Decision Engine on the Projection page to populate.</p>
+    <p class="subtitle">Run the Decision Engine on the Projection page to populate.</p>
     <div id="tax-comparison-host"></div>
 
     <div class="section-title" style="margin-top:24px;">Allocator Detail</div>
-    <p class="subtitle">Single-fund allocator with minimum-investment and fee schedule applied.</p>
     <div id="allocator-output"></div>
   </div>
 
   <!-- ============ Subsystem load order: 01 -> 02 -> 03 -> 05 -> 04 ============ -->
-  <script src="js/00-data/custodians.js?v=1777500000004"></script>
+  <script src="js/00-data/custodians.js?v=1777500000005"></script>
   <script src="js/00-data/schwab-strategies.js?v=1777500000005"></script>
-  <script src="js/01-brooklyn/brooklyn-data.js?v=1777500000004"></script>
-  <script src="js/01-brooklyn/date-utils.js?v=1777500000004"></script>
-  <script src="js/01-brooklyn/time-weight.js?v=1777500000004"></script>
-  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777500000004"></script>
-  <script src="js/01-brooklyn/variable-leverage.js?v=1777500000004"></script>
+  <script src="js/01-brooklyn/brooklyn-data.js?v=1777500000005"></script>
+  <script src="js/01-brooklyn/date-utils.js?v=1777500000005"></script>
+  <script src="js/01-brooklyn/time-weight.js?v=1777500000005"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777500000005"></script>
+  <script src="js/01-brooklyn/variable-leverage.js?v=1777500000005"></script>
 
-  <script src="js/02-tax-engine/tax-data.js?v=1777500000004"></script>
-  <script src="js/02-tax-engine/tax-loader.js?v=1777500000004"></script>
-  <script src="js/02-tax-engine/tax-lookups.js?v=1777500000004"></script>
-  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777500000004"></script>
-  <script src="js/02-tax-engine/tax-calc-state.js?v=1777500000004"></script>
-  <script src="js/02-tax-engine/tax-baseline.js?v=1777500000004"></script>
-  <script src="js/02-tax-engine/tax-comparison.js?v=1777500000004"></script>
+  <script src="js/02-tax-engine/tax-data.js?v=1777500000005"></script>
+  <script src="js/02-tax-engine/tax-loader.js?v=1777500000005"></script>
+  <script src="js/02-tax-engine/tax-lookups.js?v=1777500000005"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777500000005"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js?v=1777500000005"></script>
+  <script src="js/02-tax-engine/tax-baseline.js?v=1777500000005"></script>
+  <script src="js/02-tax-engine/tax-comparison.js?v=1777500000005"></script>
 
-  <script src="js/03-solver/fees.js?v=1777500000004"></script>
-  <script src="js/03-solver/brooklyn-allocator.js?v=1777500000004"></script>
-  <script src="js/03-solver/single-year-solver.js?v=1777500000004"></script>
-  <script src="js/03-solver/multi-year-solver.js?v=1777500000004"></script>
-  <script src="js/03-solver/structured-sale.js?v=1777500000004"></script>
-  <script src="js/03-solver/decision-engine.js?v=1777500000004"></script>
+  <script src="js/03-solver/fees.js?v=1777500000005"></script>
+  <script src="js/03-solver/brooklyn-allocator.js?v=1777500000005"></script>
+  <script src="js/03-solver/single-year-solver.js?v=1777500000005"></script>
+  <script src="js/03-solver/multi-year-solver.js?v=1777500000005"></script>
+  <script src="js/03-solver/structured-sale.js?v=1777500000005"></script>
+  <script src="js/03-solver/decision-engine.js?v=1777500000005"></script>
 
-  <script src="js/05-projections/bracket-projector.js?v=1777500000004"></script>
-  <script src="js/05-projections/carryforward-tracker.js?v=1777500000004"></script>
-  <script src="js/05-projections/projection-engine.js?v=1777500000004"></script>
+  <script src="js/05-projections/bracket-projector.js?v=1777500000005"></script>
+  <script src="js/05-projections/carryforward-tracker.js?v=1777500000005"></script>
+  <script src="js/05-projections/projection-engine.js?v=1777500000005"></script>
 
-  <script src="js/04-ui/format-helpers.js?v=1777500000004"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1777500000004"></script>
-  <script src="js/04-ui/controls.js?v=1777500000004"></script>
-  <script src="js/04-ui/projection-render.js?v=1777500000004"></script>
-  <script src="js/04-ui/recommendation-render.js?v=1777500000004"></script>
-  <script src="js/04-ui/projection-dashboard-render.js?v=1777500000004"></script>
-  <script src="js/04-ui/strategy-summary-render.js?v=1777500000004"></script>
+  <script src="js/04-ui/format-helpers.js?v=1777500000005"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1777500000005"></script>
+  <script src="js/04-ui/controls.js?v=1777500000005"></script>
+  <script src="js/04-ui/projection-render.js?v=1777500000005"></script>
+  <script src="js/04-ui/recommendation-render.js?v=1777500000005"></script>
+  <script src="js/04-ui/projection-dashboard-render.js?v=1777500000005"></script>
+  <script src="js/04-ui/strategy-summary-render.js?v=1777500000005"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1777500000004"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1777500000005"></script>
 </body>
 </html>
