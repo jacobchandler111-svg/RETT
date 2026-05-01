@@ -71,7 +71,12 @@ function collectInputs() {
                 filingStatus:        _val('filing-status') || 'single',
                 state:               _val('state-code')    || 'NONE',
                 availableCapital:    parseUSD(_val('available-capital')),
-                investment:          parseUSD(_val('invested-capital')),
+                // The dedicated Brooklyn Investment input was removed: the
+                // whole available capital is treated as the Brooklyn
+                // investment. If the (hidden) legacy field has a non-zero
+                // value, it still wins so existing programmatic flows can
+                // override.
+                investment:          parseUSD(_val('invested-capital')) || parseUSD(_val('available-capital')),
                 tierKey:             _val('strategy-select') || 'beta1',
                 leverage:            parseFloat(_val('leverage')) || 1,
                 baseOrdinaryIncome:  _sumIncomeSources(),

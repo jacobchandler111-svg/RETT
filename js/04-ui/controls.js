@@ -521,6 +521,20 @@ function bindControls() {
     if (typeof validateAndReport === 'function' && !validateAndReport('client')) {
       return;
     }
+    // Carry the Sale Price over to Available Capital on Page 2 the first
+    // time the user advances. They can override on Page 2 if they don't
+    // want to invest the full sale proceeds. We don't overwrite an
+    // already-entered Available Capital.
+    const saleEl   = document.getElementById('sale-price');
+    const availEl  = document.getElementById('available-capital');
+    if (saleEl && availEl) {
+      const saleVal  = Number(saleEl.value) || 0;
+      const availVal = Number(availEl.value) || 0;
+      if (saleVal > 0 && availVal === 0) {
+        availEl.value = String(saleVal);
+        availEl.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    }
     showPage('page-projection');
     const recBtn = document.getElementById('run-recommendation');
     if (recBtn) recBtn.click();

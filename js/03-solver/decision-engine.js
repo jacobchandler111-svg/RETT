@@ -113,6 +113,39 @@
       stage1 = Object.assign({}, stage1, { ok: false, capped: true });
     }
 
+    // Stage 1c: Schwab-combo path. When the user's selection resolves to
+    // a Schwab combo, the authoritative loss curve lives in the combo's
+    // lossByYear array (year-indexed), not in brooklyn-data. Build a
+    // single-year result from combo.lossByYear[0] (time-weighted) so the
+    // recommendation actually changes when the user toggles between
+    // Schwab leverage pills. Falls through to the preset/variable
+    // solvers above when no combo is set.
+    var stage1Combo = null;
+    if (cfg.comboId && typeof root.getSchwabCombo === 'function') {
+      var combo = root.getSchwabCombo(cfg.comboId);
+      if (combo && Array.isArray(combo.lossByYear) && combo.lossByYear.length > 0) {
+        var comboLossRate = (combo.lossByYear[0] || 0) * yf;
+        var comboLoss = investedCapital * comboLossRate;
+        var comboFees = investedCapital * (combo.feeRate || 0);
+        stage1Combo = {
+          mode: 'schwab-combo',
+          ok: comboLoss >= gainToOffset && gainToOffset > 0 && combo.leverage <= leverageCap,
+          combo: combo,
+          comboId: combo.id,
+          leverage: combo.leverage,
+          longPct: combo.longPct,
+          shortPct: combo.shortPct,
+          lossRate: comboLossRate,
+          loss: comboLoss,
+          fees: comboFees,
+          feeRate: combo.feeRate,
+          yearFraction: yf,
+          timeWeighted: yf < 1,
+          label: combo.strategyLabel + ' ' + combo.leverageLabel
+        };
+      }
+    }
+
     // Stage 1b: variable-leverage refinement
     var stage1Variable = null;
     if (useVariableLeverage && typeof root.solveSingleYearVariable === 'function') {
@@ -151,6 +184,12 @@
     var stage1RecommendsSingleYear = false;
     if (manualShort != null && manualPoint && manualPoint.ok) {
       stage1Source = 'manual-variable';
+      stage1RecommendsSingleYear = true;
+    } else if (stage1Combo && stage1Combo.ok) {
+      // Schwab combos take priority over the generic brooklyn-data ladder
+      // because the combo's lossByYear is the authoritative source of
+      // truth for Schwab products.
+      stage1Source = 'schwab-combo';
       stage1RecommendsSingleYear = true;
     } else if (stage1Variable && stage1Variable.ok) {
       stage1Source = 'variable';
@@ -219,15 +258,16 @@
     if (stage1RecommendsSingleYear) {
       var chosen = (stage1Source === 'preset') ? stage1
                   : (stage1Source === 'variable') ? stage1Variable
+                  : (stage1Source === 'schwab-combo') ? stage1Combo
                   : manualPoint;
       summary = {
         source: stage1Source,
         leverage: chosen.leverage,
         loss: chosen.loss,
         fees: chosen.fees,
-        label: chosen.tier ? chosen.tier.label : chosen.point ? chosen.point.label : null,
-        longPct: chosen.tier ? chosen.tier.longPct : chosen.point ? chosen.point.longPct : null,
-        shortPct: chosen.tier ? chosen.tier.shortPct : chosen.point ? chosen.point.shortPct : null,
+        label: chosen.label || (chosen.tier ? chosen.tier.label : chosen.point ? chosen.point.label : null),
+        longPct: chosen.longPct != null ? chosen.longPct : (chosen.tier ? chosen.tier.longPct : chosen.point ? chosen.point.longPct : null),
+        shortPct: chosen.shortPct != null ? chosen.shortPct : (chosen.tier ? chosen.tier.shortPct : chosen.point ? chosen.point.shortPct : null),
         yearFraction: yf
       };
     } else {
@@ -240,6 +280,7 @@
       gain: gainToOffset,
       yearFraction: yf,
       stage1: stage1,
+      stage1Combo: stage1Combo,
       stage1Variable: stage1Variable,
       stage1Manual: manualPoint,
       stage1RecommendsSingleYear: stage1RecommendsSingleYear,

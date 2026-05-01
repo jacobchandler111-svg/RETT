@@ -26,8 +26,34 @@
     var acceleratedDepreciation = Number(($('accelerated-depreciation') || {}).value) || 0;
     var implementationDate      = ($('implementation-date') || {}).value || '';
     var strategyKey             = ($('strategy-select') || {}).value || 'beta1';
-    var investedCapital         = Number(($('invested-capital') || {}).value) || 0;
-    var leverageCap             = Number(($('leverage-cap') || {}).value) || 2.25;
+    // The Brooklyn Investment input was removed; available-capital is the
+    // single source of truth, defaulted from sale price on Page 1 -> Page 2
+    // continue. The hidden #invested-capital field stays for legacy
+    // overrides.
+    var availableCapital        = Number(($('available-capital') || {}).value) || 0;
+    var investedCapital         = Number(($('invested-capital') || {}).value) || availableCapital;
+
+    // Leverage source: read the actual on-page select, NOT the legacy
+    // `leverage-cap` ID that never existed. For Schwab combos the value is
+    // a string label like "200/100" — translate that to the combo's real
+    // numeric leverage so brooklynInterpolate gives different results per
+    // pill click. We also pass comboId/comboLeverageLabel so the engine
+    // can opt into combo-specific loss curves where available.
+    var levRaw      = ($('leverage-cap-select') || {}).value || '';
+    var leverageCap = parseFloat(levRaw);
+    var custodianId = ($('custodian-select') || {}).value || '';
+    var comboId = null;
+    var comboLeverageLabel = null;
+    if (custodianId === 'schwab' && typeof window.findSchwabCombo === 'function') {
+      var combo = window.findSchwabCombo(strategyKey, levRaw);
+      if (combo) {
+        leverageCap = combo.leverage;
+        comboId = combo.id;
+        comboLeverageLabel = combo.leverageLabel;
+      }
+    }
+    if (!Number.isFinite(leverageCap) || leverageCap < 0) leverageCap = 2.25;
+
     var years                   = Number(($('projection-years') || {}).value) || 5;
     var useVariableLeverage     = !!($('use-variable-leverage') || {}).checked;
     var manualVariableShortPct  = null;
@@ -43,7 +69,10 @@
       implementationDate: implementationDate,
       strategyKey: strategyKey,
       investedCapital: investedCapital,
+      availableCapital: availableCapital,
       leverageCap: leverageCap,
+      comboId: comboId,
+      comboLeverageLabel: comboLeverageLabel,
       years: years,
       useVariableLeverage: useVariableLeverage,
       manualVariableShortPct: manualVariableShortPct

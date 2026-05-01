@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RETT - Brooklyn Multi-Year Projector</title>
-  <link rel="stylesheet" href="css/styles.css?v=1777500000011">
+  <link rel="stylesheet" href="css/styles.css?v=1777500000012">
 </head>
 <body>
   <a href="#page-inputs" class="skip-link">Skip to main content</a>
@@ -164,14 +164,11 @@
     <!-- ----- Sub-tab: SUMMARY ----- -->
     <div id="subpage-summary" class="subpage active" role="tabpanel" aria-labelledby="subnav-summary">
       <h3 class="section-title">Brooklyn Configuration</h3>
+      <p class="subtitle">Available Capital is carried over from the Sale Price on the previous page. Edit if you'd like to invest a different amount.</p>
       <div class="input-grid">
         <div class="input-group">
           <label for="available-capital">Available Capital ($)</label>
           <input type="number" id="available-capital" placeholder="e.g. 5000000" step="1" min="0" inputmode="numeric">
-        </div>
-        <div class="input-group">
-          <label for="invested-capital">Brooklyn Investment ($)</label>
-          <input type="number" id="invested-capital" placeholder="e.g. 1000000" step="1" min="0" inputmode="numeric">
         </div>
         <div class="input-group">
           <label for="strategy-select">Strategy</label>
@@ -182,10 +179,17 @@
             <option value="advisorManaged">Brooklyn Advisor-Managed</option>
           </select>
         </div>
-        <div class="input-group">
-          <label for="beta1">Beta-1 Allocation (%)</label>
-          <input type="number" id="beta1" value="50" step="1" min="0" max="100" inputmode="numeric">
-        </div>
+      </div>
+
+      <!-- Hidden legacy fields. The whole Available Capital amount is
+           treated as the Brooklyn investment, so #invested-capital is no
+           longer user-facing. The #beta1 input was a placeholder that no
+           solver actually consumed. Both stay in the DOM with safe defaults
+           so the inputs-collector / change listeners keep working without
+           special-casing. -->
+      <div hidden aria-hidden="true">
+        <input type="hidden" id="invested-capital" value="0">
+        <input type="hidden" id="beta1" value="50">
       </div>
 
       <!-- Leverage + Horizon pill toggles. The defaults are auto-selected
@@ -262,49 +266,49 @@
   </main>
 
   <!-- ============ Subsystem load order: 00 -> 01 -> 02 -> 03 -> 05 -> 04 ============ -->
-  <script src="js/00-data/custodians.js?v=1777500000011"></script>
-  <script src="js/00-data/schwab-strategies.js?v=1777500000011"></script>
-  <script src="js/01-brooklyn/brooklyn-data.js?v=1777500000011"></script>
-  <script src="js/01-brooklyn/date-utils.js?v=1777500000011"></script>
-  <script src="js/01-brooklyn/time-weight.js?v=1777500000011"></script>
-  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777500000011"></script>
-  <script src="js/01-brooklyn/variable-leverage.js?v=1777500000011"></script>
+  <script src="js/00-data/custodians.js?v=1777500000012"></script>
+  <script src="js/00-data/schwab-strategies.js?v=1777500000012"></script>
+  <script src="js/01-brooklyn/brooklyn-data.js?v=1777500000012"></script>
+  <script src="js/01-brooklyn/date-utils.js?v=1777500000012"></script>
+  <script src="js/01-brooklyn/time-weight.js?v=1777500000012"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777500000012"></script>
+  <script src="js/01-brooklyn/variable-leverage.js?v=1777500000012"></script>
 
-  <script src="js/02-tax-engine/tax-data.js?v=1777500000011"></script>
-  <script src="js/02-tax-engine/tax-loader.js?v=1777500000011"></script>
-  <script src="js/02-tax-engine/tax-lookups.js?v=1777500000011"></script>
-  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777500000011"></script>
-  <script src="js/02-tax-engine/tax-calc-state.js?v=1777500000011"></script>
-  <script src="js/02-tax-engine/tax-baseline.js?v=1777500000011"></script>
-  <script src="js/02-tax-engine/tax-comparison.js?v=1777500000011"></script>
+  <script src="js/02-tax-engine/tax-data.js?v=1777500000012"></script>
+  <script src="js/02-tax-engine/tax-loader.js?v=1777500000012"></script>
+  <script src="js/02-tax-engine/tax-lookups.js?v=1777500000012"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777500000012"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js?v=1777500000012"></script>
+  <script src="js/02-tax-engine/tax-baseline.js?v=1777500000012"></script>
+  <script src="js/02-tax-engine/tax-comparison.js?v=1777500000012"></script>
 
-  <script src="js/03-solver/fees.js?v=1777500000011"></script>
-  <script src="js/03-solver/brooklyn-allocator.js?v=1777500000011"></script>
-  <script src="js/03-solver/single-year-solver.js?v=1777500000011"></script>
-  <script src="js/03-solver/multi-year-solver.js?v=1777500000011"></script>
-  <script src="js/03-solver/structured-sale.js?v=1777500000011"></script>
-  <script src="js/03-solver/decision-engine.js?v=1777500000011"></script>
+  <script src="js/03-solver/fees.js?v=1777500000012"></script>
+  <script src="js/03-solver/brooklyn-allocator.js?v=1777500000012"></script>
+  <script src="js/03-solver/single-year-solver.js?v=1777500000012"></script>
+  <script src="js/03-solver/multi-year-solver.js?v=1777500000012"></script>
+  <script src="js/03-solver/structured-sale.js?v=1777500000012"></script>
+  <script src="js/03-solver/decision-engine.js?v=1777500000012"></script>
 
-  <script src="js/05-projections/bracket-projector.js?v=1777500000011"></script>
-  <script src="js/05-projections/carryforward-tracker.js?v=1777500000011"></script>
-  <script src="js/05-projections/projection-engine.js?v=1777500000011"></script>
+  <script src="js/05-projections/bracket-projector.js?v=1777500000012"></script>
+  <script src="js/05-projections/carryforward-tracker.js?v=1777500000012"></script>
+  <script src="js/05-projections/projection-engine.js?v=1777500000012"></script>
 
-  <script src="js/04-ui/banner.js?v=1777500000011"></script>
-  <script src="js/04-ui/number-animator.js?v=1777500000011"></script>
-  <script src="js/04-ui/pill-toggles.js?v=1777500000011"></script>
-  <script src="js/04-ui/format-helpers.js?v=1777500000011"></script>
-  <script src="js/04-ui/input-validation.js?v=1777500000011"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1777500000011"></script>
-  <script src="js/04-ui/controls.js?v=1777500000011"></script>
-  <script src="js/04-ui/projection-render.js?v=1777500000011"></script>
-  <script src="js/04-ui/recommendation-render.js?v=1777500000011"></script>
-  <script src="js/04-ui/projection-dashboard-render.js?v=1777500000011"></script>
-  <script src="js/04-ui/savings-ribbon.js?v=1777500000011"></script>
-  <script src="js/04-ui/bracket-viz-render.js?v=1777500000011"></script>
+  <script src="js/04-ui/banner.js?v=1777500000012"></script>
+  <script src="js/04-ui/number-animator.js?v=1777500000012"></script>
+  <script src="js/04-ui/pill-toggles.js?v=1777500000012"></script>
+  <script src="js/04-ui/format-helpers.js?v=1777500000012"></script>
+  <script src="js/04-ui/input-validation.js?v=1777500000012"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1777500000012"></script>
+  <script src="js/04-ui/controls.js?v=1777500000012"></script>
+  <script src="js/04-ui/projection-render.js?v=1777500000012"></script>
+  <script src="js/04-ui/recommendation-render.js?v=1777500000012"></script>
+  <script src="js/04-ui/projection-dashboard-render.js?v=1777500000012"></script>
+  <script src="js/04-ui/savings-ribbon.js?v=1777500000012"></script>
+  <script src="js/04-ui/bracket-viz-render.js?v=1777500000012"></script>
   <script src="js/04-ui/narrative-render.js?v=1777500000010"></script>
-  <script src="js/04-ui/strategy-summary-render.js?v=1777500000011"></script>
+  <script src="js/04-ui/strategy-summary-render.js?v=1777500000012"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1777500000011"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1777500000012"></script>
 </body>
 </html>
