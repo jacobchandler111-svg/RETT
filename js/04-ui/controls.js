@@ -182,7 +182,7 @@ function _onCustodianChange() {
       schwabCombosForStrat.forEach(function (sc) {
         var opt = document.createElement('option');
         opt.value = sc.leverageLabel;
-        opt.textContent = sc.leverageLabel + ' (' + sc.longPct + '/' + sc.shortPct + ')';
+        opt.textContent = (sc.leverageLabel === sc.longPct + '/' + sc.shortPct) ? sc.leverageLabel : (sc.leverageLabel + ' (' + sc.longPct + '/' + sc.shortPct + ')');
         lcSel.appendChild(opt);
       });
       // Restore previous leverage selection if still valid; otherwise the
