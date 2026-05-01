@@ -201,13 +201,28 @@
   // Holistiplan / Instead (formerly Corvee): one big "savings result"
   // callout that anchors the page.
   function _buildHeroSavingsTile(years, totals) {
+    // Source-of-truth resolution mirrors the savings ribbon and KPI
+    // tiles: prefer the comparison rows (which apply the structured-
+    // sale recommendation) over the projection engine's raw deltas.
+    // Without this, the hero on Page 3 disagreed with the ribbon on
+    // Page 2 for the same scenario.
     var totalSave = 0, cumFees = 0;
-    (years || []).forEach(function (y) {
-      var no = y.taxNoBrooklyn || 0;
-      var w = (y.taxWithBrooklyn != null) ? y.taxWithBrooklyn : no;
-      totalSave += (no - w);
-      cumFees += (y.fee || 0);
-    });
+    var comp = window.__lastComparison;
+    if (comp && Array.isArray(comp.rows) && comp.rows.length) {
+      if (comp.totalSavings != null) {
+        totalSave = comp.totalSavings;
+      } else {
+        comp.rows.forEach(function (r) { totalSave += (r.savings || 0); });
+      }
+      (years || []).forEach(function (y) { cumFees += (y.fee || 0); });
+    } else {
+      (years || []).forEach(function (y) {
+        var no = y.taxNoBrooklyn || 0;
+        var w = (y.taxWithBrooklyn != null) ? y.taxWithBrooklyn : no;
+        totalSave += (no - w);
+        cumFees += (y.fee || 0);
+      });
+    }
     if (totals && totals.cumulativeFees != null) cumFees = totals.cumulativeFees;
     var net = totalSave - cumFees;
     var horizon = (years && years.length) ? years.length : 0;

@@ -36,12 +36,11 @@ function resetAllInputs() {
     // Page 1: Income
     'w2-wages', 'se-income', 'biz-revenue', 'rental-income',
     'dividend-income', 'retirement-distributions',
-    // Page 1: Property
+    // Page 1: Appreciated Assets
     'sale-price', 'cost-basis', 'accelerated-depreciation',
-    'computed-gain', 'computed-total-taxable',
-    // Page 1: Other gains, timing
-    'short-term-gain', 'long-term-gain',
-    'implementation-date', 'distribution',
+    'computed-gain', 'short-term-gain', 'long-term-gain',
+    // Page 1: Implementation timing
+    'implementation-date',
     // Page 1: Custodian
     'custodian-select', 'leverage-cap-select',
     // Page 2: Brooklyn config
@@ -102,6 +101,8 @@ function resetAllInputs() {
   if (typeof renderSavingsRibbon === 'function') {
     try { renderSavingsRibbon(); } catch (e) { /* non-fatal */ }
   }
+  // Re-enable auto-pick so the next projection picks the best combo again.
+  window.__rettAutoPickEnabled = true;
 
   if (typeof hideBanner === 'function') hideBanner();
   if (typeof showBanner === 'function') showBanner('info', 'Form reset.');
@@ -142,6 +143,16 @@ function showPage(id) {
 
     if (id === 'page-projection') {
     try {
+      // Auto-pick the (leverage, horizon) combination that maximizes net
+      // savings on first entry. Then build the visual pill toggles so the
+      // user can override. The auto-pick uses the projection engine
+      // directly, no engine modification.
+      if (typeof maybeAutoPick === 'function') {
+        try { maybeAutoPick(); } catch (e) { console.warn('maybeAutoPick failed:', e && e.message); }
+      }
+      if (typeof buildPillToggles === 'function') {
+        try { buildPillToggles(); } catch (e) { console.warn('buildPillToggles failed:', e && e.message); }
+      }
       // Auto-run the full decision-engine + tax-comparison + dashboard pipeline.
       // The engine itself decides single-year (max Year-1 deduction) vs multi-year
       // structured-sale based on whether the gain can be fully offset in one year.
@@ -341,6 +352,12 @@ function _onCustodianChange() {
     if (leftover) leftover.textContent = '';
   }
 
+  // Rebuild Page-2 pill toggles since the leverage-cap-select options just
+  // changed (custodians have different cap lists / Schwab combo labels).
+  if (typeof buildPillToggles === 'function') {
+    try { buildPillToggles(); } catch (e) { /* non-fatal */ }
+  }
+
   // Below-minimum warning for Schwab combos: shows when the user has entered
   // an invested capital amount that's less than the selected combo's minimum.
   // Looks for #invested-capital on Page 2 (Brooklyn Configuration) and writes
@@ -456,6 +473,12 @@ function bindControls() {
       clearTimeout(_t);
       _t = setTimeout(function () {
         try {
+          // Re-run the auto-pick optimizer if the user hasn't overridden a
+          // pill yet. Brooklyn config changes (invested capital, strategy)
+          // can shift the optimal (leverage, horizon) combo.
+          if (typeof maybeAutoPick === 'function') {
+            try { maybeAutoPick(); } catch (e) { /* non-fatal */ }
+          }
           if (typeof runRecommendation === 'function') runRecommendation();
           if (typeof collectInputs === 'function' && typeof ProjectionEngine !== 'undefined' && ProjectionEngine.run) {
             const _cfg = collectInputs();
@@ -471,6 +494,7 @@ function bindControls() {
             window.__lastResult = ProjectionEngine.run(_cfg);
           }
           if (typeof renderProjectionDashboard === 'function') renderProjectionDashboard();
+          if (typeof syncPillSelection === 'function') syncPillSelection();
         } catch (e) { console.warn('auto-recalc failed:', e && e.message); }
       }, 250);
     });

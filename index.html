@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RETT - Brooklyn Multi-Year Projector</title>
-  <link rel="stylesheet" href="css/styles.css?v=1777500000009">
+  <link rel="stylesheet" href="css/styles.css?v=1777500000011">
 </head>
 <body>
   <a href="#page-inputs" class="skip-link">Skip to main content</a>
@@ -33,12 +33,6 @@
         <label for="custodian-select">Custodian</label>
         <select id="custodian-select" required aria-required="true">
           <option value="" selected>-- Select Custodian --</option>
-        </select>
-      </div>
-      <div class="input-group">
-        <label for="leverage-cap-select">Allowed Leverage Caps <span class="muted">(custodian-dependent)</span></label>
-        <select id="leverage-cap-select" disabled>
-          <option value="" selected>-- choose custodian first --</option>
         </select>
       </div>
       <div class="input-group" style="grid-column: 1 / -1;">
@@ -79,18 +73,10 @@
           <option value="PA">Pennsylvania</option>
         </select>
       </div>
-      <div class="input-group">
-        <label for="projection-years">Projection Horizon (years)</label>
-        <select id="projection-years">
-          <option value="3">3 years</option>
-          <option value="5" selected>5 years</option>
-          <option value="7">7 years</option>
-        </select>
-      </div>
     </div>
 
     <h3 class="section-title">Income Sources (Year 1, ex-property)</h3>
-    <p class="subtitle">Annual income excluding the property sale and depreciation recapture entered below.</p>
+    <p class="subtitle">Annual income excluding the appreciated assets entered below.</p>
     <div class="input-grid">
       <div class="input-group"><label for="w2-wages">W-2 Wages ($)</label><input type="number" id="w2-wages" placeholder="0" step="1" min="0" inputmode="numeric"></div>
       <div class="input-group"><label for="se-income">Self-Employment Income ($)</label><input type="number" id="se-income" placeholder="0" step="1" min="0" inputmode="numeric"></div>
@@ -100,14 +86,7 @@
       <div class="input-group"><label for="retirement-distributions">Retirement Distributions ($)</label><input type="number" id="retirement-distributions" placeholder="0" step="1" min="0" inputmode="numeric"></div>
     </div>
 
-
-    <!-- Future Year Income Estimates (collapsible). Default = blank, which falls through to Year-1 base values during projection. -->
-    <details id="future-years-details" class="future-years">
-      <summary class="section-title">Future Year Income Estimates (optional)</summary>
-      <div id="future-years-host"></div>
-    </details>
-
-    <h3 class="section-title">Property Sale</h3>
+    <h3 class="section-title">Appreciated Assets</h3>
     <div class="input-grid">
       <div class="input-group">
         <label for="sale-price">Sale Price ($)</label>
@@ -118,31 +97,17 @@
         <input type="number" id="cost-basis" placeholder="e.g. 5000000" step="1" min="0" inputmode="numeric">
       </div>
       <div class="input-group">
-        <label for="accelerated-depreciation">Accelerated Depreciation Taken ($)</label>
+        <label for="accelerated-depreciation">Accelerated Depreciation ($)</label>
         <input type="number" id="accelerated-depreciation" placeholder="e.g. 1000000" step="1" min="0" inputmode="numeric">
       </div>
       <div class="input-group">
-        <label for="computed-gain">Long-Term Capital Gain ($) <span class="muted">(auto)</span></label>
-        <input type="text" id="computed-gain" readonly placeholder="0" aria-readonly="true" aria-describedby="computed-gain-hint">
-        <span id="computed-gain-hint" class="visually-hidden">Calculated as sale price minus cost basis.</span>
+        <label for="computed-gain">Long-Term Gain ($) <span class="muted">(auto)</span></label>
+        <input type="text" id="computed-gain" readonly placeholder="$0" aria-readonly="true" aria-describedby="computed-gain-hint">
+        <span id="computed-gain-hint" class="visually-hidden">Calculated as sale price minus cost basis minus accelerated depreciation.</span>
       </div>
       <div class="input-group">
-        <label for="computed-total-taxable">Total Taxable to Offset ($) <span class="muted">(LTCG + recapture, auto)</span></label>
-        <input type="text" id="computed-total-taxable" readonly placeholder="0" aria-readonly="true" aria-describedby="computed-total-hint">
-        <span id="computed-total-hint" class="visually-hidden">Sum of long-term capital gain plus accelerated depreciation recapture.</span>
-      </div>
-    </div>
-
-    <h3 class="section-title">Other Capital Gains</h3>
-    <p class="subtitle">Capital gains from outside the property sale (other portfolio activity in the same year).</p>
-    <div class="input-grid">
-      <div class="input-group">
-        <label for="short-term-gain">Other Short-Term Capital Gain ($)</label>
+        <label for="short-term-gain">Short-Term Gain ($)</label>
         <input type="number" id="short-term-gain" placeholder="0" step="1" min="0" inputmode="numeric">
-      </div>
-      <div class="input-group">
-        <label for="long-term-gain">Other Long-Term Capital Gain ($)</label>
-        <input type="number" id="long-term-gain" placeholder="0" step="1" min="0" inputmode="numeric">
       </div>
     </div>
 
@@ -152,14 +117,23 @@
         <label for="implementation-date">Strategy Implementation Date</label>
         <input type="date" id="implementation-date">
       </div>
-      <div class="input-group">
-        <label for="distribution">Distribution (multi-year fallback)</label>
-        <select id="distribution">
-          <option value="even" selected>Even (pro-rata by capacity)</option>
-          <option value="front">Front-loaded</option>
-          <option value="back">Back-loaded</option>
-        </select>
-      </div>
+    </div>
+
+    <!-- Hidden legacy form fields. The on-page UI for projection horizon
+         and leverage cap moved to Page 2 (visual pill toggles), but these
+         elements remain in the DOM so the inputs-collector and existing
+         custodian-change wiring can keep treating them as the source of
+         truth for the currently selected values. -->
+    <div hidden aria-hidden="true">
+      <select id="projection-years">
+        <option value="3">3 years</option>
+        <option value="5" selected>5 years</option>
+        <option value="7">7 years</option>
+      </select>
+      <select id="leverage-cap-select" disabled>
+        <option value="" selected>-- choose custodian first --</option>
+      </select>
+      <input type="hidden" id="long-term-gain" value="0">
     </div>
 
     <div class="actions">
@@ -211,6 +185,22 @@
         <div class="input-group">
           <label for="beta1">Beta-1 Allocation (%)</label>
           <input type="number" id="beta1" value="50" step="1" min="0" max="100" inputmode="numeric">
+        </div>
+      </div>
+
+      <!-- Leverage + Horizon pill toggles. The defaults are auto-selected
+           on first projection (whichever combination yields the highest
+           net savings). Users can click any pill to override. -->
+      <div class="pill-toggle-row">
+        <div class="pill-group" id="leverage-pill-group" role="radiogroup" aria-label="Leverage">
+          <span class="pill-group-label">Leverage</span>
+          <div class="pill-track" id="leverage-pill-track"></div>
+          <span class="pill-group-hint" id="leverage-auto-hint" hidden>auto-selected</span>
+        </div>
+        <div class="pill-group" id="horizon-pill-group" role="radiogroup" aria-label="Projection horizon">
+          <span class="pill-group-label">Horizon</span>
+          <div class="pill-track" id="horizon-pill-track"></div>
+          <span class="pill-group-hint" id="horizon-auto-hint" hidden>auto-selected</span>
         </div>
       </div>
 
@@ -272,48 +262,49 @@
   </main>
 
   <!-- ============ Subsystem load order: 00 -> 01 -> 02 -> 03 -> 05 -> 04 ============ -->
-  <script src="js/00-data/custodians.js?v=1777500000009"></script>
-  <script src="js/00-data/schwab-strategies.js?v=1777500000009"></script>
-  <script src="js/01-brooklyn/brooklyn-data.js?v=1777500000009"></script>
-  <script src="js/01-brooklyn/date-utils.js?v=1777500000009"></script>
-  <script src="js/01-brooklyn/time-weight.js?v=1777500000009"></script>
-  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777500000009"></script>
-  <script src="js/01-brooklyn/variable-leverage.js?v=1777500000009"></script>
+  <script src="js/00-data/custodians.js?v=1777500000011"></script>
+  <script src="js/00-data/schwab-strategies.js?v=1777500000011"></script>
+  <script src="js/01-brooklyn/brooklyn-data.js?v=1777500000011"></script>
+  <script src="js/01-brooklyn/date-utils.js?v=1777500000011"></script>
+  <script src="js/01-brooklyn/time-weight.js?v=1777500000011"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777500000011"></script>
+  <script src="js/01-brooklyn/variable-leverage.js?v=1777500000011"></script>
 
-  <script src="js/02-tax-engine/tax-data.js?v=1777500000009"></script>
-  <script src="js/02-tax-engine/tax-loader.js?v=1777500000009"></script>
-  <script src="js/02-tax-engine/tax-lookups.js?v=1777500000009"></script>
-  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777500000009"></script>
-  <script src="js/02-tax-engine/tax-calc-state.js?v=1777500000009"></script>
-  <script src="js/02-tax-engine/tax-baseline.js?v=1777500000009"></script>
-  <script src="js/02-tax-engine/tax-comparison.js?v=1777500000009"></script>
+  <script src="js/02-tax-engine/tax-data.js?v=1777500000011"></script>
+  <script src="js/02-tax-engine/tax-loader.js?v=1777500000011"></script>
+  <script src="js/02-tax-engine/tax-lookups.js?v=1777500000011"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777500000011"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js?v=1777500000011"></script>
+  <script src="js/02-tax-engine/tax-baseline.js?v=1777500000011"></script>
+  <script src="js/02-tax-engine/tax-comparison.js?v=1777500000011"></script>
 
-  <script src="js/03-solver/fees.js?v=1777500000009"></script>
-  <script src="js/03-solver/brooklyn-allocator.js?v=1777500000009"></script>
-  <script src="js/03-solver/single-year-solver.js?v=1777500000009"></script>
-  <script src="js/03-solver/multi-year-solver.js?v=1777500000009"></script>
-  <script src="js/03-solver/structured-sale.js?v=1777500000009"></script>
-  <script src="js/03-solver/decision-engine.js?v=1777500000009"></script>
+  <script src="js/03-solver/fees.js?v=1777500000011"></script>
+  <script src="js/03-solver/brooklyn-allocator.js?v=1777500000011"></script>
+  <script src="js/03-solver/single-year-solver.js?v=1777500000011"></script>
+  <script src="js/03-solver/multi-year-solver.js?v=1777500000011"></script>
+  <script src="js/03-solver/structured-sale.js?v=1777500000011"></script>
+  <script src="js/03-solver/decision-engine.js?v=1777500000011"></script>
 
-  <script src="js/05-projections/bracket-projector.js?v=1777500000009"></script>
-  <script src="js/05-projections/carryforward-tracker.js?v=1777500000009"></script>
-  <script src="js/05-projections/projection-engine.js?v=1777500000009"></script>
+  <script src="js/05-projections/bracket-projector.js?v=1777500000011"></script>
+  <script src="js/05-projections/carryforward-tracker.js?v=1777500000011"></script>
+  <script src="js/05-projections/projection-engine.js?v=1777500000011"></script>
 
-  <script src="js/04-ui/banner.js?v=1777500000009"></script>
-  <script src="js/04-ui/number-animator.js?v=1777500000009"></script>
-  <script src="js/04-ui/format-helpers.js?v=1777500000009"></script>
-  <script src="js/04-ui/input-validation.js?v=1777500000009"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1777500000009"></script>
-  <script src="js/04-ui/controls.js?v=1777500000009"></script>
-  <script src="js/04-ui/projection-render.js?v=1777500000009"></script>
-  <script src="js/04-ui/recommendation-render.js?v=1777500000009"></script>
-  <script src="js/04-ui/projection-dashboard-render.js?v=1777500000009"></script>
-  <script src="js/04-ui/savings-ribbon.js?v=1777500000009"></script>
-  <script src="js/04-ui/bracket-viz-render.js?v=1777500000009"></script>
+  <script src="js/04-ui/banner.js?v=1777500000011"></script>
+  <script src="js/04-ui/number-animator.js?v=1777500000011"></script>
+  <script src="js/04-ui/pill-toggles.js?v=1777500000011"></script>
+  <script src="js/04-ui/format-helpers.js?v=1777500000011"></script>
+  <script src="js/04-ui/input-validation.js?v=1777500000011"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1777500000011"></script>
+  <script src="js/04-ui/controls.js?v=1777500000011"></script>
+  <script src="js/04-ui/projection-render.js?v=1777500000011"></script>
+  <script src="js/04-ui/recommendation-render.js?v=1777500000011"></script>
+  <script src="js/04-ui/projection-dashboard-render.js?v=1777500000011"></script>
+  <script src="js/04-ui/savings-ribbon.js?v=1777500000011"></script>
+  <script src="js/04-ui/bracket-viz-render.js?v=1777500000011"></script>
   <script src="js/04-ui/narrative-render.js?v=1777500000010"></script>
-  <script src="js/04-ui/strategy-summary-render.js?v=1777500000009"></script>
+  <script src="js/04-ui/strategy-summary-render.js?v=1777500000011"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1777500000009"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1777500000011"></script>
 </body>
 </html>

@@ -122,6 +122,83 @@ body {
 .nav-tab:hover { color: #b3d4ff; }
 .nav-tab.active { color: #5fa8ff; border-bottom-color: #5fa8ff; }
 
+/* Pill toggle rows (Page 2 — Leverage and Horizon).
+   Visual segmented-control replacement for the legacy <select>s; the
+   underlying selects still exist (hidden) and remain the source of truth. */
+.pill-toggle-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px 28px;
+    align-items: center;
+    margin-bottom: 18px;
+    padding: 10px 14px;
+    background: rgba(13, 34, 64, 0.4);
+    border: 1px solid rgba(26, 58, 110, 0.6);
+    border-radius: 6px;
+}
+.pill-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.pill-group-label {
+    font-size: 0.78em;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #8fb3e0;
+    font-weight: 600;
+}
+.pill-group-hint {
+    font-size: 0.72em;
+    color: #5fd97e;
+    font-style: italic;
+    letter-spacing: 0.04em;
+}
+.pill-group-hint[hidden] { display: none; }
+
+.pill-track {
+    display: inline-flex;
+    background: rgba(15, 76, 129, 0.25);
+    border: 1px solid #1a3a6e;
+    border-radius: 6px;
+    padding: 3px;
+    gap: 2px;
+}
+.pill {
+    appearance: none;
+    border: none;
+    background: transparent;
+    color: #b3d4ff;
+    padding: 6px 14px;
+    font-size: 0.88em;
+    font-weight: 600;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.12s ease, color 0.12s ease;
+}
+.pill:hover { color: #ffffff; background: rgba(95, 168, 255, 0.1); }
+.pill.active {
+    background: #2c5aa0;
+    color: #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+.pill:focus-visible {
+    outline: 2px solid #5fa8ff;
+    outline-offset: 1px;
+}
+.pill-empty { color: #64748b; font-size: 0.85em; padding: 6px 10px; }
+
+@media (max-width: 768px) {
+    .pill-toggle-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+    .pill-group { justify-content: space-between; }
+    .pill { padding: 6px 10px; font-size: 0.82em; }
+}
+
 /* Sticky savings ribbon — anchors the bottom-line numbers while the user
    scrolls. Pattern from Instead (Corvee) / Holistiplan. */
 .savings-ribbon {

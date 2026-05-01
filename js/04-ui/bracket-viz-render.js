@@ -22,13 +22,16 @@
 (function (root) {
   'use strict';
 
-  function _fmtCompact(n) {
-    if (n == null || !isFinite(n)) return '—';
-    var abs = Math.abs(n);
+  // Accounting format with $ and commas. Used for the per-row income
+  // readout. (Chart axes elsewhere use a compact $X.XM form because long
+  // labels would overlap; this row readout has its own column so we
+  // can show the full number.)
+  function _fmtAccounting(n) {
+    if (n == null || !isFinite(n)) return '\u2014';
+    if (typeof fmtUSD === 'function') return fmtUSD(n);
     var sign = n < 0 ? '-' : '';
-    if (abs >= 1e6) return sign + '$' + (abs / 1e6).toFixed(abs >= 1e7 ? 1 : 2) + 'M';
-    if (abs >= 1e3) return sign + '$' + (abs / 1e3).toFixed(0) + 'k';
-    return sign + '$' + Math.round(abs).toLocaleString('en-US');
+    var v = Math.round(Math.abs(n));
+    return sign + '$' + v.toLocaleString('en-US');
   }
 
   // Color band per marginal rate. Yellow → orange → red, matching the
@@ -107,7 +110,7 @@
       '" fill="#ffffff"/>';
 
     var rateLabel = (marginal.rate * 100).toFixed(0) + '%';
-    var incomeLabel = _fmtCompact(taxableIncome);
+    var incomeLabel = _fmtAccounting(taxableIncome);
 
     return '<div class="bv-row">' +
       '<div class="bv-year">' + year + '</div>' +

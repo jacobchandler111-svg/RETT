@@ -56,8 +56,9 @@
     var total = lt + rec;
     var gainEl  = $('computed-gain');
     var totalEl = $('computed-total-taxable');
-    if (gainEl)  gainEl.value  = lt.toFixed(2);
-    if (totalEl) totalEl.value = total.toFixed(2);
+    var fmt = (typeof fmtUSD === 'function') ? fmtUSD : function (n) { return '$' + Math.round(n).toLocaleString('en-US'); };
+    if (gainEl)  gainEl.value  = fmt(lt);
+    if (totalEl) totalEl.value = fmt(total);
 
     var yfEl = $('year-fraction-remaining');
     if (yfEl && typeof root.yearFractionRemaining === 'function' && inputs.implementationDate) {
