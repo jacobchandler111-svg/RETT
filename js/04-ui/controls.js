@@ -7,6 +7,15 @@
 
 const PAGE_IDS = ['page-inputs', 'page-projection', 'page-allocator'];
 
+function _debounce(fn, ms) {
+  let t;
+  return function () {
+    const args = arguments, ctx = this;
+    clearTimeout(t);
+    t = setTimeout(function () { fn.apply(ctx, args); }, ms);
+  };
+}
+
 function showPage(id) {
   PAGE_IDS.forEach(p => {
     const el = document.getElementById(p);
@@ -428,7 +437,7 @@ function bindControls() {
   const _lcSel = document.getElementById('leverage-cap-select');
   if (_lcSel) _lcSel.addEventListener('change', _onCustodianChange);
   const _invInp = document.getElementById('invested-capital');
-  if (_invInp) { let _ocTimer; _invInp.addEventListener('input', function () { clearTimeout(_ocTimer); _ocTimer = setTimeout(_onCustodianChange, 150); }); }
+  if (_invInp) _invInp.addEventListener('input', _debounce(_onCustodianChange, 150));
   _onCustodianChange();
 
   showPage('page-inputs');
