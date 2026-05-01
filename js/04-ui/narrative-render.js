@@ -57,25 +57,41 @@
     var horizon = years.length;
     var totals = result.totals || {};
 
-    // Compute the savings story.
+    // Compute the savings story. Pull from the comparison rows when
+    // available so the narrative agrees with the ribbon and hero (the
+    // raw projection-engine deltas can disagree because they don't
+    // reflect the structured-sale recommendation).
     var totalSave = 0, cumFees = 0;
-    years.forEach(function (y) {
-      var no = y.taxNoBrooklyn || 0;
-      var w  = (y.taxWithBrooklyn != null) ? y.taxWithBrooklyn : no;
-      totalSave += (no - w);
-      cumFees += (y.fee || 0);
-    });
+    var comp = window.__lastComparison;
+    if (comp && Array.isArray(comp.rows) && comp.rows.length) {
+      if (comp.totalSavings != null) {
+        totalSave = comp.totalSavings;
+      } else {
+        comp.rows.forEach(function (r) { totalSave += (r.savings || 0); });
+      }
+      years.forEach(function (y) { cumFees += (y.fee || 0); });
+    } else {
+      years.forEach(function (y) {
+        var no = y.taxNoBrooklyn || 0;
+        var w  = (y.taxWithBrooklyn != null) ? y.taxWithBrooklyn : no;
+        totalSave += (no - w);
+        cumFees += (y.fee || 0);
+      });
+    }
     if (totals.cumulativeFees != null) cumFees = totals.cumulativeFees;
     var net = totalSave - cumFees;
 
-    // Property sale + invested capital read directly from DOM (these don't
-    // always survive into the projection result).
-    var saleEl = document.getElementById('sale-price');
-    var costEl = document.getElementById('cost-basis');
-    var invEl  = document.getElementById('invested-capital');
-    var sale = saleEl ? Number(saleEl.value) || 0 : 0;
-    var cost = costEl ? Number(costEl.value) || 0 : 0;
-    var invested = invEl ? Number(invEl.value) || 0 : 0;
+    // Invested capital: prefer the cfg.investment that the projection
+    // actually ran with (which inputs-collector resolves as Available
+    // Capital when the dedicated invested-capital field is hidden /
+    // zero). Fall back to the available-capital field, then to the
+    // legacy invested-capital field.
+    var sale = Number((document.getElementById('sale-price') || {}).value) || 0;
+    var cost = Number((document.getElementById('cost-basis') || {}).value) || 0;
+    var invested = (cfg && Number(cfg.investment)) ||
+                   Number((document.getElementById('available-capital') || {}).value) ||
+                   Number((document.getElementById('invested-capital') || {}).value) ||
+                   0;
     var ltGain = Math.max(0, sale - cost);
 
     var strategy = _strategyLabel(cfg.tierKey || (window.__lastRecommendation && window.__lastRecommendation.tierKey));
@@ -102,10 +118,16 @@
         ' generates short-term losses that reduce ' + horizon + '-year tax by ' +
         _fmt(totalSave) + ' \u2014 ' + savingsTone + ' benefit of ' +
         _fmt(net) + ' after ' + _fmt(cumFees) + ' in strategy fees.';
+    } else if (invested > 0 && totalSave === 0) {
+      s2 = 'Investing ' + _fmt(invested) + ' in ' + strategy +
+        ' generates losses, but they produce no tax offset for these inputs. ' +
+        'Try a different leverage, horizon, or recognition timing.';
     } else if (totalSave === 0) {
-      s2 = 'The decision engine recommends no Brooklyn investment given the current inputs.';
+      s2 = 'No Brooklyn investment is recommended for these inputs.';
     } else {
-      s2 = 'The current Brooklyn configuration costs more in fees than it saves in tax. Try increasing leverage or invested capital.';
+      s2 = 'Investing ' + _fmt(invested) + ' in ' + strategy +
+        ' costs more in fees than it saves in tax for these inputs. ' +
+        'Try a different leverage or horizon.';
     }
 
     // Tone follows NET benefit — what the advisor actually defends. A
