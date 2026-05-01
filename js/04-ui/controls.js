@@ -170,6 +170,11 @@ function _onCustodianChange() {
     if (idx === c.allowedLeverageCaps.length - 1) opt.selected = true;
     lcSel.appendChild(opt);
   });
+  // Restore previous leverage selection if still valid; otherwise the
+  // highest cap (selected above) remains chosen.
+  if (__prevLcVal && Array.from(lcSel.options).some(function (o) { return o.value === String(__prevLcVal); })) {
+    lcSel.value = String(__prevLcVal);
+  }
   lcSel.disabled = false;
 
   // Schwab combo override: populate the leverage-cap dropdown with the
