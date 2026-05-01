@@ -136,7 +136,7 @@ function _onCustodianChange() {
   if (!custSel || !lcSel) return;
   // Capture leverage-cap value BEFORE the default block clears options,
   // so the Schwab-override block can preserve the user's previous selection.
-  var __prevLcVal = lcSel.value;
+  const __prevLcVal = lcSel.value;
   const id = custSel.value;
   const c = (typeof getCustodian === 'function') ? getCustodian(id) : null;
 
@@ -175,14 +175,14 @@ function _onCustodianChange() {
       return !currentStrat || sc.strategyKey === currentStrat;
     });
     if (schwabCombosForStrat.length) {
-      var prevLev = __prevLcVal;
+      const prevLev = __prevLcVal;
       var validLevels = schwabCombosForStrat.map(function(sc){ return sc.leverageLabel; });
       var preserveIdx = validLevels.indexOf(prevLev);
       while (lcSel.options.length > 0) lcSel.remove(0);
       schwabCombosForStrat.forEach(function (sc) {
         var opt = document.createElement('option');
         opt.value = sc.leverageLabel;
-        opt.textContent = sc.leverageLabel + ' (' + sc.longPct + '/' + sc.shortPct + ')';
+        opt.textContent = (sc.leverageLabel === sc.longPct + '/' + sc.shortPct) ? sc.leverageLabel : (sc.leverageLabel + ' (' + sc.longPct + '/' + sc.shortPct + ')');
         lcSel.appendChild(opt);
       });
       // Restore previous leverage selection if still valid; otherwise the
@@ -213,13 +213,13 @@ function _onCustodianChange() {
       // pairs from the schwab-strategies catalog, plus the per-combo
       // minimum investment for the currently-selected combo.
       var allCombos = listSchwabCombos();
-      var currentStrat2 = stratSel ? stratSel.value : null;
+      var currentStrat = stratSel ? stratSel.value : null;
       var currentLev = lcSel ? lcSel.value : null;
       var leveragePairs = allCombos
-        .filter(function (sc) { return !currentStrat2 || sc.strategyKey === currentStrat2; })
+        .filter(function (sc) { return !currentStrat || sc.strategyKey === currentStrat; })
         .map(function (sc) { return sc.leverageLabel; });
       var pickedCombo = (typeof findSchwabCombo === 'function')
-        ? findSchwabCombo(currentStrat2, currentLev)
+        ? findSchwabCombo(currentStrat, currentLev)
         : null;
       var minTxt = '';
       if (pickedCombo && pickedCombo.minInvestment) {
@@ -255,10 +255,10 @@ function _onCustodianChange() {
   if (isSchwab) {
     try {
       var invInp = document.getElementById('invested-capital');
-      var currentStrat3 = stratSel ? stratSel.value : null;
-      var currentLev3 = lcSel ? lcSel.value : null;
+      var currentStrat = stratSel ? stratSel.value : null;
+      var currentLev = lcSel ? lcSel.value : null;
       var picked3 = (typeof findSchwabCombo === 'function')
-        ? findSchwabCombo(currentStrat3, currentLev3)
+        ? findSchwabCombo(currentStrat, currentLev)
         : null;
       if (invInp && picked3 && picked3.minInvestment) {
         var invVal = Number(invInp.value) || 0;
