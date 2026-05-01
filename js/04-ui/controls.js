@@ -213,13 +213,13 @@ function _onCustodianChange() {
       // pairs from the schwab-strategies catalog, plus the per-combo
       // minimum investment for the currently-selected combo.
       var allCombos = listSchwabCombos();
-      var currentStrat2 = stratSel ? stratSel.value : null;
+      var currentStrat = stratSel ? stratSel.value : null;
       var currentLev = lcSel ? lcSel.value : null;
       var leveragePairs = allCombos
-        .filter(function (sc) { return !currentStrat2 || sc.strategyKey === currentStrat2; })
+        .filter(function (sc) { return !currentStrat || sc.strategyKey === currentStrat; })
         .map(function (sc) { return sc.leverageLabel; });
       var pickedCombo = (typeof findSchwabCombo === 'function')
-        ? findSchwabCombo(currentStrat2, currentLev)
+        ? findSchwabCombo(currentStrat, currentLev)
         : null;
       var minTxt = '';
       if (pickedCombo && pickedCombo.minInvestment) {
@@ -255,10 +255,10 @@ function _onCustodianChange() {
   if (isSchwab) {
     try {
       var invInp = document.getElementById('invested-capital');
-      var currentStrat3 = stratSel ? stratSel.value : null;
-      var currentLev3 = lcSel ? lcSel.value : null;
+      var currentStrat = stratSel ? stratSel.value : null;
+      var currentLev = lcSel ? lcSel.value : null;
       var picked3 = (typeof findSchwabCombo === 'function')
-        ? findSchwabCombo(currentStrat3, currentLev3)
+        ? findSchwabCombo(currentStrat, currentLev)
         : null;
       if (invInp && picked3 && picked3.minInvestment) {
         var invVal = Number(invInp.value) || 0;
