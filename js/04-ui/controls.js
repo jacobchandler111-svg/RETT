@@ -170,7 +170,7 @@ function _onCustodianChange() {
   // findSchwabCombo. Leverage is already baked into the combo's loss curve.
   var isSchwab = (c.id === 'schwab' && typeof listSchwabCombos === 'function');
   if (isSchwab) {
-    var currentStrat = stratSel ? stratSel.value : null;
+    const currentStrat = stratSel ? stratSel.value : null;
     var schwabCombosForStrat = listSchwabCombos().filter(function (sc) {
       return !currentStrat || sc.strategyKey === currentStrat;
     });
@@ -213,8 +213,8 @@ function _onCustodianChange() {
       // pairs from the schwab-strategies catalog, plus the per-combo
       // minimum investment for the currently-selected combo.
       var allCombos = listSchwabCombos();
-      var currentStrat = stratSel ? stratSel.value : null;
-      var currentLev = lcSel ? lcSel.value : null;
+      const currentStrat = stratSel ? stratSel.value : null;
+      const currentLev = lcSel ? lcSel.value : null;
       var leveragePairs = allCombos
         .filter(function (sc) { return !currentStrat || sc.strategyKey === currentStrat; })
         .map(function (sc) { return sc.leverageLabel; });
@@ -244,7 +244,7 @@ function _onCustodianChange() {
 
   // When custodian is not Schwab, clear any leftover Schwab warning.
   if (!isSchwab) {
-    var leftover = document.getElementById('schwab-below-min-warning');
+    const leftover = document.getElementById('schwab-below-min-warning');
     if (leftover) leftover.textContent = '';
   }
 
@@ -254,16 +254,16 @@ function _onCustodianChange() {
   // a soft warning into a sibling element if the value is below the threshold.
   if (isSchwab) {
     try {
-      var invInp = document.getElementById('invested-capital');
-      var currentStrat = stratSel ? stratSel.value : null;
-      var currentLev = lcSel ? lcSel.value : null;
-      var picked3 = (typeof findSchwabCombo === 'function')
+      const invInp = document.getElementById('invested-capital');
+      const currentStrat = stratSel ? stratSel.value : null;
+      const currentLev = lcSel ? lcSel.value : null;
+      const picked3 = (typeof findSchwabCombo === 'function')
         ? findSchwabCombo(currentStrat, currentLev)
         : null;
       if (invInp && picked3 && picked3.minInvestment) {
-        var invVal = Number(invInp.value) || 0;
-        var warnId = 'schwab-below-min-warning';
-        var warnEl = document.getElementById(warnId);
+        const invVal = Number(invInp.value) || 0;
+        const warnId = 'schwab-below-min-warning';
+        let warnEl = document.getElementById(warnId);
         if (invVal > 0 && invVal < picked3.minInvestment) {
           if (!warnEl) {
             warnEl = document.createElement('p');
@@ -273,7 +273,7 @@ function _onCustodianChange() {
             warnEl.style.marginTop = '6px';
             invInp.parentNode.appendChild(warnEl);
           }
-          var dollarSign2 = String.fromCharCode(36);
+          const dollarSign2 = String.fromCharCode(36);
           warnEl.textContent = 'Warning: Schwab requires a minimum of '
             + dollarSign2 + picked3.minInvestment.toLocaleString()
             + ' for ' + picked3.strategyLabel + ' ' + picked3.leverageLabel
@@ -428,7 +428,7 @@ function bindControls() {
   const _lcSel = document.getElementById('leverage-cap-select');
   if (_lcSel) _lcSel.addEventListener('change', _onCustodianChange);
   const _invInp = document.getElementById('invested-capital');
-  if (_invInp) _invInp.addEventListener('input', _onCustodianChange);
+  if (_invInp) { let _ocTimer; _invInp.addEventListener('input', function () { clearTimeout(_ocTimer); _ocTimer = setTimeout(_onCustodianChange, 150); }); }
   _onCustodianChange();
 
   showPage('page-inputs');
