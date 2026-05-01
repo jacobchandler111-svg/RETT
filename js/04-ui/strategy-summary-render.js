@@ -295,8 +295,8 @@
     html += '<div class="section-title">Allocator Detail</div>' + allocHtml;
 
     html += '<div class="rett-action-row">' +
-            '<button class="btn btn-primary" id="ss-recalc">Recalculate</button>' +
-            '<button class="btn btn-secondary" id="ss-export">Export Report</button>' +
+            '<button type="button" class="btn btn-primary" id="ss-print" title="Open the browser print dialog. Choose &ldquo;Save as PDF&rdquo; to download a client-ready report.">Print / Save as PDF</button>' +
+            '<button type="button" class="btn btn-secondary" id="ss-recalc">Recalculate</button>' +
             '</div>';
 
     page.innerHTML = html;
@@ -321,20 +321,25 @@
       if (recBtn) recBtn.click();
       setTimeout(renderStrategySummary, 100);
     });
-    var exp = document.getElementById('ss-export');
-    if (exp) exp.addEventListener('click', function () {
+    var printBtn = document.getElementById('ss-print');
+    if (printBtn) printBtn.addEventListener('click', function () {
+      // Mark the body so the print stylesheet can render a branded header,
+      // hide navigation chrome, and ensure only the Strategy Summary prints.
+      document.body.classList.add('printing-report');
+      // Temporarily set the print title (becomes the PDF filename suggestion).
+      var prevTitle = document.title;
+      document.title = 'RETT Strategy Summary - ' + (new Date()).toISOString().split('T')[0];
+      var cleanup = function () {
+        document.body.classList.remove('printing-report');
+        document.title = prevTitle;
+        window.removeEventListener('afterprint', cleanup);
+      };
+      window.addEventListener('afterprint', cleanup);
       try {
-        var blob = new Blob([page.innerText], { type: 'text/plain' });
-        var url = URL.createObjectURL(blob);
-        var a = document.createElement('a');
-        a.href = url;
-        a.download = 'rett-strategy-summary-' + (new Date()).toISOString().split('T')[0] + '.txt';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
+        window.print();
       } catch (e) {
-        alert('Export failed: ' + (e && e.message));
+        cleanup();
+        alert('Print failed: ' + (e && e.message));
       }
     });
   }

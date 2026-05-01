@@ -87,7 +87,9 @@ function resetAllInputs() {
   }
 
   // Clear any rendered output panels.
-  ['recommendation-panel', 'projection-table', 'tax-comparison-host', 'allocator-output'].forEach(function (id) {
+  ['recommendation-panel', 'projection-table', 'projection-summary-host',
+   'projection-details-host', 'bracket-viz-host', 'tax-comparison-host',
+   'allocator-output'].forEach(function (id) {
     const el = document.getElementById(id);
     if (el) el.innerHTML = '';
   });
@@ -95,6 +97,9 @@ function resetAllInputs() {
   window.__lastAllocation = null;
   window.__lastComparison = null;
   window.__lastRecommendation = null;
+  if (typeof renderSavingsRibbon === 'function') {
+    try { renderSavingsRibbon(); } catch (e) { /* non-fatal */ }
+  }
 
   if (typeof hideBanner === 'function') hideBanner();
   if (typeof showBanner === 'function') showBanner('info', 'Form reset.');

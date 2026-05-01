@@ -330,6 +330,16 @@
       html += '</div>';
       host.innerHTML = html;
     }
+
+    // Refresh the sticky savings ribbon (Page 2). Defensive — may not be
+    // loaded yet if this runs very early in page init.
+    if (typeof root.renderSavingsRibbon === 'function') {
+      try { root.renderSavingsRibbon(); } catch (e) { /* non-fatal */ }
+    }
+    // Refresh the federal-bracket position visualization.
+    if (typeof root.renderBracketViz === 'function') {
+      try { root.renderBracketViz(); } catch (e) { /* non-fatal */ }
+    }
   }
 
   root.renderProjectionDashboard = renderProjectionDashboard;

@@ -122,6 +122,58 @@ body {
 .nav-tab:hover { color: #b3d4ff; }
 .nav-tab.active { color: #5fa8ff; border-bottom-color: #5fa8ff; }
 
+/* Sticky savings ribbon — anchors the bottom-line numbers while the user
+   scrolls. Pattern from Instead (Corvee) / Holistiplan. */
+.savings-ribbon {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: #1a3a6e;
+    border: 1px solid #1a3a6e;
+    border-radius: 6px;
+    padding: 0;
+    margin-bottom: 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+.savings-ribbon[hidden] { display: none; }
+
+.ribbon-tile {
+    background: linear-gradient(135deg, rgba(15, 76, 129, 0.6) 0%, rgba(13, 34, 64, 0.85) 100%);
+    padding: 10px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+}
+.ribbon-tile.tile-positive { box-shadow: inset 3px 0 0 #5fd97e; }
+.ribbon-tile.tile-negative { box-shadow: inset 3px 0 0 #f87171; }
+
+.ribbon-label {
+    font-size: 0.7em;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #8fb3e0;
+    font-weight: 600;
+}
+.ribbon-value {
+    font-size: 1.25em;
+    font-weight: 700;
+    color: #ffffff;
+    font-variant-numeric: tabular-nums;
+}
+.ribbon-tile.tile-positive .ribbon-value { color: #5fd97e; }
+.ribbon-tile.tile-negative .ribbon-value { color: #f87171; }
+
+@media (max-width: 768px) {
+    .savings-ribbon { grid-template-columns: 1fr; }
+    .ribbon-tile { padding: 8px 12px; flex-direction: row; align-items: baseline; justify-content: space-between; gap: 8px; }
+    .ribbon-value { font-size: 1.05em; }
+}
+
 /* Sub-tabs (within a page) — smaller, secondary tier */
 .subnav {
     display: flex;
@@ -646,6 +698,91 @@ select.input-error {
 
 .rett-chart-svg { width: 100%; height: auto; display: block; }
 
+/* Bracket position visualization (Page 2 / Summary) — one row per year. */
+.bv-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 18px;
+    align-items: center;
+    font-size: 0.78em;
+    color: #b3d4ff;
+    margin-bottom: 10px;
+}
+.bv-legend-title {
+    color: #8fb3e0;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+    margin-right: 4px;
+}
+.bv-swatch {
+    display: inline-block;
+    width: 14px;
+    height: 10px;
+    border-radius: 2px;
+    margin-right: 6px;
+    vertical-align: -1px;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+.bv-tick {
+    display: inline-block;
+    width: 2px;
+    height: 12px;
+    background: #ffffff;
+    margin-right: 6px;
+    vertical-align: -2px;
+}
+
+.bv-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.bv-row {
+    display: grid;
+    grid-template-columns: 64px 1fr 140px;
+    gap: 12px;
+    align-items: center;
+    padding: 4px 0;
+}
+.bv-year {
+    color: #b3d4ff;
+    font-weight: 600;
+    font-size: 0.9em;
+}
+.bv-bar {
+    width: 100%;
+    height: 38px;
+    display: block;
+}
+.bv-readouts {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    font-size: 0.85em;
+    line-height: 1.2;
+}
+.bv-income {
+    color: #ffffff;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+.bv-rate {
+    color: #8fb3e0;
+    font-size: 0.88em;
+}
+.bv-footnote {
+    color: #8899aa;
+    font-size: 0.78em;
+    font-style: italic;
+    margin-top: 10px;
+}
+
+@media (max-width: 768px) {
+    .bv-row { grid-template-columns: 50px 1fr 100px; gap: 6px; }
+    .bv-readouts { font-size: 0.78em; }
+}
+
 /* ============================================================ */
 /* Mobile / responsive                                          */
 /* ============================================================ */
@@ -739,4 +876,154 @@ select.input-error {
         grid-template-columns: 1fr;
     }
     .header h1 { font-size: 1.2em; }
+}
+
+/* ============================================================ */
+/* Print stylesheet — produces a clean client-ready PDF when the */
+/* user clicks Print / Save as PDF on the Strategy Summary page. */
+/* Activated by .printing-report on <body>; the @media print     */
+/* block below also applies for any direct browser-print action. */
+/* ============================================================ */
+
+@media print {
+    @page {
+        size: letter;
+        margin: 0.6in 0.6in 0.7in 0.6in;
+    }
+
+    /* Reset to a printable light theme — colored ink wastes toner and
+       reads poorly on most office printers. */
+    body {
+        background: #ffffff !important;
+        color: #1a1a1a !important;
+        font-size: 10pt;
+        line-height: 1.4;
+    }
+
+    /* Strip on-screen chrome. */
+    .skip-link,
+    .nav,
+    .subnav,
+    .savings-ribbon,
+    .app-banner,
+    .actions,
+    .rett-action-row,
+    .btn,
+    button,
+    #future-years-details,
+    .future-years,
+    #recommendation-panel,
+    #variable-leverage-block {
+        display: none !important;
+    }
+
+    /* During a Strategy-Summary print, hide pages 1 and 2 entirely. */
+    body.printing-report #page-inputs,
+    body.printing-report #page-projection {
+        display: none !important;
+    }
+    body.printing-report #page-allocator {
+        display: block !important;
+    }
+
+    /* If the user direct-prints from any page, force-show the active page
+       only — keeps Ctrl+P from spilling all 3 pages. */
+    .page { page-break-after: always; }
+    .page:not(.active) { display: none !important; }
+    .page:last-child { page-break-after: auto; }
+
+    /* Page-break hints inside Strategy Summary. */
+    .rett-hero-tile,
+    .rett-table-wrap,
+    .rett-strategy-card {
+        page-break-inside: avoid;
+    }
+    .section-title {
+        page-break-after: avoid;
+    }
+
+    /* Header banner on the printed first page only. Uses an ::before
+       pseudo on the page container so we don't need a separate div. */
+    body.printing-report #page-allocator::before {
+        content: "RETT — Brooklyn Multi-Year Tax Strategy";
+        display: block;
+        font-size: 9pt;
+        color: #1a3a6e;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        border-bottom: 2pt solid #1a3a6e;
+        padding-bottom: 4pt;
+        margin-bottom: 16pt;
+    }
+
+    /* Recolor headings, tables, and tiles for print. Override the dark
+       navy theme without touching variables. */
+    .header { background: none !important; padding: 0 !important; }
+    .header h1, .header h2 { color: #1a3a6e !important; }
+    .page { padding: 0 !important; max-width: none !important; }
+    .page h2, .page-title { color: #1a3a6e !important; }
+    .section-title {
+        color: #1a3a6e !important;
+        border-left-color: #1a3a6e !important;
+        background: transparent !important;
+    }
+    p, .subtitle { color: #1a1a1a !important; }
+    .subtitle { color: #4a4a4a !important; }
+
+    .rett-table-wrap,
+    .rett-chart-wrap {
+        background: #ffffff !important;
+        border: 1pt solid #d1d5db !important;
+        box-shadow: none !important;
+    }
+    .rett-data-table th,
+    .rett-data-table td,
+    .rett-kv-table td,
+    .tax-comparison-table th,
+    .tax-comparison-table td {
+        color: #1a1a1a !important;
+        border-bottom: 0.5pt solid #d1d5db !important;
+    }
+    .rett-data-table thead th,
+    .tax-comparison-table thead th {
+        background: #e5e7eb !important;
+        color: #1a3a6e !important;
+    }
+    .rett-savings-cell,
+    .rett-delta-positive { color: #166534 !important; }
+    .rett-delta-negative { color: #991b1b !important; }
+    .rett-total-row td,
+    .rett-savings-row td {
+        background: #f3f4f6 !important;
+        color: #1a1a1a !important;
+    }
+
+    /* Hero tile: simplify to a clean printed callout. */
+    .rett-hero-tile {
+        background: #f3f4f6 !important;
+        border: 1pt solid #1a3a6e !important;
+        border-left-width: 4pt !important;
+        color: #1a1a1a !important;
+    }
+    .rett-hero-tile.hero-positive { border-left-color: #166534 !important; }
+    .rett-hero-tile.hero-negative { border-left-color: #991b1b !important; }
+    .rett-hero-label { color: #4a4a4a !important; }
+    .rett-hero-value { color: #1a3a6e !important; font-size: 28pt !important; }
+    .rett-hero-tile.hero-positive .rett-hero-value { color: #166534 !important; }
+    .rett-hero-tile.hero-negative .rett-hero-value { color: #991b1b !important; }
+    .rett-hero-sub { color: #1a1a1a !important; }
+
+    /* Footer — repeat-on-every-page disclosure line. */
+    body.printing-report::after {
+        content: "Generated by RETT (Brooklyn Multi-Year Tax Strategy Projector). Planning estimates only — not a substitute for tax-return preparation.";
+        position: fixed;
+        bottom: 0.2in;
+        left: 0.6in;
+        right: 0.6in;
+        font-size: 7.5pt;
+        color: #6b7280;
+        text-align: center;
+        font-style: italic;
+    }
 }
