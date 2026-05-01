@@ -35,9 +35,18 @@
   function _stateLabel(code) {
     if (!code || code === 'NONE') return null;
     var m = {
-      NY:'New York', CA:'California', TX:'Texas', FL:'Florida',
-      WA:'Washington', MA:'Massachusetts', NJ:'New Jersey',
-      CT:'Connecticut', IL:'Illinois', PA:'Pennsylvania'
+      AL:'Alabama', AK:'Alaska', AZ:'Arizona', AR:'Arkansas', CA:'California',
+      CO:'Colorado', CT:'Connecticut', DE:'Delaware', DC:'District of Columbia',
+      FL:'Florida', GA:'Georgia', HI:'Hawaii', ID:'Idaho', IL:'Illinois',
+      IN:'Indiana', IA:'Iowa', KS:'Kansas', KY:'Kentucky', LA:'Louisiana',
+      ME:'Maine', MD:'Maryland', MA:'Massachusetts', MI:'Michigan', MN:'Minnesota',
+      MS:'Mississippi', MO:'Missouri', MT:'Montana', NE:'Nebraska', NV:'Nevada',
+      NH:'New Hampshire', NJ:'New Jersey', NM:'New Mexico', NY:'New York',
+      NC:'North Carolina', ND:'North Dakota', OH:'Ohio', OK:'Oklahoma',
+      OR:'Oregon', PA:'Pennsylvania', RI:'Rhode Island', SC:'South Carolina',
+      SD:'South Dakota', TN:'Tennessee', TX:'Texas', UT:'Utah', VT:'Vermont',
+      VA:'Virginia', WA:'Washington', WV:'West Virginia', WI:'Wisconsin',
+      WY:'Wyoming'
     };
     return m[code] || code;
   }
@@ -115,10 +124,42 @@
         (state ? ' (' + state + ')' : '') + '.');
     }
 
+    // Build a per-year tranche description from the comparison rows.
+    // We detect a "tranche addition" wherever investmentThisYear jumps
+    // above the prior year's investment level. For immediate
+    // recognition this is a single Year-1 tranche; for deferred
+    // recognition we get one tranche for the basis (Year 1) plus one
+    // for each year the gain is recognized and reinvested.
+    var trancheParts = [];
+    var prevInv = 0;
+    if (comp && Array.isArray(comp.rows) && comp.rows.length) {
+      comp.rows.forEach(function (r) {
+        var inv = r.investmentThisYear || 0;
+        var added = inv - prevInv;
+        if (added > 1) {
+          trancheParts.push(_fmt(added) + ' in ' + r.year);
+        }
+        prevInv = inv;
+      });
+    }
+    if (!trancheParts.length && invested > 0) {
+      trancheParts.push(_fmt(invested) + ' in ' + year1);
+    }
+
     var s2;
     if (totalSave > 0) {
       var savingsTone = (net > 0 ? 'a net' : 'a gross');
-      s2 = 'Investing ' + _fmt(invested) + ' in ' + strategy +
+      var investedClause;
+      if (trancheParts.length === 1) {
+        investedClause = 'Investing ' + trancheParts[0] + ' in ' + strategy;
+      } else {
+        // Join with commas + final "and": "$5M in 2026, $3M in 2027 and $2M in 2028"
+        var lastTranche = trancheParts[trancheParts.length - 1];
+        var earlyTranches = trancheParts.slice(0, -1).join(', ');
+        investedClause = 'Investing ' + earlyTranches + ' and ' + lastTranche +
+          ' in ' + strategy;
+      }
+      s2 = investedClause +
         ' generates short-term losses that reduce ' + horizon + '-year tax by ' +
         _fmt(totalSave) + ' \u2014 ' + savingsTone + ' benefit of ' +
         _fmt(net) + ' after ' + _fmt(cumFees) + ' in strategy fees.';
