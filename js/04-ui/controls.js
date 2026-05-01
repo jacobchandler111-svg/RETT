@@ -428,7 +428,7 @@ function bindControls() {
   const _lcSel = document.getElementById('leverage-cap-select');
   if (_lcSel) _lcSel.addEventListener('change', _onCustodianChange);
   const _invInp = document.getElementById('invested-capital');
-  if (_invInp) _invInp.addEventListener('input', _onCustodianChange);
+  if (_invInp) { let _ocTimer; _invInp.addEventListener('input', function () { clearTimeout(_ocTimer); _ocTimer = setTimeout(_onCustodianChange, 150); }); }
   _onCustodianChange();
 
   showPage('page-inputs');
