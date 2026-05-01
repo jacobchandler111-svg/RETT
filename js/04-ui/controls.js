@@ -88,11 +88,13 @@ function resetAllInputs() {
 
   // Clear any rendered output panels.
   ['recommendation-panel', 'projection-table', 'projection-summary-host',
-   'projection-details-host', 'bracket-viz-host', 'tax-comparison-host',
-   'allocator-output'].forEach(function (id) {
+   'projection-details-host', 'bracket-viz-host', 'narrative-host',
+   'tax-comparison-host', 'allocator-output'].forEach(function (id) {
     const el = document.getElementById(id);
     if (el) el.innerHTML = '';
   });
+  var narrative = document.getElementById('narrative-host');
+  if (narrative) narrative.hidden = true;
   window.__lastResult = null;
   window.__lastAllocation = null;
   window.__lastComparison = null;

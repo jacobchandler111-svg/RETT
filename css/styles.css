@@ -550,6 +550,64 @@ select.input-error {
   text-underline-offset: 3px;
 }
 
+/* Narrative card (top of Page 2 Summary). Pattern: Holistiplan
+   Custom Client Observations + RightCapital Insight cards. */
+.rett-narrative {
+    display: grid;
+    grid-template-columns: 36px 1fr;
+    gap: 14px;
+    align-items: flex-start;
+    background: rgba(13, 34, 64, 0.55);
+    border: 1px solid #1a3a6e;
+    border-left: 4px solid #5fa8ff;
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin-bottom: 16px;
+}
+.rett-narrative.narrative-positive { border-left-color: #5fd97e; }
+.rett-narrative.narrative-negative { border-left-color: #f87171; }
+.rett-narrative.narrative-neutral { border-left-color: #fbbf24; }
+
+.narrative-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(95, 168, 255, 0.18);
+    color: #5fa8ff;
+    font-size: 1.4em;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.rett-narrative.narrative-positive .narrative-icon {
+    background: rgba(95, 217, 126, 0.18);
+    color: #5fd97e;
+}
+.rett-narrative.narrative-negative .narrative-icon {
+    background: rgba(248, 113, 113, 0.18);
+    color: #f87171;
+}
+.rett-narrative.narrative-neutral .narrative-icon {
+    background: rgba(251, 191, 36, 0.18);
+    color: #fbbf24;
+}
+
+.narrative-body p {
+    color: #e6edf3;
+    margin: 0 0 6px;
+    font-size: 0.95em;
+    line-height: 1.5;
+}
+.narrative-body p:last-child { margin-bottom: 0; }
+
+@media (max-width: 768px) {
+    .rett-narrative { grid-template-columns: 28px 1fr; gap: 10px; padding: 12px 14px; }
+    .narrative-icon { width: 28px; height: 28px; font-size: 1.1em; }
+    .narrative-body p { font-size: 0.88em; }
+}
+
 /* Hero savings tile (top of Page 3 / Strategy Summary).
    One dominant number — pattern borrowed from Holistiplan / Instead. */
 .rett-hero-tile {

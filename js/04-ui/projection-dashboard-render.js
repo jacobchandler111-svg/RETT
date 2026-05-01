@@ -336,6 +336,10 @@
     if (typeof root.renderSavingsRibbon === 'function') {
       try { root.renderSavingsRibbon(); } catch (e) { /* non-fatal */ }
     }
+    // Refresh the plain-English narrative card.
+    if (typeof root.renderNarrative === 'function') {
+      try { root.renderNarrative(); } catch (e) { /* non-fatal */ }
+    }
     // Refresh the federal-bracket position visualization.
     if (typeof root.renderBracketViz === 'function') {
       try { root.renderBracketViz(); } catch (e) { /* non-fatal */ }
