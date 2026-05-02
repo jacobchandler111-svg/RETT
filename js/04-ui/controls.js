@@ -63,16 +63,20 @@ function _refreshCaseStatus() {
   var nameInput = document.getElementById('case-name-input');
   if (current) {
     if (nameInput && !nameInput.value) nameInput.value = current;
-    _setCaseStatus('Working on: ' + current, 'loaded');
+    _setCaseStatus('Saved as ' + current, 'loaded');
   } else {
-    _setCaseStatus('Untitled (auto-saving)', '');
+    _setCaseStatus('Untitled \u2014 enter a name to start saving', '');
   }
 }
 
-function _persistWorkingState() {
-  var store = _caseStore();
-  if (!store) return;
-  store.saveWorkingState();
+// Briefly flash a "Saved" indicator after each auto-save so the user
+// knows their edits were captured.
+var _flashTimer = null;
+function _flashSaved(name) {
+  if (_flashTimer) clearTimeout(_flashTimer);
+  if (name) _setCaseStatus('Saved \u2713 \u2014 ' + name, 'loaded');
+  else      _setCaseStatus('Draft saved \u2713', '');
+  _flashTimer = setTimeout(_refreshCaseStatus, 1100);
 }
 
 function _bindCaseControls() {
@@ -80,134 +84,142 @@ function _bindCaseControls() {
   if (!store) return;
 
   // While we're applying values programmatically (initial restore or
-  // explicit Load Case), suppress dirty-marking so the user doesn't
-  // see "unsaved edits" the instant the page paints. Cleared after
-  // the debounce window flushes.
-  window.__rettSuppressDirty = true;
+  // user-driven Load), suppress the auto-save fired by the resulting
+  // input/change events — otherwise loading Jane would trample
+  // Jane's saved state with whatever was on screen first.
+  window.__rettSuppressAutoSave = true;
 
-  // Restore the working state on load — if the user had values from a
-  // previous session, the form picks back up where they left off.
-  try { store.restoreWorkingState(); } catch (e) { /* non-fatal */ }
+  // Page-load restore: prefer the active named case over the un-named
+  // draft. Returns 'case' / 'draft' / null.
+  try { store.restoreOnPageLoad(); } catch (e) { /* non-fatal */ }
   _refreshCaseDropdown(store.getCurrentCaseName());
   _refreshCaseStatus();
 
-  // Auto-save the working state on any input/change anywhere in the form.
-  // Debounced to avoid hammering localStorage on fast typing.
-  var debounced = _debounce(function () {
-    try { _persistWorkingState(); } catch (e) { /* non-fatal */ }
-    if (window.__rettSuppressDirty) return;
-    // If the user is editing while a named case is loaded, mark dirty so
-    // they know clicking Save will overwrite it.
-    var currentName = store.getCurrentCaseName();
-    if (currentName) _setCaseStatus('Working on: ' + currentName + ' \u2022 unsaved edits', 'dirty');
-  }, 300);
-  document.addEventListener('input',  debounced, true);
-  document.addEventListener('change', debounced, true);
-
-  // Release the suppress flag well after the debounce + any cascading
-  // restore-driven events have settled.
-  setTimeout(function () { window.__rettSuppressDirty = false; }, 800);
-
-  // Save button: snapshot current form into the named slot.
-  var saveBtn = document.getElementById('case-save-btn');
-  if (saveBtn) saveBtn.addEventListener('click', function () {
-    var nameInput = document.getElementById('case-name-input');
-    var name = nameInput ? (nameInput.value || '').trim() : '';
-    if (!name) {
-      if (typeof showBanner === 'function') {
-        showBanner('warning', 'Enter a case name before saving.');
-      } else {
-        alert('Enter a case name before saving.');
+  // Auto-save on any input/change anywhere in the form. Debounced so
+  // we don't hammer localStorage on fast typing. Routes to the right
+  // slot (named case OR un-named draft) based on the current state.
+  var debouncedAutoSave = _debounce(function () {
+    if (window.__rettSuppressAutoSave) return;
+    try {
+      var result = store.autoSaveCurrent();
+      // Refresh dropdown if a brand-new client was just created.
+      var listed = store.listCases();
+      if (result.mode === 'case' && listed.indexOf(result.name) !== -1) {
+        var sel = document.getElementById('case-load-select');
+        if (sel) {
+          var optionExists = Array.from(sel.options).some(function (o) { return o.value === result.name; });
+          if (!optionExists) _refreshCaseDropdown(result.name);
+        }
       }
-      if (nameInput) nameInput.focus();
-      return;
-    }
-    var existed = !!store.getCase(name);
-    if (existed && !window.confirm('Overwrite existing case "' + name + '"?')) {
-      return;
-    }
-    store.saveCase(name);
-    _refreshCaseDropdown(name);
-    _setCaseStatus(existed ? 'Updated: ' + name : 'Saved: ' + name, 'loaded');
-    if (typeof showBanner === 'function') {
-      showBanner('info', (existed ? 'Updated case "' : 'Saved case "') + name + '"');
-      setTimeout(function () { if (typeof hideBanner === 'function') hideBanner(); }, 2500);
-    }
-  });
+      _flashSaved(result.mode === 'case' ? result.name : '');
+    } catch (e) { (window.reportFailure || console.warn)('Auto-save failed', e); }
+  }, 300);
+  document.addEventListener('input',  debouncedAutoSave, true);
+  document.addEventListener('change', debouncedAutoSave, true);
 
-  // Load button: pull the dropdown's selection into the form.
-  var loadBtn = document.getElementById('case-load-btn');
-  if (loadBtn) loadBtn.addEventListener('click', function () {
-    var sel = document.getElementById('case-load-select');
-    var name = sel ? sel.value : '';
-    if (!name) {
-      if (typeof showBanner === 'function') showBanner('warning', 'Pick a case from the dropdown first.');
-      return;
-    }
-    window.__rettSuppressDirty = true;
+  setTimeout(function () { window.__rettSuppressAutoSave = false; }, 800);
+
+  // ---- Client Name input ------------------------------------------------
+  // Typing a name turns the un-named draft into a named case. If the user
+  // edits an already-active name, the case is renamed in place.
+  var nameInput = document.getElementById('case-name-input');
+  if (nameInput) {
+    var debouncedName = _debounce(function () {
+      var typed = (nameInput.value || '').trim();
+      var current = store.getCurrentCaseName();
+      if (!typed) {
+        // Cleared the name — fall back to draft mode. Keep the saved
+        // case under its old name; new edits go into draft until they
+        // type a name again.
+        if (current) {
+          store.setCurrentCaseName('');
+          _refreshCaseDropdown('');
+          _refreshCaseStatus();
+        }
+        return;
+      }
+      if (current && current !== typed) {
+        // Rename in place.
+        store.renameCase(current, typed);
+        _refreshCaseDropdown(typed);
+        _refreshCaseStatus();
+        return;
+      }
+      if (!current) {
+        // First time naming — promote the draft (or current form) into
+        // a named case slot.
+        store.activateCaseName(typed);
+        _refreshCaseDropdown(typed);
+        _refreshCaseStatus();
+        _flashSaved(typed);
+      }
+    }, 400);
+    nameInput.addEventListener('input', debouncedName);
+  }
+
+  // ---- Load dropdown ---------------------------------------------------
+  // Auto-load on selection change; no separate Load button needed.
+  var loadSel = document.getElementById('case-load-select');
+  if (loadSel) loadSel.addEventListener('change', function () {
+    var name = loadSel.value;
+    if (!name) return;
+    window.__rettSuppressAutoSave = true;
     var ok = store.loadCase(name);
     if (!ok) {
-      window.__rettSuppressDirty = false;
-      if (typeof showBanner === 'function') showBanner('error', 'Could not load case "' + name + '".');
+      window.__rettSuppressAutoSave = false;
+      (window.reportFailure || console.warn)('Could not load client "' + name + '"');
       return;
     }
-    var nameInput = document.getElementById('case-name-input');
     if (nameInput) nameInput.value = name;
     _refreshCaseStatus();
-    // After applying values, re-run derived UI so leverage caps,
-    // computed gain, and the Schwab combo info reflect the loaded case.
     if (typeof _onCustodianChange === 'function') {
       try { _onCustodianChange(); } catch (e) {}
     }
-    setTimeout(function () { window.__rettSuppressDirty = false; }, 800);
+    setTimeout(function () { window.__rettSuppressAutoSave = false; }, 800);
     if (typeof showBanner === 'function') {
-      showBanner('info', 'Loaded case "' + name + '"');
-      setTimeout(function () { if (typeof hideBanner === 'function') hideBanner(); }, 2500);
+      showBanner('info', 'Loaded client "' + name + '"');
+      setTimeout(function () { if (typeof hideBanner === 'function') hideBanner(); }, 1800);
     }
   });
 
-  // Delete button: remove the dropdown's selection.
+  // ---- Delete ----------------------------------------------------------
+  // Removes the currently-selected dropdown entry (or the active client
+  // if the dropdown is unset).
   var delBtn = document.getElementById('case-delete-btn');
   if (delBtn) delBtn.addEventListener('click', function () {
     var sel = document.getElementById('case-load-select');
-    var name = sel ? sel.value : '';
+    var name = (sel && sel.value) || store.getCurrentCaseName();
     if (!name) {
-      if (typeof showBanner === 'function') showBanner('warning', 'Pick a case from the dropdown to delete.');
+      if (typeof showBanner === 'function') showBanner('warning', 'No client selected to delete.');
       return;
     }
-    if (!window.confirm('Delete case "' + name + '"? This cannot be undone.')) return;
+    if (!window.confirm('Delete client "' + name + '"? This cannot be undone.')) return;
     store.deleteCase(name);
     _refreshCaseDropdown('');
-    if (store.getCurrentCaseName() === '') {
-      var nameInput = document.getElementById('case-name-input');
-      if (nameInput) nameInput.value = '';
-    }
+    if (nameInput) nameInput.value = '';
     _refreshCaseStatus();
     if (typeof showBanner === 'function') {
-      showBanner('info', 'Deleted case "' + name + '"');
-      setTimeout(function () { if (typeof hideBanner === 'function') hideBanner(); }, 2500);
+      showBanner('info', 'Deleted client "' + name + '"');
+      setTimeout(function () { if (typeof hideBanner === 'function') hideBanner(); }, 1800);
     }
   });
 
-  // New button: start fresh. Clears working state, current-case pointer,
-  // and the form (via resetAllInputs without the confirm prompt).
+  // ---- New Client ------------------------------------------------------
+  // Clears form + current-case pointer. The next time the user types
+  // a name, a fresh case is created.
   var newBtn = document.getElementById('case-new-btn');
   if (newBtn) newBtn.addEventListener('click', function () {
-    if (!window.confirm('Start a new case? Unsaved changes will be discarded.')) return;
+    if (!window.confirm('Start a new client? The form will be cleared.')) return;
+    window.__rettSuppressAutoSave = true;
     store.startNewCase();
     resetAllInputs(true);
     _refreshCaseDropdown('');
-    var nameInput = document.getElementById('case-name-input');
-    if (nameInput) nameInput.value = '';
+    if (nameInput) {
+      nameInput.value = '';
+      nameInput.focus();
+    }
     _refreshCaseStatus();
-  });
-
-  // Auto-set the case name input when the load dropdown changes (so the
-  // user can hit Save to overwrite without retyping the name).
-  var loadSel = document.getElementById('case-load-select');
-  if (loadSel) loadSel.addEventListener('change', function () {
-    var nameInput = document.getElementById('case-name-input');
-    if (nameInput && loadSel.value) nameInput.value = loadSel.value;
+    setTimeout(function () { window.__rettSuppressAutoSave = false; }, 600);
   });
 }
 

@@ -1,19 +1,21 @@
 // FILE: js/04-ui/case-storage.js
-// Local persistence for RETT scenarios. Two storage layers:
+// Local persistence for RETT scenarios. Name-anchored auto-save model:
 //
-//   1. WORKING STATE — auto-saved on every input change so a page
-//      refresh restores exactly what the user had. Survives until the
-//      user clicks "New" or loads a different case.
+//   1. NAMED CASES — once the user has typed a Client Name, every
+//      change to the form auto-saves to cases[<name>]. There is no
+//      explicit "Save" button; the act of editing IS the save.
 //
-//   2. NAMED CASES — explicit snapshots saved by name (e.g. "John
-//      Smith"). Listed in a dropdown on Page 1, can be loaded back
-//      into the working state, deleted, or overwritten with a re-save.
+//   2. WORKING STATE — used only when the user has not yet entered
+//      a name. Acts as a transient draft slot so a page refresh
+//      doesn't lose un-named edits. The moment the user types a
+//      name, the draft is migrated into cases[<name>] and the draft
+//      slot is cleared.
 //
 // All persistence lives in localStorage under three keys:
 //
-//   rett_workingState   - JSON object of current form field values
+//   rett_workingState   - JSON object (only used for un-named drafts)
 //   rett_cases          - JSON map { caseName: { ...values... } }
-//   rett_currentCase    - name of the currently-loaded case (or "")
+//   rett_currentCase    - name of the currently-active case (or "")
 //
 // No login / cloud sync yet — everything is local to the browser.
 // When the user is ready to add auth, this layer becomes the local
@@ -124,6 +126,24 @@
     return true;
   }
 
+  // Page-load restore: prefer the currently-active named case over the
+  // un-named draft. Returns 'case' / 'draft' / null so the UI can show
+  // an appropriate status string.
+  function restoreOnPageLoad() {
+    var name = getCurrentCaseName();
+    if (name) {
+      var c = getCase(name);
+      if (c) {
+        applyFormState(c);
+        return 'case';
+      }
+      // Stale current pointer; clear and fall through to draft.
+      setCurrentCaseName('');
+    }
+    if (restoreWorkingState()) return 'draft';
+    return null;
+  }
+
   // ---- Named-case API --------------------------------------------------
   function listCases() {
     var cases = _safeGetJson(CASES_KEY, {}) || {};
@@ -144,6 +164,63 @@
     cases[trimmed] = state || captureFormState();
     cases[trimmed]._savedAt = new Date().toISOString();
     _safeSetJson(CASES_KEY, cases);
+    setCurrentCaseName(trimmed);
+    return true;
+  }
+
+  // Rename a case in place. Used when the user retitles an active case
+  // by editing the Client Name input. Carries the saved state across,
+  // removes the old slot, and re-points currentCaseName.
+  function renameCase(oldName, newName) {
+    if (!oldName || !newName) return false;
+    if (oldName === newName) return true;
+    var cases = _safeGetJson(CASES_KEY, {}) || {};
+    if (!(oldName in cases)) return false;
+    cases[newName] = cases[oldName];
+    delete cases[oldName];
+    _safeSetJson(CASES_KEY, cases);
+    if (getCurrentCaseName() === oldName) setCurrentCaseName(newName);
+    return true;
+  }
+
+  // Auto-save the current form state to the right slot. Called after every
+  // (debounced) input/change event in controls.js. When a client name is
+  // active, edits flow into cases[name]; otherwise they go to the
+  // un-named draft (rett_workingState) so a refresh doesn't lose typing
+  // before the user has named the client.
+  function autoSaveCurrent() {
+    var name = getCurrentCaseName();
+    var snapshot = captureFormState();
+    if (name) {
+      var cases = _safeGetJson(CASES_KEY, {}) || {};
+      snapshot._savedAt = new Date().toISOString();
+      cases[name] = snapshot;
+      _safeSetJson(CASES_KEY, cases);
+      // Clear the un-named draft once we're saving under a real name.
+      _safeRemove(WORKING_KEY);
+      return { mode: 'case', name: name };
+    }
+    _safeSetJson(WORKING_KEY, snapshot);
+    return { mode: 'draft', name: '' };
+  }
+
+  // Make the named case the active one. If the user had un-named draft
+  // edits, migrate them into cases[name] so nothing is lost as they
+  // start naming the client.
+  function activateCaseName(name) {
+    if (!name) return false;
+    var trimmed = name.trim();
+    if (!trimmed) return false;
+    var cases = _safeGetJson(CASES_KEY, {}) || {};
+    if (!(trimmed in cases)) {
+      // Migrate un-named draft into the new named slot if present;
+      // otherwise capture the current form state.
+      var draft = _safeGetJson(WORKING_KEY, null);
+      cases[trimmed] = draft || captureFormState();
+      cases[trimmed]._savedAt = new Date().toISOString();
+      _safeSetJson(CASES_KEY, cases);
+    }
+    _safeRemove(WORKING_KEY);
     setCurrentCaseName(trimmed);
     return true;
   }
@@ -185,13 +262,17 @@
     saveWorkingState:    saveWorkingState,
     clearWorkingState:   clearWorkingState,
     restoreWorkingState: restoreWorkingState,
+    restoreOnPageLoad:   restoreOnPageLoad,
     listCases:           listCases,
     getCase:             getCase,
     saveCase:            saveCase,
+    renameCase:          renameCase,
     deleteCase:          deleteCase,
     loadCase:            loadCase,
     getCurrentCaseName:  getCurrentCaseName,
     setCurrentCaseName:  setCurrentCaseName,
-    startNewCase:        startNewCase
+    startNewCase:        startNewCase,
+    activateCaseName:    activateCaseName,
+    autoSaveCurrent:     autoSaveCurrent
   };
 })(window);
