@@ -310,6 +310,35 @@ body {
     border-left: 3px solid #5fa8ff;
 }
 
+/* Case management controls on Page 1 (top section). The case-actions
+   container is also an .input-group (sets flex-direction: column), so
+   we explicitly switch to row layout for the action buttons. */
+.case-controls .case-actions {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-top: 4px;
+}
+.case-controls .case-actions .btn {
+    padding: 8px 14px;
+    font-size: 0.88em;
+}
+.case-status {
+    margin-left: auto;
+    color: #8fb3e0;
+    font-size: 0.85em;
+    font-style: italic;
+}
+.case-status.case-loaded { color: #5fd97e; font-weight: 600; font-style: normal; }
+.case-status.case-dirty  { color: #fbbf24; font-style: normal; }
+@media (max-width: 768px) {
+    .case-controls .case-actions { flex-direction: column; align-items: stretch; }
+    .case-controls .case-actions .btn { width: 100%; }
+    .case-status { margin-left: 0; text-align: center; }
+}
+
 /* Form section cards on Page 1. Wrap each section's inputs in a subtle
    card to give visual grouping. Pattern: Holistiplan/RightCapital both
    group form fields into cards rather than presenting one long form. */
@@ -491,24 +520,6 @@ select.input-error {
 }
 
 
-/* === Future Year Income Estimates === */
-.future-years { margin: 1rem 0; padding: .5rem 0; border-top: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; }
-.future-years > summary { cursor: pointer; padding: .5rem 0; user-select: none; }
-.future-years > summary::marker { color: #4b5563; }
-#future-years-host { display: flex; flex-direction: column; gap: .35rem; margin-top: .5rem; }
-#future-years-host .year-row {
-  display: grid;
-  grid-template-columns: 140px 1fr 1fr 1fr;
-  gap: .5rem;
-  align-items: center;
-}
-#future-years-host .yr-label { font-size: .9rem; color: #374151; font-weight: 500; }
-#future-years-host input[type="text"] {
-  padding: .35rem .5rem;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  font-size: .9rem;
-}
 
 
 /* ============================================================ */
@@ -1010,11 +1021,6 @@ select.input-error {
     .rett-kpi-tile { padding: 10px 12px; }
     .rett-kpi-value { font-size: 1.2em; }
 
-    #future-years-host .year-row {
-        grid-template-columns: 1fr;
-        gap: 6px;
-    }
-
     .rett-action-row {
         flex-direction: column;
         gap: 10px;
@@ -1064,8 +1070,6 @@ select.input-error {
     .rett-action-row,
     .btn,
     button,
-    #future-years-details,
-    .future-years,
     #recommendation-panel,
     #variable-leverage-block {
         display: none !important;
@@ -1097,7 +1101,9 @@ select.input-error {
     }
 
     /* Header banner on the printed first page only. Uses an ::before
-       pseudo on the page container so we don't need a separate div. */
+       pseudo on the page container so we don't need a separate div.
+       When a case is loaded, body[data-case-name] lets us layer the
+       client name underneath the product banner. */
     body.printing-report #page-allocator::before {
         content: "RETT — Brooklyn Multi-Year Tax Strategy";
         display: block;
@@ -1108,6 +1114,14 @@ select.input-error {
         text-transform: uppercase;
         border-bottom: 2pt solid #1a3a6e;
         padding-bottom: 4pt;
+        margin-bottom: 6pt;
+    }
+    body.printing-report[data-case-name]:not([data-case-name=""]) #page-allocator::after {
+        content: "Prepared for: " attr(data-case-name);
+        display: block;
+        font-size: 11pt;
+        color: #1a1a1a;
+        font-weight: 600;
         margin-bottom: 16pt;
     }
 

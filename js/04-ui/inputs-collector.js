@@ -14,26 +14,6 @@ function _val(id) {
       return el ? el.value : '';
 }
 
-function _arrayFromRows(rowSelector, fieldName) {
-      const rows = document.querySelectorAll(rowSelector);
-      const out = [];
-      rows.forEach(r => {
-            const inp = r.querySelector('[data-field="' + fieldName + '"]');
-            if (inp) out.push(parseUSD(inp.value));
-      });
-      return out.length ? out : null;
-}
-
-function _arrayPctFromRows(rowSelector, fieldName) {
-      const rows = document.querySelectorAll(rowSelector);
-      const out = [];
-      rows.forEach(r => {
-            const inp = r.querySelector('[data-field="' + fieldName + '"]');
-            if (inp) out.push(parseFloat(inp.value) / 100);
-      });
-      return out.length ? out : null;
-}
-
 function _sumIncomeSources() {
       const ids = ['w2-wages', 'se-income', 'biz-revenue', 'rental-income',
                    'dividend-income', 'retirement-distributions'];
@@ -43,19 +23,6 @@ function _sumIncomeSources() {
             if (v) sum += v;
       }
       return sum;
-}
-
-function _buildPerYearArray(field, year1Base) {
-    // Always include Year 1 at index 0 from base inputs.
-    // Then read Year 2..N from #future-years-host (blank => fall through to Year-1 base).
-    const out = [year1Base || 0];
-    const rows = document.querySelectorAll('#future-years-host .year-row');
-    rows.forEach(r => {
-        const inp = r.querySelector('[data-field="' + field + '"]');
-        const raw = inp ? inp.value.trim() : '';
-        out.push(raw === '' ? (year1Base || 0) : parseUSD(raw));
-    });
-    return out;
 }
 
 function collectInputs() {
@@ -81,15 +48,13 @@ function collectInputs() {
                 leverage:            parseFloat(_val('leverage')) || 1,
                 baseOrdinaryIncome:  _sumIncomeSources(),
                 baseShortTermGain:   parseUSD(_val('short-term-gain')),
-                baseLongTermGain:    parseUSD(_val('long-term-gain')),
-                // Per-year overrides (optional - leave blank to use the year-1
-                // base values for every projected year).
-                // Per-year arrays: index 0 = Year 1 (uses base inputs), index 1+ = Year 2+
-                // from #future-years-host. Empty future-year inputs fall through to Year-1 base.
-                ordinaryByYear:    _buildPerYearArray('ordinary',   _sumIncomeSources()),
-                shortGainByYear:   _buildPerYearArray('short-gain', parseUSD(_val('short-term-gain'))),
-                longGainByYear:    _buildPerYearArray('long-gain',  parseUSD(_val('long-term-gain'))),
-                lossRateByYear:    _arrayPctFromRows('#future-years-host .year-row', 'loss-rate')
+                baseLongTermGain:    parseUSD(_val('long-term-gain'))
+                // Per-year override arrays (ordinaryByYear, shortGainByYear,
+                // longGainByYear, lossRateByYear) were sourced from a
+                // future-years UI that has been removed. The engine falls
+                // through to Year-1 base values for every projected year
+                // when these arrays are absent, which is the desired
+                // behavior for the current single-snapshot input model.
       };
       // Recognition-start year (1-indexed user year, 1 = immediate). Stored
       // on cfg as a 0-indexed offset so engine code can use it as an array

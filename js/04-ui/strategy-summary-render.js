@@ -353,11 +353,27 @@
       // Mark the body so the print stylesheet can render a branded header,
       // hide navigation chrome, and ensure only the Strategy Summary prints.
       document.body.classList.add('printing-report');
+      // Surface the loaded case name (if any) into a data attribute the
+      // print CSS can pick up via attr() — produces a "Prepared for: <name>"
+      // line at the top of the printed report.
+      var caseName = '';
+      if (window.RETTCaseStorage && typeof window.RETTCaseStorage.getCurrentCaseName === 'function') {
+        caseName = window.RETTCaseStorage.getCurrentCaseName() || '';
+      }
+      if (caseName) {
+        document.body.setAttribute('data-case-name', caseName);
+      } else {
+        document.body.removeAttribute('data-case-name');
+      }
       // Temporarily set the print title (becomes the PDF filename suggestion).
       var prevTitle = document.title;
-      document.title = 'RETT Strategy Summary - ' + (new Date()).toISOString().split('T')[0];
+      var todayIso = (new Date()).toISOString().split('T')[0];
+      document.title = caseName
+        ? ('RETT - ' + caseName + ' - ' + todayIso)
+        : ('RETT Strategy Summary - ' + todayIso);
       var cleanup = function () {
         document.body.classList.remove('printing-report');
+        document.body.removeAttribute('data-case-name');
         document.title = prevTitle;
         window.removeEventListener('afterprint', cleanup);
       };

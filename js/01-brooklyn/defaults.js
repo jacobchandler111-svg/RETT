@@ -37,40 +37,10 @@ window.RETT_DEFAULTS = {
   bracketInflation: 0.02
 };
 
-// ----- Auto-populate hook -----
-// Runs after DOMContentLoaded and after controls.js has built the Future Year
-// Income Estimates rows. Fills each row's inputs from RETT_DEFAULTS where
-// values are present.
-(function () {
-  function fmt(n) {
-    if (n === null || n === undefined || n === '') return '';
-    return String(n);
-  }
-
-  function applyDefaults() {
-    const D = window.RETT_DEFAULTS || {};
-    // Apply per-year defaults to the visible Future Year Income Estimates rows
-    // (#future-years-host). Index 0 = Year 2 (Year 1 lives in the base inputs).
-    const host = document.getElementById('future-years-host');
-    if (!host) return;
-    const rows = host.querySelectorAll('.year-row');
-    rows.forEach((row, i) => {
-      const j = i + 1; // skip Year 1; defaults arrays are 0-indexed at Year 1.
-      const ord = row.querySelector('[data-field="ordinary"]');
-      const sg  = row.querySelector('[data-field="short-gain"]');
-      const lg  = row.querySelector('[data-field="long-gain"]');
-      if (ord && D.ordinaryByYear  && D.ordinaryByYear[j]  != null) ord.value = fmt(D.ordinaryByYear[j]);
-      if (sg  && D.shortGainByYear && D.shortGainByYear[j] != null) sg.value  = fmt(D.shortGainByYear[j]);
-      if (lg  && D.longGainByYear  && D.longGainByYear[j]  != null) lg.value  = fmt(D.longGainByYear[j]);
-    });
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => setTimeout(applyDefaults, 0));
-  } else {
-    setTimeout(applyDefaults, 0);
-  }
-})();
+// The Future Year Income Estimates UI was removed; the auto-populate
+// hook that filled it from RETT_DEFAULTS is no longer needed. The
+// RETT_DEFAULTS object above is preserved as a reference doc for
+// future per-year override work.
 
 // Preload tax data on page init so any consumer can call lookups immediately.
 // On failure, surface a visible banner so the user knows calculations will

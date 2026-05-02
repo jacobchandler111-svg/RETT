@@ -26,7 +26,192 @@ function showProjectionSubpage(id) {
   });
 }
 
-function resetAllInputs() {
+// ---- Case management wiring ---------------------------------------------
+// Persists the form to localStorage and exposes a small UI for named
+// cases. See js/04-ui/case-storage.js for the storage layer.
+
+function _caseStore() { return window.RETTCaseStorage; }
+
+function _setCaseStatus(text, kind) {
+  var el = document.getElementById('case-status');
+  if (!el) return;
+  el.textContent = text;
+  el.classList.remove('case-loaded', 'case-dirty');
+  if (kind === 'loaded') el.classList.add('case-loaded');
+  else if (kind === 'dirty') el.classList.add('case-dirty');
+}
+
+function _refreshCaseDropdown(selectName) {
+  var sel = document.getElementById('case-load-select');
+  var store = _caseStore();
+  if (!sel || !store) return;
+  var names = store.listCases();
+  while (sel.options.length > 1) sel.remove(1);
+  names.forEach(function (n) {
+    var opt = document.createElement('option');
+    opt.value = n;
+    opt.textContent = n;
+    sel.appendChild(opt);
+  });
+  if (selectName != null) sel.value = selectName;
+}
+
+function _refreshCaseStatus() {
+  var store = _caseStore();
+  if (!store) return;
+  var current = store.getCurrentCaseName();
+  var nameInput = document.getElementById('case-name-input');
+  if (current) {
+    if (nameInput && !nameInput.value) nameInput.value = current;
+    _setCaseStatus('Working on: ' + current, 'loaded');
+  } else {
+    _setCaseStatus('Untitled (auto-saving)', '');
+  }
+}
+
+function _persistWorkingState() {
+  var store = _caseStore();
+  if (!store) return;
+  store.saveWorkingState();
+}
+
+function _bindCaseControls() {
+  var store = _caseStore();
+  if (!store) return;
+
+  // While we're applying values programmatically (initial restore or
+  // explicit Load Case), suppress dirty-marking so the user doesn't
+  // see "unsaved edits" the instant the page paints. Cleared after
+  // the debounce window flushes.
+  window.__rettSuppressDirty = true;
+
+  // Restore the working state on load — if the user had values from a
+  // previous session, the form picks back up where they left off.
+  try { store.restoreWorkingState(); } catch (e) { /* non-fatal */ }
+  _refreshCaseDropdown(store.getCurrentCaseName());
+  _refreshCaseStatus();
+
+  // Auto-save the working state on any input/change anywhere in the form.
+  // Debounced to avoid hammering localStorage on fast typing.
+  var debounced = _debounce(function () {
+    try { _persistWorkingState(); } catch (e) { /* non-fatal */ }
+    if (window.__rettSuppressDirty) return;
+    // If the user is editing while a named case is loaded, mark dirty so
+    // they know clicking Save will overwrite it.
+    var currentName = store.getCurrentCaseName();
+    if (currentName) _setCaseStatus('Working on: ' + currentName + ' \u2022 unsaved edits', 'dirty');
+  }, 300);
+  document.addEventListener('input',  debounced, true);
+  document.addEventListener('change', debounced, true);
+
+  // Release the suppress flag well after the debounce + any cascading
+  // restore-driven events have settled.
+  setTimeout(function () { window.__rettSuppressDirty = false; }, 800);
+
+  // Save button: snapshot current form into the named slot.
+  var saveBtn = document.getElementById('case-save-btn');
+  if (saveBtn) saveBtn.addEventListener('click', function () {
+    var nameInput = document.getElementById('case-name-input');
+    var name = nameInput ? (nameInput.value || '').trim() : '';
+    if (!name) {
+      if (typeof showBanner === 'function') {
+        showBanner('warning', 'Enter a case name before saving.');
+      } else {
+        alert('Enter a case name before saving.');
+      }
+      if (nameInput) nameInput.focus();
+      return;
+    }
+    var existed = !!store.getCase(name);
+    if (existed && !window.confirm('Overwrite existing case "' + name + '"?')) {
+      return;
+    }
+    store.saveCase(name);
+    _refreshCaseDropdown(name);
+    _setCaseStatus(existed ? 'Updated: ' + name : 'Saved: ' + name, 'loaded');
+    if (typeof showBanner === 'function') {
+      showBanner('info', (existed ? 'Updated case "' : 'Saved case "') + name + '"');
+      setTimeout(function () { if (typeof hideBanner === 'function') hideBanner(); }, 2500);
+    }
+  });
+
+  // Load button: pull the dropdown's selection into the form.
+  var loadBtn = document.getElementById('case-load-btn');
+  if (loadBtn) loadBtn.addEventListener('click', function () {
+    var sel = document.getElementById('case-load-select');
+    var name = sel ? sel.value : '';
+    if (!name) {
+      if (typeof showBanner === 'function') showBanner('warning', 'Pick a case from the dropdown first.');
+      return;
+    }
+    window.__rettSuppressDirty = true;
+    var ok = store.loadCase(name);
+    if (!ok) {
+      window.__rettSuppressDirty = false;
+      if (typeof showBanner === 'function') showBanner('error', 'Could not load case "' + name + '".');
+      return;
+    }
+    var nameInput = document.getElementById('case-name-input');
+    if (nameInput) nameInput.value = name;
+    _refreshCaseStatus();
+    // After applying values, re-run derived UI so leverage caps,
+    // computed gain, and the Schwab combo info reflect the loaded case.
+    if (typeof _onCustodianChange === 'function') {
+      try { _onCustodianChange(); } catch (e) {}
+    }
+    setTimeout(function () { window.__rettSuppressDirty = false; }, 800);
+    if (typeof showBanner === 'function') {
+      showBanner('info', 'Loaded case "' + name + '"');
+      setTimeout(function () { if (typeof hideBanner === 'function') hideBanner(); }, 2500);
+    }
+  });
+
+  // Delete button: remove the dropdown's selection.
+  var delBtn = document.getElementById('case-delete-btn');
+  if (delBtn) delBtn.addEventListener('click', function () {
+    var sel = document.getElementById('case-load-select');
+    var name = sel ? sel.value : '';
+    if (!name) {
+      if (typeof showBanner === 'function') showBanner('warning', 'Pick a case from the dropdown to delete.');
+      return;
+    }
+    if (!window.confirm('Delete case "' + name + '"? This cannot be undone.')) return;
+    store.deleteCase(name);
+    _refreshCaseDropdown('');
+    if (store.getCurrentCaseName() === '') {
+      var nameInput = document.getElementById('case-name-input');
+      if (nameInput) nameInput.value = '';
+    }
+    _refreshCaseStatus();
+    if (typeof showBanner === 'function') {
+      showBanner('info', 'Deleted case "' + name + '"');
+      setTimeout(function () { if (typeof hideBanner === 'function') hideBanner(); }, 2500);
+    }
+  });
+
+  // New button: start fresh. Clears working state, current-case pointer,
+  // and the form (via resetAllInputs without the confirm prompt).
+  var newBtn = document.getElementById('case-new-btn');
+  if (newBtn) newBtn.addEventListener('click', function () {
+    if (!window.confirm('Start a new case? Unsaved changes will be discarded.')) return;
+    store.startNewCase();
+    resetAllInputs(true);
+    _refreshCaseDropdown('');
+    var nameInput = document.getElementById('case-name-input');
+    if (nameInput) nameInput.value = '';
+    _refreshCaseStatus();
+  });
+
+  // Auto-set the case name input when the load dropdown changes (so the
+  // user can hit Save to overwrite without retyping the name).
+  var loadSel = document.getElementById('case-load-select');
+  if (loadSel) loadSel.addEventListener('change', function () {
+    var nameInput = document.getElementById('case-name-input');
+    if (nameInput && loadSel.value) nameInput.value = loadSel.value;
+  });
+}
+
+function resetAllInputs(skipConfirm) {
   // Reset all editable form fields on Page 1 and Page 2 to their initial state.
   // Resets the underlying defaults selected in HTML — does NOT clear localStorage
   // (the app does not persist anything yet).
@@ -80,11 +265,6 @@ function resetAllInputs() {
     try { _onCustodianChange(); } catch (e) { /* non-fatal */ }
   }
 
-  // Stash and rebuild future-years rows.
-  if (typeof _buildFutureYearsUI === 'function') {
-    try { _buildFutureYearsUI(); } catch (e) { /* non-fatal */ }
-  }
-
   // Clear any rendered output panels.
   ['recommendation-panel', 'projection-table', 'projection-summary-host',
    'projection-details-host', 'bracket-viz-host', 'narrative-host',
@@ -104,9 +284,17 @@ function resetAllInputs() {
   // Re-enable auto-pick so the next projection picks the best combo again.
   window.__rettAutoPickEnabled = true;
 
+  // Sync the auto-saved working state to the cleared form so a refresh
+  // doesn't bring the old values back.
+  if (window.RETTCaseStorage && typeof window.RETTCaseStorage.saveWorkingState === 'function') {
+    try { window.RETTCaseStorage.saveWorkingState(); } catch (e) { /* */ }
+  }
+
   if (typeof hideBanner === 'function') hideBanner();
-  if (typeof showBanner === 'function') showBanner('info', 'Form reset.');
-  setTimeout(function () { if (typeof hideBanner === 'function') hideBanner(); }, 2000);
+  if (!skipConfirm) {
+    if (typeof showBanner === 'function') showBanner('info', 'Form reset.');
+    setTimeout(function () { if (typeof hideBanner === 'function') hideBanner(); }, 2000);
+  }
 
   showPage('page-inputs');
 }
@@ -180,35 +368,6 @@ function showPage(id) {
         }
       }
     } catch(e) { console.warn('page-projection auto-run failed:', e && e.message); }
-  }
-}
-
-function _buildFutureYearsUI() {
-  const host = document.getElementById('future-years-host');
-  if (!host) return;
-  const horizon = parseInt((document.getElementById('projection-years') || {}).value, 10) || 5;
-  const year1 = parseInt((document.getElementById('year1') || {}).value, 10) || (new Date()).getFullYear();
-  const existing = {};
-  host.querySelectorAll('.year-row').forEach(r => {
-    const y = parseInt(r.getAttribute('data-year'), 10);
-    if (!Number.isFinite(y)) return;
-    existing[y] = {};
-    r.querySelectorAll('input[data-field]').forEach(inp => {
-      existing[y][inp.getAttribute('data-field')] = inp.value;
-    });
-  });
-  host.innerHTML = '';
-  for (let i = 1; i < horizon; i++) {
-    const yr = year1 + i;
-    const prev = existing[yr] || {};
-    const row = document.createElement('div');
-    row.className = 'year-row';
-    row.setAttribute('data-year', yr);
-    row.innerHTML = '<span class="yr-label">Year ' + (i + 1) + ' (' + yr + ')</span>'
-                  + '<input data-field="ordinary"   type="text" placeholder="Ordinary income" value="' + (prev.ordinary || '') + '" />'
-                  + '<input data-field="short-gain" type="text" placeholder="Short-term gain" value="' + (prev['short-gain'] || '') + '" />'
-                  + '<input data-field="long-gain"  type="text" placeholder="Long-term gain"  value="' + (prev['long-gain'] || '') + '" />';
-    host.appendChild(row);
   }
 }
 
@@ -396,42 +555,6 @@ function _onCustodianChange() {
   }
 }
 
-async function runProjection() {
-  const _custSel0 = document.getElementById('custodian-select');
-  if (_custSel0 && !_custSel0.value) {
-    alert('Please select a custodian first (Page 1 → Custodian).');
-    showPage('page-inputs');
-    return;
-  }
-  if (!isTaxDataLoaded()) {
-    try { await loadTaxData(); }
-    catch (e) {
-      if (typeof showBanner === 'function') {
-        showBanner('error', 'Failed to load tax brackets: ' + e.message + '. Reload the page to retry.');
-      } else {
-        alert('Failed to load tax brackets: ' + e.message);
-      }
-      return;
-    }
-  }
-  const cfg = collectInputs();
-  const allocation = allocateBrooklyn({
-    availableCapital: cfg.availableCapital || cfg.investment,
-    year: cfg.year1,
-    filingStatus: cfg.filingStatus,
-    state: cfg.state,
-    ordinaryIncome: cfg.baseOrdinaryIncome,
-    shortTermGain: cfg.baseShortTermGain,
-    longTermGain: cfg.baseLongTermGain
-  });
-  renderAllocator(allocation);
-  const result = ProjectionEngine.run(cfg);
-  window.__lastResult = result;
-  window.__lastAllocation = allocation;
-  renderProjection(result);
-  showPage('page-projection');
-}
-
 function bindControls() {
     // Hook: when "Run Decision Engine" fires, also run the multi-year projection
     // engine and render the new dashboard into #projection-table so the
@@ -500,9 +623,6 @@ function bindControls() {
     });
   });
 
-  const runBtn = document.getElementById('run-projection');
-  if (runBtn) runBtn.addEventListener('click', runProjection);
-
   const navInputs = document.getElementById('nav-inputs');
   const navProjection = document.getElementById('nav-projection');
   const navAllocator = document.getElementById('nav-allocator');
@@ -546,16 +666,6 @@ function bindControls() {
     resetAllInputs();
   });
 
-  const projYrsSel = document.getElementById('projection-years');
-  if (projYrsSel) projYrsSel.addEventListener('change', _buildFutureYearsUI);
-  const year1Inp = document.getElementById('year1');
-  if (year1Inp) year1Inp.addEventListener('change', _buildFutureYearsUI);
-  const futureDetails = document.getElementById('future-years-details');
-  if (futureDetails) futureDetails.addEventListener('toggle', () => {
-    if (futureDetails.open) _buildFutureYearsUI();
-  });
-  _buildFutureYearsUI();
-
   // Custodian wiring
   _populateCustodian();
   const _custSel = document.getElementById('custodian-select');
@@ -570,6 +680,11 @@ function bindControls() {
   const _invInp = document.getElementById('invested-capital');
   if (_invInp) _invInp.addEventListener('input', _debounce(_onCustodianChange, 150));
   _onCustodianChange();
+
+  // Wire case-management controls + restore any auto-saved working state.
+  // This must run AFTER _onCustodianChange so the leverage-cap dropdown
+  // already has its options populated when we re-apply persisted values.
+  try { _bindCaseControls(); } catch (e) { console.warn('case controls failed:', e && e.message); }
 
   showPage('page-inputs');
 }
