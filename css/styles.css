@@ -157,6 +157,15 @@ body {
 }
 .pill-group-hint[hidden] { display: none; }
 
+/* "Revert to optimized" button — sits at the right of the pill-toggle
+   row, visible only after the user has manually overridden the engine. */
+.revert-group { margin-left: auto; }
+.btn-revert {
+    font-size: 0.85em;
+    padding: 6px 14px;
+}
+.btn-revert[hidden] { display: none; }
+
 .pill-track {
     display: inline-flex;
     background: rgba(15, 76, 129, 0.25);

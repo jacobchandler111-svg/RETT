@@ -131,6 +131,11 @@
     var hint = _byId('leverage-auto-hint');
     if (hint) hint.hidden = true;
     root.__rettAutoPickEnabled = false;
+    // Show the "Revert to optimized" button now that the user has
+    // overridden the engine's pick.
+    if (typeof root.refreshRevertVisibility === 'function') {
+      try { root.refreshRevertVisibility(); } catch (e) { /* */ }
+    }
   }
 
   function _attach() {

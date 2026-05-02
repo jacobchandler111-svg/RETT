@@ -91,6 +91,16 @@
     if (hint) hint.hidden = false;
   }
 
+  // Show the "Revert to optimized" button only when the user has
+  // overridden the auto-pick. Hide it when the engine's pick is in
+  // place. Other modules (variable-leverage-ui) flip the flag and
+  // call this so the button reflects current state.
+  function _refreshRevertVisibility() {
+    var btn = document.getElementById('revert-to-optimized');
+    if (!btn) return;
+    btn.hidden = !!root.__rettAutoPickEnabled;
+  }
+
   function buildPillToggles() {
     var horSel  = document.getElementById('projection-years');
     var recSel  = document.getElementById('recognition-start-select');
@@ -476,6 +486,7 @@
       if (recSel) recSel.value = prevRec;
       if (useVar) useVar.checked = prevVar;
     }
+    _refreshRevertVisibility();
     return best;
   }
 
@@ -509,6 +520,7 @@
     }
     // First manual click disables further auto-picking until reset.
     root.__rettAutoPickEnabled = false;
+    _refreshRevertVisibility();
     syncPillSelection();
     // Re-run the full pipeline (recommendation + projection + dashboard
     // render) with the new selection. controls.js exposes runFullPipeline
@@ -516,6 +528,17 @@
     if (typeof root.runFullPipeline === 'function') {
       try { root.runFullPipeline(); } catch (err) { /* non-fatal */ }
     }
+  }
+
+  // Wire the "Revert to optimized" button: re-enable auto-pick, run
+  // the full leverage/horizon/recognition search, then re-render.
+  function _onRevertClick() {
+    root.__rettAutoPickEnabled = true;
+    try { runAutoPick(); } catch (e) { /* non-fatal */ }
+    if (typeof root.runFullPipeline === 'function') {
+      try { root.runFullPipeline(); } catch (err) { /* */ }
+    }
+    _refreshRevertVisibility();
   }
 
   function _attach() {
@@ -528,6 +551,9 @@
     if (horSel) horSel.addEventListener('change', function () {
       syncPillSelection();
     });
+    var revertBtn = document.getElementById('revert-to-optimized');
+    if (revertBtn) revertBtn.addEventListener('click', _onRevertClick);
+    _refreshRevertVisibility();
   }
 
   if (document.readyState === 'loading') {
@@ -541,5 +567,6 @@
   root.runAutoPick         = runAutoPick;
   root.maybeAutoPick       = maybeAutoPick;
   root.searchBestRecognitionForCurrent = searchBestRecognitionForCurrent;
+  root.refreshRevertVisibility = _refreshRevertVisibility;
   root.__lastAutoPick      = null;
 })(window);
