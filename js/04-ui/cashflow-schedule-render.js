@@ -134,9 +134,7 @@
       '<th>Cumulative Position</th>' +
     '</tr></thead>';
     var body = '<tbody>';
-    var totalNew = 0;
     rows.forEach(function (r) {
-      totalNew += (r.newInvested || 0);
       var newCell = r.newInvested > 0
         ? _fmt(r.newInvested)
         : '—';
@@ -148,16 +146,8 @@
         '<td>' + _fmt(r.cumulative) + '</td>' +
       '</tr>';
     });
-    // Total row: sum of new-investment column equals the final
-    // cumulative position by construction. Loss / fee columns aren't
-    // shown here (those are in the Details table).
-    var finalCum = rows[rows.length - 1].cumulative;
-    body += '<tr class="rett-total-row">' +
-      '<td>Total</td>' +
-      '<td>—</td>' +
-      '<td>' + _fmt(totalNew) + '</td>' +
-      '<td>' + _fmt(finalCum) + '</td>' +
-    '</tr>';
+    // No Total row — the last row's Cumulative Position already shows
+    // the total deployed across the horizon, by construction.
     body += '</tbody>';
     return head + body;
   }
