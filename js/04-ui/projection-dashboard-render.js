@@ -299,12 +299,17 @@
             fee: r.fee || 0
           };
         }
+        // "Loss Generated" reads the projection-engine's per-year
+        // grossLoss so every year shows the strategy's continuous
+        // output, not just years where a recognized gain absorbed
+        // some loss. lossApplied (loss actually used against gain)
+        // is only used as a fallback when grossLoss isn't tracked.
         return {
           year: r.year,
           taxNoBrooklyn: r.baseline ? r.baseline.total : (resYr.taxNoBrooklyn || 0),
           taxWithBrooklyn: r.withStrategy ? r.withStrategy.total : (resYr.taxWithBrooklyn || resYr.taxNoBrooklyn || 0),
           investmentThisYear: isNoAction ? 0 : (invOverride != null ? invOverride : (resYr.investmentThisYear || 0)),
-          grossLoss: r.lossApplied != null ? r.lossApplied : (resYr.grossLoss || 0),
+          grossLoss: isNoAction ? 0 : (resYr.grossLoss != null ? resYr.grossLoss : (r.lossApplied || 0)),
           fee: isNoAction ? 0 : (feeOverride != null ? feeOverride : (resYr.fee || 0))
         };
       });

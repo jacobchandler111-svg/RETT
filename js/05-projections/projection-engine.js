@@ -86,20 +86,27 @@ const ProjectionEngine = {
       : (cfg.lossRateByYear && cfg.lossRateByYear[i] != null)
         ? cfg.lossRateByYear[i] : flatLossRate;
 
-      // Brooklyn investment sized only in year 1 by default.
-      const investmentThisYear = (i === 0) ? cfg.investment : 0;
-      // Schwab combos: leverage already baked in, so skip the * leverage step.
-      // Schwab combos generate fresh losses each tranche year against the
-      // original principal — the position stays open through the full curve.
-      // Legacy path retains year-1-only investment behavior.
+      // The Brooklyn position stays open through the full horizon for
+      // BOTH Schwab and non-Schwab paths. Previously the non-Schwab
+      // path zeroed out investmentThisYear after Year 1, which meant
+      // the dashboard's Details table showed $0 invested / $0 loss
+      // generated in years 2+ even though the strategy was still
+      // running. The carryforward tracker handles the resulting
+      // year-2+ short-term loss correctly (capped at $3K/yr against
+      // ordinary income, rest carries forward).
+      const investmentThisYear = cfg.investment;
+      // Schwab combos: leverage already baked into lossRate, so skip
+      // the * leverage step. Non-Schwab uses brooklyn-data lossRate
+      // (now from regression in fee-split.js) at cfg.leverage.
       const grossLoss = _schwabCombo
         ? cfg.investment * lossRate
         : investmentThisYear * cfg.leverage * lossRate;
       // Fee uses the unified regression (fee-split.js) for all paths,
       // including Schwab combos. The combo's published feeRate is
-      // intentionally bypassed; see fees.js docstring.
+      // intentionally bypassed; see fees.js docstring. Charged every
+      // year the position is open.
       let fee = 0;
-      if (i === 0) {
+      if (true) {
         if (_schwabCombo && typeof window.brooklynFeeRateFor === 'function') {
           fee = cfg.investment * window.brooklynFeeRateFor(_schwabCombo.longPct, _schwabCombo.shortPct);
         } else if (_schwabCombo) {

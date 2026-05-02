@@ -130,6 +130,124 @@
     sel.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
+  // Evaluate one cfg through the same comparison path the dashboard uses
+  // and return the all-in net (savings - Brooklyn fees - Brookhaven fees).
+  // Used by both runAutoPick (full search) and the recognition-only
+  // optimizer below.
+  function _netForCfg(cfg) {
+    var totalSave = 0, cumFees = 0, brookhavenFees = 0;
+    if ((cfg.recognitionStartYearIndex || 0) >= 1 &&
+        typeof root.computeDeferredTaxComparison === 'function') {
+      try {
+        var defComp = root.computeDeferredTaxComparison(cfg);
+        if (defComp && defComp.rows && defComp.rows.length) {
+          totalSave = defComp.totalSavings || 0;
+          cumFees = defComp.totalFees || 0;
+          brookhavenFees = defComp.totalBrookhavenFees || 0;
+        }
+      } catch (e) { return null; }
+    } else {
+      // Immediate-recognition path: projection-engine fees + comparison savings.
+      if (typeof ProjectionEngine === 'undefined' || !ProjectionEngine.run) return null;
+      var projResult;
+      try { projResult = ProjectionEngine.run(cfg); } catch (e) { return null; }
+      if (!projResult || !projResult.years) return null;
+      projResult.years.forEach(function (y) { cumFees += (y.fee || 0); });
+      if (projResult.totals && projResult.totals.cumulativeFees != null) {
+        cumFees = projResult.totals.cumulativeFees;
+      }
+      if (typeof root.recommendSale === 'function' && typeof root.computeTaxComparison === 'function') {
+        try {
+          var recCfg = Object.assign({}, cfg);
+          delete recCfg.custodian;
+          if (typeof recCfg.leverageCap === 'number' && recCfg.leverageCap > 3) {
+            recCfg.leverageCap = 2.25;
+          }
+          var rec = root.recommendSale(recCfg);
+          var normRec = _normalizeRec(rec, cfg);
+          var comp = root.computeTaxComparison(cfg, normRec);
+          if (comp && Array.isArray(comp.rows)) {
+            if (comp.totalSavings != null) totalSave = comp.totalSavings;
+            else comp.rows.forEach(function (r) { totalSave += (r.savings || 0); });
+            brookhavenFees = comp.totalBrookhavenFees || 0;
+          }
+        } catch (e) { /* fall back below */ }
+      }
+      if (!totalSave) {
+        projResult.years.forEach(function (y) {
+          var no = y.taxNoBrooklyn || 0;
+          var w  = (y.taxWithBrooklyn != null) ? y.taxWithBrooklyn : no;
+          totalSave += (no - w);
+        });
+      }
+      if (!brookhavenFees && typeof brookhavenFeeSchedule === 'function') {
+        var horSched = brookhavenFeeSchedule(cfg.horizonYears || 5, 1);
+        brookhavenFees = horSched.total;
+      }
+    }
+    return totalSave - cumFees - brookhavenFees;
+  }
+
+  // Recognition-only optimizer. Holds the user's chosen leverage and
+  // horizon fixed and finds the recognition year that maximizes net
+  // savings. Sets #recognition-start-select and updates the status
+  // line. Returns the chosen 1-indexed year.
+  //
+  // Called from runFullPipeline so EVERY recompute (slider drag,
+  // horizon click, Brooklyn-config edit) re-finds the optimal
+  // recognition year for the current scenario.
+  function searchBestRecognitionForCurrent() {
+    if (typeof collectInputs !== 'function') return null;
+    var horSel = document.getElementById('projection-years');
+    var recSel = document.getElementById('recognition-start-select');
+    if (!recSel) return null;
+    var horizon = parseInt(horSel ? horSel.value : '5', 10) || 5;
+    var maxRec = Math.min(horizon, 4);
+    var prevRec = recSel.value;
+
+    var bestNet = -Infinity;
+    var bestRec = '1';
+    for (var r = 1; r <= maxRec; r++) {
+      recSel.value = String(r);
+      var cfg;
+      try { cfg = collectInputs(); } catch (e) { continue; }
+      var spSale = Number((document.getElementById('sale-price') || {}).value) || 0;
+      var cb = Number((document.getElementById('cost-basis') || {}).value) || 0;
+      var ad = Number((document.getElementById('accelerated-depreciation') || {}).value) || 0;
+      if (spSale) cfg.salePrice = spSale;
+      if (cb) cfg.costBasis = cb;
+      if (ad) cfg.acceleratedDepreciation = ad;
+      cfg.strategyKey = cfg.tierKey;
+      cfg.investedCapital = cfg.investment;
+      cfg.years = cfg.horizonYears;
+      cfg.recognitionStartYearIndex = r - 1;
+
+      var net = _netForCfg(cfg);
+      if (net != null && net > bestNet) {
+        bestNet = net;
+        bestRec = String(r);
+      }
+    }
+
+    // Apply the winning recognition year (no UI dispatch — we don't
+    // want a change event firing the auto-recalc loop again).
+    recSel.value = bestRec;
+
+    // Update the status line so the user sees what the engine picked.
+    var status = document.getElementById('recognition-status');
+    if (status) {
+      var year1 = parseInt(((document.getElementById('year1') || {}).value || '2026'), 10) || 2026;
+      var recNum = parseInt(bestRec, 10) || 1;
+      var recYear = year1 + (recNum - 1);
+      var label = recNum === 1
+        ? 'Engine recognizes the gain in Year 1 (' + recYear + ') for max net savings.'
+        : 'Engine defers gain recognition to Year ' + recNum + ' (' + recYear + ') for max net savings.';
+      status.textContent = label;
+      status.hidden = false;
+    }
+    return bestRec;
+  }
+
   // Build the normalized recommendation shape that computeTaxComparison
   // expects. Mirrors the logic in recommendation-render.js so the
   // auto-pick optimizes on the same model the user actually sees in the
@@ -437,5 +555,6 @@
   root.syncPillSelection   = syncPillSelection;
   root.runAutoPick         = runAutoPick;
   root.maybeAutoPick       = maybeAutoPick;
+  root.searchBestRecognitionForCurrent = searchBestRecognitionForCurrent;
   root.__lastAutoPick      = null;
 })(window);

@@ -566,6 +566,14 @@ function _buildEngineCfg() {
 // engine, then dashboard render. Replaces the legacy approach of
 // dispatching a click on the (now-removed) #run-recommendation button.
 function runFullPipeline() {
+  // Recognition is no longer a user-facing pill — the engine always
+  // picks the recognition year that maximizes net savings for the
+  // current leverage + horizon. Run that scoped optimizer FIRST so
+  // the downstream recommendation + projection see the optimal
+  // recognition value.
+  if (typeof window.searchBestRecognitionForCurrent === 'function') {
+    try { window.searchBestRecognitionForCurrent(); } catch (e) { /* non-fatal */ }
+  }
   if (typeof runRecommendation === 'function') {
     try { runRecommendation(); }
     catch (e) { (window.reportFailure || console.warn)('Recommendation engine failed', e); }
