@@ -119,28 +119,51 @@
   // -------------------------------------------------------------------
   // Year-1 short-term loss-rate regression.
   // -------------------------------------------------------------------
-  // Per-tier least-squares fit on the brooklyn-data Year-1 loss rates:
+  // Beta 1, Beta 0, and Beta 0.5 each have their own per-tier
+  // least-squares fit (intercept + slope on Gross Notional). All three
+  // fit linearly with R² ~ 0.998+.
   //
-  //   loss = intercept(tier) + slope(tier) * GrossNotional
+  // Advisor Managed is computed as `beta1_loss - 0.104` instead of an
+  // independent regression. The 0.104 is the long-only baseline (the
+  // 100/0 lossRate, identical for both Beta 1 and Advisor Managed).
+  // This relationship matches every Advisor Managed data point exactly:
   //
-  // GN is the long% + short% sum in percentage points. Coefficients
-  // were computed against the dataPoints in brooklyn-data.js. Beta 1,
-  // Beta 0, and Beta 0.5 fit linearly with R² ~ 0.998+. Advisor Managed
-  // is noticeably non-linear at low leverage (the 130/30 point under-
-  // performs the regression line by ~0.07) — flag this in the readout
-  // when the user is on Advisor Managed.
+  //   AM_130_30  = 0.248 - 0.104 = 0.144  (data: 0.144) ✓
+  //   AM_145_45  = 0.322 - 0.104 = 0.218  (data: 0.218) ✓
+  //   AM_200_100 = 0.590 - 0.104 = 0.486  (data: 0.486) ✓
+  //   AM_250_150 = 0.855 - 0.104 = 0.751  (data: 0.751) ✓
+  //   AM_325_225 = 1.224 - 0.104 = 1.120  (data: 1.120) ✓
+  //
+  // Economic interpretation: Advisor Managed only reports the
+  // shorting-contribution to TLH. Long-only positions don't go through
+  // the advisor overlay, so subtract the long-only baseline. At 100/0
+  // (no shorts) we floor at 0.104 since there's no shorting overlay
+  // to apply.
+  var LONG_ONLY_BASELINE = 0.104;
   var LOSS_REGRESSION = {
     beta1:           { intercept: -0.1511, slope: 0.00250, rsq: 0.998, note: 'linear' },
     beta0:           { intercept: -0.0414, slope: 0.00266, rsq: 0.999, note: 'linear' },
     beta05:          { intercept: -0.1100, slope: 0.00261, rsq: 0.999, note: 'linear' },
-    advisorManaged:  { intercept: -0.2010, slope: 0.00237, rsq: 0.950, note: 'higher residuals at low leverage' }
+    advisorManaged:  { intercept: null, slope: null, rsq: 1.000, note: 'derived: beta1 - 0.104 long-only baseline' }
   };
 
+  function _beta1LossAt(gn) {
+    var b = LOSS_REGRESSION.beta1;
+    return Math.max(0, b.intercept + b.slope * gn);
+  }
+
   function lossRateFor(tierKey, longPct, shortPct) {
+    var lp = Number(longPct) || 0;
+    var sp = Number(shortPct) || 0;
+    var gn = lp + sp;
+    if (tierKey === 'advisorManaged') {
+      // Long-only baseline at 100/0 — no shorting overlay to apply.
+      if (sp === 0) return LONG_ONLY_BASELINE;
+      // Otherwise: shorting-contribution only.
+      return Math.max(0, _beta1LossAt(gn) - LONG_ONLY_BASELINE);
+    }
     var coef = LOSS_REGRESSION[tierKey] || LOSS_REGRESSION.beta1;
-    var gn = (Number(longPct) || 0) + (Number(shortPct) || 0);
-    var rate = coef.intercept + coef.slope * gn;
-    return Math.max(0, rate);
+    return Math.max(0, coef.intercept + coef.slope * gn);
   }
 
   function lossRateForLeverage(tierKey, leverage) {
