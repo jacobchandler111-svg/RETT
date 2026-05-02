@@ -56,6 +56,25 @@
 
     var comp = window.__lastComparison;
     var brookhavenFees = (comp && comp.totalBrookhavenFees) || 0;
+    // No-engagement detection (matches savings-ribbon.js): suppress
+    // both Brooklyn and Brookhaven fees when the engine deployed
+    // nothing. Without this guard the KPI tiles displayed Brookhaven
+    // setup fees for clients who weren't actually engaging the
+    // strategy.
+    var _engineEngaged = false;
+    if (comp && Array.isArray(comp.rows) && comp.rows.length) {
+      _engineEngaged = comp.rows.some(function (r) {
+        return (r.investmentThisYear || 0) > 0 ||
+               (r.gainRecognized || 0) > 0 ||
+               (r.lossApplied || 0) > 0;
+      });
+    } else {
+      _engineEngaged = totalSave !== 0 || cumFees > 0;
+    }
+    if (!_engineEngaged) {
+      cumFees = 0;
+      brookhavenFees = 0;
+    }
     var allFees = cumFees + brookhavenFees;
     var net = totalSave - allFees;
     var roi = allFees > 0 ? (net / allFees * 100) : (totalSave > 0 ? Infinity : 0);

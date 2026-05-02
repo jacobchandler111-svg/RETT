@@ -93,6 +93,17 @@
     }
     if (!(comp && comp.deferred) && totals.cumulativeFees != null) cumFees = totals.cumulativeFees;
     var brookhavenFees = (comp && comp.totalBrookhavenFees) || 0;
+    // Suppress fees in no-engagement results so the narrative's net
+    // figure matches the ribbon (which suppresses the same fees).
+    var _engineEngaged = comp && Array.isArray(comp.rows) && comp.rows.some(function (r) {
+      return (r.investmentThisYear || 0) > 0 ||
+             (r.gainRecognized || 0) > 0 ||
+             (r.lossApplied || 0) > 0;
+    });
+    if (comp && comp.rows && !_engineEngaged) {
+      cumFees = 0;
+      brookhavenFees = 0;
+    }
     var net = totalSave - cumFees - brookhavenFees;
 
     // Invested capital: prefer the cfg.investment that the projection
@@ -159,6 +170,22 @@
       trancheParts.push(_fmt(invested) + ' starting ' + year1);
     }
 
+    // Did the engine actually deploy capital into Brooklyn? Read the
+    // comparison rows: if every row has zero investmentThisYear and
+    // zero gain/loss activity, the engine returned a no-action result
+    // and we should narrate that instead of repeating the user's
+    // typed available-capital ("Investing $3M ...").
+    var engineDeployedCapital = false;
+    if (comp && Array.isArray(comp.rows)) {
+      engineDeployedCapital = comp.rows.some(function (r) {
+        return (r.investmentThisYear || 0) > 0 ||
+               (r.gainRecognized || 0) > 0 ||
+               (r.lossApplied || 0) > 0;
+      });
+    } else {
+      engineDeployedCapital = invested > 0;
+    }
+
     var s2;
     if (totalSave > 0) {
       var savingsTone = (net > 0 ? 'a net' : 'a gross');
@@ -180,6 +207,13 @@
         ' generates short-term losses every year (year-1 rate on each tranche, tapering thereafter) that reduce ' + horizon + '-year tax by ' +
         _fmt(totalSave) + ' \u2014 ' + savingsTone + ' benefit of ' +
         _fmt(net) + ' after ' + feesClause + '.';
+    } else if (!engineDeployedCapital) {
+      // Engine deployed nothing \u2014 no gain to offset, or below custodian
+      // min, or otherwise unable to engage. Don't echo the user's
+      // typed Available Capital (that was an input, not a deployment).
+      s2 = 'No Brooklyn engagement recommended for these inputs \u2014 ' +
+        'the strategy produces no net tax offset here. ' +
+        'Try a different strategy, leverage, or recognition timing.';
     } else if (invested > 0 && totalSave === 0) {
       s2 = 'Investing ' + _fmt(invested) + ' in ' + strategy +
         ' generates losses, but they produce no tax offset for these inputs. ' +

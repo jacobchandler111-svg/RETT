@@ -102,11 +102,17 @@ function _applyLossesToScenario(scenario, lossAvailable) {
 function computeTaxComparison(cfg, recommendation) {
       const horizon = cfg.horizonYears || 5;
 
+      // Below-min lifecycle check — if the position can never legally
+      // open over the horizon, return zero results (no Brooklyn loss
+      // applied, no Brookhaven fees). The dashboard renders this as
+      // "no engagement". See _belowMinForLifecycle for the condition.
+      const _belowMin = _belowMinForLifecycle(cfg);
+
       // Brookhaven advisory wrap fees attach to every comparison row.
       const yfImpl = (typeof yearFractionRemaining === 'function' && cfg.implementationDate)
             ? yearFractionRemaining(cfg.implementationDate)
             : 1;
-      const brookhavenSchedule = (typeof brookhavenFeeSchedule === 'function')
+      const brookhavenSchedule = (typeof brookhavenFeeSchedule === 'function' && !_belowMin)
             ? brookhavenFeeSchedule(horizon, yfImpl)
             : null;
 
@@ -129,6 +135,9 @@ function computeTaxComparison(cfg, recommendation) {
                         lossThisYear = slot.lossGenerated || slot.loss || 0;
                   }
             }
+            // Strip Brooklyn losses entirely when below-min — the
+            // baseline tax (no Brooklyn) becomes the with-strategy tax.
+            if (_belowMin) lossThisYear = 0;
 
             const baseline = _baseScenarioForYear(cfg, yr, gainThisYear);
             const baselineTax = _yearTaxes(baseline);
@@ -222,7 +231,77 @@ function _applyLossesWithSTCfCap(scenario, lossAvailable, capOrdinary) {
       return out;
 }
 
+// Returns true when the cumulative deposit possible across the horizon
+// (basis cash + all gain proceeds, or just cfg.investment if no sale)
+// can never reach the custodian's strategy minimum. In that case the
+// position can't legally open, so the entire Brooklyn projection
+// should return zero results — the dashboard will then surface a
+// "no-engagement" experience.
+function _belowMinForLifecycle(cfg) {
+      if (typeof window === 'undefined' || typeof window.getMinInvestment !== 'function') return false;
+      const custodianId = cfg.custodian;
+      if (!custodianId) return false;
+      const stratKey = cfg.tierKey || cfg.strategyKey;
+      if (!stratKey) return false;
+      const min = window.getMinInvestment(custodianId, stratKey);
+      if (!min) return false;
+      const basis = Math.max(0, cfg.costBasis || 0);
+      const ltGain = Math.max(0, (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0));
+      const recapture = Math.max(0, cfg.acceleratedDepreciation || 0);
+      const fromSale = (cfg.salePrice || 0) > 0 && basis > 0
+            ? (basis + ltGain + recapture)
+            : 0;
+      const fromIntent = Number(cfg.investment || 0);
+      const maxCum = Math.max(fromSale, fromIntent);
+      return maxCum < min;
+}
+
+// Build a zeroed-out deferred-comparison result for cases where the
+// position can never legitimately open (below custodian min for the
+// full horizon). Shape matches what computeDeferredTaxComparison
+// normally returns so downstream renderers don't need a special path.
+function _zeroDeferredComparison(cfg) {
+      const horizon = Math.max(1, cfg.horizonYears || cfg.years || 5);
+      const year1 = cfg.year1 || (new Date()).getFullYear();
+      const rows = [];
+      for (let i = 0; i < horizon; i++) {
+            const year = year1 + i;
+            const baseline = _baseScenarioForYear(cfg, year, 0);
+            const baselineTax = _yearTaxes(baseline);
+            rows.push({
+                  year: year,
+                  gainRecognized: 0,
+                  lossGenerated: 0,
+                  lossApplied: 0,
+                  stCarryForward: 0,
+                  investmentThisYear: 0,
+                  fee: 0,
+                  brookhavenFee: 0,
+                  brookhavenSetupFee: 0,
+                  brookhavenQuarterlyFee: 0,
+                  baseline: baselineTax,
+                  withStrategy: baselineTax,
+                  savings: 0
+            });
+      }
+      return {
+            deferred: true,
+            rows: rows,
+            recognitionSchedule: rows.map(function (r) { return { year: r.year, gainRecognized: 0 }; }),
+            totalSavings: 0,
+            totalFees: 0,
+            totalBrookhavenFees: 0,
+            durationYears: 0
+      };
+}
+
 function computeDeferredTaxComparison(cfg) {
+      // Below-min lifecycle check: if the position can never legally
+      // open over the horizon (basis + total gain proceeds < custodian
+      // min, OR cfg.investment alone < min and no sale), return a
+      // zeroed result so the dashboard / ribbon / narrative all show
+      // "no engagement" rather than fabricated Brooklyn math.
+      if (_belowMinForLifecycle(cfg)) return _zeroDeferredComparison(cfg);
       const horizon = Math.max(1, cfg.horizonYears || cfg.years || 5);
       const startIdx = Math.max(1, Math.min(horizon - 1,
             (cfg.recognitionStartYearIndex != null ? cfg.recognitionStartYearIndex : 1)));

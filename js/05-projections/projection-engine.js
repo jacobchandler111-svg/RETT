@@ -56,6 +56,30 @@ const ProjectionEngine = {
                     const horizon = Math.max(1, cfg.horizonYears | 0);
                     const tracker = new CarryforwardTracker(cfg.filingStatus);
 
+            // Below-min lifecycle check: if the cumulative deposit can
+            // never reach the custodian's strategy minimum, the position
+            // can't legally open. Run with investment = 0 so the engine
+            // produces zero loss, zero fee — the dashboard surfaces a
+            // "no engagement" presentation. The tax baseline still
+            // computes correctly because cfg is shallow-copied.
+            let _belowMin = false;
+            if (cfg.custodian && typeof window.getMinInvestment === 'function') {
+              const _stratKey = cfg.tierKey || cfg.strategyKey;
+              const _min = _stratKey ? window.getMinInvestment(cfg.custodian, _stratKey) : 0;
+              if (_min > 0) {
+                const _basis = Math.max(0, cfg.costBasis || 0);
+                const _ltGain = Math.max(0, (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0));
+                const _recapture = Math.max(0, cfg.acceleratedDepreciation || 0);
+                const _fromSale = (cfg.salePrice || 0) > 0 && _basis > 0
+                  ? (_basis + _ltGain + _recapture) : 0;
+                const _maxCum = Math.max(_fromSale, Number(cfg.investment || 0));
+                if (_maxCum < _min) {
+                  _belowMin = true;
+                  cfg = Object.assign({}, cfg, { investment: 0 });
+                }
+              }
+            }
+
             // Year-1 strategy snapshot (drives default loss rate when no per-year table is supplied).
             const snap = brooklynInterpolate(cfg.tierKey, cfg.leverage);
                     const flatLossRate = snap ? snap.lossRate : 0;

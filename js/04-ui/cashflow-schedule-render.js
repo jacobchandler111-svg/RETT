@@ -176,8 +176,12 @@
     return head + body;
   }
 
-  // Build a banner that shows when the Year-1 deposit is below the
-  // custodian's strategy minimum. Returns '' when not below min.
+  // Build a banner that shows when the user's intended Year-1 deposit
+  // is below the custodian's strategy minimum. Returns '' when not
+  // below min. Compares to the user's INTENT (cfg.investment) rather
+  // than rows[0].newInvested so a "no-action" result for a different
+  // reason (no gain to offset) doesn't false-positive into a min
+  // warning that doesn't apply.
   function _buildMinimumBanner(cfg, rows) {
     if (!rows.length) return '';
     var custodianId = cfg.custodian || (document.getElementById('custodian-select') || {}).value || '';
@@ -185,14 +189,19 @@
     if (!custodianId || typeof root.getMinInvestment !== 'function') return '';
     var minInv = root.getMinInvestment(custodianId, stratKey);
     if (!minInv) return '';
-    var year1Invested = rows[0].newInvested || 0;
-    if (year1Invested >= minInv) return '';
+    // User intent: what they typed in the Available Capital input.
+    // Falls back to the engine's first-year deposit only if no input.
+    var userIntent = Number(cfg.investment || 0)
+      || Number((document.getElementById('available-capital') || {}).value || 0);
+    if (!userIntent) return '';
+    if (userIntent >= minInv) return '';
+    // User intent is real and below the min — this is a true warning.
     return '<div class="rett-min-warning" role="alert" style="' +
         'background:#fff5e6;border:1px solid #f0b041;border-radius:6px;' +
         'padding:10px 14px;margin:18px 0 0 0;color:#5a3b00;' +
       '">' +
         '<strong>Below custodian minimum.</strong> ' +
-        'The Year-1 deposit of ' + _fmt(year1Invested) + ' is below the ' +
+        'The Year-1 deposit of ' + _fmt(userIntent) + ' is below the ' +
         'minimum of ' + _fmt(minInv) + ' required to open a Brooklyn ' +
         'position with the chosen strategy. The schedule below shows ' +
         'planned cashflows; the position cannot actually be opened until ' +
