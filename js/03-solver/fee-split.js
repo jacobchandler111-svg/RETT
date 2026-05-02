@@ -116,11 +116,46 @@
     return variableFeeSplit(p.longPct, p.shortPct);
   }
 
-  root.brooklynFeeSplit         = feeSplit;
-  root.brooklynVariableFeeSplit = variableFeeSplit;
-  root.brooklynFeeRateFor       = feeRateFor;
-  root.brooklynPctsForLeverage  = pctsForLeverage;
+  // -------------------------------------------------------------------
+  // Year-1 short-term loss-rate regression.
+  // -------------------------------------------------------------------
+  // Per-tier least-squares fit on the brooklyn-data Year-1 loss rates:
+  //
+  //   loss = intercept(tier) + slope(tier) * GrossNotional
+  //
+  // GN is the long% + short% sum in percentage points. Coefficients
+  // were computed against the dataPoints in brooklyn-data.js. Beta 1,
+  // Beta 0, and Beta 0.5 fit linearly with R² ~ 0.998+. Advisor Managed
+  // is noticeably non-linear at low leverage (the 130/30 point under-
+  // performs the regression line by ~0.07) — flag this in the readout
+  // when the user is on Advisor Managed.
+  var LOSS_REGRESSION = {
+    beta1:           { intercept: -0.1511, slope: 0.00250, rsq: 0.998, note: 'linear' },
+    beta0:           { intercept: -0.0414, slope: 0.00266, rsq: 0.999, note: 'linear' },
+    beta05:          { intercept: -0.1100, slope: 0.00261, rsq: 0.999, note: 'linear' },
+    advisorManaged:  { intercept: -0.2010, slope: 0.00237, rsq: 0.950, note: 'higher residuals at low leverage' }
+  };
+
+  function lossRateFor(tierKey, longPct, shortPct) {
+    var coef = LOSS_REGRESSION[tierKey] || LOSS_REGRESSION.beta1;
+    var gn = (Number(longPct) || 0) + (Number(shortPct) || 0);
+    var rate = coef.intercept + coef.slope * gn;
+    return Math.max(0, rate);
+  }
+
+  function lossRateForLeverage(tierKey, leverage) {
+    var p = pctsForLeverage(tierKey, leverage);
+    return lossRateFor(tierKey, p.longPct, p.shortPct);
+  }
+
+  root.brooklynFeeSplit            = feeSplit;
+  root.brooklynVariableFeeSplit    = variableFeeSplit;
+  root.brooklynFeeRateFor          = feeRateFor;
+  root.brooklynPctsForLeverage     = pctsForLeverage;
   root.brooklynFeeSplitForLeverage = feeSplitForLeverage;
+  root.brooklynLossRateFor         = lossRateFor;
+  root.brooklynLossRateForLeverage = lossRateForLeverage;
+  root.BROOKLYN_LOSS_REGRESSION    = LOSS_REGRESSION;
   root.BROOKLYN_FEE_SPLIT_CALIBRATION = {
     mgmtIntercept: MGMT_INTERCEPT,
     mgmtSlope:     MGMT_SLOPE,

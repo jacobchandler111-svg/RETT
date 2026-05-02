@@ -278,17 +278,43 @@
           }
 
           var net = totalSave - cumFees - brookhavenFees;
-          // Tie-breaker: prefer shorter recognition duration when nets are
-          // within $1,000 — matches the user's preference for shorter
-          // structured-sale lockups.
+
+          // Compute a numeric leverage for the tie-breaker. Schwab combo
+          // labels like "200/100" parse to 200 with parseFloat, so for
+          // those we look up the combo and use its real `leverage`
+          // value (e.g. 1.00). Non-Schwab pills are already numeric.
+          var levNumeric = parseFloat(lev.value);
+          if (!Number.isFinite(levNumeric) || levNumeric > 3) {
+            if (typeof window.findSchwabCombo === 'function') {
+              var sc = window.findSchwabCombo(cfg.tierKey, lev.value);
+              levNumeric = sc ? (sc.leverage || 0) : 0;
+            } else {
+              levNumeric = 0;
+            }
+          }
+
+          // Multi-objective auto-pick (per user preferences):
+          //   1. Maximize net benefit (savings minus all fees)
+          //   2. Within $5K of best, prefer SHORTER recognition duration
+          //      (less structured-sale lockup)
+          //   3. Within $5K AND same duration, prefer LOWER leverage
+          //      (less risk for similar outcome)
+          // The tie threshold widened from $1K -> $5K so the optimizer
+          // is more willing to give up a small dollar amount in exchange
+          // for shorter lockups or lower leverage.
+          var TIE = 5000;
           var better = false;
           if (!best) better = true;
-          else if (net > best.net + 1000) better = true;
-          else if (Math.abs(net - best.net) <= 1000 && duration < best.duration) better = true;
+          else if (net > best.net + TIE) better = true;
+          else if (Math.abs(net - best.net) <= TIE) {
+            if (duration < best.duration) better = true;
+            else if (duration === best.duration && levNumeric < best.leverage) better = true;
+          }
           if (better) {
             best = {
               lev: lev.value, hor: hor.value, rec: String(rStart),
-              net: net, save: totalSave, fees: cumFees, duration: duration
+              net: net, save: totalSave, fees: cumFees,
+              duration: duration, leverage: levNumeric
             };
           }
         }

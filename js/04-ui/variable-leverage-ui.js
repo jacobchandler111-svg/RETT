@@ -69,14 +69,17 @@
     if (lOut) lOut.textContent = lp + '%';
     if (tOut) tOut.textContent = lp + '/' + sp;
 
-    // Loss rate stays sourced from brooklyn-data interpolation (we
-    // don't have a regression for losses yet). Fee rate uses the
-    // unified regression so it's consistent with everywhere else.
-    var lossRate = 0;
-    if (typeof root.brooklynInterpolate === 'function') {
-      var snap = root.brooklynInterpolate(stratKey, sp / 100);
-      if (snap) lossRate = snap.lossRate || 0;
-    }
+    // Loss rate now comes from the per-tier linear regression (same
+    // module as the fee regression). Fee rate uses the unified Cache
+    // regression. Both produce smoother curves than the legacy
+    // piecewise interpolation between brooklyn-data points.
+    var lossRate = (typeof root.brooklynLossRateFor === 'function')
+      ? root.brooklynLossRateFor(stratKey, lp, sp)
+      : (function () {
+          var snap = (typeof root.brooklynInterpolate === 'function')
+            ? root.brooklynInterpolate(stratKey, sp / 100) : null;
+          return snap ? (snap.lossRate || 0) : 0;
+        })();
     var feeRate = (typeof root.brooklynFeeRateFor === 'function')
       ? root.brooklynFeeRateFor(lp, sp)
       : 0;

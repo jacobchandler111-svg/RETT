@@ -265,13 +265,21 @@ function computeDeferredTaxComparison(cfg) {
             return 0;
       })();
       const lossRateForTrancheYear = (function () {
+            // Schwab combos carry a year-by-year tranche curve — keep it.
             if (combo && Array.isArray(combo.lossByYear)) {
                   return function (j) { return combo.lossByYear[j] || 0; };
             }
-            const snap = (typeof brooklynInterpolate === 'function')
-                  ? brooklynInterpolate(cfg.tierKey || 'beta1', cfg.leverage || cfg.leverageCap || 2.25)
-                  : null;
-            const flatRate = snap ? (snap.lossRate || 0) : 0;
+            // Non-Schwab path: use the per-tier linear regression from
+            // fee-split.js (smoother and more forward-accurate than the
+            // piecewise data-point interpolation).
+            var lev = cfg.leverage || cfg.leverageCap || 2.25;
+            var flatRate = 0;
+            if (typeof window.brooklynLossRateForLeverage === 'function') {
+                  flatRate = window.brooklynLossRateForLeverage(cfg.tierKey || 'beta1', lev);
+            } else if (typeof brooklynInterpolate === 'function') {
+                  var snap = brooklynInterpolate(cfg.tierKey || 'beta1', lev);
+                  flatRate = snap ? (snap.lossRate || 0) : 0;
+            }
             return function () { return flatRate; };
       })();
 
