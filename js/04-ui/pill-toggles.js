@@ -92,29 +92,24 @@
   }
 
   function buildPillToggles() {
-    var levSel  = document.getElementById('leverage-cap-select');
     var horSel  = document.getElementById('projection-years');
     var recSel  = document.getElementById('recognition-start-select');
-    _renderTrack('leverage-pill-track', _readLeverageOptions(),
-      levSel ? levSel.value : '');
+    // Leverage is now driven by the slider (#leverage-slider), not a
+    // pill row — its tick marks rebuild via variable-leverage-ui.js.
     _renderTrack('horizon-pill-track',  _readHorizonOptions(),
       horSel ? horSel.value : '');
     _renderTrack('recognition-pill-track', _readRecognitionOptions(),
       recSel ? recSel.value : '1');
+    if (typeof root.refreshVariableLeverageReadouts === 'function') {
+      try { root.refreshVariableLeverageReadouts(); } catch (e) { /* */ }
+    }
   }
 
   function syncPillSelection() {
-    var levSel = document.getElementById('leverage-cap-select');
     var horSel = document.getElementById('projection-years');
     var recSel = document.getElementById('recognition-start-select');
-    var levVal = levSel ? levSel.value : '';
     var horVal = horSel ? horSel.value : '';
     var recVal = recSel ? recSel.value : '1';
-    document.querySelectorAll('#leverage-pill-track .pill').forEach(function (b) {
-      var on = (b.getAttribute('data-value') === levVal);
-      b.classList.toggle('active', on);
-      b.setAttribute('aria-checked', on ? 'true' : 'false');
-    });
     document.querySelectorAll('#horizon-pill-track .pill').forEach(function (b) {
       var on = (b.getAttribute('data-value') === horVal);
       b.classList.toggle('active', on);
@@ -172,40 +167,82 @@
   // Tie-breaker: when two combos produce the same net (within $1k), prefer
   // the one with the SHORTEST gain-recognition duration. Matches the
   // user's stated preference for shorter structured-sale lockups.
+  // Generate the candidate short% values to test. Continuous search in
+  // 5% increments across [0, custodian-max], plus the published preset
+  // shortPcts so we don't miss exact tier matches due to step alignment.
+  function _candidateShortPcts(stratKey, custodianId) {
+    var maxShort = 225;
+    var presets = [];
+    if (custodianId === 'schwab' && typeof root.listSchwabCombos === 'function') {
+      var combos = root.listSchwabCombos().filter(function (c) { return c.strategyKey === stratKey; });
+      if (combos.length) {
+        maxShort = Math.max.apply(null, combos.map(function (c) { return c.shortPct || 0; }));
+        presets = combos.map(function (c) { return c.shortPct; });
+      }
+    } else {
+      var tier = (root.BROOKLYN_STRATEGIES || {})[stratKey];
+      if (tier && Array.isArray(tier.dataPoints)) {
+        maxShort = Math.max.apply(null, tier.dataPoints.map(function (p) { return p.shortPct || 0; }));
+        presets = tier.dataPoints.map(function (p) { return p.shortPct; });
+      }
+    }
+    var step = 5;
+    var seen = {};
+    var out = [];
+    for (var s = 0; s <= maxShort; s += step) {
+      seen[s] = true;
+      out.push(s);
+    }
+    presets.forEach(function (p) {
+      if (!seen[p]) { seen[p] = true; out.push(p); }
+    });
+    out.sort(function (a, b) { return a - b; });
+    return out;
+  }
+
   function runAutoPick() {
     if (typeof collectInputs !== 'function') return null;
     if (typeof ProjectionEngine === 'undefined' || !ProjectionEngine.run) return null;
-    var levOpts = _readLeverageOptions();
     var horOpts = _readHorizonOptions();
-    if (!levOpts.length || !horOpts.length) return null;
+    if (!horOpts.length) return null;
 
-    // Snapshot the user's currently entered selects — we override them
-    // across iterations and restore if no improvement is found.
-    var levSel = document.getElementById('leverage-cap-select');
+    // Snapshot the user's currently entered state — we override across
+    // iterations and restore if no improvement is found.
     var horSel = document.getElementById('projection-years');
     var recSel = document.getElementById('recognition-start-select');
-    var prevLev = levSel ? levSel.value : '';
+    var customSp = document.getElementById('custom-short-pct');
+    var useVar = document.getElementById('use-variable-leverage');
     var prevHor = horSel ? horSel.value : '';
     var prevRec = recSel ? recSel.value : '1';
+    var prevSp  = customSp ? customSp.value : '';
+    var prevVar = useVar ? useVar.checked : false;
+
+    // Make sure variable leverage is on for the search; we revert at
+    // the end if no improvement.
+    if (useVar) useVar.checked = true;
+
+    var stratKey = (document.getElementById('strategy-select') || {}).value || 'beta1';
+    var custId   = (document.getElementById('custodian-select') || {}).value || '';
+    var shortPcts = _candidateShortPcts(stratKey, custId);
 
     var best = null;
-    levOpts.forEach(function (lev) {
+    shortPcts.forEach(function (sp) {
       horOpts.forEach(function (hor) {
         var horizonNum = parseInt(hor.value, 10) || 5;
-        // Recognition options track horizon — never let recognition year
-        // exceed (horizon - 1) so there's at least one year of offset.
         var maxRec = Math.min(horizonNum, 4);
         for (var rStart = 1; rStart <= maxRec; rStart++) {
-          if (levSel) levSel.value = lev.value;
+          if (customSp) customSp.value = String(sp);
           if (horSel) horSel.value = hor.value;
           if (recSel) recSel.value = String(rStart);
           var cfg;
           try { cfg = collectInputs(); }
           catch (e) { continue; }
-          var sp = Number((document.getElementById('sale-price') || {}).value) || 0;
+          // Note: avoid `sp` here — that's the outer loop's short%
+          // candidate and `var` would shadow it via hoisting.
+          var spSale = Number((document.getElementById('sale-price') || {}).value) || 0;
           var cb = Number((document.getElementById('cost-basis') || {}).value) || 0;
           var ad = Number((document.getElementById('accelerated-depreciation') || {}).value) || 0;
-          if (sp) cfg.salePrice = sp;
+          if (spSale) cfg.salePrice = spSale;
           if (cb) cfg.costBasis = cb;
           if (ad) cfg.acceleratedDepreciation = ad;
           cfg.strategyKey = cfg.tierKey;
@@ -279,40 +316,34 @@
 
           var net = totalSave - cumFees - brookhavenFees;
 
-          // Compute a numeric leverage for the tie-breaker. Schwab combo
-          // labels like "200/100" parse to 200 with parseFloat, so for
-          // those we look up the combo and use its real `leverage`
-          // value (e.g. 1.00). Non-Schwab pills are already numeric.
-          var levNumeric = parseFloat(lev.value);
-          if (!Number.isFinite(levNumeric) || levNumeric > 3) {
-            if (typeof window.findSchwabCombo === 'function') {
-              var sc = window.findSchwabCombo(cfg.tierKey, lev.value);
-              levNumeric = sc ? (sc.leverage || 0) : 0;
-            } else {
-              levNumeric = 0;
-            }
-          }
+          // Numeric leverage = short% / 100 for the tie-breaker.
+          var levNumeric = sp / 100;
 
           // Multi-objective auto-pick (per user preferences):
-          //   1. Maximize net benefit (savings minus all fees)
-          //   2. Within $5K of best, prefer SHORTER recognition duration
-          //      (less structured-sale lockup)
-          //   3. Within $5K AND same duration, prefer LOWER leverage
-          //      (less risk for similar outcome)
-          // The tie threshold widened from $1K -> $5K so the optimizer
-          // is more willing to give up a small dollar amount in exchange
-          // for shorter lockups or lower leverage.
+          //   1. Maximize net benefit (savings minus all fees) PRIMARY.
+          //      We bucket net into $5K tiers so within-$5K differences
+          //      defer to subsequent criteria.
+          //   2. Same bucket, prefer SHORTER recognition duration.
+          //   3. Same bucket AND duration, prefer LOWER leverage.
+          //   4. Same bucket AND duration AND leverage, prefer higher
+          //      raw net (catches identical-input cases that differ
+          //      only in horizon/leverage rounding).
           var TIE = 5000;
+          var aBucket = Math.floor(net / TIE);
+          var bBucket = best ? Math.floor(best.net / TIE) : -Infinity;
           var better = false;
           if (!best) better = true;
-          else if (net > best.net + TIE) better = true;
-          else if (Math.abs(net - best.net) <= TIE) {
+          else if (aBucket > bBucket) better = true;
+          else if (aBucket === bBucket) {
             if (duration < best.duration) better = true;
-            else if (duration === best.duration && levNumeric < best.leverage) better = true;
+            else if (duration === best.duration) {
+              if (levNumeric < best.leverage) better = true;
+              else if (levNumeric === best.leverage && net > best.net) better = true;
+            }
           }
           if (better) {
             best = {
-              lev: lev.value, hor: hor.value, rec: String(rStart),
+              shortPct: sp, hor: hor.value, rec: String(rStart),
               net: net, save: totalSave, fees: cumFees,
               duration: duration, leverage: levNumeric
             };
@@ -321,20 +352,26 @@
       });
     });
 
-    // Restore previous selection or pick the best one.
+    // Restore previous selection or apply the best one.
     if (best) {
-      _setSelect('leverage-cap-select', best.lev);
+      if (customSp) customSp.value = String(best.shortPct);
       _setSelect('projection-years', best.hor);
       _setSelect('recognition-start-select', best.rec);
+      // Position the visible slider on the best short% so the user
+      // sees where the auto-pick landed.
+      if (typeof root.setLeverageSliderShort === 'function') {
+        try { root.setLeverageSliderShort(best.shortPct); } catch (e) { /* */ }
+      }
       _showAutoHint('leverage');
       _showAutoHint('horizon');
       _showAutoHint('recognition');
       root.__lastAutoPick = best;
     } else {
       // Restore (no improvement found).
-      if (levSel) levSel.value = prevLev;
+      if (customSp) customSp.value = prevSp;
       if (horSel) horSel.value = prevHor;
       if (recSel) recSel.value = prevRec;
+      if (useVar) useVar.checked = prevVar;
     }
     return best;
   }
@@ -345,11 +382,6 @@
 
   function maybeAutoPick() {
     if (!root.__rettAutoPickEnabled) return null;
-    // When the user has switched to variable leverage, the pill choices
-    // don't drive the engine — skip the optimizer so we don't fight the
-    // user's typed short%.
-    var customToggle = document.getElementById('use-variable-leverage');
-    if (customToggle && customToggle.checked) return null;
     return runAutoPick();
   }
 
@@ -363,10 +395,7 @@
     if (!track) return;
     var trackId = track.id;
     var value = btn.getAttribute('data-value');
-    if (trackId === 'leverage-pill-track') {
-      _setSelect('leverage-cap-select', value);
-      _hideAutoHint('leverage');
-    } else if (trackId === 'horizon-pill-track') {
+    if (trackId === 'horizon-pill-track') {
       _setSelect('projection-years', value);
       _hideAutoHint('horizon');
     } else if (trackId === 'recognition-pill-track') {

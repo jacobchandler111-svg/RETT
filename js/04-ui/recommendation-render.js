@@ -33,29 +33,39 @@
     var availableCapital        = Number(($('available-capital') || {}).value) || 0;
     var investedCapital         = Number(($('invested-capital') || {}).value) || availableCapital;
 
-    // Leverage source: read the actual on-page select, NOT the legacy
-    // `leverage-cap` ID that never existed. For Schwab combos the value is
-    // a string label like "200/100" — translate that to the combo's real
-    // numeric leverage so brooklynInterpolate gives different results per
-    // pill click. We also pass comboId/comboLeverageLabel so the engine
-    // can opt into combo-specific loss curves where available.
-    var levRaw      = ($('leverage-cap-select') || {}).value || '';
-    var leverageCap = parseFloat(levRaw);
-    var custodianId = ($('custodian-select') || {}).value || '';
+    // Leverage source. The Page-2 leverage UI is now a slider that writes
+    // to #custom-short-pct (along with the always-checked
+    // #use-variable-leverage). When that's the case, leverage =
+    // shortPct / 100 and we drop comboId/leverageLabel so the engine
+    // takes the brooklyn-data interpolation path. Falls back to the
+    // legacy #leverage-cap-select reading for any older flow that
+    // hasn't migrated to the slider.
+    var useVariableLeverage = !!($('use-variable-leverage') || {}).checked;
+    var leverageCap = NaN;
     var comboId = null;
     var comboLeverageLabel = null;
-    if (custodianId === 'schwab' && typeof window.findSchwabCombo === 'function') {
-      var combo = window.findSchwabCombo(strategyKey, levRaw);
-      if (combo) {
-        leverageCap = combo.leverage;
-        comboId = combo.id;
-        comboLeverageLabel = combo.leverageLabel;
+    if (useVariableLeverage) {
+      var spRaw = parseFloat(($('custom-short-pct') || {}).value);
+      if (Number.isFinite(spRaw) && spRaw >= 0) {
+        leverageCap = spRaw / 100;
+      }
+    }
+    if (!Number.isFinite(leverageCap)) {
+      var levRaw = ($('leverage-cap-select') || {}).value || '';
+      leverageCap = parseFloat(levRaw);
+      var custodianId = ($('custodian-select') || {}).value || '';
+      if (custodianId === 'schwab' && typeof window.findSchwabCombo === 'function') {
+        var combo = window.findSchwabCombo(strategyKey, levRaw);
+        if (combo) {
+          leverageCap = combo.leverage;
+          comboId = combo.id;
+          comboLeverageLabel = combo.leverageLabel;
+        }
       }
     }
     if (!Number.isFinite(leverageCap) || leverageCap < 0) leverageCap = 2.25;
 
     var years                   = Number(($('projection-years') || {}).value) || 5;
-    var useVariableLeverage     = !!($('use-variable-leverage') || {}).checked;
     var manualVariableShortPct  = null;
     var manualToggle            = $('use-manual-variable');
     var manualSlider            = $('variable-short-slider');

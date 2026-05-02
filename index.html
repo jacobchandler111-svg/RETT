@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RETT - Brooklyn Multi-Year Projector</title>
-  <link rel="stylesheet" href="css/styles.css?v=1777500000027">
+  <link rel="stylesheet" href="css/styles.css?v=1777500000030">
 </head>
 <body>
   <a href="#page-inputs" class="skip-link">Skip to main content</a>
@@ -253,13 +253,22 @@
         <input type="hidden" id="beta1" value="50">
       </div>
 
-      <!-- Leverage + Horizon + Recognition pill toggles. The defaults are
-           auto-selected on first projection (whichever combination yields
-           the highest net benefit). Users can click any pill to override. -->
+      <!-- Leverage slider + Horizon + Recognition pill toggles.
+           Leverage is now a continuous short-% slider that auto-positions
+           to whatever short% maximizes net savings. Tick marks on the
+           track show the custodian's published preset combos for
+           reference. Drag the slider to override the auto-pick. -->
       <div class="pill-toggle-row">
-        <div class="pill-group" id="leverage-pill-group" role="radiogroup" aria-label="Leverage">
+        <div class="pill-group leverage-slider-group" id="leverage-slider-group" aria-label="Leverage">
           <span class="pill-group-label">Leverage</span>
-          <div class="pill-track" id="leverage-pill-track"></div>
+          <div class="leverage-slider-wrap">
+            <input type="range" id="leverage-slider" min="0" max="225" step="1" value="100" aria-label="Short percentage">
+            <datalist id="leverage-slider-ticks"></datalist>
+            <div class="leverage-slider-readout">
+              <strong id="leverage-slider-tier">200/100</strong>
+              <span id="leverage-slider-detail">loss 59.0% \u00b7 fee 1.96%</span>
+            </div>
+          </div>
           <span class="pill-group-hint" id="leverage-auto-hint" hidden>auto-selected</span>
         </div>
         <div class="pill-group" id="horizon-pill-group" role="radiogroup" aria-label="Projection horizon">
@@ -274,10 +283,10 @@
         </div>
       </div>
 
-      <!-- Hidden recognition-start state (1-indexed user year, e.g. "1"
-           = recognize in Year 1, "2" = defer to Year 2, etc.). The
-           Recognition pill row above is the visible UI; this select is
-           the source of truth that inputs-collector reads from. -->
+      <!-- Hidden state mirrors. The slider/dropdowns above are the
+           visible UI; these elements remain the source of truth that
+           inputs-collector reads from. use-variable-leverage stays
+           checked permanently now that the slider IS the leverage UI. -->
       <div hidden aria-hidden="true">
         <select id="recognition-start-select">
           <option value="1" selected>Year 1</option>
@@ -285,36 +294,12 @@
           <option value="3">Year 3</option>
           <option value="4">Year 4</option>
         </select>
-      </div>
-
-      <!-- Variable (custom) leverage: lets the user pick any short% within
-           the custodian's allowed range. Loss rate and fee are linearly
-           interpolated from the preset data points. Long% derives from the
-           strategy (Beta 1: long = 100 + short; Beta 0: long = short;
-           Beta 0.5: long = 100 + short). -->
-      <div class="variable-leverage-section">
-        <label class="checkbox-row">
-          <input type="checkbox" id="use-variable-leverage"> Use custom leverage (interpolate between presets)
-        </label>
-        <div id="variable-leverage-controls" class="custom-leverage-grid" hidden>
-          <div class="input-group">
-            <label for="custom-short-pct">Short %</label>
-            <input type="number" id="custom-short-pct" min="0" max="225" step="1" value="45" inputmode="numeric">
-          </div>
-          <div class="input-group">
-            <label>Long %</label>
-            <output id="custom-long-readout">145%</output>
-          </div>
-          <div class="input-group">
-            <label>Effective tier</label>
-            <output id="custom-tier-readout">145/45</output>
-          </div>
-          <div class="input-group">
-            <label>Loss rate (Y1) / Fee</label>
-            <output id="custom-fee-readout">32.2% / 0.77%</output>
-          </div>
-        </div>
-        <p id="custom-leverage-hint" class="subtitle muted" hidden></p>
+        <input type="checkbox" id="use-variable-leverage" checked>
+        <input type="number" id="custom-short-pct" min="0" max="225" step="1" value="100" inputmode="numeric">
+        <output id="custom-long-readout">200%</output>
+        <output id="custom-tier-readout">200/100</output>
+        <output id="custom-fee-readout">59.0% / 1.96%</output>
+        <p id="custom-leverage-hint"></p>
       </div>
 
 
@@ -357,53 +342,53 @@
   </main>
 
   <!-- ============ Subsystem load order: 00 -> 01 -> 02 -> 03 -> 05 -> 04 ============ -->
-  <script src="js/00-data/custodians.js?v=1777500000027"></script>
-  <script src="js/00-data/schwab-strategies.js?v=1777500000027"></script>
-  <script src="js/01-brooklyn/brooklyn-data.js?v=1777500000027"></script>
-  <script src="js/01-brooklyn/date-utils.js?v=1777500000027"></script>
-  <script src="js/01-brooklyn/time-weight.js?v=1777500000027"></script>
-  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777500000027"></script>
-  <script src="js/01-brooklyn/variable-leverage.js?v=1777500000027"></script>
+  <script src="js/00-data/custodians.js?v=1777500000030"></script>
+  <script src="js/00-data/schwab-strategies.js?v=1777500000030"></script>
+  <script src="js/01-brooklyn/brooklyn-data.js?v=1777500000030"></script>
+  <script src="js/01-brooklyn/date-utils.js?v=1777500000030"></script>
+  <script src="js/01-brooklyn/time-weight.js?v=1777500000030"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777500000030"></script>
+  <script src="js/01-brooklyn/variable-leverage.js?v=1777500000030"></script>
 
-  <script src="js/02-tax-engine/tax-data.js?v=1777500000027"></script>
-  <script src="js/02-tax-engine/tax-loader.js?v=1777500000027"></script>
-  <script src="js/02-tax-engine/tax-lookups.js?v=1777500000027"></script>
-  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777500000027"></script>
-  <script src="js/02-tax-engine/tax-calc-state.js?v=1777500000027"></script>
-  <script src="js/02-tax-engine/tax-baseline.js?v=1777500000027"></script>
-  <script src="js/02-tax-engine/tax-comparison.js?v=1777500000027"></script>
+  <script src="js/02-tax-engine/tax-data.js?v=1777500000030"></script>
+  <script src="js/02-tax-engine/tax-loader.js?v=1777500000030"></script>
+  <script src="js/02-tax-engine/tax-lookups.js?v=1777500000030"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777500000030"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js?v=1777500000030"></script>
+  <script src="js/02-tax-engine/tax-baseline.js?v=1777500000030"></script>
+  <script src="js/02-tax-engine/tax-comparison.js?v=1777500000030"></script>
 
-  <script src="js/03-solver/fees.js?v=1777500000027"></script>
-  <script src="js/03-solver/fee-split.js?v=1777500000027"></script>
-  <script src="js/03-solver/brookhaven-fees.js?v=1777500000027"></script>
-  <script src="js/03-solver/brooklyn-allocator.js?v=1777500000027"></script>
-  <script src="js/03-solver/single-year-solver.js?v=1777500000027"></script>
-  <script src="js/03-solver/multi-year-solver.js?v=1777500000027"></script>
-  <script src="js/03-solver/structured-sale.js?v=1777500000027"></script>
-  <script src="js/03-solver/decision-engine.js?v=1777500000027"></script>
+  <script src="js/03-solver/fees.js?v=1777500000030"></script>
+  <script src="js/03-solver/fee-split.js?v=1777500000030"></script>
+  <script src="js/03-solver/brookhaven-fees.js?v=1777500000030"></script>
+  <script src="js/03-solver/brooklyn-allocator.js?v=1777500000030"></script>
+  <script src="js/03-solver/single-year-solver.js?v=1777500000030"></script>
+  <script src="js/03-solver/multi-year-solver.js?v=1777500000030"></script>
+  <script src="js/03-solver/structured-sale.js?v=1777500000030"></script>
+  <script src="js/03-solver/decision-engine.js?v=1777500000030"></script>
 
-  <script src="js/05-projections/bracket-projector.js?v=1777500000027"></script>
-  <script src="js/05-projections/carryforward-tracker.js?v=1777500000027"></script>
-  <script src="js/05-projections/projection-engine.js?v=1777500000027"></script>
+  <script src="js/05-projections/bracket-projector.js?v=1777500000030"></script>
+  <script src="js/05-projections/carryforward-tracker.js?v=1777500000030"></script>
+  <script src="js/05-projections/projection-engine.js?v=1777500000030"></script>
 
-  <script src="js/04-ui/banner.js?v=1777500000027"></script>
-  <script src="js/04-ui/number-animator.js?v=1777500000027"></script>
-  <script src="js/04-ui/case-storage.js?v=1777500000027"></script>
-  <script src="js/04-ui/pill-toggles.js?v=1777500000027"></script>
-  <script src="js/04-ui/variable-leverage-ui.js?v=1777500000027"></script>
-  <script src="js/04-ui/format-helpers.js?v=1777500000027"></script>
-  <script src="js/04-ui/input-validation.js?v=1777500000027"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1777500000027"></script>
-  <script src="js/04-ui/controls.js?v=1777500000027"></script>
-  <script src="js/04-ui/projection-render.js?v=1777500000027"></script>
-  <script src="js/04-ui/recommendation-render.js?v=1777500000027"></script>
-  <script src="js/04-ui/projection-dashboard-render.js?v=1777500000027"></script>
-  <script src="js/04-ui/savings-ribbon.js?v=1777500000027"></script>
-  <script src="js/04-ui/bracket-viz-render.js?v=1777500000027"></script>
-  <script src="js/04-ui/narrative-render.js?v=1777500000027"></script>
-  <script src="js/04-ui/strategy-summary-render.js?v=1777500000027"></script>
+  <script src="js/04-ui/banner.js?v=1777500000030"></script>
+  <script src="js/04-ui/number-animator.js?v=1777500000030"></script>
+  <script src="js/04-ui/case-storage.js?v=1777500000030"></script>
+  <script src="js/04-ui/pill-toggles.js?v=1777500000030"></script>
+  <script src="js/04-ui/variable-leverage-ui.js?v=1777500000030"></script>
+  <script src="js/04-ui/format-helpers.js?v=1777500000030"></script>
+  <script src="js/04-ui/input-validation.js?v=1777500000030"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1777500000030"></script>
+  <script src="js/04-ui/controls.js?v=1777500000030"></script>
+  <script src="js/04-ui/projection-render.js?v=1777500000030"></script>
+  <script src="js/04-ui/recommendation-render.js?v=1777500000030"></script>
+  <script src="js/04-ui/projection-dashboard-render.js?v=1777500000030"></script>
+  <script src="js/04-ui/savings-ribbon.js?v=1777500000030"></script>
+  <script src="js/04-ui/bracket-viz-render.js?v=1777500000030"></script>
+  <script src="js/04-ui/narrative-render.js?v=1777500000030"></script>
+  <script src="js/04-ui/strategy-summary-render.js?v=1777500000030"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1777500000027"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1777500000030"></script>
 </body>
 </html>

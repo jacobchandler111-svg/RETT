@@ -1,36 +1,32 @@
 // FILE: js/04-ui/variable-leverage-ui.js
-// "Custom leverage" controls on Page 2. The user can pick any short%
-// within their custodian's allowed range; loss rate and fee are linearly
-// interpolated from the strategy's preset data points. Long% is derived
-// from the strategy:
-//   - Beta 1 / Beta 0.5 / Advisor Managed: long = 100 + short
-//   - Beta 0 (market neutral): long = short
+// Leverage slider on Page 2. Replaces the legacy leverage pill row.
 //
-// The active selection writes onto two hidden globals that
-// inputs-collector.js picks up:
-//   - cfg.useVariableLeverage  (boolean)
-//   - cfg.customShortPct       (number, 0-225 typically)
-// brooklynInterpolate(strategyKey, customShortPct/100) gives the loss
-// and fee data points to use, calibrated to the existing dataPoints in
-// brooklyn-data.js. The fee-split module surfaces the management vs.
-// financing decomposition for display.
+// The slider is a continuous control over the short-percentage axis,
+// clamped to whatever the active custodian + strategy permits. The
+// auto-pick optimizer (pill-toggles.js runAutoPick) sets the slider's
+// position to the short% that maximizes net savings; users can drag
+// to override. The slider is the canonical input for variable
+// leverage — there is no "use variable" checkbox anymore. Hidden
+// legacy fields (#use-variable-leverage, #custom-short-pct) stay in
+// the DOM as the source of truth that inputs-collector reads.
+//
+// Long% derives from the strategy:
+//   - Beta 0 (market neutral): long = short
+//   - All others: long = 100 + short
 
 (function (root) {
   'use strict';
 
   function _byId(id) { return document.getElementById(id); }
 
-  // Long% from strategy + short%.
   function _longPctFor(strategyKey, shortPct) {
-    if (strategyKey === 'beta0') return shortPct;             // 100/100, 200/200
-    return 100 + shortPct;                                     // 145/45, 200/100, etc.
+    if (strategyKey === 'beta0') return shortPct;
+    return 100 + shortPct;
   }
 
-  // Custodian-allowed max short% based on the active custodian + strategy.
-  // Schwab's published combos top out at 200/100 (short=100) for Beta 1
-  // but only 100/100 for Beta 0. Goldman allows up to 325/225 (Beta 1)
-  // and 275/275 (Beta 0). For the variable path we use the highest
-  // matching short% from the data points.
+  // Custodian + strategy max short%. Schwab tops out at 100 for Beta 1
+  // (their published 200/100 combo) and 100 for Beta 0 (100/100). For
+  // Goldman or no custodian we use the brooklyn-data top-tier point.
   function _maxShortFor(custodianId, strategyKey) {
     if (custodianId === 'schwab' && typeof root.listSchwabCombos === 'function') {
       var combos = root.listSchwabCombos().filter(function (c) {
@@ -47,89 +43,111 @@
     return 225;
   }
 
-  // Refresh the readouts (long/short/effective tier/loss/fee) from the
-  // current short% input. Also rebuilds the hint line with the
-  // custodian-allowed max.
-  function refreshReadouts() {
-    var input  = _byId('custom-short-pct');
-    var lOut   = _byId('custom-long-readout');
-    var tOut   = _byId('custom-tier-readout');
-    var fOut   = _byId('custom-fee-readout');
-    var hint   = _byId('custom-leverage-hint');
-    if (!input) return;
+  // Build / refresh the datalist tick marks for the slider so users
+  // can see where the published preset combos sit on the continuum.
+  function _refreshTicks() {
+    var datalist = _byId('leverage-slider-ticks');
+    if (!datalist) return;
     var stratKey = (_byId('strategy-select') || {}).value || 'beta1';
     var custId   = (_byId('custodian-select') || {}).value || '';
     var maxShort = _maxShortFor(custId, stratKey);
-    if (Number(input.max) !== maxShort) input.max = String(maxShort);
+    var ticks = [];
+    if (custId === 'schwab' && typeof root.listSchwabCombos === 'function') {
+      ticks = root.listSchwabCombos()
+        .filter(function (c) { return c.strategyKey === stratKey; })
+        .map(function (c) { return c.shortPct; });
+    } else {
+      var tier = (root.BROOKLYN_STRATEGIES || {})[stratKey];
+      if (tier && Array.isArray(tier.dataPoints)) {
+        ticks = tier.dataPoints.map(function (p) { return p.shortPct; });
+      }
+    }
+    datalist.innerHTML = ticks.map(function (t) {
+      return '<option value="' + t + '"></option>';
+    }).join('');
+    var slider = _byId('leverage-slider');
+    if (slider && Number(slider.max) !== maxShort) slider.max = String(maxShort);
+  }
 
-    var sp = Math.max(0, Math.min(maxShort, Number(input.value) || 0));
-    if (Number(input.value) !== sp) input.value = String(sp);
+  function refreshReadouts() {
+    var slider = _byId('leverage-slider');
+    var hidden = _byId('custom-short-pct');
+    var tierEl = _byId('leverage-slider-tier');
+    var detailEl = _byId('leverage-slider-detail');
+    if (!slider) return;
+
+    _refreshTicks();
+    var stratKey = (_byId('strategy-select') || {}).value || 'beta1';
+    var maxShort = Number(slider.max) || 225;
+    var sp = Math.max(0, Math.min(maxShort, Number(slider.value) || 0));
+    if (Number(slider.value) !== sp) slider.value = String(sp);
+    if (hidden && hidden.value !== String(sp)) hidden.value = String(sp);
     var lp = _longPctFor(stratKey, sp);
 
-    if (lOut) lOut.textContent = lp + '%';
-    if (tOut) tOut.textContent = lp + '/' + sp;
-
-    // Loss rate now comes from the per-tier linear regression (same
-    // module as the fee regression). Fee rate uses the unified Cache
-    // regression. Both produce smoother curves than the legacy
-    // piecewise interpolation between brooklyn-data points.
     var lossRate = (typeof root.brooklynLossRateFor === 'function')
       ? root.brooklynLossRateFor(stratKey, lp, sp)
-      : (function () {
-          var snap = (typeof root.brooklynInterpolate === 'function')
-            ? root.brooklynInterpolate(stratKey, sp / 100) : null;
-          return snap ? (snap.lossRate || 0) : 0;
-        })();
+      : 0;
     var feeRate = (typeof root.brooklynFeeRateFor === 'function')
       ? root.brooklynFeeRateFor(lp, sp)
       : 0;
-    if (fOut) {
-      var lossPct = (lossRate * 100).toFixed(2) + '%';
-      var feePct  = (feeRate  * 100).toFixed(2) + '%';
-      fOut.textContent = lossPct + ' / ' + feePct;
+
+    if (tierEl) tierEl.textContent = lp + '/' + sp;
+    if (detailEl) {
+      detailEl.textContent = 'loss ' + (lossRate * 100).toFixed(1) + '% \u00b7 fee ' +
+        (feeRate * 100).toFixed(2) + '%';
     }
-    if (hint) {
-      hint.hidden = false;
-      var custLabel = custId === 'schwab' ? 'Charles Schwab'
-                    : custId === 'goldmanSachs' ? 'Goldman Sachs'
-                    : 'your custodian';
-      hint.textContent = 'Capped at ' + custLabel + '\u2019s max short% for ' + stratKey + ': ' + maxShort + '. ' +
-        'Loss rate and fee interpolated linearly from the published ' + stratKey + ' presets.';
-    }
+
+    // Mirror to legacy outputs (used by other modules).
+    var lOut  = _byId('custom-long-readout');
+    var tOut  = _byId('custom-tier-readout');
+    var fOut  = _byId('custom-fee-readout');
+    var hint  = _byId('custom-leverage-hint');
+    if (lOut) lOut.textContent  = lp + '%';
+    if (tOut) tOut.textContent  = lp + '/' + sp;
+    if (fOut) fOut.textContent  = (lossRate * 100).toFixed(2) + '% / ' + (feeRate * 100).toFixed(2) + '%';
+    if (hint) hint.textContent  = '';
   }
 
-  function _onToggleChange() {
-    var toggle  = _byId('use-variable-leverage');
-    var grid    = _byId('variable-leverage-controls');
-    var hint    = _byId('custom-leverage-hint');
-    if (!toggle) return;
-    var on = !!toggle.checked;
-    if (grid) grid.hidden = !on;
-    if (hint) hint.hidden = !on;
-    if (on) refreshReadouts();
-    if (typeof root.runFullPipeline === 'function') {
-      try { root.runFullPipeline(); } catch (e) { /* */ }
-    }
+  // Programmatically position the slider (called by the auto-pick
+  // optimizer after it finds the best short%). Suppresses the
+  // input-driven projection rerun so the optimizer's own rerun wins.
+  function setSliderShort(sp) {
+    var slider = _byId('leverage-slider');
+    var hidden = _byId('custom-short-pct');
+    if (!slider) return;
+    var maxShort = Number(slider.max) || 225;
+    var clamped = Math.max(0, Math.min(maxShort, Number(sp) || 0));
+    slider.value = String(clamped);
+    if (hidden) hidden.value = String(clamped);
+    refreshReadouts();
   }
 
-  function _onShortChange() {
+  function _onSliderInput() {
     refreshReadouts();
     if (typeof root.runFullPipeline === 'function') {
       try { root.runFullPipeline(); } catch (e) { /* */ }
     }
+    // Hide the auto-selected hint after a manual drag.
+    var hint = _byId('leverage-auto-hint');
+    if (hint) hint.hidden = true;
+    root.__rettAutoPickEnabled = false;
   }
 
   function _attach() {
-    var toggle = _byId('use-variable-leverage');
-    var input  = _byId('custom-short-pct');
-    if (toggle) toggle.addEventListener('change', _onToggleChange);
-    if (input)  input.addEventListener('input', _onShortChange);
+    var slider = _byId('leverage-slider');
+    if (slider) {
+      // Throttle: only re-run after the user pauses dragging by ~150ms.
+      var t;
+      slider.addEventListener('input', function () {
+        clearTimeout(t);
+        t = setTimeout(_onSliderInput, 150);
+      });
+    }
     var stratSel = _byId('strategy-select');
     if (stratSel) stratSel.addEventListener('change', refreshReadouts);
     var custSel = _byId('custodian-select');
     if (custSel) custSel.addEventListener('change', refreshReadouts);
     refreshReadouts();
-    _onToggleChange();
   }
 
   if (document.readyState === 'loading') {
@@ -139,4 +157,5 @@
   }
 
   root.refreshVariableLeverageReadouts = refreshReadouts;
+  root.setLeverageSliderShort          = setSliderShort;
 })(window);
