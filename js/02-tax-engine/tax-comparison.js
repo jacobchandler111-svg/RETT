@@ -238,10 +238,31 @@ function computeDeferredTaxComparison(cfg) {
 
       const combo = (cfg.comboId && typeof getSchwabCombo === 'function')
             ? getSchwabCombo(cfg.comboId) : null;
-      const feeRate = combo ? (combo.feeRate || 0) : (function () {
-            if (typeof brooklynInterpolate !== 'function') return 0;
-            const snap = brooklynInterpolate(cfg.tierKey || 'beta1', cfg.leverage || cfg.leverageCap || 2.25);
-            return snap ? (snap.feeRate || 0) : 0;
+      // Fee rate now comes from the regression in fee-split.js, applied
+      // uniformly across presets, Schwab combos, and variable leverage.
+      // The published Schwab combo feeRate (e.g. 2.03% for 200/100) is
+      // intentionally bypassed because the regression is more
+      // forward-accurate and consistent across all strategies.
+      const feeRate = (function () {
+            var lp, sp;
+            if (combo) { lp = combo.longPct; sp = combo.shortPct; }
+            else {
+                  var lev = cfg.leverage || cfg.leverageCap || 2.25;
+                  if (typeof window.brooklynPctsForLeverage === 'function') {
+                        var p = window.brooklynPctsForLeverage(cfg.tierKey || 'beta1', lev);
+                        lp = p.longPct; sp = p.shortPct;
+                  }
+            }
+            if (typeof window.brooklynFeeRateFor === 'function' && lp != null && sp != null) {
+                  return window.brooklynFeeRateFor(lp, sp);
+            }
+            // Fallback if the splitter isn't loaded.
+            if (combo) return combo.feeRate || 0;
+            if (typeof brooklynInterpolate === 'function') {
+                  var snap = brooklynInterpolate(cfg.tierKey || 'beta1', cfg.leverage || cfg.leverageCap || 2.25);
+                  return snap ? (snap.feeRate || 0) : 0;
+            }
+            return 0;
       })();
       const lossRateForTrancheYear = (function () {
             if (combo && Array.isArray(combo.lossByYear)) {

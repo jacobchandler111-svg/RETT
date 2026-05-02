@@ -126,7 +126,12 @@
       if (combo && Array.isArray(combo.lossByYear) && combo.lossByYear.length > 0) {
         var comboLossRate = (combo.lossByYear[0] || 0) * yf;
         var comboLoss = investedCapital * comboLossRate;
-        var comboFees = investedCapital * (combo.feeRate || 0);
+        // Fee uses the unified regression rather than the combo's
+        // published rate. See fees.js docstring.
+        var comboFeeRate = (typeof root.brooklynFeeRateFor === 'function')
+          ? root.brooklynFeeRateFor(combo.longPct, combo.shortPct)
+          : (combo.feeRate || 0);
+        var comboFees = investedCapital * comboFeeRate;
         stage1Combo = {
           mode: 'schwab-combo',
           ok: comboLoss >= gainToOffset && gainToOffset > 0 && combo.leverage <= leverageCap,
@@ -138,7 +143,7 @@
           lossRate: comboLossRate,
           loss: comboLoss,
           fees: comboFees,
-          feeRate: combo.feeRate,
+          feeRate: comboFeeRate,
           yearFraction: yf,
           timeWeighted: yf < 1,
           label: combo.strategyLabel + ' ' + combo.leverageLabel
@@ -213,10 +218,19 @@
 
       // Annotate stage2 with the fee rate so the structured-sale optimizer
       // can compute per-year fees from the staggered investment vector.
-      if (stage2 && stage2.leverageUsed != null && typeof root.brooklynInterpolate === 'function') {
-        var info = root.brooklynInterpolate(strategyKey, stage2.leverageUsed);
-        if (info && info.feeRate != null) {
-          stage2 = Object.assign({}, stage2, { feeRate: info.feeRate });
+      // Uses the unified regression (fee-split.js) instead of the
+      // brooklyn-data feeRate field.
+      if (stage2 && stage2.leverageUsed != null) {
+        var stage2FeeRate = null;
+        if (typeof root.brooklynFeeSplitForLeverage === 'function') {
+          var s2split = root.brooklynFeeSplitForLeverage(strategyKey, stage2.leverageUsed);
+          stage2FeeRate = s2split ? s2split.totalRate : null;
+        } else if (typeof root.brooklynInterpolate === 'function') {
+          var info = root.brooklynInterpolate(strategyKey, stage2.leverageUsed);
+          stage2FeeRate = info ? info.feeRate : null;
+        }
+        if (stage2FeeRate != null) {
+          stage2 = Object.assign({}, stage2, { feeRate: stage2FeeRate });
         }
       }
 

@@ -69,15 +69,17 @@
     if (lOut) lOut.textContent = lp + '%';
     if (tOut) tOut.textContent = lp + '/' + sp;
 
+    // Loss rate stays sourced from brooklyn-data interpolation (we
+    // don't have a regression for losses yet). Fee rate uses the
+    // unified regression so it's consistent with everywhere else.
     var lossRate = 0;
-    var feeRate  = 0;
     if (typeof root.brooklynInterpolate === 'function') {
       var snap = root.brooklynInterpolate(stratKey, sp / 100);
-      if (snap) {
-        lossRate = snap.lossRate || 0;
-        feeRate  = snap.feeRate  || 0;
-      }
+      if (snap) lossRate = snap.lossRate || 0;
     }
+    var feeRate = (typeof root.brooklynFeeRateFor === 'function')
+      ? root.brooklynFeeRateFor(lp, sp)
+      : 0;
     if (fOut) {
       var lossPct = (lossRate * 100).toFixed(2) + '%';
       var feePct  = (feeRate  * 100).toFixed(2) + '%';

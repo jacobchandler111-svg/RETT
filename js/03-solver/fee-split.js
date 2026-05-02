@@ -85,8 +85,42 @@
     return feeSplit(longPct, shortPct, null);
   }
 
-  root.brooklynFeeSplit       = feeSplit;
+  // The single unified fee-rate function used everywhere in the engine.
+  // Replaces both the Schwab combo's published feeRate (e.g. 2.03% for
+  // 200/100) and brooklyn-data's feeRate field. Per the user's call,
+  // the regression — fit to Cache's published mgmt + financing schedule —
+  // is more accurate than either source for forward-looking modeling.
+  //
+  // Returns the total annual fee rate as a decimal (e.g. 0.01957 for
+  // 1.957%). Use feeRateFor(longPct, shortPct).
+  function feeRateFor(longPct, shortPct) {
+    return variableFeeSplit(longPct, shortPct).totalRate;
+  }
+
+  // Derive (longPct, shortPct) from a strategy + leverage value. Same
+  // mapping the variable-leverage UI uses:
+  //   - Beta 0 (market neutral): long = short = leverage * 100
+  //   - Otherwise: short = leverage * 100, long = 100 + short
+  // tierKey is the Brooklyn strategy key (beta1 / beta0 / beta05 /
+  // advisorManaged). leverage is the dataPoint leverage value.
+  function pctsForLeverage(tierKey, leverage) {
+    var sp = Math.max(0, (Number(leverage) || 0) * 100);
+    var lp = (tierKey === 'beta0') ? sp : (100 + sp);
+    return { longPct: lp, shortPct: sp };
+  }
+
+  // Convenience for callers that have a tierKey + leverage but not the
+  // long/short pair handy. Returns the same shape as variableFeeSplit().
+  function feeSplitForLeverage(tierKey, leverage) {
+    var p = pctsForLeverage(tierKey, leverage);
+    return variableFeeSplit(p.longPct, p.shortPct);
+  }
+
+  root.brooklynFeeSplit         = feeSplit;
   root.brooklynVariableFeeSplit = variableFeeSplit;
+  root.brooklynFeeRateFor       = feeRateFor;
+  root.brooklynPctsForLeverage  = pctsForLeverage;
+  root.brooklynFeeSplitForLeverage = feeSplitForLeverage;
   root.BROOKLYN_FEE_SPLIT_CALIBRATION = {
     mgmtIntercept: MGMT_INTERCEPT,
     mgmtSlope:     MGMT_SLOPE,

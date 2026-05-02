@@ -95,11 +95,19 @@ const ProjectionEngine = {
       const grossLoss = _schwabCombo
         ? cfg.investment * lossRate
         : investmentThisYear * cfg.leverage * lossRate;
-      const fee = (i === 0)
-        ? (_schwabCombo
-            ? cfg.investment * _schwabCombo.feeRate
-            : brooklynFee(cfg.tierKey, cfg.leverage, cfg.investment))
-        : 0;
+      // Fee uses the unified regression (fee-split.js) for all paths,
+      // including Schwab combos. The combo's published feeRate is
+      // intentionally bypassed; see fees.js docstring.
+      let fee = 0;
+      if (i === 0) {
+        if (_schwabCombo && typeof window.brooklynFeeRateFor === 'function') {
+          fee = cfg.investment * window.brooklynFeeRateFor(_schwabCombo.longPct, _schwabCombo.shortPct);
+        } else if (_schwabCombo) {
+          fee = cfg.investment * (_schwabCombo.feeRate || 0);
+        } else {
+          fee = brooklynFee(cfg.tierKey, cfg.leverage, cfg.investment);
+        }
+      }
 
                         // All losses are short-term.
                         const newShortLoss = grossLoss;
