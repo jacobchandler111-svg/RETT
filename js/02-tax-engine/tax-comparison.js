@@ -249,31 +249,54 @@ function computeDeferredTaxComparison(cfg) {
       for (let i = 0; i < horizon; i++) {
             const year = (cfg.year1 || (new Date()).getFullYear()) + i;
 
-            // Compute Brooklyn loss + fees from active tranches this year.
-            let yearLoss = 0;
-            let yearFee = 0;
-            let yearInvested = 0;
+            // Step 1 — compute Brooklyn loss + fees from EXISTING tranches.
+            // Each tranche uses lossRateForTrancheYear(age-of-tranche), so
+            // the basis position keeps generating losses every year using
+            // the year-2, year-3, ... rates of the lossByYear curve while
+            // newer tranches start at the year-1 rate.
+            let existingLoss = 0;
+            let existingFee = 0;
+            let existingInvested = 0;
             tranches.forEach(function (t) {
                   const trancheAge = i - t.startIdx;
                   if (trancheAge < 0) return;
-                  yearLoss += t.capital * lossRateForTrancheYear(trancheAge);
-                  yearFee += t.capital * feeRate;
-                  yearInvested += t.capital;
+                  existingLoss += t.capital * lossRateForTrancheYear(trancheAge);
+                  existingFee += t.capital * feeRate;
+                  existingInvested += t.capital;
             });
 
-            // Decide gain to recognize this year. Constraint: not before
-            // startIdx. Greedy: recognize as much as accumulated CF +
-            // current-year loss can absorb. Final-year fallback: recognize
-            // any remaining gain even if it can't be fully offset.
+            // Step 2 — decide gain to recognize this year. Gain proceeds
+            // are received Jan 1 of year R and reinvested same year, so
+            // the new tranche generates fresh year-1 losses in year R
+            // alongside the existing tranches' year-N losses. The max
+            // recognizable gain therefore solves:
+            //     G ≤ stCF + existingLoss + G * year1Rate
+            // i.e. G ≤ (stCF + existingLoss) / (1 - year1Rate).
+            // Final-year fallback: recognize any remaining gain even if
+            // it can't be fully offset.
+            const year1Rate = lossRateForTrancheYear(0);
+            const denom = Math.max(0.001, 1 - year1Rate);
             let gainRecThisYear = 0;
             if (i >= startIdx && gainRemaining > 0) {
-                  const capacity = stCF + yearLoss;
-                  gainRecThisYear = Math.min(gainRemaining, capacity);
+                  const maxAbsorbable = (stCF + existingLoss) / denom;
+                  gainRecThisYear = Math.min(gainRemaining, maxAbsorbable);
                   if (i === horizon - 1 && gainRemaining > gainRecThisYear) {
                         gainRecThisYear = gainRemaining;
                   }
                   gainRemaining -= gainRecThisYear;
             }
+
+            // Step 3 — push the new tranche (immediate same-year reinvestment).
+            if (gainRecThisYear > 0) {
+                  tranches.push({ capital: gainRecThisYear, startIdx: i });
+            }
+
+            // Step 4 — recompute year totals INCLUDING the new tranche.
+            const newTrancheLoss = gainRecThisYear * year1Rate;
+            const newTrancheFee = gainRecThisYear * feeRate;
+            const yearLoss = existingLoss + newTrancheLoss;
+            const yearFee = existingFee + newTrancheFee;
+            const yearInvested = existingInvested + gainRecThisYear;
 
             recognitionSchedule.push({ year: year, gainRecognized: gainRecThisYear });
 
@@ -298,13 +321,6 @@ function computeDeferredTaxComparison(cfg) {
                   withStrategy: withStratTax,
                   savings: baselineTax.total - withStratTax.total
             });
-
-            // Recognized gain becomes new investable capital starting NEXT year
-            // (received Jan 1 effectively means it works the full following year
-            // — keep our model conservative by lagging one year).
-            if (gainRecThisYear > 0) {
-                  tranches.push({ capital: gainRecThisYear, startIdx: i + 1 });
-            }
       }
 
       let totalBaseline = 0, totalWith = 0, totalFees = 0;

@@ -129,21 +129,27 @@
     // above the prior year's investment level. For immediate
     // recognition this is a single Year-1 tranche; for deferred
     // recognition we get one tranche for the basis (Year 1) plus one
-    // for each year the gain is recognized and reinvested.
+    // for each year the gain is recognized and reinvested. We use
+    // "starting in <year>" phrasing because each tranche keeps
+    // generating short-term losses every year for the rest of the
+    // horizon — the lossByYear curve just tapers (year-1 highest,
+    // year-2 lower, etc.) rather than dropping to zero.
     var trancheParts = [];
     var prevInv = 0;
     if (comp && Array.isArray(comp.rows) && comp.rows.length) {
-      comp.rows.forEach(function (r) {
+      comp.rows.forEach(function (r, idx) {
         var inv = r.investmentThisYear || 0;
         var added = inv - prevInv;
         if (added > 1) {
-          trancheParts.push(_fmt(added) + ' in ' + r.year);
+          var label = (idx === 0) ? 'starting ' + r.year + ' (basis)'
+                                  : 'reinvested ' + r.year + ' (gain)';
+          trancheParts.push(_fmt(added) + ' ' + label);
         }
         prevInv = inv;
       });
     }
     if (!trancheParts.length && invested > 0) {
-      trancheParts.push(_fmt(invested) + ' in ' + year1);
+      trancheParts.push(_fmt(invested) + ' starting ' + year1);
     }
 
     var s2;
@@ -153,14 +159,15 @@
       if (trancheParts.length === 1) {
         investedClause = 'Investing ' + trancheParts[0] + ' in ' + strategy;
       } else {
-        // Join with commas + final "and": "$5M in 2026, $3M in 2027 and $2M in 2028"
+        // Join with commas + final "and": "$5M starting 2026 (basis),
+        // $3M reinvested 2028 (gain) and $2M reinvested 2029 (gain)"
         var lastTranche = trancheParts[trancheParts.length - 1];
         var earlyTranches = trancheParts.slice(0, -1).join(', ');
         investedClause = 'Investing ' + earlyTranches + ' and ' + lastTranche +
           ' in ' + strategy;
       }
       s2 = investedClause +
-        ' generates short-term losses that reduce ' + horizon + '-year tax by ' +
+        ' generates short-term losses every year (year-1 rate on each tranche, tapering thereafter) that reduce ' + horizon + '-year tax by ' +
         _fmt(totalSave) + ' \u2014 ' + savingsTone + ' benefit of ' +
         _fmt(net) + ' after ' + _fmt(cumFees) + ' in strategy fees.';
     } else if (invested > 0 && totalSave === 0) {
