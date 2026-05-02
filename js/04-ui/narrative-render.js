@@ -112,12 +112,18 @@
     var year1 = years[0].year;
 
     // Build the narrative sentence(s). Always two short sentences max so
-    // it reads as a memo, not a paragraph.
+    // it reads as a memo, not a paragraph. Article (a / an) for the state
+    // name is chosen by first-letter vowel test — covers AL, AK, AZ, AR,
+    // ID, IL, IN, IA, OH, OK, OR correctly.
+    function _articleFor(word) {
+      if (!word) return 'a';
+      return /^[aeiouAEIOU]/.test(word) ? 'an' : 'a';
+    }
     var s1Parts = [];
     if (sale > 0 && cost > 0 && ltGain > 0) {
       s1Parts.push('A property sale in ' + year1 +
         ' creates an estimated ' + _fmt(ltGain) + ' long-term capital gain' +
-        (state ? ' for a ' + state + ' filer' : '') + '.');
+        (state ? ' for ' + _articleFor(state) + ' ' + state + ' filer' : '') + '.');
     } else {
       s1Parts.push('Projected ' + horizon + '-year baseline tax for ' + year1 +
         '\u2013' + (year1 + horizon - 1) +

@@ -344,8 +344,11 @@
 
     var recalc = document.getElementById('ss-recalc');
     if (recalc) recalc.addEventListener('click', function () {
-      var recBtn = document.getElementById('run-recommendation');
-      if (recBtn) recBtn.click();
+      // Run the full pipeline (recommendation + projection + dashboard)
+      // and re-render the Strategy Summary once the engine has settled.
+      if (typeof window.runFullPipeline === 'function') {
+        try { window.runFullPipeline(); } catch (e) { /* non-fatal */ }
+      }
       setTimeout(renderStrategySummary, 100);
     });
     var printBtn = document.getElementById('ss-print');

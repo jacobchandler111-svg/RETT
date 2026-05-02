@@ -339,28 +339,11 @@
     // First manual click disables further auto-picking until reset.
     root.__rettAutoPickEnabled = false;
     syncPillSelection();
-    // Re-run the decision engine + projection with the new selection.
-    if (typeof runRecommendation === 'function') {
-      try { runRecommendation(); } catch (e) { /* non-fatal */ }
-    }
-    // The recommendation pipeline kicks off a delayed projection in
-    // controls.js; explicitly run the projection once now too so the
-    // dashboard updates immediately.
-    if (typeof collectInputs === 'function' && typeof ProjectionEngine !== 'undefined' && ProjectionEngine.run) {
-      try {
-        var cfg = collectInputs();
-        var sp = Number((document.getElementById('sale-price') || {}).value) || 0;
-        var cb = Number((document.getElementById('cost-basis') || {}).value) || 0;
-        var ad = Number((document.getElementById('accelerated-depreciation') || {}).value) || 0;
-        if (sp) cfg.salePrice = sp;
-        if (cb) cfg.costBasis = cb;
-        if (ad) cfg.acceleratedDepreciation = ad;
-        cfg.strategyKey = cfg.tierKey;
-        cfg.investedCapital = cfg.investment;
-        cfg.years = cfg.horizonYears;
-        window.__lastResult = ProjectionEngine.run(cfg);
-        if (typeof renderProjectionDashboard === 'function') renderProjectionDashboard();
-      } catch (err) { /* non-fatal */ }
+    // Re-run the full pipeline (recommendation + projection + dashboard
+    // render) with the new selection. controls.js exposes runFullPipeline
+    // as a global so we don't have to duplicate cfg-building logic here.
+    if (typeof root.runFullPipeline === 'function') {
+      try { root.runFullPipeline(); } catch (err) { /* non-fatal */ }
     }
   }
 

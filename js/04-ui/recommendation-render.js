@@ -263,11 +263,8 @@
   }
 
   function attach() {
-    var runBtn = $('run-recommendation');
-    if (runBtn) runBtn.addEventListener('click', function (e) {
-      e.preventDefault();
-      runRecommendation();
-    });
+    // The hidden #run-recommendation button has been removed; controls.js
+    // now calls runRecommendation() directly via runFullPipeline().
 
     // Live readouts as the user types
     ['sale-price', 'cost-basis', 'accelerated-depreciation', 'implementation-date'].forEach(function (id) {

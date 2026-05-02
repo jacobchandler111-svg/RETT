@@ -326,48 +326,28 @@ function showPage(id) {
   if (id === 'page-allocator') {
     try {
       if (typeof renderStrategySummary === 'function') renderStrategySummary();
-    } catch(e) { console.warn('renderStrategySummary failed:', e && e.message); }
+    } catch(e) { (window.reportFailure || console.warn)('Strategy Summary render failed', e); }
   }
 
-    if (id === 'page-projection') {
+  if (id === 'page-projection') {
     try {
-      // Auto-pick the (leverage, horizon) combination that maximizes net
-      // savings on first entry. Then build the visual pill toggles so the
-      // user can override. The auto-pick uses the projection engine
-      // directly, no engine modification.
+      // Auto-pick the (leverage, horizon, recognition) combination that
+      // maximizes net savings on first entry, then build the visual pill
+      // toggles so the user can override.
       if (typeof maybeAutoPick === 'function') {
-        try { maybeAutoPick(); } catch (e) { console.warn('maybeAutoPick failed:', e && e.message); }
+        try { maybeAutoPick(); }
+        catch (e) { (window.reportFailure || console.warn)('Auto-pick optimizer failed', e); }
       }
       if (typeof buildPillToggles === 'function') {
-        try { buildPillToggles(); } catch (e) { console.warn('buildPillToggles failed:', e && e.message); }
+        try { buildPillToggles(); }
+        catch (e) { (window.reportFailure || console.warn)('Could not build pill toggles', e); }
       }
-      // Auto-run the full decision-engine + tax-comparison + dashboard pipeline.
-      // The engine itself decides single-year (max Year-1 deduction) vs multi-year
-      // structured-sale based on whether the gain can be fully offset in one year.
-      if (typeof runRecommendation === 'function') {
-        try { runRecommendation(); } catch(e) { console.warn('runRecommendation failed:', e && e.message); }
-      }
-      if (typeof renderProjectionDashboard === 'function') {
-        if (window.__lastResult && window.__lastResult.years && window.__lastResult.years.length) {
-          renderProjectionDashboard();
-        } else if (typeof collectInputs === 'function' && typeof ProjectionEngine !== 'undefined' && ProjectionEngine.run) {
-          try {
-            const _cfg = collectInputs();
-            const _sp = Number((document.getElementById('sale-price') || {}).value) || 0;
-            const _cb = Number((document.getElementById('cost-basis') || {}).value) || 0;
-            const _ad = Number((document.getElementById('accelerated-depreciation') || {}).value) || 0;
-            if (_sp) _cfg.salePrice = _sp;
-            if (_cb) _cfg.costBasis = _cb;
-            if (_ad) _cfg.acceleratedDepreciation = _ad;
-            _cfg.strategyKey = _cfg.tierKey;
-            _cfg.investedCapital = _cfg.investment;
-            _cfg.years = _cfg.horizonYears;
-            window.__lastResult = ProjectionEngine.run(_cfg);
-            renderProjectionDashboard();
-          } catch (e) { console.warn('on-demand projection failed:', e && e.message); }
-        }
-      }
-    } catch(e) { console.warn('page-projection auto-run failed:', e && e.message); }
+      // Run the full pipeline: recommendation engine -> projection engine ->
+      // dashboard render. Replaces the legacy click-the-hidden-button trick.
+      runFullPipeline();
+    } catch (e) {
+      (window.reportFailure || console.warn)('Could not run the projection pipeline', e, { level: 'error' });
+    }
   }
 }
 
@@ -386,207 +366,212 @@ function _populateCustodian() {
   });
 }
 
+// --- _onCustodianChange helpers ----------------------------------------
+// Each helper does one focused job. The orchestrator at the bottom calls
+// them in order. Splitting these out makes it easier to test individual
+// pieces and to reason about which DOM nodes get touched.
+
+function _resetLeverageSelectToEmpty(lcSel, stratSel, info) {
+  while (lcSel.options.length > 0) lcSel.remove(0);
+  const opt = document.createElement('option');
+  opt.value = '';
+  opt.textContent = '-- choose custodian first --';
+  lcSel.appendChild(opt);
+  lcSel.disabled = true;
+  if (info) info.textContent = 'No custodian selected. Pick a custodian above to unlock strategies and leverage caps.';
+  if (stratSel) Array.from(stratSel.options).forEach(o => { o.disabled = false; });
+}
+
+function _populateLeverageOptions(lcSel, custodian, prevLcVal) {
+  while (lcSel.options.length > 0) lcSel.remove(0);
+  custodian.allowedLeverageCaps.forEach((lev, idx) => {
+    const opt = document.createElement('option');
+    opt.value = String(lev);
+    opt.textContent = lev.toFixed(2) + 'x';
+    if (idx === custodian.allowedLeverageCaps.length - 1) opt.selected = true;
+    lcSel.appendChild(opt);
+  });
+  // Restore prior selection when still valid; otherwise the highest cap
+  // (last one, marked selected above) remains chosen.
+  if (prevLcVal && Array.from(lcSel.options).some(o => o.value === String(prevLcVal))) {
+    lcSel.value = String(prevLcVal);
+  }
+  lcSel.disabled = false;
+}
+
+function _populateSchwabComboOptions(lcSel, stratSel, prevLcVal) {
+  if (typeof listSchwabCombos !== 'function') return;
+  const currentStrat = stratSel ? stratSel.value : null;
+  const combosForStrat = listSchwabCombos().filter(sc =>
+    !currentStrat || sc.strategyKey === currentStrat
+  );
+  if (!combosForStrat.length) return;
+  const validLabels = combosForStrat.map(sc => sc.leverageLabel);
+  const preserveIdx = validLabels.indexOf(prevLcVal);
+  while (lcSel.options.length > 0) lcSel.remove(0);
+  combosForStrat.forEach(sc => {
+    const opt = document.createElement('option');
+    opt.value = sc.leverageLabel;
+    opt.textContent = (sc.leverageLabel === sc.longPct + '/' + sc.shortPct)
+      ? sc.leverageLabel
+      : (sc.leverageLabel + ' (' + sc.longPct + '/' + sc.shortPct + ')');
+    lcSel.appendChild(opt);
+  });
+  if (preserveIdx >= 0) lcSel.value = prevLcVal;
+  lcSel.disabled = false;
+}
+
+function _applyStrategyAvailability(stratSel, custodian) {
+  if (!stratSel) return;
+  Array.from(stratSel.options).forEach(o => {
+    const allowed = custodian.allowedStrategies.indexOf(o.value) !== -1;
+    o.disabled = !allowed;
+    if (!allowed && stratSel.value === o.value) {
+      stratSel.value = custodian.allowedStrategies[0];
+    }
+  });
+}
+
+function _renderCustodianInfo(info, custodian, stratSel, lcSel, isSchwab) {
+  if (!info) return;
+  const $ = String.fromCharCode(36);
+  if (isSchwab) {
+    const allCombos = (typeof listSchwabCombos === 'function') ? listSchwabCombos() : [];
+    const currentStrat = stratSel ? stratSel.value : null;
+    const currentLev = lcSel ? lcSel.value : null;
+    const leveragePairs = allCombos
+      .filter(sc => !currentStrat || sc.strategyKey === currentStrat)
+      .map(sc => sc.leverageLabel);
+    const pickedCombo = (typeof findSchwabCombo === 'function')
+      ? findSchwabCombo(currentStrat, currentLev) : null;
+    const minTxt = (pickedCombo && pickedCombo.minInvestment)
+      ? ' • minimum investment for ' + pickedCombo.strategyLabel + ' ' + pickedCombo.leverageLabel +
+        ': ' + $ + pickedCombo.minInvestment.toLocaleString()
+      : '';
+    info.textContent = custodian.label +
+      ' • ' + allCombos.length + ' combos available' +
+      ' • leverage pairs for selected strategy: ' +
+      (leveragePairs.length ? leveragePairs.join(', ') : 'none') +
+      minTxt;
+  } else {
+    const minStrat = stratSel ? stratSel.value : custodian.allowedStrategies[0];
+    const minInv = (typeof getMinInvestment === 'function') ? getMinInvestment(custodian.id, minStrat) : 0;
+    info.textContent = custodian.label + ' • ' +
+      custodian.allowedStrategies.length + ' strategies offered • ' +
+      'leverage caps: ' + custodian.allowedLeverageCaps.map(v => v.toFixed(2) + 'x').join(', ') +
+      (minInv ? ' • minimum investment for ' + minStrat + ': ' + $ + minInv.toLocaleString() : '');
+  }
+}
+
+function _renderSchwabBelowMinWarning(stratSel, lcSel, isSchwab) {
+  const warnId = 'schwab-below-min-warning';
+  const existing = document.getElementById(warnId);
+  if (!isSchwab) {
+    if (existing) existing.textContent = '';
+    return;
+  }
+  const invInp = document.getElementById('invested-capital');
+  const currentStrat = stratSel ? stratSel.value : null;
+  const currentLev = lcSel ? lcSel.value : null;
+  const combo = (typeof findSchwabCombo === 'function')
+    ? findSchwabCombo(currentStrat, currentLev) : null;
+  if (!invInp || !combo || !combo.minInvestment) return;
+  const invVal = Number(invInp.value) || 0;
+  let warnEl = existing;
+  if (invVal > 0 && invVal < combo.minInvestment) {
+    if (!warnEl) {
+      warnEl = document.createElement('p');
+      warnEl.id = warnId;
+      warnEl.className = 'subtitle';
+      warnEl.style.color = '#c53030';
+      warnEl.style.marginTop = '6px';
+      invInp.parentNode.appendChild(warnEl);
+    }
+    const $ = String.fromCharCode(36);
+    warnEl.textContent = 'Warning: Schwab requires a minimum of ' +
+      $ + combo.minInvestment.toLocaleString() +
+      ' for ' + combo.strategyLabel + ' ' + combo.leverageLabel +
+      '. You entered ' + $ + invVal.toLocaleString() + '.';
+  } else if (warnEl) {
+    warnEl.textContent = '';
+  }
+}
+
 function _onCustodianChange() {
   const custSel = document.getElementById('custodian-select');
   const lcSel = document.getElementById('leverage-cap-select');
   const stratSel = document.getElementById('strategy-select');
   const info = document.getElementById('custodian-info');
   if (!custSel || !lcSel) return;
-  // Capture leverage-cap value BEFORE the default block clears options,
-  // so the Schwab-override block can preserve the user's previous selection.
-  const __prevLcVal = lcSel.value;
-  const id = custSel.value;
-  const c = (typeof getCustodian === 'function') ? getCustodian(id) : null;
 
-  while (lcSel.options.length > 0) lcSel.remove(0);
+  const prevLcVal = lcSel.value;
+  const custodianId = custSel.value;
+  const custodian = (typeof getCustodian === 'function') ? getCustodian(custodianId) : null;
 
-  if (!c) {
-    const opt = document.createElement('option');
-    opt.value = '';
-    opt.textContent = '-- choose custodian first --';
-    lcSel.appendChild(opt);
-    lcSel.disabled = true;
-    if (info) info.textContent = 'No custodian selected. Pick a custodian above to unlock strategies and leverage caps.';
-    if (stratSel) Array.from(stratSel.options).forEach(o => { o.disabled = false; });
+  if (!custodian) {
+    _resetLeverageSelectToEmpty(lcSel, stratSel, info);
     return;
   }
 
-  // Default (non-Schwab): populate numeric leverage caps from custodian record.
-  c.allowedLeverageCaps.forEach((lev, idx) => {
-    const opt = document.createElement('option');
-    opt.value = String(lev);
-    opt.textContent = lev.toFixed(2) + 'x';
-    if (idx === c.allowedLeverageCaps.length - 1) opt.selected = true;
-    lcSel.appendChild(opt);
-  });
-  // Restore previous leverage selection if still valid; otherwise the
-  // highest cap (selected above) remains chosen.
-  if (__prevLcVal && Array.from(lcSel.options).some(function (o) { return o.value === String(__prevLcVal); })) {
-    lcSel.value = String(__prevLcVal);
-  }
-  lcSel.disabled = false;
+  // Default (non-Schwab): numeric leverage caps from the custodian record.
+  // Schwab override (when applicable): replace with combo labels filtered
+  // by the currently-selected strategy. The cfg layer resolves
+  // (strategy, leverageLabel) to a combo via findSchwabCombo.
+  _populateLeverageOptions(lcSel, custodian, prevLcVal);
+  const isSchwab = (custodian.id === 'schwab' && typeof listSchwabCombos === 'function');
+  if (isSchwab) _populateSchwabComboOptions(lcSel, stratSel, prevLcVal);
 
-  // Schwab combo override: populate the leverage-cap dropdown with the
-  // Schwab table's leverage labels (e.g. "145/45", "200/100"), filtered to
-  // the leverages available for the currently-selected strategy. The cfg
-  // layer resolves (strategy, leverageLabel) to a Schwab combo via
-  // findSchwabCombo. Leverage is already baked into the combo's loss curve.
-  var isSchwab = (c.id === 'schwab' && typeof listSchwabCombos === 'function');
-  if (isSchwab) {
-    const currentStrat = stratSel ? stratSel.value : null;
-    var schwabCombosForStrat = listSchwabCombos().filter(function (sc) {
-      return !currentStrat || sc.strategyKey === currentStrat;
-    });
-    if (schwabCombosForStrat.length) {
-      const prevLev = __prevLcVal;
-      var validLevels = schwabCombosForStrat.map(function(sc){ return sc.leverageLabel; });
-      var preserveIdx = validLevels.indexOf(prevLev);
-      while (lcSel.options.length > 0) lcSel.remove(0);
-      schwabCombosForStrat.forEach(function (sc) {
-        var opt = document.createElement('option');
-        opt.value = sc.leverageLabel;
-        opt.textContent = (sc.leverageLabel === sc.longPct + '/' + sc.shortPct) ? sc.leverageLabel : (sc.leverageLabel + ' (' + sc.longPct + '/' + sc.shortPct + ')');
-        lcSel.appendChild(opt);
-      });
-      // Restore previous leverage selection if still valid; otherwise the
-      // browser's default (first option) takes effect. Setting select.value
-      // AFTER appending options is the reliable way to programmatically
-      // pick a specific option.
-      if (preserveIdx >= 0) {
-        lcSel.value = prevLev;
-      }
-      lcSel.disabled = false;
-    }
-  }
+  _applyStrategyAvailability(stratSel, custodian);
+  _renderCustodianInfo(info, custodian, stratSel, lcSel, isSchwab);
+  _renderSchwabBelowMinWarning(stratSel, lcSel, isSchwab);
 
-  if (stratSel) {
-    Array.from(stratSel.options).forEach(o => {
-      const allowed = c.allowedStrategies.indexOf(o.value) !== -1;
-      o.disabled = !allowed;
-      if (!allowed && stratSel.value === o.value) {
-        stratSel.value = c.allowedStrategies[0];
-      }
-    });
-  }
-
-  if (info) {
-    const dollarSign = String.fromCharCode(36);
-    if (isSchwab) {
-      // Combo-aware Schwab info line. Surface the real Brooklyn-notation
-      // pairs from the schwab-strategies catalog, plus the per-combo
-      // minimum investment for the currently-selected combo.
-      var allCombos = listSchwabCombos();
-      const currentStrat = stratSel ? stratSel.value : null;
-      const currentLev = lcSel ? lcSel.value : null;
-      var leveragePairs = allCombos
-        .filter(function (sc) { return !currentStrat || sc.strategyKey === currentStrat; })
-        .map(function (sc) { return sc.leverageLabel; });
-      var pickedCombo = (typeof findSchwabCombo === 'function')
-        ? findSchwabCombo(currentStrat, currentLev)
-        : null;
-      var minTxt = '';
-      if (pickedCombo && pickedCombo.minInvestment) {
-        minTxt = ' • minimum investment for ' + pickedCombo.strategyLabel
-              + ' ' + pickedCombo.leverageLabel
-              + ': ' + dollarSign + pickedCombo.minInvestment.toLocaleString();
-      }
-      info.textContent = c.label
-        + ' • ' + allCombos.length + ' combos available'
-        + ' • leverage pairs for selected strategy: '
-        + (leveragePairs.length ? leveragePairs.join(', ') : 'none')
-        + minTxt;
-    } else {
-      const minStrat = stratSel ? stratSel.value : c.allowedStrategies[0];
-      const minInv = (typeof getMinInvestment === 'function') ? getMinInvestment(id, minStrat) : 0;
-      info.textContent = c.label + ' • '
-        + c.allowedStrategies.length + ' strategies offered • '
-        + 'leverage caps: ' + c.allowedLeverageCaps.map(v => v.toFixed(2) + 'x').join(', ')
-        + (minInv ? ' • minimum investment for ' + minStrat + ': ' + dollarSign + minInv.toLocaleString() : '');
-    }
-  }
-
-  // When custodian is not Schwab, clear any leftover Schwab warning.
-  if (!isSchwab) {
-    const leftover = document.getElementById('schwab-below-min-warning');
-    if (leftover) leftover.textContent = '';
-  }
-
-  // Rebuild Page-2 pill toggles since the leverage-cap-select options just
-  // changed (custodians have different cap lists / Schwab combo labels).
+  // Rebuild Page-2 pill toggles since leverage options just changed.
   if (typeof buildPillToggles === 'function') {
     try { buildPillToggles(); } catch (e) { /* non-fatal */ }
   }
+}
 
-  // Below-minimum warning for Schwab combos: shows when the user has entered
-  // an invested capital amount that's less than the selected combo's minimum.
-  // Looks for #invested-capital on Page 2 (Brooklyn Configuration) and writes
-  // a soft warning into a sibling element if the value is below the threshold.
-  if (isSchwab) {
+// Build a normalized engine cfg from the form, augmented with the raw
+// property-sale fields the recommendation engine expects. Used by the
+// auto-run pipeline and the auto-recalc handler so the cfg shape stays
+// consistent in both code paths.
+function _buildEngineCfg() {
+  if (typeof collectInputs !== 'function') return null;
+  var cfg = collectInputs();
+  var sp = Number((document.getElementById('sale-price') || {}).value) || 0;
+  var cb = Number((document.getElementById('cost-basis') || {}).value) || 0;
+  var ad = Number((document.getElementById('accelerated-depreciation') || {}).value) || 0;
+  if (sp) cfg.salePrice = sp;
+  if (cb) cfg.costBasis = cb;
+  if (ad) cfg.acceleratedDepreciation = ad;
+  cfg.strategyKey = cfg.tierKey;
+  cfg.investedCapital = cfg.investment;
+  cfg.years = cfg.horizonYears;
+  return cfg;
+}
+
+// Run the full Page-2 pipeline: recommendation engine, then projection
+// engine, then dashboard render. Replaces the legacy approach of
+// dispatching a click on the (now-removed) #run-recommendation button.
+function runFullPipeline() {
+  if (typeof runRecommendation === 'function') {
+    try { runRecommendation(); }
+    catch (e) { (window.reportFailure || console.warn)('Recommendation engine failed', e); }
+  }
+  if (typeof ProjectionEngine !== 'undefined' && ProjectionEngine.run) {
     try {
-      const invInp = document.getElementById('invested-capital');
-      const currentStrat = stratSel ? stratSel.value : null;
-      const currentLev = lcSel ? lcSel.value : null;
-      const picked3 = (typeof findSchwabCombo === 'function')
-        ? findSchwabCombo(currentStrat, currentLev)
-        : null;
-      if (invInp && picked3 && picked3.minInvestment) {
-        const invVal = Number(invInp.value) || 0;
-        const warnId = 'schwab-below-min-warning';
-        let warnEl = document.getElementById(warnId);
-        if (invVal > 0 && invVal < picked3.minInvestment) {
-          if (!warnEl) {
-            warnEl = document.createElement('p');
-            warnEl.id = warnId;
-            warnEl.className = 'subtitle';
-            warnEl.style.color = '#c53030';
-            warnEl.style.marginTop = '6px';
-            invInp.parentNode.appendChild(warnEl);
-          }
-          const dollarSign2 = String.fromCharCode(36);
-          warnEl.textContent = 'Warning: Schwab requires a minimum of '
-            + dollarSign2 + picked3.minInvestment.toLocaleString()
-            + ' for ' + picked3.strategyLabel + ' ' + picked3.leverageLabel
-            + '. You entered ' + dollarSign2 + invVal.toLocaleString() + '.';
-        } else if (warnEl) {
-          warnEl.textContent = '';
-        }
+      var cfg = _buildEngineCfg();
+      if (cfg) {
+        window.__lastResult = ProjectionEngine.run(cfg);
+        if (typeof renderProjectionDashboard === 'function') renderProjectionDashboard();
       }
-    } catch (e) { /* non-fatal */ }
+    } catch (e) { (window.reportFailure || console.warn)('Projection render failed', e); }
   }
 }
 
 function bindControls() {
-    // Hook: when "Run Decision Engine" fires, also run the multi-year projection
-    // engine and render the new dashboard into #projection-table so the
-    // Year-by-Year Tax Projection section is populated.
-    const recBtn0 = document.getElementById('run-recommendation');
-    if (recBtn0) {
-      recBtn0.addEventListener('click', function () {
-        // Defer slightly so the recommendation handler runs first and
-        // window.__lastRecommendation is populated.
-        setTimeout(function () {
-          try {
-            if (typeof collectInputs !== 'function' || typeof ProjectionEngine === 'undefined') return;
-            var cfg = collectInputs();
-            var sp = Number((document.getElementById('sale-price') || {}).value) || 0;
-            var cb = Number((document.getElementById('cost-basis') || {}).value) || 0;
-            var ad = Number((document.getElementById('accelerated-depreciation') || {}).value) || 0;
-            if (sp) cfg.salePrice = sp;
-            if (cb) cfg.costBasis = cb;
-            if (ad) cfg.acceleratedDepreciation = ad;
-            cfg.strategyKey = cfg.tierKey;
-            cfg.investedCapital = cfg.investment;
-            cfg.years = cfg.horizonYears;
-            window.__lastResult = ProjectionEngine.run(cfg);
-            if (typeof renderProjectionDashboard === 'function') renderProjectionDashboard();
-          } catch (e) { console.warn('post-recommendation projection failed:', e && e.message); }
-        }, 60);
-      });
-    }
-
-  // Auto-recalc when Brooklyn Configuration inputs change. The Run Decision
-  // Engine button is now hidden; the engine fires automatically on Page 2 entry
-  // and on any of these field changes.
+  // Auto-recalc when Brooklyn Configuration inputs change. The pipeline
+  // fires automatically on Page 2 entry and on any of these field changes.
   ['available-capital', 'invested-capital', 'strategy-select', 'beta1'].forEach(function (fid) {
     const el = document.getElementById(fid);
     if (!el) return;
@@ -598,27 +583,13 @@ function bindControls() {
         try {
           // Re-run the auto-pick optimizer if the user hasn't overridden a
           // pill yet. Brooklyn config changes (invested capital, strategy)
-          // can shift the optimal (leverage, horizon) combo.
+          // can shift the optimal (leverage, horizon, recognition) combo.
           if (typeof maybeAutoPick === 'function') {
             try { maybeAutoPick(); } catch (e) { /* non-fatal */ }
           }
-          if (typeof runRecommendation === 'function') runRecommendation();
-          if (typeof collectInputs === 'function' && typeof ProjectionEngine !== 'undefined' && ProjectionEngine.run) {
-            const _cfg = collectInputs();
-            const _sp = Number((document.getElementById('sale-price') || {}).value) || 0;
-            const _cb = Number((document.getElementById('cost-basis') || {}).value) || 0;
-            const _ad = Number((document.getElementById('accelerated-depreciation') || {}).value) || 0;
-            if (_sp) _cfg.salePrice = _sp;
-            if (_cb) _cfg.costBasis = _cb;
-            if (_ad) _cfg.acceleratedDepreciation = _ad;
-            _cfg.strategyKey = _cfg.tierKey;
-            _cfg.investedCapital = _cfg.investment;
-            _cfg.years = _cfg.horizonYears;
-            window.__lastResult = ProjectionEngine.run(_cfg);
-          }
-          if (typeof renderProjectionDashboard === 'function') renderProjectionDashboard();
+          runFullPipeline();
           if (typeof syncPillSelection === 'function') syncPillSelection();
-        } catch (e) { console.warn('auto-recalc failed:', e && e.message); }
+        } catch (e) { (window.reportFailure || console.warn)('Auto-recalculate failed', e); }
       }, 250);
     });
   });
@@ -655,9 +626,10 @@ function bindControls() {
         availEl.dispatchEvent(new Event('input', { bubbles: true }));
       }
     }
+    // showPage('page-projection') triggers runFullPipeline() internally,
+    // so the recommendation engine + dashboard render run automatically
+    // on arrival.
     showPage('page-projection');
-    const recBtn = document.getElementById('run-recommendation');
-    if (recBtn) recBtn.click();
   });
 
   const resetBtn = document.getElementById('reset-form');
@@ -684,7 +656,7 @@ function bindControls() {
   // Wire case-management controls + restore any auto-saved working state.
   // This must run AFTER _onCustodianChange so the leverage-cap dropdown
   // already has its options populated when we re-apply persisted values.
-  try { _bindCaseControls(); } catch (e) { console.warn('case controls failed:', e && e.message); }
+  try { _bindCaseControls(); } catch (e) { (window.reportFailure || console.warn)('Case management UI failed to wire', e, { level: 'error' }); }
 
   showPage('page-inputs');
 }

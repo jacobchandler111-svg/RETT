@@ -39,8 +39,38 @@
     if (!el) return;
     el.hidden = true;
     el.innerHTML = '';
+    _lastMessage = '';
+    _lastReportedAt = 0;
   }
 
-  root.showBanner = showBanner;
+  // Logs the error to the console AND surfaces a transient banner to the
+  // user. Auto-dismisses after a short window so successive failures
+  // don't pile up. Use this for defensive try/catch blocks where the
+  // user should be notified that something didn't render but the page
+  // is still usable.
+  var _lastReportedAt = 0;
+  var _lastMessage = '';
+  function reportFailure(label, err, opts) {
+    opts = opts || {};
+    var msg = label + (err && err.message ? ': ' + err.message : '');
+    try { console.warn(msg, err); } catch (e) { /* */ }
+    // Suppress duplicates within 1.5s — keeps the banner from
+    // flickering when the same catch fires repeatedly.
+    var now = Date.now();
+    if (msg === _lastMessage && (now - _lastReportedAt) < 1500) return;
+    _lastReportedAt = now;
+    _lastMessage = msg;
+    showBanner(opts.level || 'warning', msg);
+    var ms = opts.dismissMs != null ? opts.dismissMs : 3500;
+    if (ms > 0) {
+      setTimeout(function () {
+        var el = document.getElementById('app-banner');
+        if (el && el.textContent.indexOf(msg) !== -1) hideBanner();
+      }, ms);
+    }
+  }
+
+  root.showBanner    = showBanner;
+  root.reportFailure = reportFailure;
   root.hideBanner = hideBanner;
 })(window);
