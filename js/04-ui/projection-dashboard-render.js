@@ -369,6 +369,11 @@
     if (typeof root.renderBracketViz === 'function') {
       try { root.renderBracketViz(); } catch (e) { /* non-fatal */ }
     }
+    // Refresh the year-by-year cashflow schedule (Brooklyn investment +
+    // structured-sale balance) below the Multi-Year Snapshot.
+    if (typeof root.renderCashflowSchedule === 'function') {
+      try { root.renderCashflowSchedule(); } catch (e) { /* non-fatal */ }
+    }
     // Animate any KPI / hero / ribbon numbers that just changed.
     if (typeof root.animateRettNumbers === 'function') {
       try { root.animateRettNumbers(); } catch (e) { /* non-fatal */ }

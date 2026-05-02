@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RETT - Brooklyn Multi-Year Projector</title>
-  <link rel="stylesheet" href="css/styles.css?v=1777500000032">
+  <link rel="stylesheet" href="css/styles.css?v=1777500000034">
 </head>
 <body>
   <a href="#page-inputs" class="skip-link">Skip to main content</a>
@@ -279,9 +279,8 @@
         <!-- Recognition year is no longer a user-facing pill row.
              The engine automatically picks the year that maximizes net
              savings for whatever leverage + horizon the user chose.
-             Hidden #recognition-pill-group track is left in the DOM
-             so any code that still toggles its visibility doesn't
-             throw. -->
+             Hidden tracks left in the DOM so any code that still
+             toggles their visibility doesn't throw. -->
         <div class="pill-group" id="recognition-pill-group" role="radiogroup" aria-label="Gain recognition" hidden>
           <span class="pill-group-label">Recognition</span>
           <div class="pill-track" id="recognition-pill-track"></div>
@@ -289,9 +288,9 @@
         </div>
       </div>
 
-      <!-- Status line that surfaces the auto-picked recognition year so
-           the user understands what the engine decided behind the scenes. -->
-      <p id="recognition-status" class="subtitle muted" aria-live="polite" hidden></p>
+      <!-- Hidden status sink kept in the DOM so searchBestRecognitionForCurrent
+           can write to it without throwing. Not displayed. -->
+      <p id="recognition-status" hidden></p>
 
       <!-- Hidden state mirrors. The slider/dropdowns above are the
            visible UI; these elements remain the source of truth that
@@ -323,6 +322,11 @@
       <h3 class="section-title" style="margin-top:24px;">Multi-Year Snapshot</h3>
       <div id="projection-summary-host" aria-live="polite"></div>
 
+      <!-- Year-by-year cashflow schedule: Brooklyn investment + structured-
+           sale balance + scheduled releases. Built by cashflow-schedule-render.js
+           after the dashboard renders. -->
+      <div id="cashflow-schedule-host" aria-live="polite"></div>
+
       <h3 class="section-title" style="margin-top:24px;">Federal Bracket Position</h3>
       <div id="bracket-viz-host" aria-live="polite"></div>
     </div>
@@ -352,53 +356,54 @@
   </main>
 
   <!-- ============ Subsystem load order: 00 -> 01 -> 02 -> 03 -> 05 -> 04 ============ -->
-  <script src="js/00-data/custodians.js?v=1777500000032"></script>
-  <script src="js/00-data/schwab-strategies.js?v=1777500000032"></script>
-  <script src="js/01-brooklyn/brooklyn-data.js?v=1777500000032"></script>
-  <script src="js/01-brooklyn/date-utils.js?v=1777500000032"></script>
-  <script src="js/01-brooklyn/time-weight.js?v=1777500000032"></script>
-  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777500000032"></script>
-  <script src="js/01-brooklyn/variable-leverage.js?v=1777500000032"></script>
+  <script src="js/00-data/custodians.js?v=1777500000034"></script>
+  <script src="js/00-data/schwab-strategies.js?v=1777500000034"></script>
+  <script src="js/01-brooklyn/brooklyn-data.js?v=1777500000034"></script>
+  <script src="js/01-brooklyn/date-utils.js?v=1777500000034"></script>
+  <script src="js/01-brooklyn/time-weight.js?v=1777500000034"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777500000034"></script>
+  <script src="js/01-brooklyn/variable-leverage.js?v=1777500000034"></script>
 
-  <script src="js/02-tax-engine/tax-data.js?v=1777500000032"></script>
-  <script src="js/02-tax-engine/tax-loader.js?v=1777500000032"></script>
-  <script src="js/02-tax-engine/tax-lookups.js?v=1777500000032"></script>
-  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777500000032"></script>
-  <script src="js/02-tax-engine/tax-calc-state.js?v=1777500000032"></script>
-  <script src="js/02-tax-engine/tax-baseline.js?v=1777500000032"></script>
-  <script src="js/02-tax-engine/tax-comparison.js?v=1777500000032"></script>
+  <script src="js/02-tax-engine/tax-data.js?v=1777500000034"></script>
+  <script src="js/02-tax-engine/tax-loader.js?v=1777500000034"></script>
+  <script src="js/02-tax-engine/tax-lookups.js?v=1777500000034"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777500000034"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js?v=1777500000034"></script>
+  <script src="js/02-tax-engine/tax-baseline.js?v=1777500000034"></script>
+  <script src="js/02-tax-engine/tax-comparison.js?v=1777500000034"></script>
 
-  <script src="js/03-solver/fees.js?v=1777500000032"></script>
-  <script src="js/03-solver/fee-split.js?v=1777500000032"></script>
-  <script src="js/03-solver/brookhaven-fees.js?v=1777500000032"></script>
-  <script src="js/03-solver/brooklyn-allocator.js?v=1777500000032"></script>
-  <script src="js/03-solver/single-year-solver.js?v=1777500000032"></script>
-  <script src="js/03-solver/multi-year-solver.js?v=1777500000032"></script>
-  <script src="js/03-solver/structured-sale.js?v=1777500000032"></script>
-  <script src="js/03-solver/decision-engine.js?v=1777500000032"></script>
+  <script src="js/03-solver/fees.js?v=1777500000034"></script>
+  <script src="js/03-solver/fee-split.js?v=1777500000034"></script>
+  <script src="js/03-solver/brookhaven-fees.js?v=1777500000034"></script>
+  <script src="js/03-solver/brooklyn-allocator.js?v=1777500000034"></script>
+  <script src="js/03-solver/single-year-solver.js?v=1777500000034"></script>
+  <script src="js/03-solver/multi-year-solver.js?v=1777500000034"></script>
+  <script src="js/03-solver/structured-sale.js?v=1777500000034"></script>
+  <script src="js/03-solver/decision-engine.js?v=1777500000034"></script>
 
-  <script src="js/05-projections/bracket-projector.js?v=1777500000032"></script>
-  <script src="js/05-projections/carryforward-tracker.js?v=1777500000032"></script>
-  <script src="js/05-projections/projection-engine.js?v=1777500000032"></script>
+  <script src="js/05-projections/bracket-projector.js?v=1777500000034"></script>
+  <script src="js/05-projections/carryforward-tracker.js?v=1777500000034"></script>
+  <script src="js/05-projections/projection-engine.js?v=1777500000034"></script>
 
-  <script src="js/04-ui/banner.js?v=1777500000032"></script>
-  <script src="js/04-ui/number-animator.js?v=1777500000032"></script>
-  <script src="js/04-ui/case-storage.js?v=1777500000032"></script>
-  <script src="js/04-ui/pill-toggles.js?v=1777500000032"></script>
-  <script src="js/04-ui/variable-leverage-ui.js?v=1777500000032"></script>
-  <script src="js/04-ui/format-helpers.js?v=1777500000032"></script>
-  <script src="js/04-ui/input-validation.js?v=1777500000032"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1777500000032"></script>
-  <script src="js/04-ui/controls.js?v=1777500000032"></script>
-  <script src="js/04-ui/projection-render.js?v=1777500000032"></script>
-  <script src="js/04-ui/recommendation-render.js?v=1777500000032"></script>
-  <script src="js/04-ui/projection-dashboard-render.js?v=1777500000032"></script>
-  <script src="js/04-ui/savings-ribbon.js?v=1777500000032"></script>
-  <script src="js/04-ui/bracket-viz-render.js?v=1777500000032"></script>
-  <script src="js/04-ui/narrative-render.js?v=1777500000032"></script>
-  <script src="js/04-ui/strategy-summary-render.js?v=1777500000032"></script>
+  <script src="js/04-ui/banner.js?v=1777500000034"></script>
+  <script src="js/04-ui/number-animator.js?v=1777500000034"></script>
+  <script src="js/04-ui/case-storage.js?v=1777500000034"></script>
+  <script src="js/04-ui/pill-toggles.js?v=1777500000034"></script>
+  <script src="js/04-ui/variable-leverage-ui.js?v=1777500000034"></script>
+  <script src="js/04-ui/format-helpers.js?v=1777500000034"></script>
+  <script src="js/04-ui/input-validation.js?v=1777500000034"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1777500000034"></script>
+  <script src="js/04-ui/controls.js?v=1777500000034"></script>
+  <script src="js/04-ui/projection-render.js?v=1777500000034"></script>
+  <script src="js/04-ui/recommendation-render.js?v=1777500000034"></script>
+  <script src="js/04-ui/projection-dashboard-render.js?v=1777500000034"></script>
+  <script src="js/04-ui/savings-ribbon.js?v=1777500000034"></script>
+  <script src="js/04-ui/bracket-viz-render.js?v=1777500000034"></script>
+  <script src="js/04-ui/cashflow-schedule-render.js?v=1777500000034"></script>
+  <script src="js/04-ui/narrative-render.js?v=1777500000034"></script>
+  <script src="js/04-ui/strategy-summary-render.js?v=1777500000034"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1777500000032"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1777500000034"></script>
 </body>
 </html>

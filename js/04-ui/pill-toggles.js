@@ -232,19 +232,9 @@
     // Apply the winning recognition year (no UI dispatch — we don't
     // want a change event firing the auto-recalc loop again).
     recSel.value = bestRec;
-
-    // Update the status line so the user sees what the engine picked.
-    var status = document.getElementById('recognition-status');
-    if (status) {
-      var year1 = parseInt(((document.getElementById('year1') || {}).value || '2026'), 10) || 2026;
-      var recNum = parseInt(bestRec, 10) || 1;
-      var recYear = year1 + (recNum - 1);
-      var label = recNum === 1
-        ? 'Engine recognizes the gain in Year 1 (' + recYear + ') for max net savings.'
-        : 'Engine defers gain recognition to Year ' + recNum + ' (' + recYear + ') for max net savings.';
-      status.textContent = label;
-      status.hidden = false;
-    }
+    // Recognition status line is intentionally NOT shown to the user —
+    // the engine picks the optimal year silently. The hidden <p> stays
+    // in the DOM as a no-op sink only.
     return bestRec;
   }
 
@@ -285,36 +275,31 @@
   // Tie-breaker: when two combos produce the same net (within $1k), prefer
   // the one with the SHORTEST gain-recognition duration. Matches the
   // user's stated preference for shorter structured-sale lockups.
-  // Generate the candidate short% values to test. Continuous search in
-  // 5% increments across [0, custodian-max], plus the published preset
-  // shortPcts so we don't miss exact tier matches due to step alignment.
+  // Generate the candidate short% values to test. We search every 1%
+  // across [0, custodian-max] so the auto-pick lands on the EXACT
+  // global max rather than a 5%-step approximation. The user has
+  // reported finding higher-net points by manually nudging the slider
+  // past where the auto-pick stopped — that gap goes away with 1%
+  // resolution. Iteration cost: ~100 short × 3 horizons × up-to-4
+  // recognition = ~1200 evaluations on Page-2 entry. The recognition-
+  // only search that fires on every subsequent recompute remains
+  // cheap (≤ 4 evaluations).
   function _candidateShortPcts(stratKey, custodianId) {
     var maxShort = 225;
-    var presets = [];
     if (custodianId === 'schwab' && typeof root.listSchwabCombos === 'function') {
       var combos = root.listSchwabCombos().filter(function (c) { return c.strategyKey === stratKey; });
       if (combos.length) {
         maxShort = Math.max.apply(null, combos.map(function (c) { return c.shortPct || 0; }));
-        presets = combos.map(function (c) { return c.shortPct; });
       }
     } else {
       var tier = (root.BROOKLYN_STRATEGIES || {})[stratKey];
       if (tier && Array.isArray(tier.dataPoints)) {
         maxShort = Math.max.apply(null, tier.dataPoints.map(function (p) { return p.shortPct || 0; }));
-        presets = tier.dataPoints.map(function (p) { return p.shortPct; });
       }
     }
-    var step = 5;
-    var seen = {};
+    var step = 1;
     var out = [];
-    for (var s = 0; s <= maxShort; s += step) {
-      seen[s] = true;
-      out.push(s);
-    }
-    presets.forEach(function (p) {
-      if (!seen[p]) { seen[p] = true; out.push(p); }
-    });
-    out.sort(function (a, b) { return a - b; });
+    for (var s = 0; s <= maxShort; s += step) out.push(s);
     return out;
   }
 
@@ -433,31 +418,24 @@
           }
 
           var net = totalSave - cumFees - brookhavenFees;
-
-          // Numeric leverage = short% / 100 for the tie-breaker.
           var levNumeric = sp / 100;
 
-          // Multi-objective auto-pick (per user preferences):
-          //   1. Maximize net benefit (savings minus all fees) PRIMARY.
-          //      We bucket net into $5K tiers so within-$5K differences
-          //      defer to subsequent criteria.
-          //   2. Same bucket, prefer SHORTER recognition duration.
-          //   3. Same bucket AND duration, prefer LOWER leverage.
-          //   4. Same bucket AND duration AND leverage, prefer higher
-          //      raw net (catches identical-input cases that differ
-          //      only in horizon/leverage rounding).
-          var TIE = 5000;
-          var aBucket = Math.floor(net / TIE);
-          var bBucket = best ? Math.floor(best.net / TIE) : -Infinity;
+          // Pure max-net optimization (per user direction): the engine
+          // picks whichever (leverage, horizon, recognition) combo
+          // produces the absolute highest net savings. The previous
+          // $5K bucket was leaving small amounts of net on the table
+          // for the sake of "lower leverage feels safer" — the user
+          // has now explicitly asked for the highest net, period.
+          //
+          // Tiebreak only on EXACT-cent ties: prefer shorter horizon,
+          // then lower leverage. Real-money ties at this granularity
+          // are vanishingly rare; the tiebreak is just for determinism.
           var better = false;
           if (!best) better = true;
-          else if (aBucket > bBucket) better = true;
-          else if (aBucket === bBucket) {
+          else if (net > best.net) better = true;
+          else if (net === best.net) {
             if (duration < best.duration) better = true;
-            else if (duration === best.duration) {
-              if (levNumeric < best.leverage) better = true;
-              else if (levNumeric === best.leverage && net > best.net) better = true;
-            }
+            else if (duration === best.duration && levNumeric < best.leverage) better = true;
           }
           if (better) {
             best = {
