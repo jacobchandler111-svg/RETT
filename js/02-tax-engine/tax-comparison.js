@@ -99,6 +99,15 @@ function _applyLossesToScenario(scenario, lossAvailable) {
 
 function computeTaxComparison(cfg, recommendation) {
       const horizon = cfg.horizonYears || 5;
+
+      // Brookhaven advisory wrap fees attach to every comparison row.
+      const yfImpl = (typeof yearFractionRemaining === 'function' && cfg.implementationDate)
+            ? yearFractionRemaining(cfg.implementationDate)
+            : 1;
+      const brookhavenSchedule = (typeof brookhavenFeeSchedule === 'function')
+            ? brookhavenFeeSchedule(horizon, yfImpl)
+            : null;
+
       const rows = [];
       for (let i = 0; i < horizon; i++) {
             const yr = cfg.year1 + i;
@@ -124,23 +133,32 @@ function computeTaxComparison(cfg, recommendation) {
             const withStrat = _applyLossesToScenario(baseline, lossThisYear);
             const withStratTax = _yearTaxes(withStrat);
 
+            const bh = brookhavenSchedule ? brookhavenSchedule.perYear[i] : { setup: 0, quarterly: 0, total: 0 };
             rows.push({
                   year: yr,
                   gainRecognized: gainThisYear,
                   lossApplied: lossThisYear,
+                  brookhavenFee: bh.total,
+                  brookhavenSetupFee: bh.setup,
+                  brookhavenQuarterlyFee: bh.quarterly,
                   baseline: baselineTax,
                   withStrategy: withStratTax,
                   savings: baselineTax.total - withStratTax.total
             });
       }
 
-      let totalBaseline = 0, totalWith = 0;
-      rows.forEach(r => { totalBaseline += r.baseline.total; totalWith += r.withStrategy.total; });
+      let totalBaseline = 0, totalWith = 0, totalBrookhaven = 0;
+      rows.forEach(r => {
+            totalBaseline += r.baseline.total;
+            totalWith += r.withStrategy.total;
+            totalBrookhaven += (r.brookhavenFee || 0);
+      });
       return {
             rows: rows,
             totalBaseline: totalBaseline,
             totalWithStrategy: totalWith,
-            totalSavings: totalBaseline - totalWith
+            totalSavings: totalBaseline - totalWith,
+            totalBrookhavenFees: totalBrookhaven
       };
 }
 
@@ -246,6 +264,17 @@ function computeDeferredTaxComparison(cfg) {
       const rows = [];
       const recognitionSchedule = [];
 
+      // Brookhaven advisory wrap fees: $45K setup (Year 1) + $2K/qtr
+      // for 8 quarters, with Year-1 quarterly fees pro-rated by entry
+      // date. Surfaced as a separate fee line so the advisor can show
+      // the all-in cost transparently.
+      const yfImpl = (typeof yearFractionRemaining === 'function' && cfg.implementationDate)
+            ? yearFractionRemaining(cfg.implementationDate)
+            : 1;
+      const brookhavenSchedule = (typeof brookhavenFeeSchedule === 'function')
+            ? brookhavenFeeSchedule(horizon, yfImpl)
+            : null;
+
       for (let i = 0; i < horizon; i++) {
             const year = (cfg.year1 || (new Date()).getFullYear()) + i;
 
@@ -309,6 +338,9 @@ function computeDeferredTaxComparison(cfg) {
 
             stCF = Math.max(0, withStrat._lossUnused || 0);
 
+            // Brookhaven flat fees for this year (setup is Year-1 only).
+            const bh = brookhavenSchedule ? brookhavenSchedule.perYear[i] : { setup: 0, quarterly: 0, total: 0 };
+
             rows.push({
                   year: year,
                   gainRecognized: gainRecThisYear,
@@ -317,17 +349,21 @@ function computeDeferredTaxComparison(cfg) {
                   stCarryForward: stCF,
                   investmentThisYear: yearInvested,
                   fee: yearFee,
+                  brookhavenFee: bh.total,
+                  brookhavenSetupFee: bh.setup,
+                  brookhavenQuarterlyFee: bh.quarterly,
                   baseline: baselineTax,
                   withStrategy: withStratTax,
                   savings: baselineTax.total - withStratTax.total
             });
       }
 
-      let totalBaseline = 0, totalWith = 0, totalFees = 0;
+      let totalBaseline = 0, totalWith = 0, totalFees = 0, totalBrookhaven = 0;
       rows.forEach(function (r) {
             totalBaseline += r.baseline.total;
             totalWith += r.withStrategy.total;
             totalFees += r.fee;
+            totalBrookhaven += (r.brookhavenFee || 0);
       });
 
       // Effective duration = number of years over which gain was recognized
@@ -345,6 +381,8 @@ function computeDeferredTaxComparison(cfg) {
             totalWithStrategy: totalWith,
             totalSavings: totalBaseline - totalWith,
             totalFees: totalFees,
+            totalBrookhavenFees: totalBrookhaven,
+            totalAllFees: totalFees + totalBrookhaven,
             recognitionSchedule: recognitionSchedule,
             durationYears: durationYears,
             unrecognizedGain: gainRemaining,

@@ -215,6 +215,7 @@
 
           var totalSave = 0;
           var cumFees = 0;
+          var brookhavenFees = 0;
           var duration = 0;
 
           if (rStart > 1 && typeof root.computeDeferredTaxComparison === 'function') {
@@ -225,6 +226,7 @@
               if (defComp && defComp.rows && defComp.rows.length) {
                 totalSave = defComp.totalSavings || 0;
                 cumFees = defComp.totalFees || 0;
+                brookhavenFees = defComp.totalBrookhavenFees || 0;
                 duration = defComp.durationYears || 0;
               }
             } catch (e) { continue; }
@@ -256,6 +258,7 @@
                   } else {
                     comp.rows.forEach(function (r) { totalSave += (r.savings || 0); });
                   }
+                  brookhavenFees = comp.totalBrookhavenFees || 0;
                 }
               } catch (e) { /* fall back below */ }
             }
@@ -266,10 +269,15 @@
                 totalSave += (no - w);
               });
             }
+            // For immediate path without comparison, derive Brookhaven from horizon.
+            if (!brookhavenFees && typeof brookhavenFeeSchedule === 'function') {
+              var horSched = brookhavenFeeSchedule(cfg.horizonYears || 5, 1);
+              brookhavenFees = horSched.total;
+            }
             duration = 1;
           }
 
-          var net = totalSave - cumFees;
+          var net = totalSave - cumFees - brookhavenFees;
           // Tie-breaker: prefer shorter recognition duration when nets are
           // within $1,000 — matches the user's preference for shorter
           // structured-sale lockups.
@@ -311,6 +319,11 @@
 
   function maybeAutoPick() {
     if (!root.__rettAutoPickEnabled) return null;
+    // When the user has switched to variable leverage, the pill choices
+    // don't drive the engine — skip the optimizer so we don't fight the
+    // user's typed short%.
+    var customToggle = document.getElementById('use-variable-leverage');
+    if (customToggle && customToggle.checked) return null;
     return runAutoPick();
   }
 

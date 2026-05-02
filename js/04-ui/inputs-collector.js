@@ -78,5 +78,23 @@ function collectInputs() {
         }
       }
 
+      // Custom (variable) leverage override. MUST run AFTER the Schwab
+      // combo block above so we can clear cfg.comboId — Schwab combos are
+      // preset-only, but variable leverage uses the brooklyn-data
+      // regression. When the toggle is on, the user's typed short%
+      // becomes the source of truth: leverage = short% / 100.
+      var customToggle = document.getElementById('use-variable-leverage');
+      if (customToggle && customToggle.checked) {
+        var spRaw = parseFloat(_val('custom-short-pct'));
+        if (Number.isFinite(spRaw) && spRaw >= 0) {
+          cfg.useVariableLeverage = true;
+          cfg.customShortPct = spRaw;
+          cfg.leverage = spRaw / 100;
+          cfg.leverageCap = spRaw / 100;
+          delete cfg.comboId;
+          delete cfg.leverageLabel;
+        }
+      }
+
       return cfg;
 }

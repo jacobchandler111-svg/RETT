@@ -92,7 +92,8 @@
       });
     }
     if (!(comp && comp.deferred) && totals.cumulativeFees != null) cumFees = totals.cumulativeFees;
-    var net = totalSave - cumFees;
+    var brookhavenFees = (comp && comp.totalBrookhavenFees) || 0;
+    var net = totalSave - cumFees - brookhavenFees;
 
     // Invested capital: prefer the cfg.investment that the projection
     // actually ran with (which inputs-collector resolves as Available
@@ -172,10 +173,13 @@
         investedClause = 'Investing ' + earlyTranches + ' and ' + lastTranche +
           ' in ' + strategy;
       }
+      var feesClause = brookhavenFees > 0
+        ? _fmt(cumFees) + ' in Brooklyn fees and ' + _fmt(brookhavenFees) + ' in Brookhaven advisory fees'
+        : _fmt(cumFees) + ' in strategy fees';
       s2 = investedClause +
         ' generates short-term losses every year (year-1 rate on each tranche, tapering thereafter) that reduce ' + horizon + '-year tax by ' +
         _fmt(totalSave) + ' \u2014 ' + savingsTone + ' benefit of ' +
-        _fmt(net) + ' after ' + _fmt(cumFees) + ' in strategy fees.';
+        _fmt(net) + ' after ' + feesClause + '.';
     } else if (invested > 0 && totalSave === 0) {
       s2 = 'Investing ' + _fmt(invested) + ' in ' + strategy +
         ' generates losses, but they produce no tax offset for these inputs. ' +

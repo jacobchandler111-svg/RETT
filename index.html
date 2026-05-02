@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RETT - Brooklyn Multi-Year Projector</title>
-  <link rel="stylesheet" href="css/styles.css?v=1777500000022">
+  <link rel="stylesheet" href="css/styles.css?v=1777500000024">
 </head>
 <body>
   <a href="#page-inputs" class="skip-link">Skip to main content</a>
@@ -287,25 +287,36 @@
         </select>
       </div>
 
-      <fieldset class="input-group" id="variable-leverage-block" style="display:none">
-        <legend class="visually-hidden">Variable Leverage Configuration</legend>
-        <label><input type="checkbox" id="use-variable-leverage" checked> Use Variable Leverage</label>
-        <div class="variable-readouts">
-          <span><strong>Proposed Plan:</strong> <span id="variable-readout-label">100/0</span></span>
-          <span><strong>Leverage:</strong> <span id="variable-readout-lev">0.00x</span></span>
-          <span id="variable-readout-long" style="display:none">100%</span>
-          <span id="variable-readout-short" style="display:none">0%</span>
-          <span id="variable-readout-loss" style="display:none">10.40%</span>
-          <span id="variable-readout-fee" style="display:none">0.170%</span>
+      <!-- Variable (custom) leverage: lets the user pick any short% within
+           the custodian's allowed range. Loss rate and fee are linearly
+           interpolated from the preset data points. Long% derives from the
+           strategy (Beta 1: long = 100 + short; Beta 0: long = short;
+           Beta 0.5: long = 100 + short). -->
+      <div class="variable-leverage-section">
+        <label class="checkbox-row">
+          <input type="checkbox" id="use-variable-leverage"> Use custom leverage (interpolate between presets)
+        </label>
+        <div id="variable-leverage-controls" class="custom-leverage-grid" hidden>
+          <div class="input-group">
+            <label for="custom-short-pct">Short %</label>
+            <input type="number" id="custom-short-pct" min="0" max="225" step="1" value="45" inputmode="numeric">
+          </div>
+          <div class="input-group">
+            <label>Long %</label>
+            <output id="custom-long-readout">145%</output>
+          </div>
+          <div class="input-group">
+            <label>Effective tier</label>
+            <output id="custom-tier-readout">145/45</output>
+          </div>
+          <div class="input-group">
+            <label>Loss rate (Y1) / Fee</label>
+            <output id="custom-fee-readout">32.2% / 0.77%</output>
+          </div>
         </div>
-        <div class="manual-variable-row">
-          <label><input type="checkbox" id="use-manual-variable"> Pin manual variable point (override auto-solve)</label>
-        </div>
-        <div class="slider-row">
-          <label for="variable-short-slider">Manual Short %</label>
-          <input type="range" id="variable-short-slider" min="0" max="225" step="1" value="0">
-        </div>
-      </fieldset>
+        <p id="custom-leverage-hint" class="subtitle muted" hidden></p>
+      </div>
+
 
       <!-- The recommendation engine is fired automatically when the user
            lands on Page 2 (and on every Brooklyn-config change). The
@@ -346,50 +357,53 @@
   </main>
 
   <!-- ============ Subsystem load order: 00 -> 01 -> 02 -> 03 -> 05 -> 04 ============ -->
-  <script src="js/00-data/custodians.js?v=1777500000022"></script>
-  <script src="js/00-data/schwab-strategies.js?v=1777500000022"></script>
-  <script src="js/01-brooklyn/brooklyn-data.js?v=1777500000022"></script>
-  <script src="js/01-brooklyn/date-utils.js?v=1777500000022"></script>
-  <script src="js/01-brooklyn/time-weight.js?v=1777500000022"></script>
-  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777500000022"></script>
-  <script src="js/01-brooklyn/variable-leverage.js?v=1777500000022"></script>
+  <script src="js/00-data/custodians.js?v=1777500000024"></script>
+  <script src="js/00-data/schwab-strategies.js?v=1777500000024"></script>
+  <script src="js/01-brooklyn/brooklyn-data.js?v=1777500000024"></script>
+  <script src="js/01-brooklyn/date-utils.js?v=1777500000024"></script>
+  <script src="js/01-brooklyn/time-weight.js?v=1777500000024"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777500000024"></script>
+  <script src="js/01-brooklyn/variable-leverage.js?v=1777500000024"></script>
 
-  <script src="js/02-tax-engine/tax-data.js?v=1777500000022"></script>
-  <script src="js/02-tax-engine/tax-loader.js?v=1777500000022"></script>
-  <script src="js/02-tax-engine/tax-lookups.js?v=1777500000022"></script>
-  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777500000022"></script>
-  <script src="js/02-tax-engine/tax-calc-state.js?v=1777500000022"></script>
-  <script src="js/02-tax-engine/tax-baseline.js?v=1777500000022"></script>
-  <script src="js/02-tax-engine/tax-comparison.js?v=1777500000022"></script>
+  <script src="js/02-tax-engine/tax-data.js?v=1777500000024"></script>
+  <script src="js/02-tax-engine/tax-loader.js?v=1777500000024"></script>
+  <script src="js/02-tax-engine/tax-lookups.js?v=1777500000024"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777500000024"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js?v=1777500000024"></script>
+  <script src="js/02-tax-engine/tax-baseline.js?v=1777500000024"></script>
+  <script src="js/02-tax-engine/tax-comparison.js?v=1777500000024"></script>
 
-  <script src="js/03-solver/fees.js?v=1777500000022"></script>
-  <script src="js/03-solver/brooklyn-allocator.js?v=1777500000022"></script>
-  <script src="js/03-solver/single-year-solver.js?v=1777500000022"></script>
-  <script src="js/03-solver/multi-year-solver.js?v=1777500000022"></script>
-  <script src="js/03-solver/structured-sale.js?v=1777500000022"></script>
-  <script src="js/03-solver/decision-engine.js?v=1777500000022"></script>
+  <script src="js/03-solver/fees.js?v=1777500000024"></script>
+  <script src="js/03-solver/fee-split.js?v=1777500000024"></script>
+  <script src="js/03-solver/brookhaven-fees.js?v=1777500000024"></script>
+  <script src="js/03-solver/brooklyn-allocator.js?v=1777500000024"></script>
+  <script src="js/03-solver/single-year-solver.js?v=1777500000024"></script>
+  <script src="js/03-solver/multi-year-solver.js?v=1777500000024"></script>
+  <script src="js/03-solver/structured-sale.js?v=1777500000024"></script>
+  <script src="js/03-solver/decision-engine.js?v=1777500000024"></script>
 
-  <script src="js/05-projections/bracket-projector.js?v=1777500000022"></script>
-  <script src="js/05-projections/carryforward-tracker.js?v=1777500000022"></script>
-  <script src="js/05-projections/projection-engine.js?v=1777500000022"></script>
+  <script src="js/05-projections/bracket-projector.js?v=1777500000024"></script>
+  <script src="js/05-projections/carryforward-tracker.js?v=1777500000024"></script>
+  <script src="js/05-projections/projection-engine.js?v=1777500000024"></script>
 
-  <script src="js/04-ui/banner.js?v=1777500000022"></script>
-  <script src="js/04-ui/number-animator.js?v=1777500000022"></script>
-  <script src="js/04-ui/case-storage.js?v=1777500000022"></script>
-  <script src="js/04-ui/pill-toggles.js?v=1777500000022"></script>
-  <script src="js/04-ui/format-helpers.js?v=1777500000022"></script>
-  <script src="js/04-ui/input-validation.js?v=1777500000022"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1777500000022"></script>
-  <script src="js/04-ui/controls.js?v=1777500000022"></script>
-  <script src="js/04-ui/projection-render.js?v=1777500000022"></script>
-  <script src="js/04-ui/recommendation-render.js?v=1777500000022"></script>
-  <script src="js/04-ui/projection-dashboard-render.js?v=1777500000022"></script>
-  <script src="js/04-ui/savings-ribbon.js?v=1777500000022"></script>
-  <script src="js/04-ui/bracket-viz-render.js?v=1777500000022"></script>
-  <script src="js/04-ui/narrative-render.js?v=1777500000022"></script>
-  <script src="js/04-ui/strategy-summary-render.js?v=1777500000022"></script>
+  <script src="js/04-ui/banner.js?v=1777500000024"></script>
+  <script src="js/04-ui/number-animator.js?v=1777500000024"></script>
+  <script src="js/04-ui/case-storage.js?v=1777500000024"></script>
+  <script src="js/04-ui/pill-toggles.js?v=1777500000024"></script>
+  <script src="js/04-ui/variable-leverage-ui.js?v=1777500000024"></script>
+  <script src="js/04-ui/format-helpers.js?v=1777500000024"></script>
+  <script src="js/04-ui/input-validation.js?v=1777500000024"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1777500000024"></script>
+  <script src="js/04-ui/controls.js?v=1777500000024"></script>
+  <script src="js/04-ui/projection-render.js?v=1777500000024"></script>
+  <script src="js/04-ui/recommendation-render.js?v=1777500000024"></script>
+  <script src="js/04-ui/projection-dashboard-render.js?v=1777500000024"></script>
+  <script src="js/04-ui/savings-ribbon.js?v=1777500000024"></script>
+  <script src="js/04-ui/bracket-viz-render.js?v=1777500000024"></script>
+  <script src="js/04-ui/narrative-render.js?v=1777500000024"></script>
+  <script src="js/04-ui/strategy-summary-render.js?v=1777500000024"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1777500000022"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1777500000024"></script>
 </body>
 </html>

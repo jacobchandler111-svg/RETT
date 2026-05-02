@@ -231,13 +231,17 @@
       });
     }
     if (!(comp && comp.deferred) && totals && totals.cumulativeFees != null) cumFees = totals.cumulativeFees;
-    var net = totalSave - cumFees;
+    var brookhavenFees = (comp && comp.totalBrookhavenFees) || 0;
+    var net = totalSave - cumFees - brookhavenFees;
     var horizon = (years && years.length) ? years.length : 0;
 
     var heroKind = totalSave > 0 ? 'hero-positive' : (totalSave < 0 ? 'hero-negative' : '');
     var sign = totalSave > 0 ? '+' : (totalSave < 0 ? '\u2212' : '');
     var displayAmount = sign + _fmt(Math.abs(totalSave)).replace('-', '');
 
+    var brookhavenLine = brookhavenFees > 0
+      ? ' \u2022 Brookhaven fees: ' + _fmt(brookhavenFees)
+      : '';
     return '<div class="rett-hero-tile ' + heroKind + '" role="status" aria-live="polite">' +
       '<div class="rett-hero-label">Estimated Tax Savings</div>' +
       '<div class="rett-hero-value">' + displayAmount + '</div>' +
@@ -245,6 +249,7 @@
         'Cumulative over ' + horizon + ' year' + (horizon === 1 ? '' : 's') +
         ' \u2022 Net of fees: <strong>' + _fmt(net) + '</strong>' +
         ' \u2022 Brooklyn fees: ' + _fmt(cumFees) +
+        brookhavenLine +
       '</div>' +
     '</div>';
   }

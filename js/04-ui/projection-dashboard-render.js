@@ -54,8 +54,11 @@
     });
     if (totals && totals.cumulativeFees != null) cumFees = totals.cumulativeFees;
 
-    var net = totalSave - cumFees;
-    var roi = cumFees > 0 ? (net / cumFees * 100) : (totalSave > 0 ? Infinity : 0);
+    var comp = window.__lastComparison;
+    var brookhavenFees = (comp && comp.totalBrookhavenFees) || 0;
+    var allFees = cumFees + brookhavenFees;
+    var net = totalSave - allFees;
+    var roi = allFees > 0 ? (net / allFees * 100) : (totalSave > 0 ? Infinity : 0);
     var roiTxt = isFinite(roi) ? roi.toFixed(0) + '%' : '∞';
     var pctReduce = totalNo > 0 ? (totalSave / totalNo * 100).toFixed(1) + '% lower tax' : '';
 
@@ -63,10 +66,14 @@
     var netKind = net > 0 ? 'positive' : (net < 0 ? 'negative' : '');
     var roiKind = isFinite(roi) && roi > 0 ? 'positive' : (isFinite(roi) && roi < 0 ? 'negative' : '');
 
+    var brookhavenTile = brookhavenFees > 0
+      ? _kpiTile('Brookhaven Fees', _fmt(brookhavenFees), 'Setup + quarterly retainer', '')
+      : '';
     return '<div class="rett-kpi-row">' +
       _kpiTile('Total Tax Saved', _fmt(totalSave), pctReduce + ' over ' + years.length + ' yrs', savedKind) +
-      _kpiTile('Cumulative Fees', _fmt(cumFees), 'Brooklyn strategy fees', '') +
-      _kpiTile('Net Benefit', _fmt(net), 'Savings minus fees', netKind) +
+      _kpiTile('Brooklyn Fees', _fmt(cumFees), 'Strategy fees (mgmt + financing)', '') +
+      brookhavenTile +
+      _kpiTile('Net Benefit', _fmt(net), 'Savings minus all fees', netKind) +
       _kpiTile('Return on Planning', roiTxt, 'Net benefit / fees', roiKind) +
       '</div>';
   }

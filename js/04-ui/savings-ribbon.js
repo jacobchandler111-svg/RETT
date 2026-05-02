@@ -74,15 +74,25 @@
       var totals = (result && result.totals) || {};
       if (totals.cumulativeFees != null) cumFees = totals.cumulativeFees;
     }
-    var net = totalSave - cumFees;
+    // Brookhaven advisory wrap fees ($45K setup + $2K/qtr × 8 qtrs).
+    // Show as a separate tile and subtract from the net benefit.
+    var brookhavenFees = (comp && comp.totalBrookhavenFees) || 0;
+    var net = totalSave - cumFees - brookhavenFees;
 
     var saveKind = totalSave > 0 ? 'positive' : (totalSave < 0 ? 'negative' : '');
     var netKind  = net > 0 ? 'positive' : (net < 0 ? 'negative' : '');
 
-    ribbon.innerHTML =
+    // When Brookhaven fees are zero (e.g. fee data not loaded yet),
+    // collapse to the legacy 3-tile layout. Otherwise show the
+    // 4-tile breakdown so the advisor sees both fee lines.
+    var tiles =
       _tile('Total Tax Savings', _fmt(totalSave), saveKind) +
-      _tile('Cumulative Fees', _fmt(cumFees), '') +
+      _tile('Brooklyn Fees', _fmt(cumFees), '') +
+      (brookhavenFees > 0 ? _tile('Brookhaven Fees', _fmt(brookhavenFees), '') : '') +
       _tile('Net Benefit', _fmt(net), netKind);
+
+    ribbon.innerHTML = tiles;
+    ribbon.classList.toggle('ribbon-4col', brookhavenFees > 0);
     ribbon.hidden = false;
   }
 
