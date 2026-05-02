@@ -106,14 +106,12 @@ const ProjectionEngine = {
       // intentionally bypassed; see fees.js docstring. Charged every
       // year the position is open.
       let fee = 0;
-      if (true) {
-        if (_schwabCombo && typeof window.brooklynFeeRateFor === 'function') {
-          fee = cfg.investment * window.brooklynFeeRateFor(_schwabCombo.longPct, _schwabCombo.shortPct);
-        } else if (_schwabCombo) {
-          fee = cfg.investment * (_schwabCombo.feeRate || 0);
-        } else {
-          fee = brooklynFee(cfg.tierKey, cfg.leverage, cfg.investment);
-        }
+      if (_schwabCombo && typeof window.brooklynFeeRateFor === 'function') {
+        fee = cfg.investment * window.brooklynFeeRateFor(_schwabCombo.longPct, _schwabCombo.shortPct);
+      } else if (_schwabCombo) {
+        fee = cfg.investment * (_schwabCombo.feeRate || 0);
+      } else {
+        fee = brooklynFee(cfg.tierKey, cfg.leverage, cfg.investment);
       }
 
                         // All losses are short-term.
@@ -128,10 +126,11 @@ const ProjectionEngine = {
                                             ltLosses:         newLongLoss
                         });
 
-                        // Taxable income WITH Brooklyn.
-                        const taxableOrdWith = ordinary + applied.ordinaryOffset * -1 + applied.netST > 0
-                                ? ordinary + Math.max(0, applied.netST) - applied.ordinaryOffset
-                                            : ordinary - applied.ordinaryOffset;
+                        // Taxable income WITH Brooklyn — passed inline to
+                        // computeFederalTax/computeStateTax below. The
+                        // intermediate variable used to live here but was
+                        // dead code with an operator-precedence bug
+                        // (the `>` was binding before the `+`).
                             const fedWith = computeFederalTax(
                                                 Math.max(0, ordinary - applied.ordinaryOffset) + Math.max(0, applied.netST),
                                                 year, cfg.filingStatus,

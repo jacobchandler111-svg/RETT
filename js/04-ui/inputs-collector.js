@@ -45,7 +45,9 @@ function collectInputs() {
                 // override.
                 investment:          parseUSD(_val('invested-capital')) || parseUSD(_val('available-capital')),
                 tierKey:             _val('strategy-select') || 'beta1',
-                leverage:            parseFloat(_val('leverage')) || 1,
+                // leverage default; the Schwab-combo and variable-leverage
+                // blocks below override this with the actual selection.
+                leverage:            1,
                 baseOrdinaryIncome:  _sumIncomeSources(),
                 baseShortTermGain:   parseUSD(_val('short-term-gain')),
                 baseLongTermGain:    parseUSD(_val('long-term-gain'))

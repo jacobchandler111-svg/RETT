@@ -278,9 +278,10 @@ function resetAllInputs(skipConfirm) {
   }
 
   // Clear any rendered output panels.
-  ['recommendation-panel', 'projection-table', 'projection-summary-host',
+  ['recommendation-panel', 'projection-summary-host',
    'projection-details-host', 'bracket-viz-host', 'narrative-host',
-   'tax-comparison-host', 'allocator-output'].forEach(function (id) {
+   'tax-comparison-host', 'allocator-output',
+   'cashflow-schedule-host'].forEach(function (id) {
     const el = document.getElementById(id);
     if (el) el.innerHTML = '';
   });

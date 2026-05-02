@@ -90,60 +90,12 @@ function _computeAddlMedicare(wages, status) {
           return Math.max(0, wages - t) * FED_ADDL_MEDICARE.rate;
 }
 
+// computeFederalTax returns just the all-in dollar number; it is a thin
+// wrapper over computeFederalTaxBreakdown so the math lives in exactly
+// one place. Previously the two functions were a verbatim 55-line copy
+// of each other.
 function computeFederalTax(ordinaryIncome, year, status, opts) {
-          opts = opts || {};
-          const longTermGain      = Math.max(0, opts.longTermGain || 0);
-          const qualifiedDividend = Math.max(0, opts.qualifiedDividend || 0);
-          const investmentIncome  = Math.max(0, opts.investmentIncome != null
-                                                     ? opts.investmentIncome : (longTermGain + qualifiedDividend));
-          const wages             = Math.max(0, opts.wages != null ? opts.wages : ordinaryIncome);
-          const itemized          = Math.max(0, opts.itemized || 0);
-
-    const stdDed   = getFederalStandardDeduction(year, status);
-          const ordBrk   = getFederalBrackets(year, status);
-          const ltBrk    = getFederalLTCGBrackets(year, status);
-
-    const deduction = Math.max(stdDed, itemized);
-          const taxableOrdinary = Math.max(0, ordinaryIncome - deduction);
-
-    const ordinaryTax = _flatBracketTax(taxableOrdinary, ordBrk);
-
-    // LTCG stacking on top of ordinary taxable income.
-    let ltTax = 0;
-          const ltAmount = longTermGain + qualifiedDividend;
-          if (ltAmount > 0 && ltBrk && ltBrk.length) {
-                        let remaining = ltAmount;
-                        let stackBase = taxableOrdinary;
-                        let prevMax = 0;
-                        for (const b of ltBrk) {
-                                          const cap = b[0], rate = b[1];
-                                          if (remaining <= 0) break;
-                                          const slabRoom = Math.max(0, cap - Math.max(stackBase, prevMax));
-                                          if (slabRoom <= 0) { prevMax = cap; continue; }
-                                          const slabUse = Math.min(slabRoom, remaining);
-                                          ltTax    += slabUse * rate;
-                                          remaining -= slabUse;
-                                          stackBase += slabUse;
-                                          prevMax = cap;
-                        }
-          }
-
-    // AMT (top-up only). Per IRS Form 6251 Part III, LTCG/qualified dividends are
-    // taxed at LTCG rates *within* AMT, not at 26/28%. We compute AMT on the
-    // ordinary-only portion, then add the regular LTCG tax back.
-    const amtAmti     = taxableOrdinary;
-    const amtOrdOnly  = _computeAmt(amtAmti, year, status);
-    const amtTotal    = amtOrdOnly + ltTax;
-    const amtTopUp    = Math.max(0, amtTotal - (ordinaryTax + ltTax));
-
-    // NIIT.
-    const magi = ordinaryIncome + ltAmount;
-          const niit = _computeNiit(investmentIncome, magi, year, status);
-
-    // Additional Medicare on wages.
-    const addlMed = _computeAddlMedicare(wages, status);
-
-    return ordinaryTax + ltTax + amtTopUp + niit + addlMed;
+          return computeFederalTaxBreakdown(ordinaryIncome, year, status, opts).total;
 }
 
 

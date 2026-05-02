@@ -121,16 +121,6 @@ function isStateNoIncomeTax(year, stateCode) {
           return !!(node && node.noIncomeTax);
 }
 
-function getStateFlatRate(year, stateCode) {
-          const node = getStateNode(year, stateCode);
-          if (!node || !node.flatRate) return null;
-          // Flat-rate states in the source still encode the rate as a single
-    // bracket [[999999999, rate]]. Read the rate from there.
-    const sb = node.brackets && node.brackets.single;
-          if (!sb || !sb.length) return null;
-          return sb[sb.length - 1][1];
-}
-
 function getStateSurcharges(year, stateCode) {
           const node = getStateNode(year, stateCode);
           if (!node) return {};

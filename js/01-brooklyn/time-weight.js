@@ -14,28 +14,34 @@
 
 (function () {
 
-  function parseLocalDate(dateStr) {
+  // parseLocalDate is loaded from date-utils.js (which is loaded before
+  // this file in index.html). Falling back to a local copy keeps this
+  // module robust if the load order ever changes.
+  var parseLocalDate = window.parseLocalDate || function (dateStr) {
     if (!dateStr) return new Date();
-    const parts = String(dateStr).split(/[-/T]/);
+    var parts = String(dateStr).split(/[-/T]/);
     return new Date(
       parseInt(parts[0], 10),
       parseInt(parts[1], 10) - 1,
       parseInt(parts[2], 10) || 1
     );
-  }
+  };
 
   // Returns the fraction of the implementation-year still ahead.
   // 1.0 = full year, 0.0 = none left.
+  // The "year-end" anchor is Jan 1 of the FOLLOWING year so the
+  // denominator covers the full 365 (or 366) days. Using Dec 31 as
+  // the anchor under-weights every implementation date by ~1 day.
   function yearFractionRemaining(implementationDate) {
     if (!implementationDate) return 1.0;
     const d = parseLocalDate(implementationDate);
     const year = d.getFullYear();
     const yearStart = new Date(year, 0, 1);
-    const yearEnd = new Date(year, 11, 31);
-    if (d >= yearEnd) return 0;
+    const nextYearStart = new Date(year + 1, 0, 1);
+    if (d >= nextYearStart) return 0;
     if (d <= yearStart) return 1;
-    const msInYear = yearEnd - yearStart;
-    const remaining = Math.max(0, yearEnd - d);
+    const msInYear = nextYearStart - yearStart;
+    const remaining = Math.max(0, nextYearStart - d);
     return Math.min(1, remaining / msInYear);
   }
 
@@ -44,7 +50,8 @@
     return (annualRate || 0) * yearFractionRemaining(implementationDate);
   }
 
-  window.parseLocalDate       = parseLocalDate;
+  // parseLocalDate is already exported by date-utils.js; we don't
+  // re-export so there is one source of truth for the function.
   window.yearFractionRemaining = yearFractionRemaining;
   window.timeWeightedRate     = timeWeightedRate;
 })();

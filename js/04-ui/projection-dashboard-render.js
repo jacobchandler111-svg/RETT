@@ -253,14 +253,13 @@
   }
 
   function renderProjectionDashboard(host) {
-    // New sub-tab layout (Page 2 has Summary | Details). When the split hosts
-    // exist, render KPI tiles + chart into the Summary tab and the data table
-    // into the Details tab. Falls back to the legacy single-host behavior so
-    // older callers (and the back-compat #projection-table div) keep working.
+    // Sub-tab layout: Summary holds KPI tiles + chart, Details holds
+    // the data table. The split hosts are always present in the
+    // current HTML; the legacy single-host fallback (#projection-table)
+    // was removed once the dashboard fully replaced the old renderer.
     var summaryHost = document.getElementById('projection-summary-host');
     var detailsHost = document.getElementById('projection-details-host');
     var splitMode = !!(summaryHost && detailsHost) && !host;
-    if (!splitMode) host = host || document.getElementById('projection-table');
     if (!splitMode && !host) return;
     var result = window.__lastResult;
     var comp = window.__lastComparison;

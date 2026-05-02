@@ -255,11 +255,18 @@
         return { gainTaken: g, lossGenerated: loss };
       });
     }
+    // longTermGain: prefer the engine's recommendation field; if not
+    // present, derive from cfg property-sale fields. The previous form
+    // `rec.longTermGain || cfg.salePrice ? Math.max(...) : 0` had a
+    // precedence bug — the OR resolved before the ternary, so the
+    // engine-provided rec.longTermGain was always overwritten when
+    // cfg.salePrice was truthy.
+    var derivedLT = (cfg.salePrice || 0) > 0
+      ? Math.max(0, (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0))
+      : 0;
     return {
       recommendation: rec.recommendation,
-      longTermGain: rec.longTermGain || cfg.salePrice
-        ? Math.max(0, (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0))
-        : 0,
+      longTermGain: rec.longTermGain || derivedLT,
       lossGenerated: lossGen,
       schedule: schedule
     };

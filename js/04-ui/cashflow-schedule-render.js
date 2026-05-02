@@ -164,7 +164,14 @@
       return;
     }
 
-    var totalGain = (cfg.salePrice || 0) - (cfg.costBasis || 0);
+    // Total locked in the structured sale = LT capital gain + recapture.
+    // Must match _buildScheduleRows so the subtitle reconciles with the
+    // Locked-at-Year-Start column. Previously this subtitle used
+    // (salePrice - costBasis) which double-counted the depreciation
+    // recapture portion when accelerated-depreciation > 0.
+    var _totalLT = Math.max(0,
+      (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0));
+    var totalGain = _totalLT + Math.max(0, cfg.acceleratedDepreciation || 0);
     var brookSub = 'Capital sitting in Brooklyn each year. Starts at the cost basis (' +
       _fmt(cfg.costBasis || 0) +
       ') and steps up when recognized gain is released from the structured sale and reinvested.';

@@ -66,12 +66,6 @@
     if (!Number.isFinite(leverageCap) || leverageCap < 0) leverageCap = 2.25;
 
     var years                   = Number(($('projection-years') || {}).value) || 5;
-    var manualVariableShortPct  = null;
-    var manualToggle            = $('use-manual-variable');
-    var manualSlider            = $('variable-short-slider');
-    if (manualToggle && manualToggle.checked && manualSlider) {
-      manualVariableShortPct = Number(manualSlider.value) || 0;
-    }
     return {
       salePrice: salePrice,
       costBasis: costBasis,
@@ -84,8 +78,7 @@
       comboId: comboId,
       comboLeverageLabel: comboLeverageLabel,
       years: years,
-      useVariableLeverage: useVariableLeverage,
-      manualVariableShortPct: manualVariableShortPct
+      useVariableLeverage: useVariableLeverage
     };
   }
 
@@ -99,36 +92,11 @@
     if (gainEl)  gainEl.value  = fmt(lt);
     if (totalEl) totalEl.value = fmt(total);
 
-    var yfEl = $('year-fraction-remaining');
-    if (yfEl && typeof root.yearFractionRemaining === 'function' && inputs.implementationDate) {
-      var yf = root.yearFractionRemaining(inputs.implementationDate);
-      yfEl.value = yf.toFixed(4) + '  (' + (yf * 100).toFixed(1) + '% of year remaining)';
-    }
-  }
-
-  // Update the slider readouts (long%, short%, leverage, lossRate, feeRate)
-  // whenever the slider moves. Also constrain the slider's min/max to the
-  // currently selected strategy's bounds.
-  function updateVariableSliderReadout() {
-    var slider = $('variable-short-slider');
-    if (!slider) return;
-    var strategyKey = ($('strategy-select') || {}).value || 'beta1';
-    var bounds = (typeof root.getStrategyBounds === 'function') ? root.getStrategyBounds(strategyKey) : null;
-    if (bounds) {
-      slider.min = bounds.minShort;
-      slider.max = bounds.maxShort;
-      if (Number(slider.value) > bounds.maxShort) slider.value = bounds.maxShort;
-      if (Number(slider.value) < bounds.minShort) slider.value = bounds.minShort;
-    }
-    var s = Number(slider.value) || 0;
-    var pt = (typeof root.lookupVariable === 'function') ? root.lookupVariable(strategyKey, s) : null;
-    if (!pt) return;
-    if ($('variable-readout-long'))    $('variable-readout-long').textContent    = pt.longPct + '%';
-    if ($('variable-readout-short'))   $('variable-readout-short').textContent   = pt.shortPct + '%';
-    if ($('variable-readout-label'))   $('variable-readout-label').textContent   = pt.label;
-    if ($('variable-readout-lev'))     $('variable-readout-lev').textContent     = pt.leverage.toFixed(2) + 'x';
-    if ($('variable-readout-loss'))    $('variable-readout-loss').textContent    = pct(pt.lossRate, 2);
-    if ($('variable-readout-fee'))     $('variable-readout-fee').textContent     = pct(pt.feeRate, 3);
+    // Note: an old #year-fraction-remaining read-out and the manual
+    // variable-short slider (#variable-short-slider, #variable-readout-*)
+    // used to live on Page 1. They were removed when the leverage UI
+    // moved to the Page-2 slider (variable-leverage-ui.js); the JS here
+    // was pruned alongside them.
   }
 
   function renderRecommendation(result) {
@@ -282,14 +250,7 @@
       if (el) el.addEventListener('input', function () { updateComputedReadouts(readInputs()); });
     });
 
-    // Variable-leverage UI wiring
-    var slider = $('variable-short-slider');
-    if (slider) slider.addEventListener('input', updateVariableSliderReadout);
-    var stratSel = $('strategy-select');
-    if (stratSel) stratSel.addEventListener('change', updateVariableSliderReadout);
-
     updateComputedReadouts(readInputs());
-    updateVariableSliderReadout();
   }
 
   if (document.readyState === 'loading') {
@@ -299,5 +260,4 @@
   }
 
   root.runRecommendation = runRecommendation;
-  root.updateVariableSliderReadout = updateVariableSliderReadout;
 })(window);

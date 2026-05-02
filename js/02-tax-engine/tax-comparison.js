@@ -87,8 +87,10 @@ function _applyLossesToScenario(scenario, lossAvailable) {
       if (loss > 0) {
             const offsetOrd = Math.min(out.ordinaryIncome || 0, loss);
             out.ordinaryIncome = (out.ordinaryIncome || 0) - offsetOrd;
-            // Wages can't go below new ordinary income (Additional Medicare base)
-            out.wages = Math.min(out.wages || 0, out.ordinaryIncome);
+            // Wages are unchanged: capital losses reduce taxable ordinary
+            // income, but the Additional Medicare base is W-2 wages
+            // (or SE earnings), not taxable income. A loss can never
+            // reduce the wages a taxpayer was paid.
             loss -= offsetOrd;
       }
 
@@ -211,7 +213,7 @@ function _applyLossesWithSTCfCap(scenario, lossAvailable, capOrdinary) {
             const cap = Math.min(out.ordinaryIncome || 0, capOrdinary);
             const offsetOrd = Math.min(cap, loss);
             out.ordinaryIncome = (out.ordinaryIncome || 0) - offsetOrd;
-            out.wages = Math.min(out.wages || 0, out.ordinaryIncome);
+            // Wages are unchanged — see note in _applyLossesToScenario.
             loss -= offsetOrd;
       }
 

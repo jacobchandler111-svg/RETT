@@ -45,27 +45,29 @@
     var setup = (yearOffset === 0) ? setupFee : 0;
     var quarterly;
 
+    var yf = (yearFractionYear1 == null) ? 1 : Math.max(0, Math.min(1, yearFractionYear1));
     if (yearOffset === 0) {
       // First year: pro-rate by year-fraction-remaining (Q1 may be partial).
-      var yf = (yearFractionYear1 == null) ? 1 : Math.max(0, Math.min(1, yearFractionYear1));
       quarterly = fullYearQ * yf;
     } else if (yearOffset === 1) {
       // Second year: full 4 quarters.
       quarterly = fullYearQ;
+    } else if (yearOffset === 2) {
+      // Third year: only the un-billed remainder of the 8-quarter
+      // cap. When Y1 was prorated (yf < 1), Y1 + Y2 only billed
+      // (yf × 4 + 4) quarters; the remaining (4 × (1 - yf)) belongs
+      // here so the total still reaches the 8-quarter cap.
+      quarterly = fullYearQ * (1 - yf);
     } else {
-      // Third year and beyond: nothing (8-quarter cap reached).
+      // Year 4+: nothing.
       quarterly = 0;
     }
 
-    // Cap total quarterly fees at the configured maximum (8 × $2000).
-    // Edge case: a Y1 with yearFraction > ~1 (date earlier than year1
-    // start) shouldn't double-count. Year-1 + Year-2 max should equal
-    // qTotal × qFeePerQtr.
-    if (yearOffset === 1) {
-      var y1Q = fullYearQ; // assume Y1 was billed in full as a default; caller can refine
-      var room = (qTotal * qFeePerQtr) - y1Q;
-      if (room < quarterly) quarterly = Math.max(0, room);
-    }
+    // Final safety cap: total quarterly fees never exceed the configured
+    // 8-quarter maximum. Previously this only fired in Y2 and assumed Y1
+    // was billed in full, which over-clipped Y2 when Y1 was prorated.
+    // The Y3-tail logic above is now the primary mechanism; this cap
+    // remains as a defensive guard against caller misuse.
 
     return {
       setup: setup,

@@ -145,10 +145,13 @@
     return matches[0] || null;
   }
 
-  // Parse a YYYY-MM-DD or Date into a UTC-midnight Date.
+  // Parse a YYYY-MM-DD string or pass through a Date. Delegates to the
+  // shared parseLocalDate (loaded from date-utils.js ahead of this file
+  // in index.html). The fallback inline parser stays as a safety net.
   function _toDate(d) {
     if (!d) return new Date();
     if (d instanceof Date) return d;
+    if (typeof window.parseLocalDate === 'function') return window.parseLocalDate(d);
     var parts = String(d).split(/[-/T]/);
     return new Date(
       parseInt(parts[0], 10),
