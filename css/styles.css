@@ -281,14 +281,12 @@ body {
 }
 .savings-ribbon.ribbon-4col { grid-template-columns: repeat(4, 1fr); }
 
-/* Section-label header on the sticky ribbon — appears above the tile
-   row when the ribbon reflects a specific scenario section. Updates
-   as the user scrolls past stacked dashboards. */
-.savings-ribbon.ribbon-with-label {
-  display: block;
-  padding: 0;
-}
+/* Section-label header on the sticky ribbon — spans the full grid
+   row above the tiles when the ribbon reflects a specific scenario.
+   Uses grid-column: 1/-1 so the existing repeat(N, 1fr) tile layout
+   stays intact (no display:block hack, no width-calc fragility). */
 .savings-ribbon .ribbon-section-label {
+  grid-column: 1 / -1;
   font-size: 0.78em;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -297,18 +295,6 @@ body {
   background: rgba(13, 34, 64, 0.85);
   padding: 6px 12px;
   border-bottom: 1px solid rgba(95, 168, 255, 0.18);
-}
-.savings-ribbon.ribbon-with-label > .ribbon-tile,
-.savings-ribbon.ribbon-with-label .ribbon-tile {
-  display: inline-grid;
-  width: calc(33.333% - 1px);
-  vertical-align: top;
-}
-.savings-ribbon.ribbon-with-label.ribbon-4col .ribbon-tile {
-  width: calc(25% - 1px);
-}
-.savings-ribbon.ribbon-with-label .ribbon-section-label + .ribbon-tile {
-  /* tile after label header keeps the gap-via-background pattern */
 }
 
 /* Leverage slider — replaces the leverage pill row. Auto-positions

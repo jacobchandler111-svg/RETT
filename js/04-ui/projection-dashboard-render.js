@@ -1219,6 +1219,7 @@
     if (!renderedTypes || !renderedTypes.length) {
       ribbon.hidden = true;
       ribbon.innerHTML = '';
+      root.__rettActiveRibbonType = null;
       return;
     }
     // Disconnect any prior observer — new section list, fresh observer.
@@ -1228,17 +1229,16 @@
     // Default to the FIRST rendered section so the ribbon has content
     // before the user has scrolled.
     var initialType = renderedTypes[0];
-    if (typeof root.renderSavingsRibbon === 'function') {
-      try { root.renderSavingsRibbon(initialType, labelByType[initialType]); }
-      catch (e) { /* */ }
-    }
+    _maybeRenderRibbonForSection(initialType, labelByType[initialType]);
+
     if (typeof root.IntersectionObserver !== 'function') {
       // No observer support — leave ribbon on the initial section.
       return;
     }
     // Track each section's intersection ratio. The most-visible one
-    // wins. Threshold steps so we get progressive updates as the user
-    // scrolls.
+    // wins. Single-threshold observer (fires only when crossing 30%)
+    // limits the fire rate during smooth scroll so we don't churn the
+    // ribbon's number animator on every pixel of scroll.
     var ratios = {};
     var observer = new root.IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
@@ -1246,23 +1246,23 @@
         if (!t) return;
         ratios[t] = entry.isIntersecting ? entry.intersectionRatio : 0;
       });
-      // Pick the type with the highest current ratio — falls back to
-      // the first rendered type when nothing is on-screen (user has
-      // scrolled past everything).
+      // Pick the type with the highest current ratio — when nothing is
+      // significantly on-screen (e.g. scrolled past everything), keep
+      // showing whatever was last active rather than snapping back to
+      // the first rendered type. This avoids the ribbon flickering
+      // back to A when the user scrolls below all sections.
       var bestType = null, bestRatio = 0;
       renderedTypes.forEach(function (t) {
         var r = ratios[t] || 0;
         if (r > bestRatio) { bestRatio = r; bestType = t; }
       });
-      if (!bestType || bestRatio <= 0) bestType = renderedTypes[0];
-      if (typeof root.renderSavingsRibbon === 'function') {
-        try { root.renderSavingsRibbon(bestType, labelByType[bestType]); }
-        catch (e) { /* */ }
-      }
+      if (!bestType || bestRatio <= 0) bestType = root.__rettActiveRibbonType || renderedTypes[0];
+      _maybeRenderRibbonForSection(bestType, labelByType[bestType]);
     }, {
-      // Step thresholds give us smooth handoff as one section scrolls
-      // out and the next scrolls in.
-      threshold: [0, 0.1, 0.25, 0.5, 0.75, 1],
+      // Single 30% threshold gives clean handoff (one section reaches
+      // 30% as the previous drops below it) without the firehose of
+      // events the multi-step threshold pattern produces.
+      threshold: 0.3,
       // Account for the sticky ribbon's own height at the top so a
       // section technically "in view" but obscured by the ribbon
       // doesn't count.
@@ -1275,6 +1275,20 @@
       observer.observe(el);
     });
     root.__rettSectionRibbonObserver = observer;
+  }
+
+  // Skip the ribbon re-render entirely when the active section hasn't
+  // changed. Without this guard, every IntersectionObserver fire (which
+  // can happen many times per second during smooth scroll) rebuilds
+  // the ribbon's innerHTML, restarting the number-animator's count-up
+  // for each tile and producing a visible flicker on the values.
+  function _maybeRenderRibbonForSection(type, label) {
+    if (!type) return;
+    if (root.__rettActiveRibbonType === type) return;
+    root.__rettActiveRibbonType = type;
+    if (typeof root.renderSavingsRibbon === 'function') {
+      try { root.renderSavingsRibbon(type, label); } catch (e) { /* */ }
+    }
   }
 
   function renderProjectionDashboard(host) {
