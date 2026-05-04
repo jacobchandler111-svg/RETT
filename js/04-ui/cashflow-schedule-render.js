@@ -222,29 +222,41 @@
   }
 
   // Detect when the engine chose immediate Year-1 recognition (no
-  // structured-sale lockup needed). Two signatures qualify:
-  //   1) The auto-pick selected rec=1 (recognitionStartYearIndex=0).
-  //   2) The comparison was the immediate path (no recognitionSchedule
-  //      array, or all gain recognized in Year 1 of the schedule).
-  // When this is true, the structured-sale schedule below is replaced
-  // with a "no structured sale needed" callout — the seller takes a
-  // lump-sum payment at close and Brooklyn losses absorb the gain.
-  function _isLumpSum(cfg, comp) {
+  // structured-sale lockup needed). Lump-sum requires BOTH:
+  //   1. ALL gain recognized in Year 1 (recognitionSchedule has it
+  //      concentrated there, OR comp is the immediate-path shape with
+  //      no recognitionSchedule + cfg.recognitionStartYearIndex===0).
+  //   2. No new Brooklyn deposit in Year 2 or later — if there's a
+  //      tranche release in Y2+, that's a structured sale by
+  //      definition, regardless of what the recognition schedule says.
+  // Both conditions must hold. When this returns true, the
+  // structured-sale schedule is replaced with a "no structured sale
+  // needed" callout.
+  function _isLumpSum(cfg, comp, rows) {
     if (!comp) return false;
-    if (cfg && (cfg.recognitionStartYearIndex === 0 || cfg.recognitionStartYearIndex == null)) {
-      // Immediate path uses computeTaxComparison — comp has no
-      // recognitionSchedule and no `deferred:true` flag.
-      if (!comp.deferred && !comp.recognitionSchedule) return true;
-    }
+    var allRecogInY1 = false;
     if (Array.isArray(comp.recognitionSchedule) && comp.recognitionSchedule.length) {
       var firstRec = comp.recognitionSchedule[0];
       var totalRec = comp.recognitionSchedule.reduce(function (s, r) {
         return s + (r.gainRecognized || 0);
       }, 0);
-      // All gain recognized in the first year = lump-sum.
-      return totalRec > 0 && firstRec && firstRec.gainRecognized >= totalRec - 0.01;
+      allRecogInY1 = totalRec > 0 && firstRec &&
+        firstRec.gainRecognized >= totalRec - 0.01;
+    } else if (cfg && (cfg.recognitionStartYearIndex === 0 || cfg.recognitionStartYearIndex == null) &&
+               !comp.deferred) {
+      // Immediate-path comp shape (no schedule, no deferred flag).
+      allRecogInY1 = true;
     }
-    return false;
+    if (!allRecogInY1) return false;
+    // Second gate: no new Brooklyn deposit after Year 1. Any positive
+    // newInvested in Y2+ contradicts the lump-sum framing — that capital
+    // is arriving from a structured-sale tranche release.
+    if (Array.isArray(rows) && rows.length > 1) {
+      for (var i = 1; i < rows.length; i++) {
+        if ((rows[i].newInvested || 0) > 0.5) return false;
+      }
+    }
+    return true;
   }
 
   function renderCashflowSchedule(host) {
@@ -282,7 +294,7 @@
       (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0) - _stShortSub);
     var totalGain = _totalLT + Math.max(0, cfg.acceleratedDepreciation || 0);
 
-    var lumpSum = _isLumpSum(cfg, comp);
+    var lumpSum = _isLumpSum(cfg, comp, rows);
     var brookSub = lumpSum
       ? 'Lump-sum scenario: the full sale proceeds are received at close and deployed into Brooklyn in Year 1 — no structured-sale lockup, no later tranche releases.'
       : 'New capital deployed each year — basis cash on engagement plus structured-sale tranche releases. Each row shows the assumed implementation date for that year’s deposit and the cumulative position for context.';

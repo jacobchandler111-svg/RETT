@@ -191,10 +191,14 @@
       engineDeployedCapital = invested > 0;
     }
 
-    // Detect lump-sum / no-structured-sale: the immediate-recognition
-    // path. comp doesn't carry the deferred flag and has no
-    // recognitionSchedule, OR the recognition schedule puts all gain
-    // in Year 1.
+    // Detect lump-sum / no-structured-sale. Lump-sum requires BOTH:
+    //   1. All gain recognized in Year 1 (immediate-path comp shape,
+    //      OR a recognition schedule with everything concentrated in
+    //      the first year).
+    //   2. No multi-year tranche pattern in the comparison rows
+    //      (trancheParts.length <= 1). If the engine deployed capital
+    //      across multiple years, that's a structured sale by
+    //      definition — even if the comp shape suggests Y1-only.
     var isLumpSum = false;
     if (comp) {
       if (!comp.deferred && !comp.recognitionSchedule) {
@@ -205,6 +209,7 @@
         if (totalRec > 0 && firstRec && firstRec.gainRecognized >= totalRec - 0.01) isLumpSum = true;
       }
     }
+    if (isLumpSum && trancheParts.length > 1) isLumpSum = false;
 
     var s2;
     if (totalSave > 0) {
