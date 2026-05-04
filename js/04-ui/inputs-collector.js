@@ -66,24 +66,25 @@ function collectInputs() {
       cfg.recognitionStartYearIndex = (Number.isFinite(recRaw) && recRaw >= 1) ? (recRaw - 1) : 0;
 
       // Schwab combo resolution: when the custodian is Charles Schwab,
-      // resolve the active short% (from either the Page-1 leverage-cap
-      // dropdown OR the Page-2 pill picker via #custom-short-pct) to a
-      // Schwab combo. Inject cfg.comboId so the projection engine uses
-      // the published per-year tranche loss curve (lossByYear) instead
-      // of the regression. Implementation date drives the 365-day
-      // tranche anchor.
-      if (cfg.custodian === 'schwab' && typeof findSchwabCombo === 'function') {
-        var leverageLabel = _val('leverage-cap-select') || '';
-        var combo = findSchwabCombo(cfg.tierKey, leverageLabel);
-        // Fall back to short-pct lookup if the dropdown didn't match
-        // — happens when the Page-2 pill picker is the source.
-        if (!combo && typeof listSchwabCombos === 'function') {
-          var spRawSch = parseFloat(_val('custom-short-pct'));
-          if (Number.isFinite(spRawSch)) {
-            combo = listSchwabCombos().filter(function (c) {
-              return c.strategyKey === cfg.tierKey && c.shortPct === spRawSch;
-            })[0] || null;
-          }
+      // resolve the active short% to a Schwab combo. The Page-2 pill
+      // picker is the canonical source-of-truth (it writes to
+      // #custom-short-pct), so we look that up FIRST. Page-1's
+      // leverage-cap-select is a fallback for flows that never hit
+      // Page 2 (cfg-build during initial auto-pick before the user
+      // engages the slider/pills). The auto-pick optimizer also drives
+      // #custom-short-pct directly, so it honors the same priority.
+      if (cfg.custodian === 'schwab' && typeof listSchwabCombos === 'function') {
+        var combo = null;
+        var spRawSch = parseFloat(_val('custom-short-pct'));
+        if (Number.isFinite(spRawSch)) {
+          combo = listSchwabCombos().filter(function (c) {
+            return c.strategyKey === cfg.tierKey && c.shortPct === spRawSch;
+          })[0] || null;
+        }
+        // Fallback: leverage-cap-select label (Page-1 dropdown).
+        if (!combo && typeof findSchwabCombo === 'function') {
+          var leverageLabel = _val('leverage-cap-select') || '';
+          combo = findSchwabCombo(cfg.tierKey, leverageLabel);
         }
         if (combo) {
           cfg.comboId = combo.id;
