@@ -33,7 +33,10 @@
 // Leverage-baked rule (CRITICAL):
 //   When a Schwab combo is selected, the projection engine must NOT
 //   multiply the lossRate by cfg.leverage again. The combo's loss factor
-//   IS the final loss / invested-capital.
+//   IS the final loss / invested-capital. Consumers gate the extra
+//   multiplier on whether _schwabCombo is truthy. (The earlier
+//   leverageBaked: true property was unused metadata and was removed
+//   to avoid the appearance of a feature flag — see Issue #41.)
 //
 // Source: Charles Schwab strategy schedule (provided 2026-04-29).
 // Numbers are exact — do not interpolate or round.
@@ -52,7 +55,6 @@
       lossByYear: [0.322, 0.268, 0.233, 0.214, 0.212, 0.205, 0.197, 0.191, 0.186, 0.181],
       feeRate: 0.0094,
       minInvestment: 1000000,
-      leverageBaked: true
     },
     beta1_200_100: {
       id: 'beta1_200_100',
@@ -64,8 +66,7 @@
       shortPct: 100,
       lossByYear: [0.590, 0.492, 0.427, 0.393, 0.389, 0.376, 0.363, 0.351, 0.342, 0.334],
       feeRate: 0.0203,
-      minInvestment: 3000000,
-      leverageBaked: true
+      minInvestment: 3000000
     }
   };
 

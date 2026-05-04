@@ -129,7 +129,9 @@
       };
     }
     if (strategyKey) {
-      var minInv = getMinInvestment(custodianId, strategyKey);
+      // Pass cfg.comboId so Schwab returns combo-specific minimums
+      // ($1M for 145/45, $3M for 200/100). See Issue #2 in 5-4-26 doc.
+      var minInv = getMinInvestment(custodianId, strategyKey, cfg.comboId);
       var invested = Number(cfg.investedCapital || cfg.investment || 0);
       if (minInv > 0 && invested > 0 && invested < minInv) {
         return {

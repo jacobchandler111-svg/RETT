@@ -397,11 +397,11 @@
     // Refresh the sticky savings ribbon (Page 2). Defensive — may not be
     // loaded yet if this runs very early in page init.
     if (typeof root.renderSavingsRibbon === 'function') {
-      try { root.renderSavingsRibbon(); } catch (e) { /* non-fatal */ }
+      try { root.renderSavingsRibbon(); } catch (e) { if (typeof window !== "undefined" && typeof window.reportFailure === "function") window.reportFailure("non-fatal in projection-dashboard-render.js", e); else if (typeof console !== "undefined") console.warn(e); }
     }
     // Refresh the plain-English narrative card.
     if (typeof root.renderNarrative === 'function') {
-      try { root.renderNarrative(); } catch (e) { /* non-fatal */ }
+      try { root.renderNarrative(); } catch (e) { if (typeof window !== "undefined" && typeof window.reportFailure === "function") window.reportFailure("non-fatal in projection-dashboard-render.js", e); else if (typeof console !== "undefined") console.warn(e); }
     }
     // Federal-bracket position visualization is intentionally NOT
     // rendered while Brooklyn is the only strategy in the projector.
@@ -413,16 +413,16 @@
     // "where they would have been vs where the strategy puts them"
     // view the user described.
     // if (typeof root.renderBracketViz === 'function') {
-    //   try { root.renderBracketViz(); } catch (e) { /* non-fatal */ }
+    //   try { root.renderBracketViz(); } catch (e) { if (typeof window !== "undefined" && typeof window.reportFailure === "function") window.reportFailure("non-fatal in projection-dashboard-render.js", e); else if (typeof console !== "undefined") console.warn(e); }
     // }
     // Refresh the year-by-year cashflow schedule (Brooklyn investment +
     // structured-sale balance) below the Multi-Year Snapshot.
     if (typeof root.renderCashflowSchedule === 'function') {
-      try { root.renderCashflowSchedule(); } catch (e) { /* non-fatal */ }
+      try { root.renderCashflowSchedule(); } catch (e) { if (typeof window !== "undefined" && typeof window.reportFailure === "function") window.reportFailure("non-fatal in projection-dashboard-render.js", e); else if (typeof console !== "undefined") console.warn(e); }
     }
     // Animate any KPI / hero / ribbon numbers that just changed.
     if (typeof root.animateRettNumbers === 'function') {
-      try { root.animateRettNumbers(); } catch (e) { /* non-fatal */ }
+      try { root.animateRettNumbers(); } catch (e) { if (typeof window !== "undefined" && typeof window.reportFailure === "function") window.reportFailure("non-fatal in projection-dashboard-render.js", e); else if (typeof console !== "undefined") console.warn(e); }
     }
   }
 

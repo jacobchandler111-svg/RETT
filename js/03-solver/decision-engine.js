@@ -253,9 +253,9 @@
             strategyKey: strategyKey,
             investedCapital: investedCapital,
             year1: cfg.year1 || (function () {
-              if (cfg.implementationDate) {
-                var m = String(cfg.implementationDate).match(/^(\d{4})/);
-                if (m) return Number(m[1]);
+              if (cfg.implementationDate && typeof root.parseLocalDate === 'function') {
+                var d = root.parseLocalDate(cfg.implementationDate);
+                if (d && !isNaN(d.getTime())) return d.getFullYear();
               }
               return new Date().getFullYear();
             })()

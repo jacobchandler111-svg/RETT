@@ -536,7 +536,7 @@
     // render) with the new selection. controls.js exposes runFullPipeline
     // as a global so we don't have to duplicate cfg-building logic here.
     if (typeof root.runFullPipeline === 'function') {
-      try { root.runFullPipeline(); } catch (err) { /* non-fatal */ }
+      try { root.runFullPipeline(); } catch (err) { if (typeof window !== "undefined" && typeof window.reportFailure === "function") window.reportFailure("non-fatal in pill-toggles.js", err); else if (typeof console !== "undefined") console.warn(err); }
     }
   }
 
@@ -544,7 +544,7 @@
   // the full leverage/horizon/recognition search, then re-render.
   function _onRevertClick() {
     root.__rettAutoPickEnabled = true;
-    try { runAutoPick(); } catch (e) { /* non-fatal */ }
+    try { runAutoPick(); } catch (e) { if (typeof window !== "undefined" && typeof window.reportFailure === "function") window.reportFailure("non-fatal in pill-toggles.js", e); else if (typeof console !== "undefined") console.warn(e); }
     if (typeof root.runFullPipeline === 'function') {
       try { root.runFullPipeline(); } catch (err) { /* */ }
     }

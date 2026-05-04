@@ -91,7 +91,7 @@ function _bindCaseControls() {
 
   // Page-load restore: prefer the active named case over the un-named
   // draft. Returns 'case' / 'draft' / null.
-  try { store.restoreOnPageLoad(); } catch (e) { /* non-fatal */ }
+  try { store.restoreOnPageLoad(); } catch (e) { if (typeof window !== "undefined" && typeof window.reportFailure === "function") window.reportFailure("non-fatal in controls.js", e); else if (typeof console !== "undefined") console.warn(e); }
   _refreshCaseDropdown(store.getCurrentCaseName());
   _refreshCaseStatus();
 
@@ -289,7 +289,7 @@ function resetAllInputs(skipConfirm) {
 
   // Repopulate custodian-driven UI (leverage caps, strategy availability).
   if (typeof _onCustodianChange === 'function') {
-    try { _onCustodianChange(); } catch (e) { /* non-fatal */ }
+    try { _onCustodianChange(); } catch (e) { if (typeof window !== "undefined" && typeof window.reportFailure === "function") window.reportFailure("non-fatal in controls.js", e); else if (typeof console !== "undefined") console.warn(e); }
   }
 
   // Clear any rendered output panels.
@@ -307,7 +307,7 @@ function resetAllInputs(skipConfirm) {
   window.__lastComparison = null;
   window.__lastRecommendation = null;
   if (typeof renderSavingsRibbon === 'function') {
-    try { renderSavingsRibbon(); } catch (e) { /* non-fatal */ }
+    try { renderSavingsRibbon(); } catch (e) { if (typeof window !== "undefined" && typeof window.reportFailure === "function") window.reportFailure("non-fatal in controls.js", e); else if (typeof console !== "undefined") console.warn(e); }
   }
   // Re-enable auto-pick so the next projection picks the best combo again.
   window.__rettAutoPickEnabled = true;
@@ -575,7 +575,7 @@ function _onCustodianChange() {
 
   // Rebuild Page-2 pill toggles since leverage options just changed.
   if (typeof buildPillToggles === 'function') {
-    try { buildPillToggles(); } catch (e) { /* non-fatal */ }
+    try { buildPillToggles(); } catch (e) { if (typeof window !== "undefined" && typeof window.reportFailure === "function") window.reportFailure("non-fatal in controls.js", e); else if (typeof console !== "undefined") console.warn(e); }
   }
 }
 
@@ -608,7 +608,7 @@ function runFullPipeline() {
   // the downstream recommendation + projection see the optimal
   // recognition value.
   if (typeof window.searchBestRecognitionForCurrent === 'function') {
-    try { window.searchBestRecognitionForCurrent(); } catch (e) { /* non-fatal */ }
+    try { window.searchBestRecognitionForCurrent(); } catch (e) { if (typeof window !== "undefined" && typeof window.reportFailure === "function") window.reportFailure("non-fatal in controls.js", e); else if (typeof console !== "undefined") console.warn(e); }
   }
   if (typeof runRecommendation === 'function') {
     try { runRecommendation(); }
@@ -648,7 +648,7 @@ function bindControls() {
           // pill yet. Brooklyn config changes (invested capital, strategy)
           // can shift the optimal (leverage, horizon, recognition) combo.
           if (typeof maybeAutoPick === 'function') {
-            try { maybeAutoPick(); } catch (e) { /* non-fatal */ }
+            try { maybeAutoPick(); } catch (e) { if (typeof window !== "undefined" && typeof window.reportFailure === "function") window.reportFailure("non-fatal in controls.js", e); else if (typeof console !== "undefined") console.warn(e); }
           }
           runFullPipeline();
           if (typeof syncPillSelection === 'function') syncPillSelection();
@@ -766,11 +766,23 @@ function bindControls() {
   if (_stratSel) _stratSel.addEventListener('change', _onCustodianChange);
 
   // Refresh custodian info / Schwab combo warnings when the leverage-cap
-  // dropdown or invested-capital change too.
+  // dropdown changes.
   const _lcSel = document.getElementById('leverage-cap-select');
   if (_lcSel) _lcSel.addEventListener('change', _onCustodianChange);
+  // For invested-capital input, ONLY refresh the Schwab below-min
+  // warning — don't run the full custodian-change flow. The previous
+  // wiring rebuilt leverage-cap-select on every keystroke, which
+  // snapped the user's prior selection back to "highest cap" each
+  // time (Issue #47).
   const _invInp = document.getElementById('invested-capital');
-  if (_invInp) _invInp.addEventListener('input', _debounce(_onCustodianChange, 150));
+  if (_invInp) _invInp.addEventListener('input', _debounce(function () {
+    var cust = document.getElementById('custodian-select');
+    var strat = document.getElementById('strategy-select');
+    var lc   = document.getElementById('leverage-cap-select');
+    if (typeof _renderSchwabBelowMinWarning === 'function') {
+      _renderSchwabBelowMinWarning(strat, lc, cust && cust.value === 'schwab');
+    }
+  }, 150));
   _onCustodianChange();
 
   // Wire case-management controls + restore any auto-saved working state.

@@ -221,8 +221,10 @@
     var defaultYear1 = (function () {
       if (cfg && cfg.year1) return Number(cfg.year1);
       if (cfg && cfg.implementationDate) {
-        var m = String(cfg.implementationDate).match(/^(\d{4})/);
-        if (m) return Number(m[1]);
+        if (typeof root.parseLocalDate === 'function') {
+          var _d = root.parseLocalDate(cfg.implementationDate);
+          if (_d && !isNaN(_d.getTime())) return _d.getFullYear();
+        }
       }
       return new Date().getFullYear();
     })();
@@ -291,8 +293,10 @@
     // 15-month hold: which year-indices are legal payout slots?
     var year1 = _num(cfg && cfg.year1, 0) || (function () {
       if (cfg && cfg.implementationDate) {
-        var m = String(cfg.implementationDate).match(/^(\d{4})/);
-        if (m) return Number(m[1]);
+        if (typeof root.parseLocalDate === 'function') {
+          var _d = root.parseLocalDate(cfg.implementationDate);
+          if (_d && !isNaN(_d.getTime())) return _d.getFullYear();
+        }
       }
       return new Date().getFullYear();
     })();

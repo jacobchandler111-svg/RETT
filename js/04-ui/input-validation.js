@@ -121,17 +121,29 @@
       });
     }
 
-    // Custodian-driven minimum investment (Schwab combos checked in controls.js
-    // already; here we cover the non-Schwab fast path).
+    // Custodian-driven minimum investment. Routes through
+    // validateAgainstCustodian (custodians.js) so the validator,
+    // engine-side _belowMinForLifecycle, and the controls.js Schwab
+    // combo warning all share one min source. Combo-specific minimums
+    // (Schwab 145/45 $1M vs 200/100 $3M) flow through via cfg.comboId
+    // which validateAgainstCustodian honors after Issue #2.
     var custodianId = _str('custodian-select');
     var strategyKey = _str('strategy-select');
-    if (custodianId && strategyKey && typeof getMinInvestment === 'function') {
-      var minInv = getMinInvestment(custodianId, strategyKey);
-      if (minInv > 0 && invested > 0 && invested < minInv) {
-        errors.push({
-          field: 'invested-capital',
-          message: 'Below minimum investment for this strategy ($' + minInv.toLocaleString() + ').'
-        });
+    if (custodianId && strategyKey && typeof validateAgainstCustodian === 'function') {
+      var leverageLabel = _str('leverage-cap-select') || '';
+      var combo = (custodianId === 'schwab' && typeof findSchwabCombo === 'function')
+        ? findSchwabCombo(strategyKey, leverageLabel)
+        : null;
+      var validRes = validateAgainstCustodian({
+        custodian: custodianId,
+        strategyKey: strategyKey,
+        comboId: combo ? combo.id : null,
+        investedCapital: invested,
+        investment: invested,
+        leverageCap: combo ? combo.leverage : null
+      });
+      if (validRes && validRes.ok === false && validRes.code === 'below-minimum') {
+        errors.push({ field: 'invested-capital', message: validRes.message });
       }
     }
 

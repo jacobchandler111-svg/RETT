@@ -176,6 +176,22 @@ function computeTaxComparison(cfg, recommendation) {
             });
       }
 
+      // No-engagement detection at the engine level (Issue #48): when
+      // no row recognized any gain or applied any loss, this is the
+      // "client engaged a custodian but no taxable activity" case.
+      // Zero out the per-row brookhavenFee + setup so every consumer
+      // (ribbon, dashboard, narrative, table) gets identical numbers
+      // without each having to detect this independently.
+      const _noEngagement = rows.every(function (r) {
+            return (r.gainRecognized || 0) === 0 && (r.lossApplied || 0) === 0;
+      });
+      if (_noEngagement) {
+            rows.forEach(function (r) {
+                  r.brookhavenFee = 0;
+                  r.brookhavenSetupFee = 0;
+                  r.brookhavenQuarterlyFee = 0;
+            });
+      }
       let totalBaseline = 0, totalWith = 0, totalBrookhaven = 0;
       rows.forEach(r => {
             totalBaseline += r.baseline.total;

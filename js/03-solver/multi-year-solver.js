@@ -105,6 +105,13 @@
       capByYear.push(i === 0 ? annualCap * yfYear1 : annualCap);
     }
     var totalCapacity = capByYear.reduce(function (a, b) { return a + b; }, 0);
+    // Belt-and-suspenders: even though annualCap > 0 implies
+    // totalCapacity > 0, an early return here (parallel to the
+    // annualCap <= 0 guard above) makes intent explicit and protects
+    // the proportional-fill divide-by-zero in the distribute path.
+    if (totalCapacity <= 0) {
+      return { feasible: false, error: 'no loss capacity across horizon' };
+    }
 
     var gainByYear = new Array(horizon).fill(0);
     var lossByYear = new Array(horizon).fill(0);

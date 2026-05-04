@@ -330,7 +330,7 @@
 
     // Animate the hero savings tile + any other numeric values on this page.
     if (typeof window.animateRettNumbers === 'function') {
-      try { window.animateRettNumbers(page); } catch (e) { /* non-fatal */ }
+      try { window.animateRettNumbers(page); } catch (e) { if (typeof window !== "undefined" && typeof window.reportFailure === "function") window.reportFailure("non-fatal in strategy-summary-render.js", e); else if (typeof console !== "undefined") console.warn(e); }
     }
 
     try {
@@ -349,12 +349,18 @@
 
     var recalc = document.getElementById('ss-recalc');
     if (recalc) recalc.addEventListener('click', function () {
-      // Run the full pipeline (recommendation + projection + dashboard)
-      // and re-render the Strategy Summary once the engine has settled.
+      // Run the full pipeline synchronously (it has no real async work
+      // — pill-toggles.runAutoPick is blocking) and immediately
+      // re-render the Strategy Summary. The previous setTimeout(100)
+      // was a guess that would become a flaky race if the pipeline
+      // ever moves to a Web Worker.
       if (typeof window.runFullPipeline === 'function') {
-        try { window.runFullPipeline(); } catch (e) { /* non-fatal */ }
+        try { window.runFullPipeline(); } catch (e) {
+          if (typeof window.reportFailure === 'function') window.reportFailure('non-fatal in strategy-summary-render.js', e);
+          else if (typeof console !== 'undefined') console.warn(e);
+        }
       }
-      setTimeout(renderStrategySummary, 100);
+      renderStrategySummary();
     });
     var printBtn = document.getElementById('ss-print');
     if (printBtn) printBtn.addEventListener('click', function () {

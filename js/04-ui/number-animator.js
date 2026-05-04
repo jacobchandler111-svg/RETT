@@ -121,11 +121,15 @@
       el.textContent = _formatNumber(current, fmtOpts);
       if (t < 1 && el.__rett_lastValue === to) {
         requestAnimationFrame(tick);
-      } else {
-        // Restore exactly the originally-rendered text (in case our format
-        // diverges slightly from the renderer's format).
+      } else if (el.__rett_lastValue === to) {
+        // Natural completion — restore the originally-rendered text in
+        // case our format diverges slightly from the renderer's format.
         el.textContent = rendered;
       }
+      // Otherwise (lastValue !== to): a newer render fired mid-flight
+      // and already overwrote textContent with the latest text. Don't
+      // restore the captured `rendered` here — it would flash a stale
+      // value over the new one. (Issue #45 fix.)
     }
     requestAnimationFrame(tick);
   }
