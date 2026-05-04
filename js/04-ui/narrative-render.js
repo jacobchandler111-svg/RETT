@@ -54,14 +54,41 @@
   function renderNarrative() {
     var host = document.getElementById('narrative-host');
     if (!host) return;
-    var result = window.__lastResult;
+    // Pin the narrative to the RECOMMENDED scenario's auto-picked data
+    // when available — this is what the Strategy Comparison panel
+    // identifies as the winner and matches the dashboard for that row
+    // exactly. Fall back to the global pipeline data only when the
+    // recommendation hasn't run yet (initial paint race).
+    var recData = window.__rettRecommendedData || null;
+    var recLabel = window.__rettRecommendedLabel || null;
+    var result = (recData && recData.result) || window.__lastResult;
     if (!result || !result.years || !result.years.length) {
-      host.innerHTML = '';
-      host.hidden = true;
-      return;
+      // Synthesize a years-shape from comp.rows when we have a recommended
+      // comp but no projection-engine result (deferred path doesn't run
+      // ProjectionEngine).
+      if (recData && recData.comp && Array.isArray(recData.comp.rows) && recData.comp.rows.length) {
+        result = {
+          config: recData.cfg || {},
+          years: recData.comp.rows.map(function (r) {
+            return {
+              year: r.year,
+              taxNoBrooklyn: r.baseline ? r.baseline.total : 0,
+              taxNoBrooklynDoNothing: r.doNothingBaseline ? r.doNothingBaseline.total : null,
+              taxWithBrooklyn: r.withStrategy ? r.withStrategy.total : 0,
+              investmentThisYear: r.investmentThisYear || 0,
+              fee: r.fee || 0
+            };
+          }),
+          totals: { cumulativeFees: recData.comp.totalFees || 0 }
+        };
+      } else {
+        host.innerHTML = '';
+        host.hidden = true;
+        return;
+      }
     }
 
-    var cfg = result.config || {};
+    var cfg = (recData && recData.cfg) || result.config || {};
     var years = result.years;
     var horizon = years.length;
     var totals = result.totals || {};
@@ -71,7 +98,7 @@
     // raw projection-engine deltas can disagree because they don't
     // reflect the structured-sale recommendation).
     var totalSave = 0, cumFees = 0;
-    var comp = window.__lastComparison;
+    var comp = (recData && recData.comp) || window.__lastComparison;
     if (comp && Array.isArray(comp.rows) && comp.rows.length) {
       if (comp.totalSavings != null) {
         totalSave = comp.totalSavings;
@@ -274,10 +301,14 @@
     else if (net < 0)    tone = 'narrative-negative';
     else                 tone = 'narrative-neutral';
 
+    var recHeader = recLabel
+      ? '<p class="narrative-rec-tag"><strong>Recommended:</strong> ' + recLabel + '</p>'
+      : '';
     host.innerHTML =
       '<div class="rett-narrative ' + tone + '" role="status">' +
         '<div class="narrative-icon" aria-hidden="true">\u00A7</div>' +
         '<div class="narrative-body">' +
+          recHeader +
           '<p>' + s1Parts.join(' ') + '</p>' +
           '<p>' + s2 + '</p>' +
         '</div>' +

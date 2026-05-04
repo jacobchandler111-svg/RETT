@@ -662,6 +662,26 @@
     root.__rettScenarioRows = rows.map(function (r) { return {
       type: r.type, rec: r.rec, maxRec: r.maxRec, label: r.label
     }; });
+    // Expose the recommended scenario so the narrative can pin to it
+    // instead of the global __lastComparison (which floats with whatever
+    // the engine last ran with, often a stale or in-progress config).
+    // Also stash the full {comp, result, cfg} so the narrative renders
+    // even when the user has unchecked the recommended row in the
+    // comparison table.
+    root.__rettRecommendedScenario = (winnerIdx >= 0) ? rows[winnerIdx].type : null;
+    root.__rettRecommendedLabel    = (winnerIdx >= 0) ? rows[winnerIdx].label : null;
+    if (winnerIdx >= 0) {
+      var winnerType = rows[winnerIdx].type;
+      var winnerCfg = (winnerType === 'A') ? pickedA.cfg
+                    : (winnerType === 'B') ? (pickedB && pickedB.cfg)
+                    : pickedC.cfg;
+      var winnerData = winnerCfg ? _scenarioFullData(winnerCfg) : null;
+      root.__rettRecommendedData = winnerData
+        ? { comp: winnerData.comp, result: winnerData.result, cfg: winnerCfg, label: rows[winnerIdx].label }
+        : null;
+    } else {
+      root.__rettRecommendedData = null;
+    }
 
     var html = '<div class="rett-scenario-card">';
     html += '<div class="rett-scenario-title">Strategy Comparison</div>';
@@ -988,7 +1008,13 @@
             '<span class="rett-scenario-section-title-text">' + label + '</span>' +
             (configStr ? ' <span class="rett-scenario-section-config">' + configStr + '</span>' : '') +
             '</div>';
-    if (type && baseCfg) {
+    // Per-section horizon / leverage controls only make sense for the
+    // Structured-sale dashboard (C). Sell-Now (A) is naturally a Y1
+    // event and Delay-Close (B) is naturally a Y2-only event — both
+    // auto-pick optimally and have no useful "tune the leverage"
+    // story. C is the one multi-year scenario where the advisor might
+    // reasonably want to override.
+    if (type === 'C' && baseCfg) {
       html += _buildSectionControls(type, baseCfg);
     }
     html += _buildKpiRow(data.years, totals, data.comp, data.result);
