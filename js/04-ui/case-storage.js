@@ -42,8 +42,8 @@
     'dividend-income', 'retirement-distributions',
     // Page 1: Appreciated Assets
     'sale-price', 'cost-basis', 'accelerated-depreciation', 'short-term-gain',
-    // Page 1: Withholding from sale (drives Available Capital)
-    'withhold-yes-no', 'withhold-amount',
+    // Page 1: Sale Proceeds questions (drive Available Capital)
+    'withhold-yes-no', 'withhold-amount', 'cover-taxes-yes-no',
     // Page 1: Implementation
     'implementation-date', 'structured-sale-duration-months',
     // Hidden / Page 2 controls (legacy + horizon + recognition).

@@ -717,32 +717,76 @@ function bindControls() {
   if (subnavSummary) subnavSummary.addEventListener('click', () => showProjectionSubpage('subpage-summary'));
   if (subnavDetails) subnavDetails.addEventListener('click', () => showProjectionSubpage('subpage-details'));
 
-  // Withhold-from-sale wiring: a yes/no question on Page 1 carves a
-  // portion of the sale proceeds aside, and the rest auto-populates
-  // Available Capital on Page 2 in real time.
+  // Sale-Proceeds wiring: two yes/no questions on Page 1 drive how much
+  // of the sale flows into Brooklyn. Available Capital on Page 2 auto-
+  // populates from sale - keep-amount - estimated-tax.
+  //
+  // Tax estimate (when "cover taxes from sale" = yes): treat the full
+  // long-term gain as a Y1 lump-sum recognition and run the federal
+  // and state engines on it. That's the conservative-high floor — for
+  // structured-sale paths the actual tax is less, but front-loading
+  // the carve-out keeps the client liquid for the April due date.
+  function _estimatedSaleTax() {
+    var saleVal  = parseUSD((document.getElementById('sale-price') || {}).value) || 0;
+    var basisVal = parseUSD((document.getElementById('cost-basis') || {}).value) || 0;
+    var deprVal  = parseUSD((document.getElementById('accelerated-depreciation') || {}).value) || 0;
+    var stShort  = parseUSD((document.getElementById('short-term-gain') || {}).value) || 0;
+    var ltGain   = Math.max(0, saleVal - basisVal - deprVal - stShort);
+    if (ltGain <= 0) return 0;
+    var year   = parseInt((document.getElementById('year1') || {}).value, 10) || (new Date()).getFullYear();
+    var status = (document.getElementById('filing-status') || {}).value || 'mfj';
+    var state  = (document.getElementById('state-code') || {}).value || 'NONE';
+    var ord    = (parseUSD((document.getElementById('w2-wages') || {}).value) || 0) +
+                 (parseUSD((document.getElementById('se-income') || {}).value) || 0) +
+                 (parseUSD((document.getElementById('biz-revenue') || {}).value) || 0) +
+                 (parseUSD((document.getElementById('rental-income') || {}).value) || 0) +
+                 (parseUSD((document.getElementById('dividend-income') || {}).value) || 0) +
+                 (parseUSD((document.getElementById('retirement-distributions') || {}).value) || 0);
+    var wages  = (parseUSD((document.getElementById('w2-wages') || {}).value) || 0) +
+                 (parseUSD((document.getElementById('se-income') || {}).value) || 0);
+    var fed = 0, st = 0;
+    try {
+      if (typeof computeFederalTax === 'function') {
+        fed = computeFederalTax(ord + Math.max(0, stShort), year, status, {
+          longTermGain: ltGain,
+          investmentIncome: ltGain + Math.max(0, stShort),
+          wages: wages
+        }) || 0;
+      }
+      if (typeof computeStateTax === 'function') {
+        st = computeStateTax(ord + Math.max(0, stShort) + ltGain, year, state, status, {
+          longTermGain: ltGain
+        }) || 0;
+      }
+    } catch (e) { /* fall through to 0 */ }
+    return Math.round(Math.max(0, fed + st));
+  }
+
   function _recomputeAvailableCapital() {
-    const saleEl   = document.getElementById('sale-price');
-    const yesNoEl  = document.getElementById('withhold-yes-no');
-    const amtEl    = document.getElementById('withhold-amount');
-    const amtGroup = document.getElementById('withhold-amount-group');
-    const errEl    = document.getElementById('withhold-error');
-    const availEl  = document.getElementById('available-capital');
+    const saleEl     = document.getElementById('sale-price');
+    const yesNoEl    = document.getElementById('withhold-yes-no');
+    const amtEl      = document.getElementById('withhold-amount');
+    const amtGroup   = document.getElementById('withhold-amount-group');
+    const errEl      = document.getElementById('withhold-error');
+    const availEl    = document.getElementById('available-capital');
+    const coverEl    = document.getElementById('cover-taxes-yes-no');
     if (!saleEl || !yesNoEl || !availEl) return;
 
     const saleVal = parseUSD(saleEl.value) || 0;
-    const wantsWithhold = (yesNoEl.value === 'yes');
+    const wantsKeep = (yesNoEl.value === 'yes');
     const amtRaw  = amtEl ? (parseUSD(amtEl.value) || 0) : 0;
+    const wantsCoverTaxes = !!(coverEl && coverEl.value === 'yes');
 
     // Show / hide the amount input based on yes/no.
-    if (amtGroup) amtGroup.hidden = !wantsWithhold;
+    if (amtGroup) amtGroup.hidden = !wantsKeep;
 
-    // Validation: amount must not exceed the sale.
-    let withhold = 0;
+    // Validation: keep-amount must not exceed the sale.
+    let keep = 0;
     let hasError = false;
-    if (wantsWithhold) {
+    if (wantsKeep) {
       if (saleVal > 0 && amtRaw > saleVal) {
         if (errEl) {
-          errEl.textContent = 'Withhold ($' + amtRaw.toLocaleString() +
+          errEl.textContent = 'Amount to keep ($' + amtRaw.toLocaleString() +
             ') is greater than the sale price ($' + saleVal.toLocaleString() +
             '). Please re-enter.';
           errEl.hidden = false;
@@ -750,18 +794,19 @@ function bindControls() {
         hasError = true;
       } else {
         if (errEl) errEl.hidden = true;
-        withhold = Math.max(0, amtRaw);
+        keep = Math.max(0, amtRaw);
       }
     } else {
-      // No withhold — clear the field + hide error.
       if (errEl) errEl.hidden = true;
     }
 
-    // Drive available-capital from sale - withhold whenever there's a
-    // sale price and no validation error. This overwrites whatever is
-    // currently in the field; the user can still override on Page 2.
+    const taxCarveOut = wantsCoverTaxes ? _estimatedSaleTax() : 0;
+
+    // Drive available-capital from sale - keep - tax (if covering)
+    // whenever there's a sale price and no validation error. The user
+    // can still override on Page 2.
     if (!hasError && saleVal > 0) {
-      const newAvailNum = Math.max(0, saleVal - withhold);
+      const newAvailNum = Math.max(0, saleVal - keep - taxCarveOut);
       const newAvail = (typeof fmtUSD === 'function')
         ? fmtUSD(newAvailNum)
         : String(newAvailNum);
@@ -778,8 +823,14 @@ function bindControls() {
   }
 
   // Wire up the listeners. Sale-price already has other input listeners
-  // elsewhere; we add ours alongside.
-  ['sale-price', 'withhold-yes-no', 'withhold-amount'].forEach(function (id) {
+  // elsewhere; we add ours alongside. cost-basis and accelerated-
+  // depreciation also drive the tax estimate when "cover taxes" is on,
+  // so changes to those fields must re-trigger Available Capital.
+  ['sale-price', 'cost-basis', 'accelerated-depreciation', 'short-term-gain',
+   'withhold-yes-no', 'withhold-amount', 'cover-taxes-yes-no',
+   'filing-status', 'state-code', 'year1',
+   'w2-wages', 'se-income', 'biz-revenue', 'rental-income',
+   'dividend-income', 'retirement-distributions'].forEach(function (id) {
     const el = document.getElementById(id);
     if (!el) return;
     const evt = (el.tagName === 'SELECT') ? 'change' : 'input';

@@ -102,6 +102,17 @@ function collectInputs() {
                       var raw = parseInt(_val('structured-sale-duration-months'), 10);
                       return (Number.isFinite(raw) && raw > 0) ? raw : 18;
                 })(),
+                // "Cover taxes from sale": when yes, the calculator carves
+                // estimated federal + state tax out of the sale proceeds
+                // before they hit Brooklyn — so the client doesn't end up
+                // cash-short on April 1 of the year following the sale.
+                // The estimate uses computeFederalTax + computeStateTax on
+                // the full LT gain (treated as Y1 lump-sum), which is the
+                // conservative-high tax floor for both immediate and
+                // structured paths. Math is applied in
+                // _recomputeAvailableCapital — the cfg field below just
+                // surfaces the toggle to the engine for future use.
+                coverTaxesFromSale: (_val('cover-taxes-yes-no') === 'yes'),
                 // Scenario-comparison override: when the user clicked the
                 // "Delay close to Jan 1 next year" row, we stash the
                 // year-index cap on window so the engine forces gain to
