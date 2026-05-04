@@ -305,13 +305,6 @@
       });
       years = comp.rows.map(function (r, idx) {
         var resYr = (result && result.years && result.years[idx]) || {};
-        // Stagger-aware per-year overrides: use stage2.investmentByYear /
-        // feeByYear when the structured-sale optimizer produced them.
-        var stage2 = (window.__lastRecommendation && window.__lastRecommendation.stage2) || {};
-        var invOverride = (stage2.investmentByYear && stage2.investmentByYear[idx] != null)
-          ? stage2.investmentByYear[idx] : null;
-        var feeOverride = (stage2.feeByYear && stage2.feeByYear[idx] != null)
-          ? stage2.feeByYear[idx] : null;
         // Deferred-comparison rows carry their own per-year investment, fee,
         // and lossGenerated values that are authoritative — ignore the
         // projection-engine row when present.
@@ -325,18 +318,24 @@
             fee: r.fee || 0
           };
         }
-        // "Loss Generated" reads the projection-engine's per-year
-        // grossLoss so every year shows the strategy's continuous
-        // output, not just years where a recognized gain absorbed
-        // some loss. lossApplied (loss actually used against gain)
-        // is only used as a fallback when grossLoss isn't tracked.
+        // Immediate path: pull investmentThisYear / grossLoss / fee
+        // STRICTLY from the projection engine (resYr). The Brooklyn
+        // position stays open every year the user has capital deployed,
+        // so fees and losses both track cfg.investment held constant.
+        // We deliberately do NOT use the legacy
+        // recommendation.stage2.{investmentByYear, feeByYear} arrays —
+        // those described a "structured-sale-then-close" lifecycle that
+        // assumed the position closes after Y1 and would zero fees /
+        // investment in Y2+ even though the engine kept generating
+        // losses, producing an inconsistent display (losses every year,
+        // fees only Y1, ROI inflated).
         return {
           year: r.year,
           taxNoBrooklyn: r.baseline ? r.baseline.total : (resYr.taxNoBrooklyn || 0),
           taxWithBrooklyn: r.withStrategy ? r.withStrategy.total : (resYr.taxWithBrooklyn || resYr.taxNoBrooklyn || 0),
-          investmentThisYear: isNoAction ? 0 : (invOverride != null ? invOverride : (resYr.investmentThisYear || 0)),
+          investmentThisYear: isNoAction ? 0 : (resYr.investmentThisYear || 0),
           grossLoss: isNoAction ? 0 : (resYr.grossLoss != null ? resYr.grossLoss : (r.lossApplied || 0)),
-          fee: isNoAction ? 0 : (feeOverride != null ? feeOverride : (resYr.fee || 0))
+          fee: isNoAction ? 0 : (resYr.fee || 0)
         };
       });
     } else if (result && result.years && result.years.length) {
