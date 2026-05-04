@@ -31,11 +31,18 @@
     '</div>';
   }
 
-  function renderSavingsRibbon() {
+  // Optional sectionType + label drive a per-section render: when the
+  // dashboard's IntersectionObserver detects a stacked scenario section
+  // in view, it calls this with that section's comp/result so the ribbon
+  // reflects the user's current vertical position. Without args, falls
+  // back to the global __lastComparison / __lastResult.
+  function renderSavingsRibbon(sectionType, sectionLabel) {
     var ribbon = document.getElementById('savings-ribbon');
     if (!ribbon) return;
-    var result = window.__lastResult;
-    var comp = window.__lastComparison;
+    var sectionMap = window.__rettSectionData || {};
+    var sectionData = sectionType ? sectionMap[sectionType] : null;
+    var result = (sectionData && sectionData.result) || window.__lastResult;
+    var comp   = (sectionData && sectionData.comp)   || window.__lastComparison;
 
     var years = null;
     if (comp && Array.isArray(comp.rows) && comp.rows.length) {
@@ -92,6 +99,12 @@
     var saveKind = totalSave > 0 ? 'positive' : (totalSave < 0 ? 'negative' : '');
     var netKind  = net > 0 ? 'positive' : (net < 0 ? 'negative' : '');
 
+    // Section-label header so the user knows which scenario the
+    // ribbon is reflecting as they scroll past stacked dashboards.
+    var labelHtml = sectionLabel
+      ? '<div class="ribbon-section-label">' + sectionLabel + '</div>'
+      : '';
+
     // When Brookhaven fees are zero (e.g. fee data not loaded yet),
     // collapse to the legacy 3-tile layout. Otherwise show the
     // 4-tile breakdown so the advisor sees both fee lines.
@@ -101,8 +114,9 @@
       (brookhavenFees > 0 ? _tile('Brookhaven Fees', _fmt(brookhavenFees), '') : '') +
       _tile('Net Benefit', _fmt(net), netKind);
 
-    ribbon.innerHTML = tiles;
+    ribbon.innerHTML = labelHtml + tiles;
     ribbon.classList.toggle('ribbon-4col', brookhavenFees > 0);
+    ribbon.classList.toggle('ribbon-with-label', !!sectionLabel);
     ribbon.hidden = false;
   }
 

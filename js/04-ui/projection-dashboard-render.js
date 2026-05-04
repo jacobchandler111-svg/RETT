@@ -1165,7 +1165,14 @@
       try { return collectInputs(); } catch (e) { return null; }
     })() : null;
     if (!currentCfg) return;
+    // Reset the per-section data map and active-section tracker before
+    // we rebuild — stale data from an unchecked section would otherwise
+    // leak into the savings-ribbon render path.
+    root.__rettSectionData = {};
     var sections = '';
+    var renderedTypes = [];
+    var labelByType = {};
+    var dataByType = {};
     rows.forEach(function (row) {
       if (!checked[row.type]) return;
       // Per-section: each section auto-picks its OWN (horizon, leverage,
@@ -1177,6 +1184,11 @@
       var data = _scenarioFullData(cfg);
       if (!data) return;
       sections += _buildScenarioSection(row.label, data, row.type, currentCfg);
+      renderedTypes.push(row.type);
+      labelByType[row.type] = row.label;
+      dataByType[row.type] = data;
+      // Stash for the savings-ribbon scroll observer.
+      root.__rettSectionData[row.type] = { comp: data.comp, result: data.result };
     });
     if (!sections) {
       sections = '<div class="rett-no-scenarios" style="' +
@@ -1187,9 +1199,82 @@
     }
     summaryHost.innerHTML = sections;
     _wireSectionControls();
+    _wireSectionRibbonObserver(renderedTypes, labelByType);
     if (typeof root.animateRettNumbers === 'function') {
       try { root.animateRettNumbers(); } catch (e) { /* */ }
     }
+  }
+
+  // Sticky savings ribbon: as the user scrolls, swap which scenario's
+  // numbers populate the ribbon at the top. On initial render the
+  // ribbon shows the first rendered section (which is the recommended
+  // scenario when only that one is checked, or the topmost checked one
+  // when multiple are checked). As the user scrolls past one section
+  // into the next, the ribbon updates to reflect the section currently
+  // dominating the viewport. Hides entirely when no sections are
+  // rendered (empty-state callout above).
+  function _wireSectionRibbonObserver(renderedTypes, labelByType) {
+    var ribbon = document.getElementById('savings-ribbon');
+    if (!ribbon) return;
+    if (!renderedTypes || !renderedTypes.length) {
+      ribbon.hidden = true;
+      ribbon.innerHTML = '';
+      return;
+    }
+    // Disconnect any prior observer — new section list, fresh observer.
+    if (root.__rettSectionRibbonObserver) {
+      try { root.__rettSectionRibbonObserver.disconnect(); } catch (e) { /* */ }
+    }
+    // Default to the FIRST rendered section so the ribbon has content
+    // before the user has scrolled.
+    var initialType = renderedTypes[0];
+    if (typeof root.renderSavingsRibbon === 'function') {
+      try { root.renderSavingsRibbon(initialType, labelByType[initialType]); }
+      catch (e) { /* */ }
+    }
+    if (typeof root.IntersectionObserver !== 'function') {
+      // No observer support — leave ribbon on the initial section.
+      return;
+    }
+    // Track each section's intersection ratio. The most-visible one
+    // wins. Threshold steps so we get progressive updates as the user
+    // scrolls.
+    var ratios = {};
+    var observer = new root.IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        var t = entry.target.getAttribute('data-section-type');
+        if (!t) return;
+        ratios[t] = entry.isIntersecting ? entry.intersectionRatio : 0;
+      });
+      // Pick the type with the highest current ratio — falls back to
+      // the first rendered type when nothing is on-screen (user has
+      // scrolled past everything).
+      var bestType = null, bestRatio = 0;
+      renderedTypes.forEach(function (t) {
+        var r = ratios[t] || 0;
+        if (r > bestRatio) { bestRatio = r; bestType = t; }
+      });
+      if (!bestType || bestRatio <= 0) bestType = renderedTypes[0];
+      if (typeof root.renderSavingsRibbon === 'function') {
+        try { root.renderSavingsRibbon(bestType, labelByType[bestType]); }
+        catch (e) { /* */ }
+      }
+    }, {
+      // Step thresholds give us smooth handoff as one section scrolls
+      // out and the next scrolls in.
+      threshold: [0, 0.1, 0.25, 0.5, 0.75, 1],
+      // Account for the sticky ribbon's own height at the top so a
+      // section technically "in view" but obscured by the ribbon
+      // doesn't count.
+      rootMargin: '-72px 0px 0px 0px'
+    });
+    renderedTypes.forEach(function (t) {
+      var el = document.getElementById('rett-section-' + t);
+      if (!el) return;
+      el.setAttribute('data-section-type', t);
+      observer.observe(el);
+    });
+    root.__rettSectionRibbonObserver = observer;
   }
 
   function renderProjectionDashboard(host) {
