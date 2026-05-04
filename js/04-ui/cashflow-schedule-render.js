@@ -204,7 +204,7 @@
     // User intent: what they typed in the Available Capital input.
     // Falls back to the engine's first-year deposit only if no input.
     var userIntent = Number(cfg.investment || 0)
-      || Number((document.getElementById('available-capital') || {}).value || 0);
+      || parseUSD((document.getElementById('available-capital') || {}).value || 0);
     if (!userIntent) return '';
     if (userIntent >= minInv) return '';
     // User intent is real and below the min — this is a true warning.
@@ -282,15 +282,15 @@
     // Patch in the property-sale fields (the projection-engine result
     // doesn't always carry them on cfg).
     cfg.salePrice = cfg.salePrice
-      || Number((document.getElementById('sale-price') || {}).value) || 0;
+      || parseUSD((document.getElementById('sale-price') || {}).value) || 0;
     cfg.costBasis = cfg.costBasis
-      || Number((document.getElementById('cost-basis') || {}).value) || 0;
+      || parseUSD((document.getElementById('cost-basis') || {}).value) || 0;
     cfg.acceleratedDepreciation = cfg.acceleratedDepreciation
-      || Number((document.getElementById('accelerated-depreciation') || {}).value) || 0;
+      || parseUSD((document.getElementById('accelerated-depreciation') || {}).value) || 0;
     cfg.implementationDate = cfg.implementationDate
       || (document.getElementById('implementation-date') || {}).value || '';
     cfg.baseShortTermGain = cfg.baseShortTermGain
-      || Number((document.getElementById('short-term-gain') || {}).value) || 0;
+      || parseUSD((document.getElementById('short-term-gain') || {}).value) || 0;
 
     var rows = _buildScheduleRows(cfg, comp, result.years);
     if (!rows.length) {

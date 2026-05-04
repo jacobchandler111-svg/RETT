@@ -117,10 +117,14 @@
     var innerW = W - padL - padR;
     var innerH = H - padT - padB;
 
-    // Compute scales
+    // Compute scales. The "Without Strategy" bar is the do-nothing
+    // scenario — all property gain hits Y1 as a lump sum, Y2+ are just
+    // ordinary income. Falls back to taxNoBrooklyn when the engine
+    // didn't supply a do-nothing series (immediate path, where the
+    // matched-timing baseline already piles everything in Y1).
     var maxBar = 0;
     var data = years.map(function (y) {
-      var no = y.taxNoBrooklyn || 0;
+      var no = (y.taxNoBrooklynDoNothing != null) ? y.taxNoBrooklynDoNothing : (y.taxNoBrooklyn || 0);
       var w = (y.taxWithBrooklyn != null) ? y.taxWithBrooklyn : no;
       var save = no - w;
       if (no > maxBar) maxBar = no;
@@ -327,6 +331,10 @@
           return {
             year: r.year,
             taxNoBrooklyn: r.baseline ? r.baseline.total : 0,
+            // Chart-only "do nothing" baseline: full property gain in Y1,
+            // zero in Y2+. KPI / details / ribbon ignore this and keep
+            // using taxNoBrooklyn (matched-timing apples-to-apples).
+            taxNoBrooklynDoNothing: r.doNothingBaseline ? r.doNothingBaseline.total : null,
             taxWithBrooklyn: r.withStrategy ? r.withStrategy.total : 0,
             investmentThisYear: r.investmentThisYear || 0,
             gainRecognized: r.gainRecognized || 0,

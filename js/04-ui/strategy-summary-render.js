@@ -273,9 +273,9 @@
         typeof ProjectionEngine !== 'undefined' && ProjectionEngine.run) {
       try {
         var cfgOnDemand = collectInputs();
-        var sp = Number((document.getElementById('sale-price') || {}).value) || 0;
-        var cb = Number((document.getElementById('cost-basis') || {}).value) || 0;
-        var ad = Number((document.getElementById('accelerated-depreciation') || {}).value) || 0;
+        var sp = parseUSD((document.getElementById('sale-price') || {}).value) || 0;
+        var cb = parseUSD((document.getElementById('cost-basis') || {}).value) || 0;
+        var ad = parseUSD((document.getElementById('accelerated-depreciation') || {}).value) || 0;
         if (sp) cfgOnDemand.salePrice = sp;
         if (cb) cfgOnDemand.costBasis = cb;
         if (ad) cfgOnDemand.acceleratedDepreciation = ad;

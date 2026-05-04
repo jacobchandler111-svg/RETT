@@ -21,16 +21,16 @@
   }
 
   function readInputs() {
-    var salePrice               = Number(($('sale-price') || {}).value) || 0;
-    var costBasis               = Number(($('cost-basis') || {}).value) || 0;
-    var acceleratedDepreciation = Number(($('accelerated-depreciation') || {}).value) || 0;
+    var salePrice               = parseUSD(($('sale-price') || {}).value) || 0;
+    var costBasis               = parseUSD(($('cost-basis') || {}).value) || 0;
+    var acceleratedDepreciation = parseUSD(($('accelerated-depreciation') || {}).value) || 0;
     var implementationDate      = ($('implementation-date') || {}).value || '';
     var strategyKey             = ($('strategy-select') || {}).value || 'beta1';
     // The Brooklyn Investment input was removed; available-capital is the
     // single source of truth, defaulted from sale price on Page 1 -> Page 2
     // continue. The hidden #invested-capital field stays for legacy
     // overrides.
-    var availableCapital        = Number(($('available-capital') || {}).value) || 0;
+    var availableCapital        = parseUSD(($('available-capital') || {}).value) || 0;
     // Prefer available-capital (the visible source-of-truth on Page 2).
     // The hidden #invested-capital is a legacy field with safe defaults
     // — only fall back to it when available-capital is empty so a stale
@@ -103,7 +103,7 @@
     //     gain into short-term — that piece is taxed at ordinary
     //     rates instead of LTCG rates, so it doesn't belong in the
     //     LT gain bucket).
-    var stShort = Number((document.getElementById('short-term-gain') || {}).value) || 0;
+    var stShort = parseUSD((document.getElementById('short-term-gain') || {}).value) || 0;
     var lt = Math.max(0,
       inputs.salePrice - inputs.costBasis - inputs.acceleratedDepreciation - stShort);
     var rec = Math.max(0, inputs.acceleratedDepreciation);

@@ -554,6 +554,21 @@ function computeDeferredTaxComparison(cfg) {
             const baseline = _baseScenarioForYear(cfg, year, gainRecThisYear);
             const baselineTax = _yearTaxes(baseline);
 
+            // "Do nothing" baseline for the bar chart: if the client took
+            // no action at all, the entire property gain (LT bucket + ST
+            // gain) hits Year 1 as a lump sum. Year 2+ baseline is just
+            // ordinary income, no property gain. This is what the chart
+            // visualizes against the planned with-strategy bars so the
+            // visceral story — "without planning you owe $X in Y1" — is
+            // honest. KPI / details / ribbon still use `baseline` (the
+            // matched-timing apples-to-apples comparison).
+            const dnBaseline = _baseScenarioForYear(cfg, year, i === 0 ? totalGainBucket : 0);
+            if (i !== 0) dnBaseline.shortTermGain = 0;
+            // Recompute investmentIncome to match the do-nothing LT/ST.
+            dnBaseline.investmentIncome =
+                  (dnBaseline.longTermGain || 0) + Math.max(0, dnBaseline.shortTermGain || 0);
+            const dnBaselineTax = _yearTaxes(dnBaseline);
+
             const totalLossAvail = stCF + yearLoss;
             const withStrat = _applyLossesWithSTCfCap(baseline, totalLossAvail, ordCap);
             const withStratTax = _yearTaxes(withStrat);
@@ -575,6 +590,7 @@ function computeDeferredTaxComparison(cfg) {
                   brookhavenSetupFee: bh.setup,
                   brookhavenQuarterlyFee: bh.quarterly,
                   baseline: baselineTax,
+                  doNothingBaseline: dnBaselineTax,
                   withStrategy: withStratTax,
                   savings: baselineTax.total - withStratTax.total
             });

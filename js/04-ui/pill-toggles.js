@@ -212,9 +212,9 @@
       recSel.value = String(r);
       var cfg;
       try { cfg = collectInputs(); } catch (e) { continue; }
-      var spSale = Number((document.getElementById('sale-price') || {}).value) || 0;
-      var cb = Number((document.getElementById('cost-basis') || {}).value) || 0;
-      var ad = Number((document.getElementById('accelerated-depreciation') || {}).value) || 0;
+      var spSale = parseUSD((document.getElementById('sale-price') || {}).value) || 0;
+      var cb = parseUSD((document.getElementById('cost-basis') || {}).value) || 0;
+      var ad = parseUSD((document.getElementById('accelerated-depreciation') || {}).value) || 0;
       if (spSale) cfg.salePrice = spSale;
       if (cb) cfg.costBasis = cb;
       if (ad) cfg.acceleratedDepreciation = ad;
@@ -382,9 +382,9 @@
             if (recSel) recSel.value = String(rStart);
             var cfg;
             try { cfg = collectInputs(); } catch (e) { continue; }
-            var spSale = Number((document.getElementById('sale-price') || {}).value) || 0;
-            var cb = Number((document.getElementById('cost-basis') || {}).value) || 0;
-            var ad = Number((document.getElementById('accelerated-depreciation') || {}).value) || 0;
+            var spSale = parseUSD((document.getElementById('sale-price') || {}).value) || 0;
+            var cb = parseUSD((document.getElementById('cost-basis') || {}).value) || 0;
+            var ad = parseUSD((document.getElementById('accelerated-depreciation') || {}).value) || 0;
             if (spSale) cfg.salePrice = spSale;
             if (cb) cfg.costBasis = cb;
             if (ad) cfg.acceleratedDepreciation = ad;

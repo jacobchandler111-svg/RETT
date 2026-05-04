@@ -109,13 +109,13 @@
     // Capital when the dedicated invested-capital field is hidden /
     // zero). Fall back to the available-capital field, then to the
     // legacy invested-capital field.
-    var sale = Number((document.getElementById('sale-price') || {}).value) || 0;
-    var cost = Number((document.getElementById('cost-basis') || {}).value) || 0;
-    var depr = Number((document.getElementById('accelerated-depreciation') || {}).value) || 0;
-    var stShort = Number((document.getElementById('short-term-gain') || {}).value) || 0;
+    var sale = parseUSD((document.getElementById('sale-price') || {}).value) || 0;
+    var cost = parseUSD((document.getElementById('cost-basis') || {}).value) || 0;
+    var depr = parseUSD((document.getElementById('accelerated-depreciation') || {}).value) || 0;
+    var stShort = parseUSD((document.getElementById('short-term-gain') || {}).value) || 0;
     var invested = (cfg && Number(cfg.investment)) ||
-                   Number((document.getElementById('available-capital') || {}).value) ||
-                   Number((document.getElementById('invested-capital') || {}).value) ||
+                   parseUSD((document.getElementById('available-capital') || {}).value) ||
+                   parseUSD((document.getElementById('invested-capital') || {}).value) ||
                    0;
     // LT gain is the property gain minus accelerated depreciation
     // recapture (ordinary) and any short-term gain the user carved

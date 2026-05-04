@@ -591,9 +591,9 @@ function _onCustodianChange() {
 function _buildEngineCfg() {
   if (typeof collectInputs !== 'function') return null;
   var cfg = collectInputs();
-  var sp = Number((document.getElementById('sale-price') || {}).value) || 0;
-  var cb = Number((document.getElementById('cost-basis') || {}).value) || 0;
-  var ad = Number((document.getElementById('accelerated-depreciation') || {}).value) || 0;
+  var sp = parseUSD((document.getElementById('sale-price') || {}).value) || 0;
+  var cb = parseUSD((document.getElementById('cost-basis') || {}).value) || 0;
+  var ad = parseUSD((document.getElementById('accelerated-depreciation') || {}).value) || 0;
   if (sp) cfg.salePrice = sp;
   if (cb) cfg.costBasis = cb;
   if (ad) cfg.acceleratedDepreciation = ad;
@@ -687,9 +687,9 @@ function bindControls() {
     const availEl  = document.getElementById('available-capital');
     if (!saleEl || !yesNoEl || !availEl) return;
 
-    const saleVal = Number(saleEl.value) || 0;
+    const saleVal = parseUSD(saleEl.value) || 0;
     const wantsWithhold = (yesNoEl.value === 'yes');
-    const amtRaw  = amtEl ? (Number(amtEl.value) || 0) : 0;
+    const amtRaw  = amtEl ? (parseUSD(amtEl.value) || 0) : 0;
 
     // Show / hide the amount input based on yes/no.
     if (amtGroup) amtGroup.hidden = !wantsWithhold;
@@ -719,10 +719,14 @@ function bindControls() {
     // sale price and no validation error. This overwrites whatever is
     // currently in the field; the user can still override on Page 2.
     if (!hasError && saleVal > 0) {
-      const newAvail = String(Math.max(0, saleVal - withhold));
-      if (availEl.value !== newAvail) {
+      const newAvailNum = Math.max(0, saleVal - withhold);
+      const newAvail = (typeof fmtUSD === 'function')
+        ? fmtUSD(newAvailNum)
+        : String(newAvailNum);
+      if (parseUSD(availEl.value) !== newAvailNum) {
         availEl.value = newAvail;
-        availEl.dispatchEvent(new Event('input', { bubbles: true }));
+        availEl.dispatchEvent(new Event('input',  { bubbles: true }));
+        availEl.dispatchEvent(new Event('change', { bubbles: true }));
       }
     }
 
