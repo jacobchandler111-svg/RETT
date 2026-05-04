@@ -153,18 +153,55 @@ function computeTaxComparison(cfg, recommendation) {
       // Defensive year1 default so row.year is never null even when
       // the caller forgot to set cfg.year1. (Issue #58.)
       const _y0 = (cfg.year1 != null) ? Number(cfg.year1) : (new Date()).getFullYear();
+      // Immediate path = NO structured sale = ALL gain recognized in
+      // Y1. Spreading gain across years requires a structured-sale
+      // wrapper (the deferred-comparison engine handles that). When
+      // the recommendation engine returned a multi-year-shortfall
+      // schedule on the immediate path, it was attempting to spread
+      // gain to fit Brooklyn's annual loss capacity — but presenting
+      // that as "no structured sale needed" is incorrect. Flatten the
+      // schedule to Y1-only here so the dashboard shows the honest
+      // lump-sum picture: full gain Y1, Brooklyn losses up to
+      // capacity, leftover gain just taxed at LTCG.
+      const _isImmediate = (cfg.recognitionStartYearIndex || 0) === 0;
+      let _flatRec = recommendation;
+      if (_isImmediate && recommendation &&
+          (recommendation.recommendation === 'multi-year' ||
+           recommendation.recommendation === 'multi-year-shortfall')) {
+            const _sched = recommendation.schedule || recommendation.years || [];
+            const _totalLT = (recommendation.longTermGain != null)
+                  ? recommendation.longTermGain
+                  : _sched.reduce(function (s, slot) {
+                        return s + (slot && (slot.gainTaken || slot.gain) || 0);
+                      }, 0);
+            // Y1 loss = the recommendation's Y1-capacity. For
+            // multi-year-shortfall this is the Y1 slot's lossGenerated;
+            // for plain multi-year it's the same since the schedule
+            // is the engine's own output.
+            const _y1Slot = _sched[0] || {};
+            const _y1Loss = (_y1Slot.lossGenerated != null
+                                  ? _y1Slot.lossGenerated
+                                  : (_y1Slot.loss != null ? _y1Slot.loss
+                                        : (recommendation.lossGenerated || 0)));
+            _flatRec = {
+                  recommendation: 'single-year',
+                  longTermGain: _totalLT,
+                  lossGenerated: _y1Loss,
+                  schedule: null
+            };
+      }
       for (let i = 0; i < horizon; i++) {
             const yr = _y0 + i;
             let gainThisYear = 0;
             let lossThisYear = 0;
 
-            if (recommendation && recommendation.recommendation === 'single-year') {
+            if (_flatRec && _flatRec.recommendation === 'single-year') {
                   if (i === 0) {
-                        gainThisYear = recommendation.longTermGain || 0;
-                        lossThisYear = recommendation.lossGenerated || 0;
+                        gainThisYear = _flatRec.longTermGain || 0;
+                        lossThisYear = _flatRec.lossGenerated || 0;
                   }
-            } else if (recommendation && (recommendation.recommendation === 'multi-year' || recommendation.recommendation === 'multi-year-shortfall')) {
-                  const sched = recommendation.schedule || recommendation.years || [];
+            } else if (_flatRec && (_flatRec.recommendation === 'multi-year' || _flatRec.recommendation === 'multi-year-shortfall')) {
+                  const sched = _flatRec.schedule || _flatRec.years || [];
                   const slot = sched[i];
                   if (slot) {
                         gainThisYear = slot.gainTaken || slot.gain || 0;

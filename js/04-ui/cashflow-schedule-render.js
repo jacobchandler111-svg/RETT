@@ -256,6 +256,16 @@
         if ((rows[i].newInvested || 0) > 0.5) return false;
       }
     }
+    // Third gate: no gain recognized in Y2+ either. Recognizing gain
+    // in a later year — even if no new deposit is shown — implies
+    // either a structured-sale wrapper holding the proceeds OR the
+    // recommendation engine spread gain across years to fit Brooklyn's
+    // annual loss capacity. Either way it's not a lump-sum scenario.
+    if (Array.isArray(comp.rows) && comp.rows.length > 1) {
+      for (var j = 1; j < comp.rows.length; j++) {
+        if ((comp.rows[j].gainRecognized || 0) > 0.5) return false;
+      }
+    }
     return true;
   }
 
