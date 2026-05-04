@@ -157,14 +157,44 @@ body {
 }
 .pill-group-hint[hidden] { display: none; }
 
-/* "Revert to optimized" button — sits at the right of the pill-toggle
-   row, visible only after the user has manually overridden the engine. */
-.revert-group { margin-left: auto; }
+/* `.pill-group { display: flex }` overrides the user-agent's
+   `[hidden] { display: none }` rule because they have equal specificity
+   and the class rule comes later in the cascade. Restore the hidden
+   semantics explicitly so the slider really disappears when Schwab
+   takes over with the preset pills. */
+.pill-group[hidden] { display: none !important; }
+
+/* "Revert to optimized" sits in its own bar ABOVE the toggle row so it's
+   the first thing the user sees after they override auto-pick. Hidden
+   until needed. */
+.revert-bar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 6px;
+}
 .btn-revert {
     font-size: 0.85em;
     padding: 6px 14px;
 }
 .btn-revert[hidden] { display: none; }
+
+/* Locked strategy display — shown in place of the strategy <select>
+   when the custodian (Schwab) only permits one strategy. */
+.strategy-locked {
+    margin: 6px 0 0 0;
+    padding: 8px 12px;
+    background: rgba(15, 76, 129, 0.18);
+    border: 1px solid rgba(26, 58, 110, 0.6);
+    border-radius: 4px;
+    color: #cfe1ff;
+    font-weight: 600;
+}
+.strategy-locked[hidden] { display: none; }
+.strategy-locked .muted {
+    font-weight: 400;
+    color: #8fb3e0;
+    margin-left: 4px;
+}
 
 .pill-track {
     display: inline-flex;

@@ -392,7 +392,14 @@ function _resetLeverageSelectToEmpty(lcSel, stratSel, info) {
   lcSel.appendChild(opt);
   lcSel.disabled = true;
   if (info) info.textContent = 'No custodian selected. Pick a custodian above to unlock strategies and leverage caps.';
-  if (stratSel) Array.from(stratSel.options).forEach(o => { o.disabled = false; });
+  if (stratSel) {
+    Array.from(stratSel.options).forEach(o => { o.disabled = false; });
+    // No custodian = no lock; restore the dropdown and hide the
+    // locked-label twin used for single-strategy custodians (Schwab).
+    stratSel.hidden = false;
+    const lockedLabel = document.getElementById('strategy-locked-label');
+    if (lockedLabel) lockedLabel.hidden = true;
+  }
 }
 
 function _populateLeverageOptions(lcSel, custodian, prevLcVal) {
@@ -443,6 +450,19 @@ function _applyStrategyAvailability(stratSel, custodian) {
       stratSel.value = custodian.allowedStrategies[0];
     }
   });
+  // When the custodian only permits one strategy (Schwab → Beta 1),
+  // hide the dropdown entirely and show the locked-label twin so it's
+  // clear there's no choice to make.
+  const lockedLabel = document.getElementById('strategy-locked-label');
+  const onlyOne = custodian.allowedStrategies.length === 1;
+  if (onlyOne) {
+    stratSel.value = custodian.allowedStrategies[0];
+    stratSel.hidden = true;
+    if (lockedLabel) lockedLabel.hidden = false;
+  } else {
+    stratSel.hidden = false;
+    if (lockedLabel) lockedLabel.hidden = true;
+  }
 }
 
 function _renderCustodianInfo(info, custodian, stratSel, lcSel, isSchwab) {

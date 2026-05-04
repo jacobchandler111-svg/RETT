@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RETT - Brooklyn Multi-Year Projector</title>
-  <link rel="stylesheet" href="css/styles.css?v=1777500000041">
+  <link rel="stylesheet" href="css/styles.css?v=1777500000042">
 </head>
 <body>
   <a href="#page-inputs" class="skip-link">Skip to main content</a>
@@ -239,6 +239,11 @@
             <option value="beta05">Brooklyn Beta 0.5</option>
             <option value="advisorManaged">Brooklyn Advisor-Managed</option>
           </select>
+          <!-- Schwab is Beta 1-only — no choice to make. When Schwab is
+               the custodian, the dropdown above is hidden and this
+               locked-label takes its place so it's clear the strategy
+               is fixed by the custodian's product rules. -->
+          <p id="strategy-locked-label" class="strategy-locked" hidden>Brooklyn Beta 1 <span class="muted">(Schwab is Beta 1 only)</span></p>
         </div>
       </div>
 
@@ -253,12 +258,25 @@
         <input type="hidden" id="beta1" value="50">
       </div>
 
-      <!-- Leverage slider + Horizon + Recognition pill toggles.
-           Leverage is now a continuous short-% slider that auto-positions
-           to whatever short% maximizes net savings. Tick marks on the
-           track show the custodian's published preset combos for
-           reference. Drag the slider to override the auto-pick. -->
+      <!-- Manual overrides on leverage / horizon stick once touched.
+           "Revert to optimized" reruns the full auto-pick search and
+           sits above the toggle row so it's visible without scrolling
+           past the controls. Hidden until the user overrides. -->
+      <div class="revert-bar">
+        <button type="button" id="revert-to-optimized" class="btn btn-secondary btn-revert" hidden>Revert to optimized</button>
+      </div>
+
+      <!-- Horizon (left) + Leverage (right) toggle row.
+           Goldman / no custodian: the leverage column is a continuous
+           short-% slider that auto-positions to maximize net savings.
+           Schwab: the slider is hidden and the two preset combos
+           (145/45 / 200/100) take its place. -->
       <div class="pill-toggle-row">
+        <div class="pill-group" id="horizon-pill-group" role="radiogroup" aria-label="Projection horizon">
+          <span class="pill-group-label">Horizon</span>
+          <div class="pill-track" id="horizon-pill-track"></div>
+          <span class="pill-group-hint" id="horizon-auto-hint" hidden>auto-selected</span>
+        </div>
         <div class="pill-group leverage-slider-group" id="leverage-slider-group" aria-label="Leverage">
           <span class="pill-group-label">Leverage</span>
           <div class="leverage-slider-wrap">
@@ -281,18 +299,6 @@
             <button type="button" class="pill" data-short="100" role="radio" aria-checked="true">200/100</button>
           </div>
           <span class="pill-group-hint" id="leverage-schwab-auto-hint" hidden>auto-selected</span>
-        </div>
-        <div class="pill-group" id="horizon-pill-group" role="radiogroup" aria-label="Projection horizon">
-          <span class="pill-group-label">Horizon</span>
-          <div class="pill-track" id="horizon-pill-track"></div>
-          <span class="pill-group-hint" id="horizon-auto-hint" hidden>auto-selected</span>
-        </div>
-        <!-- Manual overrides on leverage / horizon stick once touched.
-             "Revert to optimized" reruns the auto-pick (full search
-             across leverage + horizon + recognition) so the user can
-             always bounce back to the engine's best pick. -->
-        <div class="pill-group revert-group">
-          <button type="button" id="revert-to-optimized" class="btn btn-secondary btn-revert" hidden>Revert to optimized</button>
         </div>
       </div>
 
@@ -371,53 +377,53 @@
   <!-- ============ Subsystem load order: 00 -> 01 -> 02 -> 03 -> 05 -> 04 ============ -->
   <!-- date-utils is loaded ahead of 00-data so schwab-strategies can use the
        shared parseLocalDate global instead of defining its own copy. -->
-  <script src="js/01-brooklyn/date-utils.js?v=1777500000041"></script>
-  <script src="js/00-data/custodians.js?v=1777500000041"></script>
-  <script src="js/00-data/schwab-strategies.js?v=1777500000041"></script>
-  <script src="js/01-brooklyn/brooklyn-data.js?v=1777500000041"></script>
-  <script src="js/01-brooklyn/time-weight.js?v=1777500000041"></script>
-  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777500000041"></script>
-  <script src="js/01-brooklyn/variable-leverage.js?v=1777500000041"></script>
+  <script src="js/01-brooklyn/date-utils.js?v=1777500000042"></script>
+  <script src="js/00-data/custodians.js?v=1777500000042"></script>
+  <script src="js/00-data/schwab-strategies.js?v=1777500000042"></script>
+  <script src="js/01-brooklyn/brooklyn-data.js?v=1777500000042"></script>
+  <script src="js/01-brooklyn/time-weight.js?v=1777500000042"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777500000042"></script>
+  <script src="js/01-brooklyn/variable-leverage.js?v=1777500000042"></script>
 
-  <script src="js/02-tax-engine/tax-data.js?v=1777500000041"></script>
-  <script src="js/02-tax-engine/tax-loader.js?v=1777500000041"></script>
-  <script src="js/02-tax-engine/tax-lookups.js?v=1777500000041"></script>
-  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777500000041"></script>
-  <script src="js/02-tax-engine/tax-calc-state.js?v=1777500000041"></script>
-  <script src="js/02-tax-engine/tax-comparison.js?v=1777500000041"></script>
+  <script src="js/02-tax-engine/tax-data.js?v=1777500000042"></script>
+  <script src="js/02-tax-engine/tax-loader.js?v=1777500000042"></script>
+  <script src="js/02-tax-engine/tax-lookups.js?v=1777500000042"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777500000042"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js?v=1777500000042"></script>
+  <script src="js/02-tax-engine/tax-comparison.js?v=1777500000042"></script>
 
-  <script src="js/03-solver/fees.js?v=1777500000041"></script>
-  <script src="js/03-solver/fee-split.js?v=1777500000041"></script>
-  <script src="js/03-solver/brookhaven-fees.js?v=1777500000041"></script>
-  <script src="js/03-solver/single-year-solver.js?v=1777500000041"></script>
-  <script src="js/03-solver/multi-year-solver.js?v=1777500000041"></script>
-  <script src="js/03-solver/structured-sale.js?v=1777500000041"></script>
-  <script src="js/03-solver/decision-engine.js?v=1777500000041"></script>
+  <script src="js/03-solver/fees.js?v=1777500000042"></script>
+  <script src="js/03-solver/fee-split.js?v=1777500000042"></script>
+  <script src="js/03-solver/brookhaven-fees.js?v=1777500000042"></script>
+  <script src="js/03-solver/single-year-solver.js?v=1777500000042"></script>
+  <script src="js/03-solver/multi-year-solver.js?v=1777500000042"></script>
+  <script src="js/03-solver/structured-sale.js?v=1777500000042"></script>
+  <script src="js/03-solver/decision-engine.js?v=1777500000042"></script>
 
-  <script src="js/05-projections/bracket-projector.js?v=1777500000041"></script>
-  <script src="js/05-projections/carryforward-tracker.js?v=1777500000041"></script>
-  <script src="js/05-projections/projection-engine.js?v=1777500000041"></script>
+  <script src="js/05-projections/bracket-projector.js?v=1777500000042"></script>
+  <script src="js/05-projections/carryforward-tracker.js?v=1777500000042"></script>
+  <script src="js/05-projections/projection-engine.js?v=1777500000042"></script>
 
   <!-- format-helpers loads first inside 04-ui so every renderer can use
        fmtUSD / fmtPct / fmtNum directly without a defensive fallback. -->
-  <script src="js/04-ui/format-helpers.js?v=1777500000041"></script>
-  <script src="js/04-ui/banner.js?v=1777500000041"></script>
-  <script src="js/04-ui/number-animator.js?v=1777500000041"></script>
-  <script src="js/04-ui/case-storage.js?v=1777500000041"></script>
-  <script src="js/04-ui/pill-toggles.js?v=1777500000041"></script>
-  <script src="js/04-ui/variable-leverage-ui.js?v=1777500000041"></script>
-  <script src="js/04-ui/input-validation.js?v=1777500000041"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1777500000041"></script>
-  <script src="js/04-ui/controls.js?v=1777500000041"></script>
-  <script src="js/04-ui/recommendation-render.js?v=1777500000041"></script>
-  <script src="js/04-ui/projection-dashboard-render.js?v=1777500000041"></script>
-  <script src="js/04-ui/savings-ribbon.js?v=1777500000041"></script>
-  <script src="js/04-ui/bracket-viz-render.js?v=1777500000041"></script>
-  <script src="js/04-ui/cashflow-schedule-render.js?v=1777500000041"></script>
-  <script src="js/04-ui/narrative-render.js?v=1777500000041"></script>
-  <script src="js/04-ui/strategy-summary-render.js?v=1777500000041"></script>
+  <script src="js/04-ui/format-helpers.js?v=1777500000042"></script>
+  <script src="js/04-ui/banner.js?v=1777500000042"></script>
+  <script src="js/04-ui/number-animator.js?v=1777500000042"></script>
+  <script src="js/04-ui/case-storage.js?v=1777500000042"></script>
+  <script src="js/04-ui/pill-toggles.js?v=1777500000042"></script>
+  <script src="js/04-ui/variable-leverage-ui.js?v=1777500000042"></script>
+  <script src="js/04-ui/input-validation.js?v=1777500000042"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1777500000042"></script>
+  <script src="js/04-ui/controls.js?v=1777500000042"></script>
+  <script src="js/04-ui/recommendation-render.js?v=1777500000042"></script>
+  <script src="js/04-ui/projection-dashboard-render.js?v=1777500000042"></script>
+  <script src="js/04-ui/savings-ribbon.js?v=1777500000042"></script>
+  <script src="js/04-ui/bracket-viz-render.js?v=1777500000042"></script>
+  <script src="js/04-ui/cashflow-schedule-render.js?v=1777500000042"></script>
+  <script src="js/04-ui/narrative-render.js?v=1777500000042"></script>
+  <script src="js/04-ui/strategy-summary-render.js?v=1777500000042"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1777500000041"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1777500000042"></script>
 </body>
 </html>
