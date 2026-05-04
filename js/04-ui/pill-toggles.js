@@ -227,9 +227,7 @@
       if (spSale) cfg.salePrice = spSale;
       if (cb) cfg.costBasis = cb;
       if (ad) cfg.acceleratedDepreciation = ad;
-      cfg.strategyKey = cfg.tierKey;
-      cfg.investedCapital = cfg.investment;
-      cfg.years = cfg.horizonYears;
+      rettFlavorEngineCfg(cfg);
       cfg.recognitionStartYearIndex = r - 1;
 
       var net = _netForCfg(cfg);
@@ -397,9 +395,7 @@
             if (spSale) cfg.salePrice = spSale;
             if (cb) cfg.costBasis = cb;
             if (ad) cfg.acceleratedDepreciation = ad;
-            cfg.strategyKey = cfg.tierKey;
-            cfg.investedCapital = cfg.investment;
-            cfg.years = cfg.horizonYears;
+            rettFlavorEngineCfg(cfg);
             cfg.recognitionStartYearIndex = rStart - 1;
 
             var totalSave = 0;

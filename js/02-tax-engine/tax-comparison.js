@@ -1,5 +1,50 @@
 // FILE: js/02-tax-engine/tax-comparison.js
 // Side-by-side baseline vs. post-strategy tax. Per-year, multi-year aware.
+
+// --- Module-local helpers -----------------------------------------------
+// Pick the first positive numeric value from a list. Falsy-zero safe:
+// `cfg.leverage || cfg.leverageCap || 2.25` silently maps an explicit
+// leverage=0 to 2.25 because 0 is falsy. _firstPositive keeps the
+// distinction by requiring `> 0` instead of just truthy.
+function _firstPositive(/* values... */) {
+      for (var i = 0; i < arguments.length; i++) {
+            var v = Number(arguments[i]);
+            if (Number.isFinite(v) && v > 0) return v;
+      }
+      return 0;
+}
+
+// Default leverage when neither cfg.leverage nor cfg.leverageCap is a
+// positive number. 2.25 is the Brooklyn published max — historically
+// the silent fallback when || was used. Centralized so a future change
+// (e.g. drop default to a more conservative 1.5) only touches here.
+//
+// Open question: an EXPLICIT leverage=0 currently falls through to
+// 2.25 (matches pre-refactor || behavior). If a future UI path lets a
+// user set leverage=0 to mean "no Brooklyn engagement," this helper
+// would need to honor that explicitly: change to
+//     cfg.leverage != null ? cfg.leverage : (cfg.leverageCap != null ? ...)
+// — a behavior change worth a UX decision before flipping.
+function _defaultLeverage(cfg) {
+      return _firstPositive(cfg && cfg.leverage, cfg && cfg.leverageCap) || 2.25;
+}
+
+// Schwab Beta 1 200/100 lossByYear curve. Used as the canonical decay
+// shape proxy for non-Schwab paths (Brooklyn doesn't publish per-year
+// rate cards for non-Schwab custodians, so we taper Y2+ using this
+// known curve scaled to the per-tier Y1 rate). Was duplicated inline
+// in two engine paths — centralized here so any future refresh touches
+// one place.
+var _SCHWAB_BETA1_200_100_LOSS_BY_YEAR =
+      [0.590, 0.492, 0.427, 0.393, 0.389, 0.376, 0.363, 0.351, 0.342, 0.334];
+function _proxyDecayCurve() {
+      if (typeof window !== 'undefined' && window.SCHWAB_COMBOS &&
+          window.SCHWAB_COMBOS.beta1_200_100 &&
+          Array.isArray(window.SCHWAB_COMBOS.beta1_200_100.lossByYear)) {
+            return window.SCHWAB_COMBOS.beta1_200_100.lossByYear;
+      }
+      return _SCHWAB_BETA1_200_100_LOSS_BY_YEAR;
+}
 //
 // Per-year scenario shape used by computeFederalTaxBreakdown / computeStateTax:
 //   { year, status, state, ordinaryIncome, shortTermGain, longTermGain,
@@ -256,7 +301,7 @@ function computeTaxComparison(cfg, recommendation) {
                         return (1 - _yfImm) * prev + _yfImm * curr;
                   };
             }
-            var lev = cfg.leverage || cfg.leverageCap || 2.25;
+            var lev = _defaultLeverage(cfg);
             var year1Rate = 0;
             if (typeof window.brooklynLossRateForLeverage === 'function') {
                   year1Rate = window.brooklynLossRateForLeverage(cfg.tierKey || 'beta1', lev);
@@ -264,9 +309,7 @@ function computeTaxComparison(cfg, recommendation) {
                   var snap = brooklynInterpolate(cfg.tierKey || 'beta1', lev);
                   year1Rate = snap ? (snap.lossRate || 0) : 0;
             }
-            var _refImm = (typeof window.SCHWAB_COMBOS === 'object' && window.SCHWAB_COMBOS.beta1_200_100)
-                  ? window.SCHWAB_COMBOS.beta1_200_100.lossByYear
-                  : [0.590, 0.492, 0.427, 0.393, 0.389, 0.376, 0.363, 0.351, 0.342, 0.334];
+            var _refImm = _proxyDecayCurve();
             var _refY1Imm = _refImm[0] || 1;
             return function (j) {
                   function shape(idx) {
@@ -465,6 +508,16 @@ function _belowMinForLifecycle(cfg) {
 function _zeroDeferredComparison(cfg) {
       const horizon = Math.max(1, cfg.horizonYears || cfg.years || 5);
       const year1 = cfg.year1 || (new Date()).getFullYear();
+      // Compute totalGainBucket so we can surface it as unrecognizedGain
+      // — the gain conservation invariant (sumRecognized + unrecognized
+      // === totalGainBucket) holds even on the no-engagement path.
+      // Without this, downstream sanity checks see a $0 = $X mismatch.
+      const _stShort = Math.max(0, cfg && cfg.baseShortTermGain || 0);
+      const _ltGain = Math.max(0,
+            (cfg && cfg.salePrice || 0) - (cfg && cfg.costBasis || 0)
+            - (cfg && cfg.acceleratedDepreciation || 0) - _stShort);
+      const _recap = Math.max(0, cfg && cfg.acceleratedDepreciation || 0);
+      const _totalGainBucket = _ltGain + _recap;
       const rows = [];
       for (let i = 0; i < horizon; i++) {
             const year = year1 + i;
@@ -490,6 +543,7 @@ function _zeroDeferredComparison(cfg) {
             deferred: true,
             rows: rows,
             recognitionSchedule: rows.map(function (r) { return { year: r.year, gainRecognized: 0 }; }),
+            unrecognizedGain: _totalGainBucket,
             totalSavings: 0,
             totalFees: 0,
             totalBrookhavenFees: 0,
@@ -629,7 +683,7 @@ function computeDeferredTaxComparison(cfg) {
             var lp, sp;
             if (combo) { lp = combo.longPct; sp = combo.shortPct; }
             else {
-                  var lev = cfg.leverage || cfg.leverageCap || 2.25;
+                  var lev = _defaultLeverage(cfg);
                   if (typeof window.brooklynPctsForLeverage === 'function') {
                         var p = window.brooklynPctsForLeverage(cfg.tierKey || 'beta1', lev);
                         lp = p.longPct; sp = p.shortPct;
@@ -641,7 +695,7 @@ function computeDeferredTaxComparison(cfg) {
             // Fallback if the splitter isn't loaded.
             if (combo) return combo.feeRate || 0;
             if (typeof brooklynInterpolate === 'function') {
-                  var snap = brooklynInterpolate(cfg.tierKey || 'beta1', cfg.leverage || cfg.leverageCap || 2.25);
+                  var snap = brooklynInterpolate(cfg.tierKey || 'beta1', _defaultLeverage(cfg));
                   return snap ? (snap.feeRate || 0) : 0;
             }
             return 0;
@@ -678,7 +732,7 @@ function computeDeferredTaxComparison(cfg) {
             // assuming a flat rate forever overstates losses past Y1
             // because real positions taper as gains crystallize and
             // the position rebalances.
-            var lev = cfg.leverage || cfg.leverageCap || 2.25;
+            var lev = _defaultLeverage(cfg);
             var year1Rate = 0;
             if (typeof window.brooklynLossRateForLeverage === 'function') {
                   year1Rate = window.brooklynLossRateForLeverage(cfg.tierKey || 'beta1', lev);
@@ -686,10 +740,8 @@ function computeDeferredTaxComparison(cfg) {
                   var snap = brooklynInterpolate(cfg.tierKey || 'beta1', lev);
                   year1Rate = snap ? (snap.lossRate || 0) : 0;
             }
-            // Schwab Beta 1 200/100 lossByYear (canonical decay shape).
-            var _schwabRef = (typeof window.SCHWAB_COMBOS === 'object' && window.SCHWAB_COMBOS.beta1_200_100)
-                  ? window.SCHWAB_COMBOS.beta1_200_100.lossByYear
-                  : [0.590, 0.492, 0.427, 0.393, 0.389, 0.376, 0.363, 0.351, 0.342, 0.334];
+            // Canonical decay shape proxy (Schwab Beta 1 200/100 curve).
+            var _schwabRef = _proxyDecayCurve();
             var _refY1 = _schwabRef[0] || 1;
             return function (j) {
                   // Decay shape derived from Schwab Beta 1 200/100 ratios,

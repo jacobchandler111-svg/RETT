@@ -852,21 +852,14 @@
     return { comp: comp, result: result, years: years };
   }
 
-  // recommendSale and ProjectionEngine.run expect cfg.strategyKey and
-  // cfg.investedCapital, but collectInputs returns cfg.tierKey and
-  // cfg.investment. controls.js' _buildEngineCfg patches these for the
-  // dashboard pipeline; dashboard-side scenario code needs the same
-  // patch so recommendSale doesn't silently return lossByYear=[0...]
-  // (treating the position as zero capital → zero capacity → engine
-  // says "no losses possible" → auto-pick sees only fee drag and
-  // chooses 0% short).
+  // Local non-mutating wrapper around the global rettFlavorEngineCfg
+  // (defined in format-helpers.js). The dashboard-side callers want a
+  // cloned cfg so they can also stamp scenario-specific overrides
+  // without mutating their input — the global helper mutates in place
+  // for callers that explicitly want that.
   function _engineFlavoredCfg(cfg) {
     if (!cfg) return cfg;
-    var out = Object.assign({}, cfg);
-    if (out.strategyKey == null) out.strategyKey = out.tierKey;
-    if (out.investedCapital == null) out.investedCapital = out.investment;
-    if (out.years == null) out.years = out.horizonYears;
-    return out;
+    return rettFlavorEngineCfg(Object.assign({}, cfg));
   }
 
   // ---- Per-section state + auto-pick + controls ---------------------

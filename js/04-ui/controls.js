@@ -597,10 +597,7 @@ function _buildEngineCfg() {
   if (sp) cfg.salePrice = sp;
   if (cb) cfg.costBasis = cb;
   if (ad) cfg.acceleratedDepreciation = ad;
-  cfg.strategyKey = cfg.tierKey;
-  cfg.investedCapital = cfg.investment;
-  cfg.years = cfg.horizonYears;
-  return cfg;
+  return rettFlavorEngineCfg(cfg);
 }
 
 // Run the full Page-2 pipeline: recommendation engine, then projection

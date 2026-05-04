@@ -55,6 +55,24 @@ function parsePct(s) {
   return n > 1 ? n / 100 : n;
 }
 
+// inputs-collector returns cfg with `tierKey` + `investment`. The
+// engines (recommendSale, ProjectionEngine.run, multi-year solver)
+// expect `strategyKey` + `investedCapital` + `years`. Patch the
+// engine-flavored aliases in one place so every cfg consumer stays
+// in sync — this used to be inlined at 4 sites (controls.js,
+// pill-toggles.js x2, projection-dashboard-render.js) and routinely
+// drifted (e.g. one site forgot `cfg.years` and the multi-year
+// solver got horizon=undefined → silently 5).
+//
+// Idempotent: safe to call on an already-flavored cfg.
+function rettFlavorEngineCfg(cfg) {
+  if (!cfg) return cfg;
+  if (cfg.strategyKey == null)     cfg.strategyKey     = cfg.tierKey;
+  if (cfg.investedCapital == null) cfg.investedCapital = cfg.investment;
+  if (cfg.years == null)           cfg.years           = cfg.horizonYears;
+  return cfg;
+}
+
 // Single source of truth for "did the engine actually deploy any
 // Brooklyn capital?" used by the savings ribbon, narrative, dashboard
 // KPI tiles, strategy summary hero, and chart-suppression logic. All
