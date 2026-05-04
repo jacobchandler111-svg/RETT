@@ -905,9 +905,23 @@ function computeDeferredTaxComparison(cfg) {
             });
       }
 
-      let totalBaseline = 0, totalWith = 0, totalFees = 0, totalBrookhaven = 0;
+      // totalBaseline aggregates the do-nothing baseline (lump-Y1, the
+      // honest "what would the client owe if they sold today and did
+      // nothing" comparison) when each row exposes it. The matched-
+      // timing baseline is preserved as totalBaselineMatched for any
+      // downstream consumer that wants the apples-to-apples Brooklyn-
+      // alone view. Without this, the dashboard KPI / strategy row
+      // and the savings ribbon disagree by a few thousand dollars on
+      // deferred scenarios because the ribbon historically used
+      // baseline (matched-timing) while the row used doNothingBaseline.
+      let totalBaseline = 0, totalBaselineMatched = 0, totalWith = 0, totalFees = 0, totalBrookhaven = 0;
       rows.forEach(function (r) {
-            totalBaseline += r.baseline.total;
+            const _matched = (r.baseline ? r.baseline.total : 0);
+            const _dn = (r.doNothingBaseline && r.doNothingBaseline.total != null)
+                  ? r.doNothingBaseline.total
+                  : _matched;
+            totalBaseline += _dn;
+            totalBaselineMatched += _matched;
             totalWith += r.withStrategy.total;
             totalFees += r.fee;
             totalBrookhaven += (r.brookhavenFee || 0);
@@ -947,8 +961,10 @@ function computeDeferredTaxComparison(cfg) {
       return {
             rows: rows,
             totalBaseline: totalBaseline,
+            totalBaselineMatched: totalBaselineMatched,
             totalWithStrategy: totalWith,
             totalSavings: totalBaseline - totalWith,
+            totalSavingsMatched: totalBaselineMatched - totalWith,
             totalFees: totalFees,
             totalBrookhavenFees: totalBrookhaven,
             totalAllFees: totalFees + totalBrookhaven,

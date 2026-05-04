@@ -48,8 +48,19 @@
     if (comp && Array.isArray(comp.rows) && comp.rows.length) {
       years = comp.rows.map(function (r, idx) {
         var resYr = (result && result.years && result.years[idx]) || {};
+        // Prefer doNothingBaseline (lump-Y1, "what would happen if you
+        // sold today and did nothing") over baseline (matched-timing,
+        // "same recognition schedule but no Brooklyn"). The strategy
+        // comparison row uses doNothingBaseline; aligning the ribbon
+        // here so all three views (row, ribbon, dashboard KPI) report
+        // the SAME savings number for the same scenario. Falls back
+        // to baseline for the immediate path (where both are equal
+        // by construction).
+        var noBrookTax = (r.doNothingBaseline && r.doNothingBaseline.total != null)
+          ? r.doNothingBaseline.total
+          : (r.baseline ? r.baseline.total : (resYr.taxNoBrooklyn || 0));
         return {
-          taxNoBrooklyn: r.baseline ? r.baseline.total : (resYr.taxNoBrooklyn || 0),
+          taxNoBrooklyn: noBrookTax,
           taxWithBrooklyn: r.withStrategy ? r.withStrategy.total : (resYr.taxWithBrooklyn || resYr.taxNoBrooklyn || 0),
           fee: resYr.fee || 0
         };

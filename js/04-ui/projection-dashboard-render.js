@@ -92,7 +92,15 @@
   function _buildKpiRow(years, totals, scenarioComp, scenarioResult) {
     var totalSave = 0, cumFees = 0, totalNo = 0, totalWith = 0;
     years.forEach(function (y) {
-      var no = y.taxNoBrooklyn || 0;
+      // Prefer the do-nothing baseline (lump-Y1, what the client would
+      // owe if they sold today and ignored Brooklyn) over the matched-
+      // timing baseline (same recognition schedule but no losses) so
+      // the KPI Total Tax Saved agrees with the strategy comparison
+      // row, the ribbon, and the bar chart. Without this preference
+      // the KPI showed savings ~$4K higher than the row for a deferred
+      // structured sale because matched-timing back-loaded gain into
+      // higher-bracket years that the client wouldn't actually choose.
+      var no = (y.taxNoBrooklynDoNothing != null) ? y.taxNoBrooklynDoNothing : (y.taxNoBrooklyn || 0);
       var w = (y.taxWithBrooklyn != null) ? y.taxWithBrooklyn : no;
       totalSave += (no - w);
       cumFees += (y.fee || 0);
