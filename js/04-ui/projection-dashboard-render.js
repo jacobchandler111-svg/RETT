@@ -89,7 +89,7 @@
       '</div>';
   }
 
-  function _buildKpiRow(years, totals) {
+  function _buildKpiRow(years, totals, scenarioComp, scenarioResult) {
     var totalSave = 0, cumFees = 0, totalNo = 0, totalWith = 0;
     years.forEach(function (y) {
       var no = y.taxNoBrooklyn || 0;
@@ -99,7 +99,11 @@
       totalNo += no;
       totalWith += w;
     });
-    var comp = window.__lastComparison;
+    // Per-section render: when scenarioComp is supplied (multi-scenario
+    // stack), use it directly so each section's KPI tile reflects ITS
+    // own scenario's fees rather than the globally-active one.
+    var comp = scenarioComp || window.__lastComparison;
+    var lastResult = scenarioResult || window.__lastResult;
     // In deferred mode, comp.totalFees is the tranche-aware authoritative
     // figure (e.g. Y1-Y2 only basis, Y3 basis + gain release). Don't
     // override with projection-engine totals.cumulativeFees, which holds
@@ -115,7 +119,7 @@
     var brookhavenFees = (comp && comp.totalBrookhavenFees) || 0;
     // Single-source engagement detection (format-helpers.rettEngineEngaged).
     var _engineEngaged = (typeof window.rettEngineEngaged === 'function')
-      ? window.rettEngineEngaged(comp, window.__lastResult)
+      ? window.rettEngineEngaged(comp, lastResult)
       : (totalSave !== 0 || cumFees > 0);
     if (!_engineEngaged) {
       cumFees = 0;
@@ -599,26 +603,49 @@
       }
     }
 
+    // Initialize the checked-scenarios set on first render. Default:
+    // only the RECOMMENDED row is checked, so the dashboard below
+    // shows that single scenario by default. Once the user toggles a
+    // checkbox, their selection persists across re-renders.
+    if (!root.__rettCheckedScenarios) {
+      root.__rettCheckedScenarios = {};
+      if (winnerIdx >= 0) {
+        root.__rettCheckedScenarios[rows[winnerIdx].type] = true;
+      } else if (rows.length) {
+        root.__rettCheckedScenarios[rows[0].type] = true;
+      }
+    }
+    // Stash the row->cfg map so the dashboard renderer can compute
+    // per-scenario data without re-deriving cfg shapes.
+    root.__rettScenarioRows = rows.map(function (r) { return {
+      type: r.type, rec: r.rec, maxRec: r.maxRec, label: r.label
+    }; });
+
     var html = '<div class="rett-scenario-card">';
     html += '<div class="rett-scenario-title">Strategy Comparison</div>';
-    html += '<div class="rett-scenario-subtitle">Three real-world planning options — same scenario, same do-nothing baseline. Click a row to switch the dashboard below to that scenario.</div>';
+    html += '<div class="rett-scenario-subtitle">Three real-world planning options — same scenario, same do-nothing baseline. Check a row to add its dashboard below; check multiple to compare side-by-side.</div>';
     html += '<table class="rett-scenario-table">';
-    html += '<thead><tr><th>Strategy</th><th class="num">Tax Owed</th><th class="num">Fees</th><th class="num">Net Benefit</th></tr></thead><tbody>';
+    html += '<thead><tr><th class="rett-scenario-check"></th><th>Strategy</th><th class="num">Tax Owed</th><th class="num">Fees</th><th class="num">Net Benefit</th></tr></thead><tbody>';
     rows.forEach(function (row, idx) {
       var isWinner = (idx === winnerIdx);
-      var isActive = (idx === activeIdx);
+      var isChecked = !!root.__rettCheckedScenarios[row.type];
       var classes = ['rett-scenario-row'];
       if (isWinner) classes.push('rett-scenario-winner');
-      if (isActive) classes.push('rett-scenario-active');
+      if (isChecked) classes.push('rett-scenario-checked');
       html += '<tr class="' + classes.join(' ') + '"' +
               ' data-scenario="' + row.type + '"' +
               ' data-rec="' + row.rec + '"' +
               ' data-max-rec="' + (row.maxRec == null ? '' : row.maxRec) + '"' +
-              ' tabindex="0" role="button" aria-pressed="' + (isActive ? 'true' : 'false') + '">';
+              ' tabindex="0" role="button" aria-pressed="' + (isChecked ? 'true' : 'false') + '">';
+      html += '<td class="rett-scenario-check">';
+      html += '<input type="checkbox" class="rett-scenario-checkbox"' +
+              ' data-scenario-toggle="' + row.type + '"' +
+              ' aria-label="Show ' + row.label + ' dashboard"' +
+              (isChecked ? ' checked' : '') + '>';
+      html += '</td>';
       html += '<td>';
       html += '<div class="rett-scenario-label">' + row.label;
-      if (isActive) html += ' <span class="rett-scenario-active-badge">ACTIVE</span>';
-      else if (isWinner) html += ' <span class="rett-scenario-badge">RECOMMENDED</span>';
+      if (isWinner) html += ' <span class="rett-scenario-badge">RECOMMENDED</span>';
       html += '</div>';
       html += '<div class="rett-scenario-sub">' + row.sub + '</div>';
       html += '</td>';
@@ -631,56 +658,214 @@
     return html;
   }
 
-  // Click delegation for scenario rows. Wires once per render — the
-  // scenarioHost.innerHTML rebuild replaces the listener target each
-  // time, so we re-attach on every render.
+  // Build the cfg variant for a scenario type ('A', 'B', 'C').
+  function _scenarioCfgFor(type, currentCfg, bestRecC, userDuration) {
+    if (!currentCfg) return null;
+    if (type === 'A') {
+      return Object.assign({}, currentCfg, {
+        recognitionStartYearIndex: 0,
+        maxRecognitionYearIndex: null
+      });
+    }
+    if (type === 'B') {
+      return Object.assign({}, currentCfg, {
+        recognitionStartYearIndex: 1,
+        maxRecognitionYearIndex: 1
+      });
+    }
+    if (type === 'C') {
+      return Object.assign({}, currentCfg, {
+        recognitionStartYearIndex: (bestRecC || 2) - 1,
+        structuredSaleDurationMonths: userDuration || 18,
+        maxRecognitionYearIndex: null
+      });
+    }
+    return null;
+  }
+
+  // Compute (comp, result, years) for a single scenario cfg. Mirrors
+  // the data shape renderProjectionDashboard expects, so the same
+  // _buildKpiRow / _buildChart / _buildPies helpers can render any
+  // scenario's section.
+  function _scenarioFullData(cfg) {
+    if (!cfg) return null;
+    var horizon = cfg.horizonYears || cfg.years || 5;
+    var deferred = (cfg.recognitionStartYearIndex || 0) >= 1;
+    var comp = null, result = null, years = null;
+
+    if (deferred) {
+      if (typeof computeDeferredTaxComparison !== 'function') return null;
+      comp = computeDeferredTaxComparison(cfg);
+      if (!comp || !Array.isArray(comp.rows)) return null;
+      // Synthesize a result-shape for fee accounting consumers.
+      result = { config: cfg, totals: { cumulativeFees: comp.totalFees || 0 } };
+      years = comp.rows.map(function (r) {
+        return {
+          year: r.year,
+          taxNoBrooklyn: r.baseline ? r.baseline.total : 0,
+          taxNoBrooklynDoNothing: r.doNothingBaseline ? r.doNothingBaseline.total : null,
+          taxWithBrooklyn: r.withStrategy ? r.withStrategy.total : 0,
+          investmentThisYear: r.investmentThisYear || 0,
+          gainRecognized: r.gainRecognized || 0,
+          grossLoss: r.lossGenerated || r.lossApplied || 0,
+          fee: r.fee || 0
+        };
+      });
+    } else {
+      // Immediate path. Use the same chain runRecommendation uses.
+      if (typeof ProjectionEngine === 'undefined' || !ProjectionEngine.run) return null;
+      try { result = ProjectionEngine.run(cfg); } catch (e) { return null; }
+      if (!result || !Array.isArray(result.years)) return null;
+      var rec = (typeof recommendSale === 'function') ? recommendSale(cfg) : null;
+      var lossGen = 0;
+      var schedule = null;
+      if (rec && rec.summary) {
+        lossGen = (rec.summary.lossByYear && rec.summary.lossByYear[0]) || 0;
+        if (Array.isArray(rec.summary.gainByYear)) {
+          schedule = rec.summary.gainByYear.map(function (g, i) {
+            return { year: i, gainTaken: g || 0,
+              lossGenerated: (rec.summary.lossByYear && rec.summary.lossByYear[i]) || 0 };
+          });
+        }
+      }
+      var normRec = {
+        recommendation: rec ? rec.recommendation : 'no-action',
+        longTermGain: (rec && rec.longTermGain) || 0,
+        lossGenerated: lossGen,
+        schedule: schedule
+      };
+      try { comp = computeTaxComparison(cfg, normRec); } catch (e) { return null; }
+      if (!comp || !Array.isArray(comp.rows)) return null;
+      years = comp.rows.map(function (r, idx) {
+        var resYr = (result.years && result.years[idx]) || {};
+        return {
+          year: r.year,
+          taxNoBrooklyn: r.baseline ? r.baseline.total : (resYr.taxNoBrooklyn || 0),
+          taxNoBrooklynDoNothing: r.doNothingBaseline ? r.doNothingBaseline.total : null,
+          taxWithBrooklyn: r.withStrategy ? r.withStrategy.total : (resYr.taxWithBrooklyn || resYr.taxNoBrooklyn || 0),
+          investmentThisYear: resYr.investmentThisYear || 0,
+          gainRecognized: r.gainRecognized || 0,
+          grossLoss: resYr.grossLoss != null ? resYr.grossLoss : (r.lossApplied || 0),
+          fee: resYr.fee || 0
+        };
+      });
+    }
+    return { comp: comp, result: result, years: years };
+  }
+
+  function _buildScenarioSection(label, data) {
+    if (!data || !data.years) return '';
+    var totals = (data.result && data.result.totals) || {};
+    var html = '<div class="rett-dashboard rett-scenario-section">';
+    html += '<div class="rett-scenario-section-header">' + label + '</div>';
+    html += _buildKpiRow(data.years, totals, data.comp, data.result);
+    html += _buildChart(data.years);
+    html += _buildPies(data.years, data.comp, data.result);
+    html += '</div>';
+    return html;
+  }
+
+  // Click delegation for scenario rows. Toggles the row's checked state
+  // (multi-select). Re-attaches on every render since the scenarioHost
+  // innerHTML rebuild replaces the row elements.
   function _wireScenarioRowClicks(scenarioHost) {
     if (!scenarioHost) return;
     scenarioHost.onclick = function (e) {
+      // Direct checkbox click is handled natively — capture its state
+      // via the change event we redirect through the row toggle.
+      var checkbox = e.target.closest && e.target.closest('input.rett-scenario-checkbox');
+      if (checkbox) {
+        // Let the click flip the checkbox first, then read state.
+        // setTimeout(0) so we read AFTER the browser updates checked.
+        setTimeout(function () { _syncCheckedFromDom(); _renderDashboardsFromChecked(); }, 0);
+        return;
+      }
       var tr = e.target.closest && e.target.closest('tr.rett-scenario-row');
       if (!tr) return;
-      _activateScenario(tr);
+      _toggleScenarioRow(tr);
     };
     scenarioHost.onkeydown = function (e) {
       if (e.key !== 'Enter' && e.key !== ' ') return;
       var tr = e.target.closest && e.target.closest('tr.rett-scenario-row');
       if (!tr) return;
       e.preventDefault();
-      _activateScenario(tr);
+      _toggleScenarioRow(tr);
     };
   }
 
-  function _activateScenario(tr) {
-    var rec = parseInt(tr.getAttribute('data-rec'), 10);
-    var maxRecRaw = tr.getAttribute('data-max-rec');
-    var maxRec = maxRecRaw === '' ? null : parseInt(maxRecRaw, 10);
-    if (!Number.isFinite(rec)) return;
-    // Set the recognition-start-select hidden field — the engine reads
-    // it via collectInputs as cfg.recognitionStartYearIndex (0-indexed).
-    var recSel = document.getElementById('recognition-start-select');
-    if (recSel) {
-      recSel.value = String(rec);
-      recSel.dispatchEvent(new Event('change', { bubbles: true }));
+  function _toggleScenarioRow(tr) {
+    var type = tr.getAttribute('data-scenario');
+    if (!type) return;
+    var checked = root.__rettCheckedScenarios || (root.__rettCheckedScenarios = {});
+    if (checked[type]) delete checked[type];
+    else checked[type] = true;
+    // Sync checkbox state in DOM without a re-render of the panel.
+    var cb = tr.querySelector('input.rett-scenario-checkbox');
+    if (cb) cb.checked = !!checked[type];
+    tr.classList.toggle('rett-scenario-checked', !!checked[type]);
+    tr.setAttribute('aria-pressed', checked[type] ? 'true' : 'false');
+    _renderDashboardsFromChecked();
+  }
+
+  // Read checkbox state from DOM and update the global set (used by the
+  // direct checkbox-click path).
+  function _syncCheckedFromDom() {
+    var checked = root.__rettCheckedScenarios = {};
+    document.querySelectorAll('input.rett-scenario-checkbox').forEach(function (cb) {
+      var type = cb.getAttribute('data-scenario-toggle');
+      if (type && cb.checked) checked[type] = true;
+    });
+    // Sync row classes
+    document.querySelectorAll('tr.rett-scenario-row').forEach(function (tr) {
+      var t = tr.getAttribute('data-scenario');
+      var on = !!checked[t];
+      tr.classList.toggle('rett-scenario-checked', on);
+      tr.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
+
+  // Re-render only the dashboard sections (KPIs/chart/pies) without
+  // touching the comparison panel. Called after a checkbox toggle.
+  function _renderDashboardsFromChecked() {
+    var summaryHost = document.getElementById('projection-summary-host');
+    if (!summaryHost) return;
+    var rows = root.__rettScenarioRows || [];
+    var checked = root.__rettCheckedScenarios || {};
+    var currentCfg = (typeof collectInputs === 'function') ? (function () {
+      try { return collectInputs(); } catch (e) { return null; }
+    })() : null;
+    if (!currentCfg) return;
+    var horizon = currentCfg.horizonYears || currentCfg.years || 5;
+    var userDuration = currentCfg.structuredSaleDurationMonths || 18;
+    // Recompute scenario C's best rec in case duration changed.
+    var bestRecC = 2;
+    var bestNetC = -Infinity;
+    for (var r = 2; r <= Math.min(4, horizon); r++) {
+      var cfgR = Object.assign({}, currentCfg, {
+        recognitionStartYearIndex: r - 1,
+        structuredSaleDurationMonths: userDuration,
+        maxRecognitionYearIndex: null
+      });
+      var m = _scenarioMetrics(cfgR);
+      if (m && m.net > bestNetC) { bestNetC = m.net; bestRecC = r; }
     }
-    // Scenario B uses a maxRec override (Y2-only, no structured sale
-    // product). Stored on window so collectInputs can pick it up
-    // without a dedicated DOM input.
-    if (maxRec != null) {
-      window.__rettScenarioMaxRec = maxRec;
-    } else {
-      delete window.__rettScenarioMaxRec;
+    var sections = '';
+    rows.forEach(function (row) {
+      if (!checked[row.type]) return;
+      var cfg = _scenarioCfgFor(row.type, currentCfg, bestRecC, userDuration);
+      var data = _scenarioFullData(cfg);
+      sections += _buildScenarioSection(row.label, data);
+    });
+    if (!sections) {
+      sections = '<div class="rett-no-scenarios" style="' +
+        'background:rgba(15, 76, 129, 0.18);border:1px solid rgba(26, 58, 110, 0.6);' +
+        'border-radius:6px;padding:18px;margin:18px 0;color:#cfe1ff;text-align:center;">' +
+        'Check a scenario above to see its dashboard.' +
+        '</div>';
     }
-    // Pin the recognition year so the silent recognition optimizer
-    // (searchBestRecognitionForCurrent) doesn't override the user's
-    // explicit scenario click on the next pipeline run.
-    window.__rettScenarioPinnedRec = rec;
-    // User clicked a specific scenario — disable auto-pick so the
-    // pipeline doesn't override their (leverage, horizon) choice on
-    // the next recompute.
-    window.__rettAutoPickEnabled = false;
-    if (typeof window.runFullPipeline === 'function') {
-      try { window.runFullPipeline(); }
-      catch (err) { (window.reportFailure || console.warn)('Scenario click pipeline failed', err); }
+    summaryHost.innerHTML = sections;
+    if (typeof root.animateRettNumbers === 'function') {
+      try { root.animateRettNumbers(); } catch (e) { /* */ }
     }
   }
 
@@ -804,10 +989,11 @@
     }
 
     if (splitMode) {
-      summaryHost.innerHTML = '<div class="rett-dashboard">' +
-        _buildKpiRow(years, totals) +
-        (_isEngaged ? _buildChart(years) + _buildPies(years, comp, result) : noEngagementCard) +
-        '</div>';
+      // Multi-scenario stack: render one dashboard section per CHECKED
+      // scenario row. Default-checked is the recommended row, so on
+      // first render this looks identical to the prior single-scenario
+      // dashboard; checking additional rows stacks more sections below.
+      _renderDashboardsFromChecked();
       detailsHost.innerHTML = _buildTable(years);
     } else {
       var html = '<div class="rett-dashboard">';
