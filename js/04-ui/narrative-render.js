@@ -113,11 +113,16 @@
     // legacy invested-capital field.
     var sale = Number((document.getElementById('sale-price') || {}).value) || 0;
     var cost = Number((document.getElementById('cost-basis') || {}).value) || 0;
+    var depr = Number((document.getElementById('accelerated-depreciation') || {}).value) || 0;
+    var stShort = Number((document.getElementById('short-term-gain') || {}).value) || 0;
     var invested = (cfg && Number(cfg.investment)) ||
                    Number((document.getElementById('available-capital') || {}).value) ||
                    Number((document.getElementById('invested-capital') || {}).value) ||
                    0;
-    var ltGain = Math.max(0, sale - cost);
+    // LT gain is the property gain minus accelerated depreciation
+    // recapture (ordinary) and any short-term gain the user carved
+    // out (also ordinary).
+    var ltGain = Math.max(0, sale - cost - depr - stShort);
 
     var strategy = _strategyLabel(cfg.tierKey || (window.__lastRecommendation && window.__lastRecommendation.tierKey));
     var state = _stateLabel(cfg.state);
@@ -186,11 +191,32 @@
       engineDeployedCapital = invested > 0;
     }
 
+    // Detect lump-sum / no-structured-sale: the immediate-recognition
+    // path. comp doesn't carry the deferred flag and has no
+    // recognitionSchedule, OR the recognition schedule puts all gain
+    // in Year 1.
+    var isLumpSum = false;
+    if (comp) {
+      if (!comp.deferred && !comp.recognitionSchedule) {
+        isLumpSum = true;
+      } else if (Array.isArray(comp.recognitionSchedule) && comp.recognitionSchedule.length) {
+        var firstRec = comp.recognitionSchedule[0];
+        var totalRec = comp.recognitionSchedule.reduce(function (s, r) { return s + (r.gainRecognized || 0); }, 0);
+        if (totalRec > 0 && firstRec && firstRec.gainRecognized >= totalRec - 0.01) isLumpSum = true;
+      }
+    }
+
     var s2;
     if (totalSave > 0) {
       var savingsTone = (net > 0 ? 'a net' : 'a gross');
       var investedClause;
-      if (trancheParts.length === 1) {
+      if (isLumpSum) {
+        // Lump-sum: a single Year-1 deposit, no structured-sale
+        // tranches. Phrase it as a one-liner that flags the absence of
+        // a structured-sale lockup.
+        investedClause = 'Lump-sum sale (no structured-sale lockup): the full ' +
+          _fmt(invested) + ' lands in Brooklyn ' + strategy + ' on engagement and absorbs the entire gain in Year 1';
+      } else if (trancheParts.length === 1) {
         investedClause = 'Investing ' + trancheParts[0] + ' in ' + strategy;
       } else {
         // Join with commas + final "and": "$5M starting 2026 (basis),
@@ -203,8 +229,10 @@
       var feesClause = brookhavenFees > 0
         ? _fmt(cumFees) + ' in Brooklyn fees and ' + _fmt(brookhavenFees) + ' in Brookhaven advisory fees'
         : _fmt(cumFees) + ' in strategy fees';
-      s2 = investedClause +
-        ' generates short-term losses every year (year-1 rate on each tranche, tapering thereafter) that reduce ' + horizon + '-year tax by ' +
+      var generatesClause = isLumpSum
+        ? '. Brooklyn losses reduce ' + horizon + '-year tax by '
+        : ' generates short-term losses every year (year-1 rate on each tranche, tapering thereafter) that reduce ' + horizon + '-year tax by ';
+      s2 = investedClause + generatesClause +
         _fmt(totalSave) + ' \u2014 ' + savingsTone + ' benefit of ' +
         _fmt(net) + ' after ' + feesClause + '.';
     } else if (!engineDeployedCapital) {

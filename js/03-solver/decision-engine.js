@@ -47,6 +47,10 @@
     var salePrice = Number(cfg.salePrice) || 0;
     var costBasis = Number(cfg.costBasis) || 0;
     var acceleratedDepreciation = Number(cfg.acceleratedDepreciation) || 0;
+    // Short-term gain (if entered) is carved out of the property gain
+    // and taxed at ordinary rates instead of LTCG rates. It reduces
+    // the long-term gain bucket the solver works against.
+    var shortTermGain = Number(cfg.baseShortTermGain || cfg.shortTermGain) || 0;
 
     var strategyKey = (function () {
       var k = cfg.strategyKey;
@@ -76,7 +80,7 @@
     var useVariableLeverage = (cfg.useVariableLeverage !== false);
     var manualShort = (cfg.manualVariableShortPct != null) ? Number(cfg.manualVariableShortPct) : null;
 
-    var longTermGain = Math.max(0, salePrice - costBasis - acceleratedDepreciation);
+    var longTermGain = Math.max(0, salePrice - costBasis - acceleratedDepreciation - shortTermGain);
     var recapture = Math.max(0, acceleratedDepreciation);
     var gainToOffset = longTermGain + recapture;
 

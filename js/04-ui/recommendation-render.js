@@ -83,7 +83,16 @@
   }
 
   function updateComputedReadouts(inputs) {
-    var lt = Math.max(0, inputs.salePrice - inputs.costBasis - inputs.acceleratedDepreciation);
+    // Long-term gain after subtracting:
+    //   - cost basis
+    //   - accelerated depreciation (recapture, ordinary)
+    //   - short-term gain (the user can carve part of the property
+    //     gain into short-term — that piece is taxed at ordinary
+    //     rates instead of LTCG rates, so it doesn't belong in the
+    //     LT gain bucket).
+    var stShort = Number((document.getElementById('short-term-gain') || {}).value) || 0;
+    var lt = Math.max(0,
+      inputs.salePrice - inputs.costBasis - inputs.acceleratedDepreciation - stShort);
     var rec = Math.max(0, inputs.acceleratedDepreciation);
     var total = lt + rec;
     var gainEl  = $('computed-gain');
@@ -244,8 +253,10 @@
     // The hidden #run-recommendation button has been removed; controls.js
     // now calls runRecommendation() directly via runFullPipeline().
 
-    // Live readouts as the user types
-    ['sale-price', 'cost-basis', 'accelerated-depreciation', 'implementation-date'].forEach(function (id) {
+    // Live readouts as the user types. Short-term gain is included
+    // because it reduces the long-term gain bucket (the user can carve
+    // part of the property gain into short-term).
+    ['sale-price', 'cost-basis', 'accelerated-depreciation', 'short-term-gain', 'implementation-date'].forEach(function (id) {
       var el = $(id);
       if (el) el.addEventListener('input', function () { updateComputedReadouts(readInputs()); });
     });

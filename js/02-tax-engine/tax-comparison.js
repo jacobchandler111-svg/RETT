@@ -246,10 +246,13 @@ function _belowMinForLifecycle(cfg) {
       const min = window.getMinInvestment(custodianId, stratKey);
       if (!min) return false;
       const basis = Math.max(0, cfg.costBasis || 0);
-      const ltGain = Math.max(0, (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0));
+      // Short-term gain (carved from the property sale) reduces the LT
+      // bucket — it's taxed at ordinary rates and tracked separately.
+      const stShort = Math.max(0, cfg.baseShortTermGain || 0);
+      const ltGain = Math.max(0, (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0) - stShort);
       const recapture = Math.max(0, cfg.acceleratedDepreciation || 0);
       const fromSale = (cfg.salePrice || 0) > 0 && basis > 0
-            ? (basis + ltGain + recapture)
+            ? (basis + ltGain + recapture + stShort)
             : 0;
       const fromIntent = Number(cfg.investment || 0);
       const maxCum = Math.max(fromSale, fromIntent);
@@ -307,8 +310,13 @@ function computeDeferredTaxComparison(cfg) {
             (cfg.recognitionStartYearIndex != null ? cfg.recognitionStartYearIndex : 1)));
       const ordCap = (cfg.filingStatus === 'mfs') ? 1500 : 3000;
 
+      // Long-term gain bucket: salePrice net of basis, depreciation
+      // recapture, AND any short-term gain the user carved out (ST is
+      // taxed at ordinary rates and is tracked separately by the
+      // ordinary-income path).
+      const stShortDef = Math.max(0, cfg.baseShortTermGain || 0);
       const totalLT = Math.max(0,
-            (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0));
+            (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0) - stShortDef);
       const recapture = Math.max(0, cfg.acceleratedDepreciation || 0);
       // For MVP we treat the recapture as part of the deferred LT bucket so
       // the math reflects a structured sale that defers the entire gain

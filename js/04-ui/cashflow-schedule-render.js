@@ -64,8 +64,11 @@
   function _buildScheduleRows(cfg, comp, years) {
     if (!comp || !Array.isArray(comp.rows)) return [];
     var year1 = (cfg && cfg.year1) || (years[0] && years[0].year) || (new Date()).getFullYear();
+    // Short-term gain carved from the property sale reduces the LT
+    // bucket here so the schedule reconciles with the tax engines.
+    var stShort = Math.max(0, cfg.baseShortTermGain || 0);
     var totalLT = Math.max(0,
-      (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0));
+      (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0) - stShort);
     var recapture = Math.max(0, cfg.acceleratedDepreciation || 0);
     var totalGain = totalLT + recapture;
     var basis = Math.max(0, cfg.costBasis || 0);
@@ -90,12 +93,21 @@
       var year = rec.year || (year1 + i);
       var recThisYear = rec.gainRecognized || 0;
       var ssBalanceEnd = Math.max(0, ssBalanceStart - recThisYear);
-      // Cumulative position in Brooklyn at year end. comp.rows tracks
-      // tranche reinvestment when present; otherwise derive.
+      // Cumulative position in Brooklyn at year end.
+      // Deferred path: comp.rows carries investmentThisYear (tranche-aware).
+      // Immediate path (lump-sum): cfg.investment is the constant Brooklyn
+      // deposit — Year 1 receives full sale proceeds and the position holds
+      // steady at that level. Falls back to basis + cumulativeRecognized if
+      // neither field is available.
       var compRow = comp.rows[i] || {};
-      var brookCum = compRow.investmentThisYear != null
-        ? compRow.investmentThisYear
-        : (i === 0 ? basis : basis + cumulativeRecognized);
+      var brookCum;
+      if (compRow.investmentThisYear != null) {
+        brookCum = compRow.investmentThisYear;
+      } else if (Number(cfg.investment) > 0) {
+        brookCum = Number(cfg.investment);
+      } else {
+        brookCum = (i === 0 ? basis : basis + cumulativeRecognized);
+      }
       // NEW investment for THIS year = increment over prior year's
       // cumulative. Year 1 = the initial basis cash (or whatever Y1
       // amount the engine chose). Subsequent years = the released
@@ -209,6 +221,32 @@
       '</div>';
   }
 
+  // Detect when the engine chose immediate Year-1 recognition (no
+  // structured-sale lockup needed). Two signatures qualify:
+  //   1) The auto-pick selected rec=1 (recognitionStartYearIndex=0).
+  //   2) The comparison was the immediate path (no recognitionSchedule
+  //      array, or all gain recognized in Year 1 of the schedule).
+  // When this is true, the structured-sale schedule below is replaced
+  // with a "no structured sale needed" callout — the seller takes a
+  // lump-sum payment at close and Brooklyn losses absorb the gain.
+  function _isLumpSum(cfg, comp) {
+    if (!comp) return false;
+    if (cfg && (cfg.recognitionStartYearIndex === 0 || cfg.recognitionStartYearIndex == null)) {
+      // Immediate path uses computeTaxComparison — comp has no
+      // recognitionSchedule and no `deferred:true` flag.
+      if (!comp.deferred && !comp.recognitionSchedule) return true;
+    }
+    if (Array.isArray(comp.recognitionSchedule) && comp.recognitionSchedule.length) {
+      var firstRec = comp.recognitionSchedule[0];
+      var totalRec = comp.recognitionSchedule.reduce(function (s, r) {
+        return s + (r.gainRecognized || 0);
+      }, 0);
+      // All gain recognized in the first year = lump-sum.
+      return totalRec > 0 && firstRec && firstRec.gainRecognized >= totalRec - 0.01;
+    }
+    return false;
+  }
+
   function renderCashflowSchedule(host) {
     host = host || document.getElementById('cashflow-schedule-host');
     if (!host) return;
@@ -229,6 +267,8 @@
       || Number((document.getElementById('accelerated-depreciation') || {}).value) || 0;
     cfg.implementationDate = cfg.implementationDate
       || (document.getElementById('implementation-date') || {}).value || '';
+    cfg.baseShortTermGain = cfg.baseShortTermGain
+      || Number((document.getElementById('short-term-gain') || {}).value) || 0;
 
     var rows = _buildScheduleRows(cfg, comp, result.years);
     if (!rows.length) {
@@ -237,17 +277,42 @@
     }
 
     // Total locked in the structured sale = LT capital gain + recapture.
+    var _stShortSub = Math.max(0, cfg.baseShortTermGain || 0);
     var _totalLT = Math.max(0,
-      (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0));
+      (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0) - _stShortSub);
     var totalGain = _totalLT + Math.max(0, cfg.acceleratedDepreciation || 0);
-    var brookSub = 'New capital deployed each year — basis cash on engagement plus structured-sale tranche releases. Each row shows the assumed implementation date for that year’s deposit and the cumulative position for context. Total = sum of new investments.';
-    var ssSub = 'Total gain held in the structured-sale agreement (' + _fmt(totalGain) + '). ' +
-      'Releases happen on Jan 1 of each scheduled year so the cash works in Brooklyn for the full following year.';
+
+    var lumpSum = _isLumpSum(cfg, comp);
+    var brookSub = lumpSum
+      ? 'Lump-sum scenario: the full sale proceeds are received at close and deployed into Brooklyn in Year 1 — no structured-sale lockup, no later tranche releases.'
+      : 'New capital deployed each year — basis cash on engagement plus structured-sale tranche releases. Each row shows the assumed implementation date for that year’s deposit and the cumulative position for context.';
+
+    var ssSection;
+    if (lumpSum) {
+      // Replace the structured-sale schedule with a callout. The
+      // seller takes a lump-sum payment at close; Brooklyn losses
+      // absorb the gain in Year 1, so there's nothing to schedule.
+      ssSection = '<h3 class="section-title" style="margin-top:24px;">Structured Sale</h3>' +
+        '<div class="rett-no-structured-sale" role="note" style="' +
+          'background:rgba(15, 76, 129, 0.18);border:1px solid rgba(26, 58, 110, 0.6);' +
+          'border-radius:6px;padding:12px 16px;color:#cfe1ff;' +
+        '">' +
+          '<strong>No structured sale needed.</strong> ' +
+          'The optimizer found that taking a lump-sum payment at close and deploying the full ' +
+          _fmt(totalGain) +
+          ' gain into Brooklyn in Year 1 produces the highest net benefit. ' +
+          'Brooklyn’s Year-1 losses absorb the recognized gain immediately — no 18-month or two-year hold-up required.' +
+        '</div>';
+    } else {
+      var ssSub = 'Total gain held in the structured-sale agreement (' + _fmt(totalGain) + '). ' +
+        'Releases happen on Jan 1 of each scheduled year so the cash works in Brooklyn for the full following year.';
+      ssSection = _section('Structured-Sale Schedule', _buildStructuredSaleTable(rows), ssSub);
+    }
 
     host.innerHTML =
       _buildMinimumBanner(cfg, rows) +
       _section('Brooklyn Investment Schedule', _buildBrooklynTable(rows), brookSub) +
-      _section('Structured-Sale Schedule',     _buildStructuredSaleTable(rows), ssSub);
+      ssSection;
   }
 
   root.renderCashflowSchedule = renderCashflowSchedule;
