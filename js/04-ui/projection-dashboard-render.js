@@ -523,13 +523,26 @@
     }
     var totalFees = brooklynFees + brookhavenTotal;
     var netBenefit = doNothing - tax - totalFees;
+    // Boundary guard: NaN / Infinity from a malformed cfg or a divide-
+    // by-zero in the engine renders as "$NaN" in the comparison table —
+    // worse than no number at all because it looks like a bug we shipped
+    // rather than missing data. Coerce to 0 and warn so the issue
+    // surfaces in dev without blanking the row.
+    function _finite(label, v) {
+      if (typeof v === 'number' && isFinite(v)) return v;
+      try {
+        console.warn('[RETT non-finite] _scenarioMetrics ' + label + '=', v,
+          'cfg.recognitionStartYearIndex=', cfg && cfg.recognitionStartYearIndex);
+      } catch (e) { /* */ }
+      return 0;
+    }
     return {
-      tax: tax,
-      brooklynFees: brooklynFees,
-      brookhavenFees: brookhavenTotal,
-      fees: totalFees,
-      doNothing: doNothing,
-      net: netBenefit
+      tax:            _finite('tax',            tax),
+      brooklynFees:   _finite('brooklynFees',   brooklynFees),
+      brookhavenFees: _finite('brookhavenFees', brookhavenTotal),
+      fees:           _finite('fees',           totalFees),
+      doNothing:      _finite('doNothing',      doNothing),
+      net:            _finite('net',            netBenefit)
     };
   }
   function _buildScenarioComparison(currentCfg) {
@@ -658,9 +671,18 @@
       }
     }
     // Stash the row->cfg map so the dashboard renderer can compute
-    // per-scenario data without re-deriving cfg shapes.
+    // per-scenario data without re-deriving cfg shapes. metrics are
+    // included so the per-section render can assert dashboard numbers
+    // match the row that motivated them — a drift here means somebody
+    // changed the row pipeline or the section pipeline without keeping
+    // the other in sync, which would silently corrupt the user's picture.
     root.__rettScenarioRows = rows.map(function (r) { return {
-      type: r.type, rec: r.rec, maxRec: r.maxRec, label: r.label
+      type: r.type, rec: r.rec, maxRec: r.maxRec, label: r.label,
+      metrics: r.metrics ? {
+        tax:  Number(r.metrics.tax)  || 0,
+        fees: Number(r.metrics.fees) || 0,
+        net:  Number(r.metrics.net)  || 0
+      } : null
     }; });
     // Expose the recommended scenario so the narrative can pin to it
     // instead of the global __lastComparison (which floats with whatever
@@ -919,6 +941,43 @@
       autoPickEnabled: true
     };
     return root.__rettSectionState[type];
+  }
+
+  // Drift guard. Compares a section's rendered totals against the row
+  // metrics that motivated the section. Skips when the section was
+  // manually overridden (autoPickEnabled === false) — drift in that
+  // case is INTENTIONAL (user picked a different combo to explore).
+  // Tolerance of $1 absorbs floating-point noise from independent
+  // engine runs that should produce identical numbers.
+  function _assertRowDashboardConsistency(type, sectionData, rowMetrics, sectionState) {
+    if (!sectionData || !sectionData.comp || !rowMetrics) return;
+    if (sectionState && sectionState.autoPickEnabled === false) return;
+    var dn = 0, w = 0;
+    (sectionData.comp.rows || []).forEach(function (rr) {
+      dn += (rr.doNothingBaseline ? rr.doNothingBaseline.total
+              : (rr.baseline ? rr.baseline.total : 0));
+      w  += (rr.withStrategy ? rr.withStrategy.total : 0);
+    });
+    var bk = sectionData.comp.totalFees != null
+              ? sectionData.comp.totalFees
+              : ((sectionData.result && sectionData.result.totals
+                  && sectionData.result.totals.cumulativeFees) || 0);
+    var bh = sectionData.comp.totalBrookhavenFees || 0;
+    var dashTax  = w;
+    var dashFees = bk + bh;
+    var dashNet  = dn - w - bk - bh;
+    var dTax  = Math.abs(dashTax  - rowMetrics.tax);
+    var dFees = Math.abs(dashFees - rowMetrics.fees);
+    var dNet  = Math.abs(dashNet  - rowMetrics.net);
+    if (dTax > 1 || dFees > 1 || dNet > 1) {
+      try {
+        console.warn('[RETT drift] Scenario ' + type +
+          ' row vs dashboard mismatch:',
+          { row:  { tax: rowMetrics.tax,  fees: rowMetrics.fees,  net: rowMetrics.net  },
+            dash: { tax: dashTax,         fees: dashFees,         net: dashNet         },
+            deltas: { tax: dTax, fees: dFees, net: dNet } });
+      } catch (e) { /* console may be missing in headless contexts */ }
+    }
   }
 
   function _resolveSectionCfg(type, baseCfg) {
@@ -1203,6 +1262,16 @@
       dataByType[row.type] = data;
       // Stash for the savings-ribbon scroll observer.
       root.__rettSectionData[row.type] = { comp: data.comp, result: data.result };
+      // Drift guard: when the section is in auto-pick mode, its rendered
+      // numbers MUST match the comparison row that motivated it. A
+      // disagreement means the row pipeline (_buildScenarioComparison ->
+      // _bestPickedCfg) and the section pipeline (_resolveSectionCfg ->
+      // _scenarioFullData) have drifted — typically because somebody
+      // changed one auto-pick path without the other. Warn (not throw)
+      // so the calculator still renders, but a developer watching the
+      // console sees the corruption immediately.
+      _assertRowDashboardConsistency(row.type, data, row.metrics,
+        (root.__rettSectionState || {})[row.type]);
     });
     if (!sections) {
       sections = '<div class="rett-no-scenarios" style="' +

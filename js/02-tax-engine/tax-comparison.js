@@ -861,6 +861,28 @@ function computeDeferredTaxComparison(cfg) {
             totalBrookhaven += (r.brookhavenFee || 0);
       });
 
+      // Conservation guard: every dollar of LT gain must EITHER be
+      // recognized in some year's tranche OR sit in unrecognizedGain at
+      // maturity. If sum(recognized) + unrecognized != totalGainBucket
+      // the engine silently created or destroyed gain — usually a
+      // forced-recognition off-by-one or a tranche-push skip. Warn so
+      // it surfaces in dev; the calculator keeps rendering since the
+      // user-visible numbers are still self-consistent (savings = base
+      // - with regardless of where the gain went).
+      if (typeof console !== 'undefined' && typeof console.warn === 'function') {
+            const _sumRec = recognitionSchedule.reduce(function (s, r) {
+                  return s + (r.gainRecognized || 0);
+            }, 0);
+            const _accountedGain = _sumRec + Math.max(0, gainRemaining);
+            if (Math.abs(_accountedGain - totalGainBucket) > 1) {
+                  console.warn('[RETT engine] computeDeferredTaxComparison gain conservation broken: ' +
+                        'totalGainBucket=' + totalGainBucket +
+                        ' sumRecognized=' + _sumRec +
+                        ' unrecognized=' + gainRemaining +
+                        ' delta=' + (_accountedGain - totalGainBucket));
+            }
+      }
+
       // Effective duration = number of years over which gain was recognized
       // (used by the optimizer's tie-breaker to prefer shorter lockups).
       const recognitionYears = recognitionSchedule.filter(function (r) {
