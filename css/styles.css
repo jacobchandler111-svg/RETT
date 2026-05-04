@@ -190,6 +190,20 @@ body {
     font-weight: 600;
 }
 .strategy-locked[hidden] { display: none; }
+
+/* Inline error text under an input — used by the withhold-amount
+   field when the entered amount exceeds the sale price. */
+.error-text {
+    margin: 4px 0 0 0;
+    font-size: 0.85em;
+    color: #ff6b6b;
+    font-weight: 500;
+}
+.error-text[hidden] { display: none; }
+/* The conditional withhold-amount-group is .input-group, so the
+   plain `hidden` attribute works (no flex override on .input-group).
+   Adding an explicit rule for safety. */
+.input-group[hidden] { display: none !important; }
 .strategy-locked .muted {
     font-weight: 400;
     color: #8fb3e0;

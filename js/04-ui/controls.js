@@ -236,6 +236,8 @@ function resetAllInputs(skipConfirm) {
     // Page 1: Appreciated Assets
     'sale-price', 'cost-basis', 'accelerated-depreciation',
     'computed-gain', 'short-term-gain', 'long-term-gain',
+    // Page 1: Withholding from sale
+    'withhold-yes-no', 'withhold-amount',
     // Page 1: Implementation timing
     'implementation-date',
     // Page 1: Custodian
@@ -648,25 +650,82 @@ function bindControls() {
   if (subnavSummary) subnavSummary.addEventListener('click', () => showProjectionSubpage('subpage-summary'));
   if (subnavDetails) subnavDetails.addEventListener('click', () => showProjectionSubpage('subpage-details'));
 
+  // Withhold-from-sale wiring: a yes/no question on Page 1 carves a
+  // portion of the sale proceeds aside, and the rest auto-populates
+  // Available Capital on Page 2 in real time.
+  function _recomputeAvailableCapital() {
+    const saleEl   = document.getElementById('sale-price');
+    const yesNoEl  = document.getElementById('withhold-yes-no');
+    const amtEl    = document.getElementById('withhold-amount');
+    const amtGroup = document.getElementById('withhold-amount-group');
+    const errEl    = document.getElementById('withhold-error');
+    const availEl  = document.getElementById('available-capital');
+    if (!saleEl || !yesNoEl || !availEl) return;
+
+    const saleVal = Number(saleEl.value) || 0;
+    const wantsWithhold = (yesNoEl.value === 'yes');
+    const amtRaw  = amtEl ? (Number(amtEl.value) || 0) : 0;
+
+    // Show / hide the amount input based on yes/no.
+    if (amtGroup) amtGroup.hidden = !wantsWithhold;
+
+    // Validation: amount must not exceed the sale.
+    let withhold = 0;
+    let hasError = false;
+    if (wantsWithhold) {
+      if (saleVal > 0 && amtRaw > saleVal) {
+        if (errEl) {
+          errEl.textContent = 'Withhold ($' + amtRaw.toLocaleString() +
+            ') is greater than the sale price ($' + saleVal.toLocaleString() +
+            '). Please re-enter.';
+          errEl.hidden = false;
+        }
+        hasError = true;
+      } else {
+        if (errEl) errEl.hidden = true;
+        withhold = Math.max(0, amtRaw);
+      }
+    } else {
+      // No withhold — clear the field + hide error.
+      if (errEl) errEl.hidden = true;
+    }
+
+    // Drive available-capital from sale - withhold whenever there's a
+    // sale price and no validation error. This overwrites whatever is
+    // currently in the field; the user can still override on Page 2.
+    if (!hasError && saleVal > 0) {
+      const newAvail = String(Math.max(0, saleVal - withhold));
+      if (availEl.value !== newAvail) {
+        availEl.value = newAvail;
+        availEl.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    }
+
+    // Also: disable the Continue button while there's a validation error.
+    const cont = document.getElementById('continue-to-projection');
+    if (cont) cont.disabled = hasError;
+  }
+
+  // Wire up the listeners. Sale-price already has other input listeners
+  // elsewhere; we add ours alongside.
+  ['sale-price', 'withhold-yes-no', 'withhold-amount'].forEach(function (id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const evt = (el.tagName === 'SELECT') ? 'change' : 'input';
+    el.addEventListener(evt, _recomputeAvailableCapital);
+  });
+  // Initial call so the available-capital is set on first paint when a
+  // case-load restored sale-price.
+  _recomputeAvailableCapital();
+
   const contBtn = document.getElementById('continue-to-projection');
   if (contBtn) contBtn.addEventListener('click', () => {
     if (typeof validateAndReport === 'function' && !validateAndReport('client')) {
       return;
     }
-    // Carry the Sale Price over to Available Capital on Page 2 the first
-    // time the user advances. They can override on Page 2 if they don't
-    // want to invest the full sale proceeds. We don't overwrite an
-    // already-entered Available Capital.
-    const saleEl   = document.getElementById('sale-price');
-    const availEl  = document.getElementById('available-capital');
-    if (saleEl && availEl) {
-      const saleVal  = Number(saleEl.value) || 0;
-      const availVal = Number(availEl.value) || 0;
-      if (saleVal > 0 && availVal === 0) {
-        availEl.value = String(saleVal);
-        availEl.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    }
+    // Final sync — make sure available-capital reflects sale-withhold
+    // before the projection runs.
+    _recomputeAvailableCapital();
     // showPage('page-projection') triggers runFullPipeline() internally,
     // so the recommendation engine + dashboard render run automatically
     // on arrival.
