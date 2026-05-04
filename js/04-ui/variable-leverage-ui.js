@@ -1,14 +1,20 @@
 // FILE: js/04-ui/variable-leverage-ui.js
-// Leverage slider on Page 2. Replaces the legacy leverage pill row.
+// Leverage UI on Page 2. Two modes:
 //
-// The slider is a continuous control over the short-percentage axis,
-// clamped to whatever the active custodian + strategy permits. The
-// auto-pick optimizer (pill-toggles.js runAutoPick) sets the slider's
-// position to the short% that maximizes net savings; users can drag
-// to override. The slider is the canonical input for variable
-// leverage — there is no "use variable" checkbox anymore. Hidden
-// legacy fields (#use-variable-leverage, #custom-short-pct) stay in
-// the DOM as the source of truth that inputs-collector reads.
+//   1) Continuous slider (Goldman or no custodian)
+//      A continuous control over the short-percentage axis, clamped
+//      to whatever the active custodian + strategy permits. The
+//      auto-pick optimizer sets the position; users can drag to
+//      override.
+//
+//   2) Schwab preset pills (beta1 only)
+//      Schwab does not permit variable leverage on Beta 1. When
+//      custodian = Schwab, the slider is hidden and a two-pill
+//      picker (145/45 / 200/100) takes its place. Auto-pick on
+//      Schwab evaluates only those two short percentages.
+//
+// The hidden legacy field #custom-short-pct is the canonical
+// source of truth that inputs-collector reads, regardless of mode.
 //
 // Long% derives from the strategy:
 //   - Beta 0 (market neutral): long = short
@@ -69,7 +75,41 @@
     if (slider && Number(slider.max) !== maxShort) slider.max = String(maxShort);
   }
 
+  // Show / hide the slider vs. the Schwab preset picker depending on
+  // the active custodian. Schwab doesn't allow variable leverage on
+  // Beta 1, so we swap the slider for a two-button picker.
+  function _refreshMode() {
+    var custId = (_byId('custodian-select') || {}).value || '';
+    var sliderGroup = _byId('leverage-slider-group');
+    var schwabGroup = _byId('leverage-schwab-group');
+    var isSchwab = (custId === 'schwab');
+    if (sliderGroup) sliderGroup.hidden = isSchwab;
+    if (schwabGroup) schwabGroup.hidden = !isSchwab;
+    if (isSchwab) {
+      // Sync the Schwab pills to the current short% (snap to 45 if
+      // <= 70, otherwise 100). Engine still reads from
+      // #custom-short-pct so we update that too.
+      var hidden = _byId('custom-short-pct');
+      var rawSp = Number((hidden && hidden.value) || 100);
+      var snapped = (rawSp <= 70) ? 45 : 100;
+      if (hidden) hidden.value = String(snapped);
+      _syncSchwabPills(snapped);
+    }
+  }
+
+  function _syncSchwabPills(sp) {
+    var track = _byId('leverage-schwab-track');
+    if (!track) return;
+    Array.prototype.forEach.call(track.querySelectorAll('.pill'), function (b) {
+      var v = Number(b.getAttribute('data-short'));
+      var on = (v === sp);
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+  }
+
   function refreshReadouts() {
+    _refreshMode();
     var slider = _byId('leverage-slider');
     var hidden = _byId('custom-short-pct');
     var tierEl = _byId('leverage-slider-tier');
@@ -80,8 +120,15 @@
     var stratKey = (_byId('strategy-select') || {}).value || 'beta1';
     var maxShort = Number(slider.max) || 225;
     var sp = Math.max(0, Math.min(maxShort, Number(slider.value) || 0));
+    // Schwab mode: source-of-truth is the hidden field, not the slider
+    // (slider is hidden in this mode).
+    var custId = (_byId('custodian-select') || {}).value || '';
+    if (custId === 'schwab' && hidden) {
+      sp = Number(hidden.value) || 100;
+    }
     if (Number(slider.value) !== sp) slider.value = String(sp);
     if (hidden && hidden.value !== String(sp)) hidden.value = String(sp);
+    _syncSchwabPills(sp);
     var lp = _longPctFor(stratKey, sp);
 
     var lossRate = (typeof root.brooklynLossRateFor === 'function')
@@ -138,6 +185,29 @@
     }
   }
 
+  function _onSchwabPillClick(e) {
+    var btn = e.target.closest('.pill');
+    if (!btn) return;
+    var track = btn.closest('#leverage-schwab-track');
+    if (!track) return;
+    var sp = Number(btn.getAttribute('data-short'));
+    if (!isFinite(sp)) return;
+    var hidden = _byId('custom-short-pct');
+    if (hidden) hidden.value = String(sp);
+    _syncSchwabPills(sp);
+    refreshReadouts();
+    // First manual click disables auto-pick (same behavior as the slider).
+    root.__rettAutoPickEnabled = false;
+    var hint = _byId('leverage-schwab-auto-hint');
+    if (hint) hint.hidden = true;
+    if (typeof root.refreshRevertVisibility === 'function') {
+      try { root.refreshRevertVisibility(); } catch (e) { /* */ }
+    }
+    if (typeof root.runFullPipeline === 'function') {
+      try { root.runFullPipeline(); } catch (e) { /* */ }
+    }
+  }
+
   function _attach() {
     var slider = _byId('leverage-slider');
     if (slider) {
@@ -148,6 +218,8 @@
         t = setTimeout(_onSliderInput, 150);
       });
     }
+    var schwabTrack = _byId('leverage-schwab-track');
+    if (schwabTrack) schwabTrack.addEventListener('click', _onSchwabPillClick);
     var stratSel = _byId('strategy-select');
     if (stratSel) stratSel.addEventListener('change', refreshReadouts);
     var custSel = _byId('custodian-select');

@@ -1,10 +1,17 @@
 // js/00-data/schwab-strategies.js
 // Charles Schwab-only strategy / leverage / loss-curve catalog.
 //
-// Schwab restricts which (strategy, leverage) combinations they will run.
+// Per Schwab restriction (2026-05-04): Schwab will only run Beta 1
+// at two specific leverage combos — 145/45 and 200/100. The other
+// strategies (Beta 0, Beta 0.5, Advisor Managed) and any continuous /
+// variable leverage are NOT permitted on the Schwab side. The two
+// combos below are the only Schwab paths the projection engine
+// considers; the optimizer's auto-pick on Schwab evaluates only
+// these two short percentages (45% and 100%).
+//
 // Each combo carries:
-//   - strategyKey       : 'beta1' | 'beta0' | 'beta05' | 'advisorManaged'
-//   - leverageLabel     : human-readable Brooklyn notation, e.g. '145/45'
+//   - strategyKey       : 'beta1' (Schwab is beta1-only)
+//   - leverageLabel     : human-readable Brooklyn notation: '145/45' or '200/100'
 //   - leverage          : numeric short-pct fraction (45% short -> 0.45)
 //                         used for legacy plumbing only; the loss math here
 //                         already has leverage BAKED INTO the tranche values.
@@ -59,69 +66,13 @@
       feeRate: 0.0203,
       minInvestment: 3000000,
       leverageBaked: true
-    },
-    beta0_100_100: {
-      id: 'beta0_100_100',
-      strategyKey: 'beta0',
-      strategyLabel: 'Beta 0 (Market Neutral)',
-      leverageLabel: '100/100',
-      leverage: 1.00,
-      longPct: 100,
-      shortPct: 100,
-      lossByYear: [0.495, 0.271, 0.172, 0.137, 0.137, 0.121, 0.109, 0.099, 0.091, 0.084],
-      feeRate: 0.0153,
-      minInvestment: 3000000,
-      leverageBaked: true
-    },
-    beta05_200_100: {
-      id: 'beta05_200_100',
-      strategyKey: 'beta05',
-      strategyLabel: 'Beta 0.5',
-      leverageLabel: '200/100',
-      leverage: 1.00,
-      longPct: 200,
-      shortPct: 100,
-      lossByYear: [0.674, 0.4615, 0.349, 0.332, 0.330, 0.3045, 0.288, 0.2745, 0.2635, 0.254],
-      feeRate: 0.0181,
-      minInvestment: 3000000,
-      leverageBaked: true
-    },
-    advisorManaged_145_45: {
-      id: 'advisorManaged_145_45',
-      strategyKey: 'advisorManaged',
-      strategyLabel: 'Advisor Managed',
-      leverageLabel: '145/45',
-      leverage: 0.45,
-      longPct: 145,
-      shortPct: 45,
-      lossByYear: [0.218, 0.211, 0.187, 0.174, 0.184, 0.182, 0.177, 0.173, 0.170, 0.167],
-      feeRate: 0.0094,
-      minInvestment: 1000000,
-      leverageBaked: true
-    },
-    advisorManaged_200_100: {
-      id: 'advisorManaged_200_100',
-      strategyKey: 'advisorManaged',
-      strategyLabel: 'Advisor Managed',
-      leverageLabel: '200/100',
-      leverage: 1.00,
-      longPct: 200,
-      shortPct: 100,
-      lossByYear: [0.486, 0.435, 0.381, 0.353, 0.361, 0.353, 0.343, 0.333, 0.326, 0.320],
-      feeRate: 0.0203,
-      minInvestment: 3000000,
-      leverageBaked: true
     }
   };
 
   // Ordered list for dropdown population.
   var SCHWAB_COMBO_ORDER = [
     'beta1_145_45',
-    'beta1_200_100',
-    'beta0_100_100',
-    'beta05_200_100',
-    'advisorManaged_145_45',
-    'advisorManaged_200_100'
+    'beta1_200_100'
   ];
 
   function listSchwabCombos() {

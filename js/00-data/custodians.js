@@ -28,15 +28,17 @@
     schwab: {
       id: 'schwab',
       label: 'Charles Schwab',
-      allowedStrategies: ['beta1', 'beta0', 'beta05', 'advisorManaged'],
-      allowedLeverageCaps: [1.00, 1.50, 2.00, 2.25],
+      // Schwab restriction (2026-05-04): Beta 1 only, two preset combos
+      // (145/45 and 200/100). No continuous / variable leverage.
+      // The numeric values in allowedLeverageCaps match the combos'
+      // shortPct/100 field so the existing isLeverageCapAllowed check
+      // accepts them.
+      allowedStrategies: ['beta1'],
+      allowedLeverageCaps: [0.45, 1.00],
       minInvestment: {
-        beta1: 1000000,
-        beta0: 1000000,
-        beta05: 1000000,
-        advisorManaged: 2000000
+        beta1: 1000000
       },
-      notes: 'Confirm minimums quarterly with Schwab relationship manager.'
+      notes: 'Beta 1 only, presets 145/45 and 200/100. Confirm minimums quarterly with Schwab relationship manager.'
     },
     goldmanSachs: {
       id: 'goldmanSachs',

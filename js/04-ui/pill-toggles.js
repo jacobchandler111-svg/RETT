@@ -292,27 +292,32 @@
   // Tie-breaker: when two combos produce the same net (within $1k), prefer
   // the one with the SHORTEST gain-recognition duration. Matches the
   // user's stated preference for shorter structured-sale lockups.
-  // Generate the candidate short% values to test. We search every 1%
-  // across [0, custodian-max] so the auto-pick lands on the EXACT
-  // global max rather than a 5%-step approximation. The user has
-  // reported finding higher-net points by manually nudging the slider
-  // past where the auto-pick stopped — that gap goes away with 1%
-  // resolution. Iteration cost: ~100 short × 3 horizons × up-to-4
-  // recognition = ~1200 evaluations on Page-2 entry. The recognition-
-  // only search that fires on every subsequent recompute remains
-  // cheap (≤ 4 evaluations).
+  // Generate the candidate short% values to test.
+  //
+  // Schwab: variable leverage isn't permitted on Beta 1, so we
+  //   evaluate ONLY the published combo short percentages (currently
+  //   {45, 100}). This makes the auto-pick respect Schwab's product
+  //   rules instead of fabricating mid-range positions.
+  //
+  // Goldman / no custodian: we sweep every 1% across [0, custodian-max]
+  //   so the auto-pick lands on the EXACT global max rather than a
+  //   5%-step approximation. Iteration cost: ~225 short × 3 horizons
+  //   × up-to-4 recognition = ~2700 evaluations on Page-2 entry; the
+  //   recognition-only search that fires on every subsequent recompute
+  //   stays cheap (≤ 4 evaluations).
   function _candidateShortPcts(stratKey, custodianId) {
-    var maxShort = 225;
     if (custodianId === 'schwab' && typeof root.listSchwabCombos === 'function') {
       var combos = root.listSchwabCombos().filter(function (c) { return c.strategyKey === stratKey; });
       if (combos.length) {
-        maxShort = Math.max.apply(null, combos.map(function (c) { return c.shortPct || 0; }));
+        // Just the discrete combo points — no continuous sweep.
+        return combos.map(function (c) { return c.shortPct || 0; });
       }
-    } else {
-      var tier = (root.BROOKLYN_STRATEGIES || {})[stratKey];
-      if (tier && Array.isArray(tier.dataPoints)) {
-        maxShort = Math.max.apply(null, tier.dataPoints.map(function (p) { return p.shortPct || 0; }));
-      }
+      return [];
+    }
+    var maxShort = 225;
+    var tier = (root.BROOKLYN_STRATEGIES || {})[stratKey];
+    if (tier && Array.isArray(tier.dataPoints)) {
+      maxShort = Math.max.apply(null, tier.dataPoints.map(function (p) { return p.shortPct || 0; }));
     }
     var step = 1;
     var out = [];
