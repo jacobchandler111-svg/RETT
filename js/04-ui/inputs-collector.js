@@ -67,7 +67,19 @@ function collectInputs() {
                 // rental/dividend/retirement income.
                 wages:               _wageIncomeForAddlMedicare(),
                 baseShortTermGain:   parseUSD(_val('short-term-gain')),
-                baseLongTermGain:    parseUSD(_val('long-term-gain'))
+                baseLongTermGain:    parseUSD(_val('long-term-gain')),
+                // Property-sale fields. Engine paths (computeDeferred-
+                // TaxComparison, recommendSale, projection-engine
+                // below-min check, _belowMinForLifecycle) all read
+                // these for LT-gain math. Previously they were missing
+                // from collectInputs and runAutoPick patched them in
+                // post-hoc — but every other consumer of collectInputs
+                // got a broken cfg with sale/basis = undefined, which
+                // zeroed out the deferred-comparison engine.
+                salePrice:               parseUSD(_val('sale-price')),
+                costBasis:               parseUSD(_val('cost-basis')),
+                acceleratedDepreciation: parseUSD(_val('accelerated-depreciation')),
+                implementationDate:      _val('implementation-date') || ''
                 // Per-year override arrays (ordinaryByYear, shortGainByYear,
                 // longGainByYear, lossRateByYear) were sourced from a
                 // future-years UI that has been removed. The engine falls
