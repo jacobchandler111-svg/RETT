@@ -1000,6 +1000,30 @@ select.input-error {
 .swatch-cumulative { background: #5fd97e; }
 
 .rett-chart-svg { width: 100%; height: auto; display: block; }
+.rett-bar { transition: opacity 0.12s ease; cursor: pointer; }
+.rett-bar:hover { opacity: 0.85; }
+
+/* Floating bar tooltip — fixed to viewport, follows the cursor.
+   Wired once by projection-dashboard-render.js; bars carry data-* attrs. */
+.rett-bar-tooltip {
+  position: fixed;
+  pointer-events: none;
+  z-index: 10000;
+  background: rgba(8, 24, 48, 0.96);
+  color: #cfe1ff;
+  border: 1px solid #5fa8ff;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 0.85em;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+.rett-bar-tooltip strong {
+  color: #5fa8ff;
+  display: block;
+  margin-bottom: 3px;
+  font-weight: 700;
+}
 
 /* Side-by-side comparison pies on Page 2 / Summary. Two cards: "If You
    Do Nothing" and "With Planning". The first shows tax-vs-kept of the

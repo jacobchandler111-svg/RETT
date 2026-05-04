@@ -2,9 +2,12 @@
 // Multi-year projection dashboard for the Projection page (Page 2).
 // Renders into #projection-table:
 //   1. KPI tile row (Total Tax Saved, Cumulative Fees, Net Benefit, ROI)
-//   2. SVG paired bar chart: Without vs With strategy per year, with a
-//      cumulative-savings line overlay
-//   3. Compact data table with year-by-year detail
+//   2. SVG paired bar chart: Without vs With strategy per year. Bars
+//      carry data-rett-bar / data-label / data-amount; a viewport-fixed
+//      tooltip wired once at module load shows "Without Strategy (YYYY)
+//      / $X owed" while the cursor is over a bar.
+//   3. Side-by-side pie charts (do-nothing vs with-planning).
+//   4. Compact data table with year-by-year detail.
 //
 // Uses RETT's existing blue palette and styling; depends on no external
 // chart library. Reads from window.__lastResult populated by controls.js.
@@ -13,6 +16,50 @@
 
 (function (root) {
   'use strict';
+
+  // Floating tooltip wired once on first load. Bars in the chart carry
+  // data-rett-bar / data-label / data-amount attributes; on mousemove
+  // we read those off whatever rect the cursor is over and position
+  // the tooltip near the cursor. Self-init so it survives every
+  // dashboard re-render without re-wiring.
+  function _initBarTooltipOnce() {
+    if (root.__rettBarTooltipInit) return;
+    root.__rettBarTooltipInit = true;
+    var doc = root.document;
+    if (!doc || !doc.body) return;
+    var tip = doc.createElement('div');
+    tip.className = 'rett-bar-tooltip';
+    tip.style.display = 'none';
+    doc.body.appendChild(tip);
+    doc.addEventListener('mousemove', function (e) {
+      var t = e.target;
+      var role = t && t.getAttribute && t.getAttribute('data-rett-bar');
+      if (!role) {
+        if (tip.style.display !== 'none') tip.style.display = 'none';
+        return;
+      }
+      tip.innerHTML =
+        '<strong>' + (t.getAttribute('data-label') || '') + '</strong>' +
+        '<div>' + (t.getAttribute('data-amount') || '') + ' owed</div>';
+      tip.style.display = 'block';
+      // Clamp to viewport so the tooltip doesn't run off the right edge
+      // when hovering the last bar.
+      var x = e.clientX + 14;
+      var y = e.clientY + 14;
+      var maxX = (root.innerWidth || 1200) - tip.offsetWidth - 8;
+      if (x > maxX) x = e.clientX - tip.offsetWidth - 14;
+      tip.style.left = x + 'px';
+      tip.style.top  = y + 'px';
+    });
+    doc.addEventListener('scroll', function () { tip.style.display = 'none'; }, true);
+  }
+  if (typeof root.document !== 'undefined') {
+    if (root.document.readyState === 'loading') {
+      root.document.addEventListener('DOMContentLoaded', _initBarTooltipOnce);
+    } else {
+      _initBarTooltipOnce();
+    }
+  }
 
   function _fmt(n) {
     if (n == null || !isFinite(n)) return '—';
@@ -107,13 +154,16 @@
       '</div>';
   }
 
-  // Build the SVG paired bar chart with cumulative savings line overlay.
+  // Build the SVG paired bar chart. Bars carry data-* attributes that
+  // _initBarTooltipOnce reads on mousemove to render a floating tooltip
+  // ("Without Strategy (2026)" / "$4,200,000 owed"). No constant labels
+  // above the bars — the tooltip is the single source of detail.
   function _buildChart(years) {
     var n = years.length;
     if (!n) return '';
 
     var W = 760, H = 340;
-    var padL = 60, padR = 40, padT = 20, padB = 50;
+    var padL = 60, padR = 20, padT = 20, padB = 50;
     var innerW = W - padL - padR;
     var innerH = H - padT - padB;
 
@@ -126,24 +176,13 @@
     var data = years.map(function (y) {
       var no = (y.taxNoBrooklynDoNothing != null) ? y.taxNoBrooklynDoNothing : (y.taxNoBrooklyn || 0);
       var w = (y.taxWithBrooklyn != null) ? y.taxWithBrooklyn : no;
-      var save = no - w;
       if (no > maxBar) maxBar = no;
       if (w > maxBar) maxBar = w;
-      return { year: y.year, no: no, w: w, save: save };
+      return { year: y.year, no: no, w: w };
     });
     if (maxBar <= 0) maxBar = 1;
-    // Round up to a nice number for axis
     var pow = Math.pow(10, Math.floor(Math.log10(maxBar)));
     var yMax = Math.ceil(maxBar / pow) * pow;
-
-    // Cumulative savings scale (for line overlay, separate axis on right)
-    var cumSeries = [];
-    var run = 0;
-    data.forEach(function (d) { run += d.save; cumSeries.push(run); });
-    var maxCum = Math.max.apply(null, cumSeries);
-    if (maxCum <= 0) maxCum = 1;
-    var cumPow = Math.pow(10, Math.floor(Math.log10(maxCum)));
-    var cumMax = Math.ceil(maxCum / cumPow) * cumPow;
 
     var groupW = innerW / n;
     var barW = Math.min(28, groupW * 0.32);
@@ -162,55 +201,30 @@
       svg += '<text x="' + (padL - 8) + '" y="' + (y + 4) + '" text-anchor="end" ' +
              'font-size="11" fill="#8fb3e0" font-family="inherit">' + _fmtCompact(v) + '</text>';
     }
-    // Right axis (cumulative)
-    for (var j = 0; j <= ticks; j++) {
-      var cv = cumMax * j / ticks;
-      var cy = padT + innerH - (cv / cumMax) * innerH;
-      svg += '<text x="' + (W - padR + 8) + '" y="' + (cy + 4) + '" text-anchor="start" ' +
-             'font-size="11" fill="#5fd97e" font-family="inherit">' + _fmtCompact(cv) + '</text>';
-    }
 
-    // Bars
-    var pts = [];
     data.forEach(function (d, idx) {
       var cx = padL + groupW * idx + groupW / 2;
       var x1 = cx - barW - gap / 2;
       var x2 = cx + gap / 2;
       var hNo = (d.no / yMax) * innerH;
-      var hW = (d.w / yMax) * innerH;
+      var hW  = (d.w  / yMax) * innerH;
       var yNo = padT + innerH - hNo;
-      var yW = padT + innerH - hW;
+      var yW  = padT + innerH - hW;
 
-      svg += '<rect x="' + x1 + '" y="' + yNo + '" width="' + barW + '" height="' + hNo +
-             '" fill="#5fa8ff" rx="2"><title>Without strategy: ' + _fmt(d.no) + '</title></rect>';
-      svg += '<rect x="' + x2 + '" y="' + yW + '" width="' + barW + '" height="' + hW +
-             '" fill="#2c5aa0" rx="2"><title>With strategy: ' + _fmt(d.w) + '</title></rect>';
-
-      // Savings label above the taller bar
-      var topY = Math.min(yNo, yW) - 6;
-      if (d.save > 0) {
-        svg += '<text x="' + cx + '" y="' + topY + '" text-anchor="middle" font-size="11" ' +
-               'fill="#5fd97e" font-weight="700" font-family="inherit">-' + _fmtCompact(d.save) + '</text>';
-      }
+      svg += '<rect class="rett-bar" data-rett-bar="without"' +
+             ' data-label="Without Strategy (' + d.year + ')"' +
+             ' data-amount="' + _fmt(d.no) + '"' +
+             ' x="' + x1 + '" y="' + yNo + '" width="' + barW + '" height="' + hNo +
+             '" fill="#5fa8ff" rx="2"/>';
+      svg += '<rect class="rett-bar" data-rett-bar="with"' +
+             ' data-label="With Strategy (' + d.year + ')"' +
+             ' data-amount="' + _fmt(d.w) + '"' +
+             ' x="' + x2 + '" y="' + yW + '" width="' + barW + '" height="' + hW +
+             '" fill="#2c5aa0" rx="2"/>';
 
       // X-axis label
       svg += '<text x="' + cx + '" y="' + (padT + innerH + 18) + '" text-anchor="middle" ' +
              'font-size="12" fill="#b3d4ff" font-family="inherit">' + d.year + '</text>';
-
-      // Cumulative point
-      var cy2 = padT + innerH - (cumSeries[idx] / cumMax) * innerH;
-      pts.push([cx, cy2]);
-    });
-
-    // Cumulative savings line
-    if (pts.length > 1) {
-      var d = 'M ' + pts[0][0] + ' ' + pts[0][1];
-      for (var k = 1; k < pts.length; k++) d += ' L ' + pts[k][0] + ' ' + pts[k][1];
-      svg += '<path d="' + d + '" fill="none" stroke="#5fd97e" stroke-width="2.5" ' +
-             'stroke-dasharray="0" stroke-linejoin="round"/>';
-    }
-    pts.forEach(function (p) {
-      svg += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="3.5" fill="#5fd97e" stroke="#0a1929" stroke-width="1.5"/>';
     });
 
     // Axis lines
@@ -225,11 +239,10 @@
       '<div class="rett-chart-legend">' +
         '<span><span class="rett-legend-swatch swatch-without"></span>Without Strategy</span>' +
         '<span><span class="rett-legend-swatch swatch-with"></span>With Strategy</span>' +
-        '<span><span class="rett-legend-swatch swatch-cumulative"></span>Cumulative Savings</span>' +
       '</div>';
 
     return '<div class="rett-chart-wrap">' +
-      '<div class="rett-chart-title"><span>Year-by-Year Tax: Baseline vs With Strategy</span>' + legend + '</div>' +
+      '<div class="rett-chart-title"><span>Year-by-Year Tax: Without Strategy vs With Strategy</span>' + legend + '</div>' +
       svg +
       '</div>';
   }
