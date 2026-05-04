@@ -234,6 +234,121 @@
       '</div>';
   }
 
+  // ---- Pie charts (do-nothing vs with-planning) ----------------------
+  // Side-by-side comparison of total cash inflow over the horizon
+  // (sale proceeds + ordinary income across all years) and what
+  // percentage gets eaten by tax (and fees, on the planning side).
+  // The pies are scaled to the SAME denominator, so visual area =
+  // visual area; the green "Kept" slice growing is the headline.
+  function _polarToCart(cx, cy, r, angle) {
+    return [cx + r * Math.cos(angle), cy + r * Math.sin(angle)];
+  }
+  function _arcPath(cx, cy, r, startA, endA) {
+    // Full-circle case (single slice = 100%) needs two arcs because
+    // SVG can't draw a 360° arc in one path command.
+    if (Math.abs(endA - startA) >= Math.PI * 2 - 1e-6) {
+      var p1 = _polarToCart(cx, cy, r, 0);
+      var p2 = _polarToCart(cx, cy, r, Math.PI);
+      return 'M' + p1[0] + ',' + p1[1] +
+             ' A' + r + ',' + r + ' 0 1 1 ' + p2[0] + ',' + p2[1] +
+             ' A' + r + ',' + r + ' 0 1 1 ' + p1[0] + ',' + p1[1] + ' Z';
+    }
+    var s = _polarToCart(cx, cy, r, startA);
+    var e = _polarToCart(cx, cy, r, endA);
+    var large = (endA - startA) > Math.PI ? 1 : 0;
+    return 'M' + cx + ',' + cy +
+           ' L' + s[0] + ',' + s[1] +
+           ' A' + r + ',' + r + ' 0 ' + large + ' 1 ' + e[0] + ',' + e[1] +
+           ' Z';
+  }
+
+  function _pieCard(slices, title, subtitle) {
+    var total = slices.reduce(function (s, sl) { return s + Math.max(0, sl.value); }, 0);
+    if (total <= 0) return '';
+    var W = 240, H = 240, cx = W / 2, cy = H / 2, r = 100;
+    var paths = '';
+    var legend = '';
+    var angle = -Math.PI / 2;
+    slices.forEach(function (sl) {
+      var v = Math.max(0, sl.value);
+      if (v <= 0) return;
+      var portion = v / total;
+      var nextAngle = angle + portion * Math.PI * 2;
+      var pct = (portion * 100).toFixed(1) + '%';
+      paths += '<path d="' + _arcPath(cx, cy, r, angle, nextAngle) +
+               '" fill="' + sl.color + '" stroke="#0a1929" stroke-width="2">' +
+               '<title>' + sl.label + ': ' + _fmt(v) + ' (' + pct + ')</title></path>';
+      legend +=
+        '<div class="rett-pie-legend-item">' +
+          '<span class="rett-pie-swatch" style="background:' + sl.color + '"></span>' +
+          '<span>' + sl.label + '</span>' +
+          '<strong>' + pct + '</strong>' +
+          '<span class="muted">' + _fmt(v) + '</span>' +
+        '</div>';
+      angle = nextAngle;
+    });
+    return '<div class="rett-pie-card">' +
+      '<div class="rett-pie-title">' + title + '</div>' +
+      (subtitle ? '<div class="rett-pie-subtitle">' + subtitle + '</div>' : '') +
+      '<svg viewBox="0 0 ' + W + ' ' + H + '" class="rett-pie-svg" preserveAspectRatio="xMidYMid meet">' + paths + '</svg>' +
+      '<div class="rett-pie-legend">' + legend + '</div>' +
+      '</div>';
+  }
+
+  function _buildPies(years, comp, result) {
+    if (!comp || !Array.isArray(comp.rows) || !comp.rows.length) return '';
+
+    // Total cash inflow over the horizon: sale price (one-time, hits Y1)
+    // plus ordinary income for each year, inflated 2%/yr to mirror the
+    // tax engine's bracket projection. Same denominator drives both
+    // pies, so the green "Kept" slice difference reads as pure planning
+    // value.
+    var cfg = (result && result.config) || {};
+    var salePrice = cfg.salePrice || parseUSD((document.getElementById('sale-price') || {}).value) || 0;
+    var baseOrd = cfg.baseOrdinaryIncome || 0;
+    var inflRate = (window.TAX_DATA && typeof window.TAX_DATA.inflationRate === 'number')
+      ? window.TAX_DATA.inflationRate : 0.02;
+    var totalOrd = 0;
+    for (var i = 0; i < years.length; i++) {
+      totalOrd += baseOrd * Math.pow(1 + inflRate, i);
+    }
+    var totalInflow = salePrice + totalOrd;
+    if (totalInflow <= 0) return '';
+
+    var totalTaxDoNothing = 0;
+    var totalTaxWith = 0;
+    comp.rows.forEach(function (r) {
+      var dn = (r.doNothingBaseline && r.doNothingBaseline.total != null)
+        ? r.doNothingBaseline.total
+        : (r.baseline ? r.baseline.total : 0);
+      totalTaxDoNothing += dn;
+      totalTaxWith += (r.withStrategy ? r.withStrategy.total : 0);
+    });
+    var brooklynFees = (comp.totalFees != null) ? comp.totalFees
+      : ((result && result.totals && result.totals.cumulativeFees != null) ? result.totals.cumulativeFees : 0);
+    var brookhavenFees = comp.totalBrookhavenFees || 0;
+    var totalFees = brooklynFees + brookhavenFees;
+
+    var keptDoNothing = Math.max(0, totalInflow - totalTaxDoNothing);
+    var keptWith = Math.max(0, totalInflow - totalTaxWith - totalFees);
+
+    var subtitle = 'Of ' + _fmt(totalInflow) + ' total inflow over ' + years.length + ' yrs';
+
+    var pieDoNothing = _pieCard([
+      { label: 'Tax Owed', value: totalTaxDoNothing, color: '#d96f6f' },
+      { label: 'Kept',     value: keptDoNothing,     color: '#5fd97e' }
+    ], 'If You Do Nothing', subtitle);
+
+    var pieWith = _pieCard([
+      { label: 'Tax Owed', value: totalTaxWith, color: '#d96f6f' },
+      { label: 'Fees',     value: totalFees,    color: '#f0b041' },
+      { label: 'Kept',     value: keptWith,     color: '#5fd97e' }
+    ], 'With Planning', subtitle);
+
+    if (!pieDoNothing && !pieWith) return '';
+    return '<div class="rett-pies-row">' + pieDoNothing + pieWith + '</div>';
+  }
+
   // Map a numeric value to a CSS class so positive/negative deltas read at a
   // glance (Holistiplan / RightCapital convention).
   function _deltaClass(n) {
@@ -400,13 +515,13 @@
     if (splitMode) {
       summaryHost.innerHTML = '<div class="rett-dashboard">' +
         _buildKpiRow(years, totals) +
-        (_isEngaged ? _buildChart(years) : noEngagementCard) +
+        (_isEngaged ? _buildChart(years) + _buildPies(years, comp, result) : noEngagementCard) +
         '</div>';
       detailsHost.innerHTML = _buildTable(years);
     } else {
       var html = '<div class="rett-dashboard">';
       html += _buildKpiRow(years, totals);
-      html += (_isEngaged ? _buildChart(years) : noEngagementCard);
+      html += (_isEngaged ? _buildChart(years) + _buildPies(years, comp, result) : noEngagementCard);
       html += _buildTable(years);
       html += '</div>';
       host.innerHTML = html;

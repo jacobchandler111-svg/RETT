@@ -1001,6 +1001,62 @@ select.input-error {
 
 .rett-chart-svg { width: 100%; height: auto; display: block; }
 
+/* Side-by-side comparison pies on Page 2 / Summary. Two cards: "If You
+   Do Nothing" and "With Planning". The first shows tax-vs-kept of the
+   client's total cash inflow over the horizon (sale + ordinary income),
+   the second adds a fees slice for Brooklyn + Brookhaven costs. */
+.rett-pies-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+.rett-pie-card {
+  background: rgba(13, 34, 64, 0.6);
+  border: 1px solid #1a3a6e;
+  border-radius: 6px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+}
+.rett-pie-title {
+  color: #5fa8ff;
+  font-size: 0.95em;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.rett-pie-subtitle {
+  font-size: 0.82em;
+  color: #8fb3e0;
+  margin-bottom: 10px;
+}
+.rett-pie-svg { width: 100%; height: auto; display: block; max-height: 240px; }
+.rett-pie-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: 0.85em;
+  color: #b3d4ff;
+}
+.rett-pie-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rett-pie-legend-item strong { color: #cfe1ff; min-width: 56px; }
+.rett-pie-legend-item .muted { color: #8fb3e0; font-size: 0.92em; }
+.rett-pie-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+@media (max-width: 720px) {
+  .rett-pies-row { grid-template-columns: 1fr; }
+}
+
 /* Bracket position visualization (Page 2 / Summary) — one row per year. */
 .bv-legend {
     display: flex;
