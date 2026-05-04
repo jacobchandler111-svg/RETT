@@ -430,19 +430,17 @@
 
     // Compute a no-deferral baseline for comparison: recognize the
     // entire LTCG in Y1, full Brooklyn capital in Y1, score it.
-    // capByYear was sized for LTCG only; recompute the Y1 cap to
-    // include recapture so the no-defer scenario isn't clipped.
-    // (Previously: Math.min(capByYear[0], ltcg+recapture) used a
-    // capByYear[0] that ignored recapture, silently under-attributing
-    // losses against the recapture portion of the gain.)
+    // capByYear[0] is the authoritative Y1 loss capacity — it's
+    // annualCap * yearFractionYear1, so it correctly shrinks for
+    // mid-year sales. Previously this took Math.max with a non-yf-
+    // weighted _noDeferCap, which always picked the full-year number
+    // and made Sell-Now Y1 losses identical regardless of whether the
+    // sale closed on Jan 1 or Oct 15. Real partial-year operation
+    // can't generate more loss than yf * annualCap.
     var noDeferGain = _zeros(horizon); noDeferGain[0] = ltcg;
     var _noDeferTotalGain = ltcg + recapture;
-    var _noDeferCap = totalCapital * (_num(stage2.capLossRate, 0) ||
-      ((typeof root.brooklynLossRateForLeverage === 'function' && stage2.leverageUsed != null)
-        ? root.brooklynLossRateForLeverage(cfg.strategyKey || 'beta1', stage2.leverageUsed)
-        : 0));
     var noDeferLoss = _zeros(horizon);
-    noDeferLoss[0] = Math.min(Math.max(_noDeferCap, _num(capByYear[0], 0)), _noDeferTotalGain);
+    noDeferLoss[0] = Math.min(_num(capByYear[0], 0), _noDeferTotalGain);
     var noDeferInv = _zeros(horizon); noDeferInv[0] = totalCapital;
     // Use the unified fee-split regression (matches the rest of the engine).
     var noDeferFeeRate = _num(stage2.feeRate, 0);

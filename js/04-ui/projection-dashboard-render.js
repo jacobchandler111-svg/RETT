@@ -752,9 +752,21 @@
       });
     }
     if (type === 'B') {
+      // Delay-Close (B) is "negotiate the close date to Jan 1 of next
+      // year." There is no insurance product, no structured-sale
+      // mechanism — the buyer just signs a contract that closes Jan 1.
+      // Mechanically that's an IMMEDIATE sale that happens Jan 1 of
+      // Y+1, so model it like Sell-Now (rec=1 immediate path) with
+      // year1 advanced by one and a Jan-1 implementation date. This
+      // gives Brooklyn a full-year Y1 (yfImpl=1) — the whole point of
+      // delaying — instead of inheriting the user's typed Oct/Nov date
+      // and getting a partial year that defeats the purpose.
+      var bYear = (currentCfg.year1 || (new Date()).getFullYear()) + 1;
       return Object.assign({}, currentCfg, {
-        recognitionStartYearIndex: 1,
-        maxRecognitionYearIndex: 1
+        recognitionStartYearIndex: 0,
+        maxRecognitionYearIndex: null,
+        implementationDate: bYear + '-01-01',
+        year1: bYear
       });
     }
     if (type === 'C') {
@@ -1083,6 +1095,45 @@
     return html;
   }
 
+  // Build the Details sub-tab content from the per-section data the
+  // Summary tab just rendered. One labeled table per checked scenario
+  // so the data-table view stays in lock-step with whatever is
+  // visible on the Summary tab. Falls back to a global single-table
+  // render via the caller when no sections are checked.
+  function _buildDetailsForChecked() {
+    var rows = root.__rettScenarioRows || [];
+    var checked = root.__rettCheckedScenarios || {};
+    var sectionData = root.__rettSectionData || {};
+    var html = '';
+    rows.forEach(function (row) {
+      if (!checked[row.type]) return;
+      var data = sectionData[row.type];
+      if (!data) return;
+      // Years array is what _scenarioFullData built; if absent, derive
+      // from comp.rows so the table still renders.
+      var years = data.years;
+      if (!years && data.comp && Array.isArray(data.comp.rows)) {
+        years = data.comp.rows.map(function (r) {
+          return {
+            year: r.year,
+            taxNoBrooklyn: r.baseline ? r.baseline.total : 0,
+            taxWithBrooklyn: r.withStrategy ? r.withStrategy.total : 0,
+            investmentThisYear: r.investmentThisYear || 0,
+            gainRecognized: r.gainRecognized || 0,
+            grossLoss: r.lossGenerated || r.lossApplied || 0,
+            fee: r.fee || 0
+          };
+        });
+      }
+      if (!years || !years.length) return;
+      html += '<div class="rett-details-section">' +
+              '<h3 class="rett-details-section-title">' + row.label + '</h3>' +
+              _buildTable(years) +
+              '</div>';
+    });
+    return html;
+  }
+
   // Re-render a single section in place (no full pipeline, no global
   // recompute). Called from per-section pill / slider / revert handlers.
   function _renderSingleSection(type) {
@@ -1283,6 +1334,16 @@
     summaryHost.innerHTML = sections;
     _wireSectionControls();
     _wireSectionRibbonObserver(renderedTypes, labelByType);
+    // Mirror the section list into the Details sub-tab so the data
+    // table view never shows stale numbers from a scenario the user
+    // unchecked. One labeled table per checked scenario, in the same
+    // order as the comparison rows above.
+    var detailsHost = document.getElementById('projection-details-host');
+    if (detailsHost) {
+      var detailsHtml = _buildDetailsForChecked();
+      detailsHost.innerHTML = detailsHtml ||
+        '<p class="subtitle">Check a scenario above to see its year-by-year detail.</p>';
+    }
     if (typeof root.animateRettNumbers === 'function') {
       try { root.animateRettNumbers(); } catch (e) { /* */ }
     }
@@ -1509,8 +1570,10 @@
       // scenario row. Default-checked is the recommended row, so on
       // first render this looks identical to the prior single-scenario
       // dashboard; checking additional rows stacks more sections below.
+      // _renderDashboardsFromChecked also writes the per-scenario
+      // tables into #projection-details-host, so the Details sub-tab
+      // tracks the same set of checked scenarios as Summary.
       _renderDashboardsFromChecked();
-      detailsHost.innerHTML = _buildTable(years);
     } else {
       var html = '<div class="rett-dashboard">';
       html += _buildKpiRow(years, totals);
