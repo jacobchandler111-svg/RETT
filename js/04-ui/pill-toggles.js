@@ -202,6 +202,15 @@
     var horSel = document.getElementById('projection-years');
     var recSel = document.getElementById('recognition-start-select');
     if (!recSel) return null;
+    // Scenario-click pin: when the user clicked a row in the strategy
+    // comparison panel, their choice takes priority over the silent
+    // optimizer. Apply the pinned rec and return early so subsequent
+    // runFullPipeline calls (e.g. slider drags) don't overwrite it.
+    if (root.__rettScenarioPinnedRec != null) {
+      var pinned = String(root.__rettScenarioPinnedRec);
+      if (recSel.value !== pinned) recSel.value = pinned;
+      return pinned;
+    }
     var horizon = parseInt(horSel ? horSel.value : '5', 10) || 5;
     var maxRec = Math.min(horizon, 4);
     var prevRec = recSel.value;
@@ -544,6 +553,10 @@
   // the full leverage/horizon/recognition search, then re-render.
   function _onRevertClick() {
     root.__rettAutoPickEnabled = true;
+    // Clear any scenario-comparison overrides (set by clicking a row)
+    // so the auto-pick can roam freely and pick the optimal combo.
+    delete root.__rettScenarioMaxRec;
+    delete root.__rettScenarioPinnedRec;
     try { runAutoPick(); } catch (e) { if (typeof window !== "undefined" && typeof window.reportFailure === "function") window.reportFailure("non-fatal in pill-toggles.js", e); else if (typeof console !== "undefined") console.warn(e); }
     if (typeof root.runFullPipeline === 'function') {
       try { root.runFullPipeline(); } catch (err) { /* */ }

@@ -390,14 +390,36 @@ function _zeroDeferredComparison(cfg) {
 }
 
 // Maturity-year index for the structured-sale product. The product term
-// (cfg.structuredSaleDurationMonths) starts ticking on the sale date. The
-// year that contains sale_date + duration is the latest year recognition
-// is allowed in — anything still un-recognized at the end of that year
-// gets force-recognized there. Falls back to horizon-1 when duration
-// isn't supplied or implementation date is missing.
+// (cfg.structuredSaleDurationMonths) starts ticking on the sale date.
+//
+// Behavior:
+//   1. If cfg.maxRecognitionYearIndex is set (used by the "delay close
+//      to Jan 1 next year" scenario), use it directly — that scenario
+//      has no insurance-product term to honor.
+//   2. Otherwise apply a hard 18-month floor (regulatory minimum for
+//      structured-sale products), then auto-extend the maturity to
+//      land on the next Jan 1: structured-sale payouts happen on
+//      Jan 1, so a mid-year maturity wastes the months between the
+//      natural maturity and the next Jan 1. E.g. May 2026 sale with
+//      18-month duration → natural maturity Nov 2027 → bump to
+//      Jan 1 2028 (effectively a 20-month term) so the last legal
+//      Jan 1 payout is reachable inside the product term.
+//   3. Falls back to horizon-1 when duration isn't supplied or the
+//      implementation date is missing.
 function _structuredSaleMaturityYearIdx(cfg, horizon) {
-      const months = Number(cfg && cfg.structuredSaleDurationMonths);
-      if (!Number.isFinite(months) || months <= 0) return horizon - 1;
+      // Explicit override — the "delay close to Jan 1 next year"
+      // scenario passes this to bypass the structured-sale product
+      // math entirely (no insurance product, just a contractual
+      // close on Jan 1).
+      if (cfg && cfg.maxRecognitionYearIndex != null) {
+            return Math.max(0, Math.min(horizon - 1, Number(cfg.maxRecognitionYearIndex) | 0));
+      }
+      const monthsRaw = Number(cfg && cfg.structuredSaleDurationMonths);
+      if (!Number.isFinite(monthsRaw) || monthsRaw <= 0) return horizon - 1;
+      // 18-month minimum is the regulatory floor for a Brooklyn
+      // structured-sale product. Anything shorter the user enters is
+      // ignored.
+      const months = Math.max(18, monthsRaw);
       let saleYear, saleMonth0;
       const implDate = cfg && cfg.implementationDate;
       if (implDate && typeof window !== 'undefined' && typeof window.parseLocalDate === 'function') {
@@ -411,9 +433,12 @@ function _structuredSaleMaturityYearIdx(cfg, horizon) {
             saleYear = (cfg && cfg.year1) || (new Date()).getFullYear();
             saleMonth0 = 0;
       }
-      // Maturity = sale + months. Year of maturity = saleYear + floor((saleMonth0 + months) / 12).
       const totalMonths = saleMonth0 + months;
-      const matYear = saleYear + Math.floor(totalMonths / 12);
+      const matMonth0 = totalMonths % 12;
+      let matYear = saleYear + Math.floor(totalMonths / 12);
+      // Auto-extend to next Jan 1 if natural maturity falls mid-year:
+      // the last legal payout is the Jan 1 of the *following* year.
+      if (matMonth0 > 0) matYear += 1;
       const year1 = (cfg && cfg.year1) || saleYear;
       const idx = matYear - year1;
       return Math.max(0, Math.min(horizon - 1, idx));

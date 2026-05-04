@@ -1104,6 +1104,33 @@ select.input-error {
   margin-left: 8px;
   vertical-align: 1px;
 }
+/* Scenario rows are clickable — clicking activates the scenario in
+   the dashboard below. Active scenario gets a stronger highlight than
+   the recommendation. */
+.rett-scenario-row { cursor: pointer; transition: background-color 0.15s ease; }
+.rett-scenario-row:hover { background: rgba(95, 168, 255, 0.06); }
+.rett-scenario-row:focus-visible {
+  outline: 2px solid #5fa8ff;
+  outline-offset: -2px;
+}
+.rett-scenario-active {
+  background: rgba(95, 168, 255, 0.14) !important;
+}
+.rett-scenario-active td:first-child {
+  border-left: 3px solid #5fa8ff;
+}
+.rett-scenario-active-badge {
+  display: inline-block;
+  background: #5fa8ff;
+  color: #0a1929;
+  font-size: 0.65em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 2px 7px;
+  border-radius: 3px;
+  margin-left: 8px;
+  vertical-align: 1px;
+}
 @media (max-width: 720px) {
   .rett-scenario-table thead { display: none; }
   .rett-scenario-table tbody td {

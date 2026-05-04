@@ -87,7 +87,16 @@ function collectInputs() {
                 structuredSaleDurationMonths: (function () {
                       var raw = parseInt(_val('structured-sale-duration-months'), 10);
                       return (Number.isFinite(raw) && raw > 0) ? raw : 18;
-                })()
+                })(),
+                // Scenario-comparison override: when the user clicked the
+                // "Delay close to Jan 1 next year" row, we stash the
+                // year-index cap on window so the engine forces gain to
+                // recognize at exactly that year (no insurance product
+                // term to honor). Cleared when the user clicks any other
+                // scenario or reverts to the auto-pick choice.
+                maxRecognitionYearIndex: (typeof window !== 'undefined' &&
+                            window.__rettScenarioMaxRec != null)
+                            ? Number(window.__rettScenarioMaxRec) : null
                 // Per-year override arrays (ordinaryByYear, shortGainByYear,
                 // longGainByYear, lossRateByYear) were sourced from a
                 // future-years UI that has been removed. The engine falls

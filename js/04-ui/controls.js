@@ -655,6 +655,11 @@ function bindControls() {
       // wasn't). Honoring the flag keeps the signal clean.
       if (window.__rettApplyingState) return;
       window.__rettAutoPickEnabled = true;
+      // Scenario-comparison overrides are scoped to a specific scenario;
+      // editing the scenario's inputs invalidates them so auto-pick
+      // can pick fresh against the new fundamentals.
+      delete window.__rettScenarioMaxRec;
+      delete window.__rettScenarioPinnedRec;
     });
   });
 

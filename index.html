@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RETT - Brooklyn Multi-Year Projector</title>
-  <link rel="stylesheet" href="css/styles.css?v=1777600000007">
+  <link rel="stylesheet" href="css/styles.css?v=1777600000008">
 </head>
 <body>
   <a href="#page-inputs" class="skip-link">Skip to main content</a>
@@ -200,11 +200,11 @@
     </div>
 
     <h3 class="section-title">Structured-Sale Duration</h3>
-    <p class="subtitle">If you choose a structured-sale strategy on the next page, this caps how long gain can be deferred. Leave blank for the 18-month default.</p>
+    <p class="subtitle">Minimum 18 months. The engine auto-extends to land on a Jan 1 boundary so the structured sale's last payout falls on a legal Jan 1 — set a longer term only if you want a longer deferral window.</p>
     <div class="input-grid">
       <div class="input-group">
         <label for="structured-sale-duration-months">Duration (months)</label>
-        <input type="text" id="structured-sale-duration-months" placeholder="18 (default)" inputmode="numeric" autocomplete="off">
+        <input type="text" id="structured-sale-duration-months" placeholder="18" inputmode="numeric" autocomplete="off">
       </div>
     </div>
 
@@ -215,6 +215,7 @@
          truth for the currently selected values. -->
     <div hidden aria-hidden="true">
       <select id="projection-years">
+        <option value="1">1 year</option>
         <option value="3">3 years</option>
         <option value="5" selected>5 years</option>
         <option value="7">7 years</option>
@@ -252,6 +253,13 @@
 
     <!-- ----- Sub-tab: SUMMARY ----- -->
     <div id="subpage-summary" class="subpage active" role="tabpanel" aria-labelledby="subnav-summary">
+      <!-- Strategy comparison panel — three real-world planning options
+           (sell now / delay close to Jan 1 / structured sale). Sits at
+           the very top of Summary so the recommendation is the first
+           thing the user sees; clicking a row activates that scenario
+           in the dashboard below. Rendered by projection-dashboard-render.js. -->
+      <div id="scenario-comparison-host" aria-live="polite"></div>
+
       <h3 class="section-title">Brooklyn Configuration</h3>
       <p class="subtitle">Available Capital is carried over from the Sale Price on the previous page. Edit if you'd like to invest a different amount.</p>
       <div class="input-grid">
@@ -405,53 +413,53 @@
   <!-- ============ Subsystem load order: 00 -> 01 -> 02 -> 03 -> 05 -> 04 ============ -->
   <!-- date-utils is loaded ahead of 00-data so schwab-strategies can use the
        shared parseLocalDate global instead of defining its own copy. -->
-  <script src="js/01-brooklyn/date-utils.js?v=1777600000007"></script>
-  <script src="js/00-data/custodians.js?v=1777600000007"></script>
-  <script src="js/00-data/schwab-strategies.js?v=1777600000007"></script>
-  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000007"></script>
-  <script src="js/01-brooklyn/time-weight.js?v=1777600000007"></script>
-  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000007"></script>
-  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000007"></script>
+  <script src="js/01-brooklyn/date-utils.js?v=1777600000008"></script>
+  <script src="js/00-data/custodians.js?v=1777600000008"></script>
+  <script src="js/00-data/schwab-strategies.js?v=1777600000008"></script>
+  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000008"></script>
+  <script src="js/01-brooklyn/time-weight.js?v=1777600000008"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000008"></script>
+  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000008"></script>
 
-  <script src="js/02-tax-engine/tax-data.js?v=1777600000007"></script>
-  <script src="js/02-tax-engine/tax-loader.js?v=1777600000007"></script>
-  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000007"></script>
-  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000007"></script>
-  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000007"></script>
-  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000007"></script>
+  <script src="js/02-tax-engine/tax-data.js?v=1777600000008"></script>
+  <script src="js/02-tax-engine/tax-loader.js?v=1777600000008"></script>
+  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000008"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000008"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000008"></script>
+  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000008"></script>
 
-  <script src="js/03-solver/fees.js?v=1777600000007"></script>
-  <script src="js/03-solver/fee-split.js?v=1777600000007"></script>
-  <script src="js/03-solver/brookhaven-fees.js?v=1777600000007"></script>
-  <script src="js/03-solver/single-year-solver.js?v=1777600000007"></script>
-  <script src="js/03-solver/multi-year-solver.js?v=1777600000007"></script>
-  <script src="js/03-solver/structured-sale.js?v=1777600000007"></script>
-  <script src="js/03-solver/decision-engine.js?v=1777600000007"></script>
+  <script src="js/03-solver/fees.js?v=1777600000008"></script>
+  <script src="js/03-solver/fee-split.js?v=1777600000008"></script>
+  <script src="js/03-solver/brookhaven-fees.js?v=1777600000008"></script>
+  <script src="js/03-solver/single-year-solver.js?v=1777600000008"></script>
+  <script src="js/03-solver/multi-year-solver.js?v=1777600000008"></script>
+  <script src="js/03-solver/structured-sale.js?v=1777600000008"></script>
+  <script src="js/03-solver/decision-engine.js?v=1777600000008"></script>
 
-  <script src="js/05-projections/carryforward-tracker.js?v=1777600000007"></script>
-  <script src="js/05-projections/projection-engine.js?v=1777600000007"></script>
+  <script src="js/05-projections/carryforward-tracker.js?v=1777600000008"></script>
+  <script src="js/05-projections/projection-engine.js?v=1777600000008"></script>
 
   <!-- format-helpers loads first inside 04-ui so every renderer can use
        fmtUSD / fmtPct / fmtNum directly without a defensive fallback. -->
-  <script src="js/04-ui/format-helpers.js?v=1777600000007"></script>
-  <script src="js/04-ui/money-format.js?v=1777600000007"></script>
-  <script src="js/04-ui/banner.js?v=1777600000007"></script>
-  <script src="js/04-ui/number-animator.js?v=1777600000007"></script>
-  <script src="js/04-ui/case-storage.js?v=1777600000007"></script>
-  <script src="js/04-ui/pill-toggles.js?v=1777600000007"></script>
-  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000007"></script>
-  <script src="js/04-ui/input-validation.js?v=1777600000007"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1777600000007"></script>
-  <script src="js/04-ui/controls.js?v=1777600000007"></script>
-  <script src="js/04-ui/recommendation-render.js?v=1777600000007"></script>
-  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000007"></script>
-  <script src="js/04-ui/savings-ribbon.js?v=1777600000007"></script>
-  <script src="js/04-ui/bracket-viz-render.js?v=1777600000007"></script>
-  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000007"></script>
-  <script src="js/04-ui/narrative-render.js?v=1777600000007"></script>
-  <script src="js/04-ui/strategy-summary-render.js?v=1777600000007"></script>
+  <script src="js/04-ui/format-helpers.js?v=1777600000008"></script>
+  <script src="js/04-ui/money-format.js?v=1777600000008"></script>
+  <script src="js/04-ui/banner.js?v=1777600000008"></script>
+  <script src="js/04-ui/number-animator.js?v=1777600000008"></script>
+  <script src="js/04-ui/case-storage.js?v=1777600000008"></script>
+  <script src="js/04-ui/pill-toggles.js?v=1777600000008"></script>
+  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000008"></script>
+  <script src="js/04-ui/input-validation.js?v=1777600000008"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1777600000008"></script>
+  <script src="js/04-ui/controls.js?v=1777600000008"></script>
+  <script src="js/04-ui/recommendation-render.js?v=1777600000008"></script>
+  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000008"></script>
+  <script src="js/04-ui/savings-ribbon.js?v=1777600000008"></script>
+  <script src="js/04-ui/bracket-viz-render.js?v=1777600000008"></script>
+  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000008"></script>
+  <script src="js/04-ui/narrative-render.js?v=1777600000008"></script>
+  <script src="js/04-ui/strategy-summary-render.js?v=1777600000008"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1777600000007"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1777600000008"></script>
 </body>
 </html>

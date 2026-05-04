@@ -500,17 +500,25 @@
     var horizon = currentCfg.horizonYears || currentCfg.years || 5;
     var userDuration = currentCfg.structuredSaleDurationMonths || 18;
 
+    // Each scenario evaluates with its OWN engine inputs. Explicitly
+    // clear maxRecognitionYearIndex so an active scenario-B override
+    // (set on window when the user clicked the "Delay close" row)
+    // doesn't infect the A and C calculations through collectInputs.
+
     // Scenario A: Sell now, no deferral (rec=1 immediate path).
-    var cfgA = Object.assign({}, currentCfg, { recognitionStartYearIndex: 0 });
+    var cfgA = Object.assign({}, currentCfg, {
+      recognitionStartYearIndex: 0,
+      maxRecognitionYearIndex: null
+    });
     var mA = _scenarioMetrics(cfgA);
 
     // Scenario B: Delay close to Jan 1 of next year. Force gain into Y2
-    // ONLY (no further deferral). Implemented as deferred path with
-    // recognitionStartYearIndex=1 and a very short duration so maturity
-    // clamps to Y2 — the gain has nowhere to spread.
+    // ONLY (no further deferral) via the explicit maxRecognitionYearIndex
+    // override — bypasses the structured-sale 18-month floor and Jan-1
+    // auto-extend, since this scenario has no insurance product.
     var cfgB = Object.assign({}, currentCfg, {
       recognitionStartYearIndex: 1,
-      structuredSaleDurationMonths: 12
+      maxRecognitionYearIndex: 1
     });
     var mB = _scenarioMetrics(cfgB);
 
@@ -521,7 +529,8 @@
     for (var r = 2; r <= Math.min(4, horizon); r++) {
       var cfgR = Object.assign({}, currentCfg, {
         recognitionStartYearIndex: r - 1,
-        structuredSaleDurationMonths: userDuration
+        structuredSaleDurationMonths: userDuration,
+        maxRecognitionYearIndex: null
       });
       var m = _scenarioMetrics(cfgR);
       if (m && (bestC == null || m.net > bestC.net)) {
@@ -532,16 +541,19 @@
 
     var rows = [];
     if (mA) rows.push({
+      type: 'A', rec: 1, maxRec: null,
       label: 'Sell now (Year 1)',
       sub: 'Close in current year, Brooklyn losses absorb gain immediately',
       metrics: mA
     });
     if (mB) rows.push({
+      type: 'B', rec: 2, maxRec: 1,
       label: 'Delay close to Jan 1 next year',
       sub: 'Gain hits Year 2 naturally — no structured-sale product needed',
       metrics: mB
     });
     if (bestC) rows.push({
+      type: 'C', rec: bestRecC, maxRec: null,
       label: 'Structured sale (' + userDuration + ' months)',
       sub: 'Insurance product defers gain to Year ' + bestRecC + ' under the legal window',
       metrics: bestC
@@ -559,17 +571,54 @@
       if (Math.abs(rows[ri].metrics.net - maxNet) < 0.5) { winnerIdx = ri; break; }
     }
 
+    // Active row: which scenario is currently powering the dashboard?
+    // Compare against the user's current Page-2 state (recognitionStartYearIndex
+    // + the scenario maxRec override). Falls back to "no active row" if
+    // no row matches (e.g. odd manual override combinations).
+    var activeRec = (currentCfg.recognitionStartYearIndex || 0) + 1;
+    var activeMaxRec = (window.__rettScenarioMaxRec != null)
+      ? window.__rettScenarioMaxRec : null;
+    var activeIdx = -1;
+    for (var ai = 0; ai < rows.length; ai++) {
+      var rr = rows[ai];
+      if (rr.rec === activeRec && (rr.maxRec || null) === activeMaxRec) {
+        activeIdx = ai;
+        break;
+      }
+    }
+    // If nothing matched but user is on rec=2/3/4 and no maxRec override,
+    // they're effectively in scenario C (structured sale).
+    if (activeIdx < 0 && activeRec >= 2 && activeMaxRec == null) {
+      for (var bi = 0; bi < rows.length; bi++) {
+        if (rows[bi].type === 'C') { activeIdx = bi; break; }
+      }
+    }
+    if (activeIdx < 0 && activeRec === 1) {
+      for (var ci = 0; ci < rows.length; ci++) {
+        if (rows[ci].type === 'A') { activeIdx = ci; break; }
+      }
+    }
+
     var html = '<div class="rett-scenario-card">';
     html += '<div class="rett-scenario-title">Strategy Comparison</div>';
-    html += '<div class="rett-scenario-subtitle">Three real-world planning options — same scenario, same do-nothing baseline. The highest net benefit is recommended.</div>';
+    html += '<div class="rett-scenario-subtitle">Three real-world planning options — same scenario, same do-nothing baseline. Click a row to switch the dashboard below to that scenario.</div>';
     html += '<table class="rett-scenario-table">';
     html += '<thead><tr><th>Strategy</th><th class="num">Tax Owed</th><th class="num">Fees</th><th class="num">Net Benefit</th></tr></thead><tbody>';
     rows.forEach(function (row, idx) {
       var isWinner = (idx === winnerIdx);
-      html += '<tr' + (isWinner ? ' class="rett-scenario-winner"' : '') + '>';
+      var isActive = (idx === activeIdx);
+      var classes = ['rett-scenario-row'];
+      if (isWinner) classes.push('rett-scenario-winner');
+      if (isActive) classes.push('rett-scenario-active');
+      html += '<tr class="' + classes.join(' ') + '"' +
+              ' data-scenario="' + row.type + '"' +
+              ' data-rec="' + row.rec + '"' +
+              ' data-max-rec="' + (row.maxRec == null ? '' : row.maxRec) + '"' +
+              ' tabindex="0" role="button" aria-pressed="' + (isActive ? 'true' : 'false') + '">';
       html += '<td>';
       html += '<div class="rett-scenario-label">' + row.label;
-      if (isWinner) html += ' <span class="rett-scenario-badge">RECOMMENDED</span>';
+      if (isActive) html += ' <span class="rett-scenario-active-badge">ACTIVE</span>';
+      else if (isWinner) html += ' <span class="rett-scenario-badge">RECOMMENDED</span>';
       html += '</div>';
       html += '<div class="rett-scenario-sub">' + row.sub + '</div>';
       html += '</td>';
@@ -580,6 +629,59 @@
     });
     html += '</tbody></table></div>';
     return html;
+  }
+
+  // Click delegation for scenario rows. Wires once per render — the
+  // scenarioHost.innerHTML rebuild replaces the listener target each
+  // time, so we re-attach on every render.
+  function _wireScenarioRowClicks(scenarioHost) {
+    if (!scenarioHost) return;
+    scenarioHost.onclick = function (e) {
+      var tr = e.target.closest && e.target.closest('tr.rett-scenario-row');
+      if (!tr) return;
+      _activateScenario(tr);
+    };
+    scenarioHost.onkeydown = function (e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      var tr = e.target.closest && e.target.closest('tr.rett-scenario-row');
+      if (!tr) return;
+      e.preventDefault();
+      _activateScenario(tr);
+    };
+  }
+
+  function _activateScenario(tr) {
+    var rec = parseInt(tr.getAttribute('data-rec'), 10);
+    var maxRecRaw = tr.getAttribute('data-max-rec');
+    var maxRec = maxRecRaw === '' ? null : parseInt(maxRecRaw, 10);
+    if (!Number.isFinite(rec)) return;
+    // Set the recognition-start-select hidden field — the engine reads
+    // it via collectInputs as cfg.recognitionStartYearIndex (0-indexed).
+    var recSel = document.getElementById('recognition-start-select');
+    if (recSel) {
+      recSel.value = String(rec);
+      recSel.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    // Scenario B uses a maxRec override (Y2-only, no structured sale
+    // product). Stored on window so collectInputs can pick it up
+    // without a dedicated DOM input.
+    if (maxRec != null) {
+      window.__rettScenarioMaxRec = maxRec;
+    } else {
+      delete window.__rettScenarioMaxRec;
+    }
+    // Pin the recognition year so the silent recognition optimizer
+    // (searchBestRecognitionForCurrent) doesn't override the user's
+    // explicit scenario click on the next pipeline run.
+    window.__rettScenarioPinnedRec = rec;
+    // User clicked a specific scenario — disable auto-pick so the
+    // pipeline doesn't override their (leverage, horizon) choice on
+    // the next recompute.
+    window.__rettAutoPickEnabled = false;
+    if (typeof window.runFullPipeline === 'function') {
+      try { window.runFullPipeline(); }
+      catch (err) { (window.reportFailure || console.warn)('Scenario click pipeline failed', err); }
+    }
   }
 
   function renderProjectionDashboard(host) {
@@ -681,20 +783,28 @@
       'The strategy produces no net tax offset here — try a different strategy, leverage, or recognition timing.' +
       '</div>';
 
-    // Build a base cfg snapshot for the scenario comparison panel.
-    // Reuses inputs-collector so the three scenarios share every input
-    // the user already filled in (custodian, leverage, income, sale,
-    // basis, depr, ST gain, withhold, etc.) — only recognitionStartYearIndex
-    // and structuredSaleDurationMonths vary across the three.
+    // The scenario comparison panel renders into its own host
+    // (#scenario-comparison-host above Brooklyn Configuration) so it
+    // sits at the top of the Summary sub-tab. The dashboard below
+    // (KPIs/chart/pies) reflects whichever scenario is active —
+    // either the auto-pick choice or the row the user clicked.
     var scenarioCfg = (typeof collectInputs === 'function') ? (function () {
       try { return collectInputs(); } catch (e) { return null; }
     })() : null;
-    var scenarioComparison = (scenarioCfg && _isEngaged)
-      ? _buildScenarioComparison(scenarioCfg) : '';
+    var scenarioHost = document.getElementById('scenario-comparison-host');
+    if (scenarioHost) {
+      // Render the panel regardless of the dashboard's engagement state.
+      // Even when the active scenario produces a no-engagement result
+      // (e.g. an invalid Goldman leverage tripped recommendSale's gate),
+      // the user needs to see the comparison rows so they can click a
+      // different scenario to escape that state.
+      scenarioHost.innerHTML = scenarioCfg
+        ? _buildScenarioComparison(scenarioCfg) : '';
+      _wireScenarioRowClicks(scenarioHost);
+    }
 
     if (splitMode) {
       summaryHost.innerHTML = '<div class="rett-dashboard">' +
-        scenarioComparison +
         _buildKpiRow(years, totals) +
         (_isEngaged ? _buildChart(years) + _buildPies(years, comp, result) : noEngagementCard) +
         '</div>';
