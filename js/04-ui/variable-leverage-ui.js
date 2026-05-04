@@ -211,11 +211,22 @@
   function _attach() {
     var slider = _byId('leverage-slider');
     if (slider) {
-      // Throttle: only re-run after the user pauses dragging by ~150ms.
-      var t;
+      // Live drag: update the slider readout text on every input tick
+      // (cheap), and coalesce the expensive recompute (recognition
+      // optimizer + recommendation + projection + dashboard render)
+      // to one requestAnimationFrame per paint frame so the chart and
+      // KPIs animate as the user drags rather than only on release.
+      var rafPending = false;
       slider.addEventListener('input', function () {
-        clearTimeout(t);
-        t = setTimeout(_onSliderInput, 150);
+        // Cheap part — keep the slider readout in sync immediately
+        // even if a frame's pipeline run hasn't landed yet.
+        refreshReadouts();
+        if (rafPending) return;
+        rafPending = true;
+        (root.requestAnimationFrame || function (cb) { return setTimeout(cb, 16); })(function () {
+          rafPending = false;
+          _onSliderInput();
+        });
       });
     }
     var schwabTrack = _byId('leverage-schwab-track');
