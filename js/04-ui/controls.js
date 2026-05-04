@@ -640,7 +640,11 @@ function bindControls() {
    // same reason — the slider/pill click handlers normally trigger
    // recompute, but programmatic changes (case-storage applyFormState)
    // bypass them.
-   'leverage-cap-select', 'recognition-start-select', 'custom-short-pct'].forEach(function (fid) {
+   'leverage-cap-select', 'recognition-start-select', 'custom-short-pct',
+   // Structured-sale duration caps the deferred recognition window —
+   // changing it must re-run the pipeline so chart / pies / KPIs
+   // reflect the new maturity year.
+   'structured-sale-duration-months'].forEach(function (fid) {
     const el = document.getElementById(fid);
     if (!el) return;
     const evt = (el.tagName === 'SELECT') ? 'change' : 'input';

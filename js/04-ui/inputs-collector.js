@@ -79,7 +79,15 @@ function collectInputs() {
                 salePrice:               parseUSD(_val('sale-price')),
                 costBasis:               parseUSD(_val('cost-basis')),
                 acceleratedDepreciation: parseUSD(_val('accelerated-depreciation')),
-                implementationDate:      _val('implementation-date') || ''
+                implementationDate:      _val('implementation-date') || '',
+                // Structured-sale product term (months from sale date to
+                // maturity). Empty input → 18-month default. The deferred
+                // tax-comparison engine clips gain recognition so all gain
+                // hits by the maturity year.
+                structuredSaleDurationMonths: (function () {
+                      var raw = parseInt(_val('structured-sale-duration-months'), 10);
+                      return (Number.isFinite(raw) && raw > 0) ? raw : 18;
+                })()
                 // Per-year override arrays (ordinaryByYear, shortGainByYear,
                 // longGainByYear, lossRateByYear) were sourced from a
                 // future-years UI that has been removed. The engine falls

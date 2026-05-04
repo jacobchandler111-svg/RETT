@@ -389,6 +389,36 @@ function _zeroDeferredComparison(cfg) {
       };
 }
 
+// Maturity-year index for the structured-sale product. The product term
+// (cfg.structuredSaleDurationMonths) starts ticking on the sale date. The
+// year that contains sale_date + duration is the latest year recognition
+// is allowed in — anything still un-recognized at the end of that year
+// gets force-recognized there. Falls back to horizon-1 when duration
+// isn't supplied or implementation date is missing.
+function _structuredSaleMaturityYearIdx(cfg, horizon) {
+      const months = Number(cfg && cfg.structuredSaleDurationMonths);
+      if (!Number.isFinite(months) || months <= 0) return horizon - 1;
+      let saleYear, saleMonth0;
+      const implDate = cfg && cfg.implementationDate;
+      if (implDate && typeof window !== 'undefined' && typeof window.parseLocalDate === 'function') {
+            const d = window.parseLocalDate(implDate);
+            if (d && !isNaN(d.getTime())) {
+                  saleYear = d.getFullYear();
+                  saleMonth0 = d.getMonth();
+            }
+      }
+      if (saleYear == null) {
+            saleYear = (cfg && cfg.year1) || (new Date()).getFullYear();
+            saleMonth0 = 0;
+      }
+      // Maturity = sale + months. Year of maturity = saleYear + floor((saleMonth0 + months) / 12).
+      const totalMonths = saleMonth0 + months;
+      const matYear = saleYear + Math.floor(totalMonths / 12);
+      const year1 = (cfg && cfg.year1) || saleYear;
+      const idx = matYear - year1;
+      return Math.max(0, Math.min(horizon - 1, idx));
+}
+
 function computeDeferredTaxComparison(cfg) {
       // Below-min lifecycle check: if the position can never legally
       // open over the horizon (basis + total gain proceeds < custodian
@@ -399,6 +429,10 @@ function computeDeferredTaxComparison(cfg) {
       const horizon = Math.max(1, cfg.horizonYears || cfg.years || 5);
       const startIdx = Math.max(1, Math.min(horizon - 1,
             (cfg.recognitionStartYearIndex != null ? cfg.recognitionStartYearIndex : 1)));
+      // Structured-sale maturity caps the recognition window. After this
+      // year index, no further gain can be deferred — the product has
+      // matured and any remainder must be recognized.
+      const maturityIdx = Math.max(startIdx, _structuredSaleMaturityYearIdx(cfg, horizon));
       const ordCap = (cfg.filingStatus === 'mfs') ? 1500 : 3000;
 
       // Long-term gain bucket: salePrice net of basis, depreciation
@@ -528,10 +562,14 @@ function computeDeferredTaxComparison(cfg) {
             const year1Rate = lossRateForTrancheYear(0);
             const denom = Math.max(0.001, 1 - year1Rate);
             let gainRecThisYear = 0;
-            if (i >= startIdx && gainRemaining > 0) {
+            if (i >= startIdx && i <= maturityIdx && gainRemaining > 0) {
                   const maxAbsorbable = (stCF + existingLoss) / denom;
                   gainRecThisYear = Math.min(gainRemaining, maxAbsorbable);
-                  if (i === horizon - 1 && gainRemaining > gainRecThisYear) {
+                  // Force-recognize remainder at maturity: the product has
+                  // matured, no more deferral is legally possible. (Used
+                  // to be `i === horizon - 1`; the maturity year is now
+                  // capped by cfg.structuredSaleDurationMonths.)
+                  if (i === maturityIdx && gainRemaining > gainRecThisYear) {
                         gainRecThisYear = gainRemaining;
                   }
                   gainRemaining -= gainRecThisYear;

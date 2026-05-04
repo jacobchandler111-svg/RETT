@@ -45,7 +45,7 @@
     // Page 1: Withholding from sale (drives Available Capital)
     'withhold-yes-no', 'withhold-amount',
     // Page 1: Implementation
-    'implementation-date',
+    'implementation-date', 'structured-sale-duration-months',
     // Hidden / Page 2 controls (legacy + horizon + recognition).
     // 'beta1' was a placeholder hidden field that no consumer actually
     // reads; removed to stop saved-state drift from re-introducing it.
