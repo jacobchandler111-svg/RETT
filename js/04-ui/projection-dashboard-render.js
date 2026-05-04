@@ -426,6 +426,162 @@
       '</div>';
   }
 
+  // ---- Strategy Comparison panel ------------------------------------
+  // Three real-world planning options for the same client scenario:
+  //   A. Sell now (Year 1) — Brooklyn deployed same year, gain absorbed Y1.
+  //   B. Delay close to Jan 1 of next year — gain hits Y2 naturally
+  //      (no structured-sale product); Brooklyn builds STCL all of Y1
+  //      to absorb gain when it lands.
+  //   C. Structured sale at the user's duration setting — gain deferred
+  //      via insurance product across the legal recognition window.
+  //
+  // All three are scored against the SAME do-nothing baseline (full
+  // gain in Y1 with no Brooklyn losses) so net-benefit numbers are
+  // directly comparable. The highest net is flagged "RECOMMENDED."
+  //
+  // The dashboard's active scenario (KPI tiles, chart, pies) reflects
+  // whichever leverage/horizon/recognition the user picked or auto-pick
+  // chose — it may or may not match the recommended scenario here.
+  function _scenarioMetrics(cfg) {
+    if (!cfg) return null;
+    var horizon = cfg.horizonYears || cfg.years || 5;
+    var deferred = (cfg.recognitionStartYearIndex || 0) >= 1;
+    var tax = 0, doNothing = 0, brooklynFees = 0, brookhavenTotal = 0;
+
+    if (deferred) {
+      if (typeof computeDeferredTaxComparison !== 'function') return null;
+      var def = computeDeferredTaxComparison(cfg);
+      if (!def || !def.rows) return null;
+      def.rows.forEach(function (r) {
+        tax += (r.withStrategy ? r.withStrategy.total : 0);
+        doNothing += (r.doNothingBaseline ? r.doNothingBaseline.total
+                       : (r.baseline ? r.baseline.total : 0));
+      });
+      brooklynFees = def.totalFees || 0;
+      brookhavenTotal = def.totalBrookhavenFees || 0;
+    } else {
+      if (typeof ProjectionEngine === 'undefined' || !ProjectionEngine.run) return null;
+      var proj;
+      try { proj = ProjectionEngine.run(cfg); } catch (e) { return null; }
+      if (!proj || !Array.isArray(proj.years)) return null;
+      proj.years.forEach(function (y) {
+        var no = y.taxNoBrooklyn || 0;
+        var w = (y.taxWithBrooklyn != null) ? y.taxWithBrooklyn : no;
+        tax += w;
+        doNothing += no;
+        brooklynFees += (y.fee || 0);
+      });
+      if (proj.totals && proj.totals.cumulativeFees != null) {
+        brooklynFees = proj.totals.cumulativeFees;
+      }
+      // Immediate path: pull Brookhaven from the schedule directly since
+      // ProjectionEngine doesn't accumulate it on the year rows.
+      if (typeof brookhavenFeeSchedule === 'function') {
+        var yfImpl = (typeof yearFractionRemaining === 'function' && cfg.implementationDate)
+          ? yearFractionRemaining(cfg.implementationDate) : 1;
+        var bhSched = brookhavenFeeSchedule(horizon, yfImpl);
+        brookhavenTotal = (bhSched && bhSched.total) || 0;
+      }
+    }
+    var totalFees = brooklynFees + brookhavenTotal;
+    var netBenefit = doNothing - tax - totalFees;
+    return {
+      tax: tax,
+      brooklynFees: brooklynFees,
+      brookhavenFees: brookhavenTotal,
+      fees: totalFees,
+      doNothing: doNothing,
+      net: netBenefit
+    };
+  }
+
+  function _buildScenarioComparison(currentCfg) {
+    if (!currentCfg) return '';
+    var horizon = currentCfg.horizonYears || currentCfg.years || 5;
+    var userDuration = currentCfg.structuredSaleDurationMonths || 18;
+
+    // Scenario A: Sell now, no deferral (rec=1 immediate path).
+    var cfgA = Object.assign({}, currentCfg, { recognitionStartYearIndex: 0 });
+    var mA = _scenarioMetrics(cfgA);
+
+    // Scenario B: Delay close to Jan 1 of next year. Force gain into Y2
+    // ONLY (no further deferral). Implemented as deferred path with
+    // recognitionStartYearIndex=1 and a very short duration so maturity
+    // clamps to Y2 — the gain has nowhere to spread.
+    var cfgB = Object.assign({}, currentCfg, {
+      recognitionStartYearIndex: 1,
+      structuredSaleDurationMonths: 12
+    });
+    var mB = _scenarioMetrics(cfgB);
+
+    // Scenario C: Structured sale at the user's duration. Pick the
+    // recognition-start year that maximizes net under the duration
+    // constraint (rec=2..min(horizon,4)).
+    var bestC = null, bestRecC = 2;
+    for (var r = 2; r <= Math.min(4, horizon); r++) {
+      var cfgR = Object.assign({}, currentCfg, {
+        recognitionStartYearIndex: r - 1,
+        structuredSaleDurationMonths: userDuration
+      });
+      var m = _scenarioMetrics(cfgR);
+      if (m && (bestC == null || m.net > bestC.net)) {
+        bestC = m;
+        bestRecC = r;
+      }
+    }
+
+    var rows = [];
+    if (mA) rows.push({
+      label: 'Sell now (Year 1)',
+      sub: 'Close in current year, Brooklyn losses absorb gain immediately',
+      metrics: mA
+    });
+    if (mB) rows.push({
+      label: 'Delay close to Jan 1 next year',
+      sub: 'Gain hits Year 2 naturally — no structured-sale product needed',
+      metrics: mB
+    });
+    if (bestC) rows.push({
+      label: 'Structured sale (' + userDuration + ' months)',
+      sub: 'Insurance product defers gain to Year ' + bestRecC + ' under the legal window',
+      metrics: bestC
+    });
+
+    if (!rows.length) return '';
+
+    var maxNet = Math.max.apply(null, rows.map(function (r) { return r.metrics.net; }));
+    // Tiebreak: only the FIRST row matching the max gets the badge, so
+    // when scenarios produce identical numbers (common when duration
+    // forces gain into the same year as a "delay-close" plan) we
+    // recommend the simpler option (A → B → C order).
+    var winnerIdx = -1;
+    for (var ri = 0; ri < rows.length; ri++) {
+      if (Math.abs(rows[ri].metrics.net - maxNet) < 0.5) { winnerIdx = ri; break; }
+    }
+
+    var html = '<div class="rett-scenario-card">';
+    html += '<div class="rett-scenario-title">Strategy Comparison</div>';
+    html += '<div class="rett-scenario-subtitle">Three real-world planning options — same scenario, same do-nothing baseline. The highest net benefit is recommended.</div>';
+    html += '<table class="rett-scenario-table">';
+    html += '<thead><tr><th>Strategy</th><th class="num">Tax Owed</th><th class="num">Fees</th><th class="num">Net Benefit</th></tr></thead><tbody>';
+    rows.forEach(function (row, idx) {
+      var isWinner = (idx === winnerIdx);
+      html += '<tr' + (isWinner ? ' class="rett-scenario-winner"' : '') + '>';
+      html += '<td>';
+      html += '<div class="rett-scenario-label">' + row.label;
+      if (isWinner) html += ' <span class="rett-scenario-badge">RECOMMENDED</span>';
+      html += '</div>';
+      html += '<div class="rett-scenario-sub">' + row.sub + '</div>';
+      html += '</td>';
+      html += '<td class="num">' + _fmt(row.metrics.tax) + '</td>';
+      html += '<td class="num">' + _fmt(row.metrics.fees) + '</td>';
+      html += '<td class="num"><strong>' + _fmt(row.metrics.net) + '</strong></td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+    return html;
+  }
+
   function renderProjectionDashboard(host) {
     // Sub-tab layout: Summary holds KPI tiles + chart, Details holds
     // the data table. The split hosts are always present in the
@@ -525,8 +681,20 @@
       'The strategy produces no net tax offset here — try a different strategy, leverage, or recognition timing.' +
       '</div>';
 
+    // Build a base cfg snapshot for the scenario comparison panel.
+    // Reuses inputs-collector so the three scenarios share every input
+    // the user already filled in (custodian, leverage, income, sale,
+    // basis, depr, ST gain, withhold, etc.) — only recognitionStartYearIndex
+    // and structuredSaleDurationMonths vary across the three.
+    var scenarioCfg = (typeof collectInputs === 'function') ? (function () {
+      try { return collectInputs(); } catch (e) { return null; }
+    })() : null;
+    var scenarioComparison = (scenarioCfg && _isEngaged)
+      ? _buildScenarioComparison(scenarioCfg) : '';
+
     if (splitMode) {
       summaryHost.innerHTML = '<div class="rett-dashboard">' +
+        scenarioComparison +
         _buildKpiRow(years, totals) +
         (_isEngaged ? _buildChart(years) + _buildPies(years, comp, result) : noEngagementCard) +
         '</div>';
