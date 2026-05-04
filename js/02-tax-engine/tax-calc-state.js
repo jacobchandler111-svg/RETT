@@ -33,7 +33,14 @@ function computeStateTax(income, year, stateCode, status, opts) {
               // income tax. Caller can opt-in via opts.longTermGain.
               const sur = getStateSurcharges(year, stateCode);
                         if (sur.capitalGainsTax && opts && opts.longTermGain) {
-                                          const t   = sur.capitalGainsTax.threshold;
+                                          // B13: project the threshold by inflation for years
+                                          // past the published baseYear so a 2030 sale doesn't
+                                          // pay WA cap-gains tax on the same nominal $270K
+                                          // threshold the data file lists for 2026.
+                                          const projFactor = (TAX_DATA.states && TAX_DATA.states[String(year)]
+                                                  && TAX_DATA.states[String(year)][stateCode])
+                                                  ? 1 : _yearProjectionFactor(year);
+                                          const t   = sur.capitalGainsTax.threshold * projFactor;
                                           const r   = sur.capitalGainsTax.rate;
                                           const lt  = Math.max(0, opts.longTermGain);
                                           return Math.max(0, lt - t) * r;

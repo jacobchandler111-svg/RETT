@@ -227,6 +227,64 @@ function computeTaxComparison(cfg, recommendation) {
                   schedule: null
             };
       }
+      // B5: keep the Brooklyn position open through the full horizon
+      // for the immediate path. Each year past Y1 the basis tranche
+      // generates losses at its age-appropriate rate; with the
+      // §1211(b) $3K cap on ordinary offset (and STCL carryforward),
+      // these Y2+ losses are economically small but real. Without
+      // this, the lump-sum scenario looked artificially worse than
+      // the structured-sale path in the auto-pick optimizer because
+      // it forfeited every dollar of Y2+ Brooklyn loss.
+      const _isImmediateLoop = _isImmediate &&
+            _flatRec && _flatRec.recommendation === 'single-year';
+      const _immediateCapital = _isImmediateLoop
+            ? Math.max(0, cfg.investedCapital || cfg.investment || 0) : 0;
+      const _immediateLossRate = (function () {
+            if (!_isImmediateLoop || _immediateCapital <= 0) return null;
+            // Reuse the same Schwab combo / non-Schwab proxy curve the
+            // deferred path uses (with B8's mid-year-start interpolation).
+            const _yfImm = (typeof yearFractionRemaining === 'function' && cfg.implementationDate)
+                  ? yearFractionRemaining(cfg.implementationDate) : 1;
+            const _comboImm = (cfg.comboId && typeof getSchwabCombo === 'function')
+                  ? getSchwabCombo(cfg.comboId) : null;
+            if (_comboImm && Array.isArray(_comboImm.lossByYear)) {
+                  var arrI = _comboImm.lossByYear;
+                  return function (j) {
+                        if (j <= 0) return (arrI[0] || 0) * _yfImm;
+                        var prev = arrI[j - 1] || 0;
+                        var curr = arrI[j] || 0;
+                        return (1 - _yfImm) * prev + _yfImm * curr;
+                  };
+            }
+            var lev = cfg.leverage || cfg.leverageCap || 2.25;
+            var year1Rate = 0;
+            if (typeof window.brooklynLossRateForLeverage === 'function') {
+                  year1Rate = window.brooklynLossRateForLeverage(cfg.tierKey || 'beta1', lev);
+            } else if (typeof brooklynInterpolate === 'function') {
+                  var snap = brooklynInterpolate(cfg.tierKey || 'beta1', lev);
+                  year1Rate = snap ? (snap.lossRate || 0) : 0;
+            }
+            var _refImm = (typeof window.SCHWAB_COMBOS === 'object' && window.SCHWAB_COMBOS.beta1_200_100)
+                  ? window.SCHWAB_COMBOS.beta1_200_100.lossByYear
+                  : [0.590, 0.492, 0.427, 0.393, 0.389, 0.376, 0.363, 0.351, 0.342, 0.334];
+            var _refY1Imm = _refImm[0] || 1;
+            return function (j) {
+                  function shape(idx) {
+                        var k = Math.min(_refImm.length - 1, Math.max(0, idx | 0));
+                        return _refImm[k] / _refY1Imm;
+                  }
+                  if (j <= 0) return year1Rate * shape(0) * _yfImm;
+                  var prev = year1Rate * shape(j - 1);
+                  var curr = year1Rate * shape(j);
+                  return (1 - _yfImm) * prev + _yfImm * curr;
+            };
+      })();
+      // STCL carryforward across years for the immediate path. Y1's
+      // unused loss past the recommendation's lossGenerated rolls into
+      // Y2's available offset, which then offsets up to $3K of ordinary
+      // income before further carryforward.
+      let _stCfImmediate = 0;
+
       for (let i = 0; i < horizon; i++) {
             const yr = _y0 + i;
             let gainThisYear = 0;
@@ -236,6 +294,9 @@ function computeTaxComparison(cfg, recommendation) {
                   if (i === 0) {
                         gainThisYear = _flatRec.longTermGain || 0;
                         lossThisYear = _flatRec.lossGenerated || 0;
+                  } else if (_immediateLossRate && _immediateCapital > 0) {
+                        // B5: position open Y2+, age-appropriate loss rate.
+                        lossThisYear = _immediateCapital * _immediateLossRate(i);
                   }
             } else if (_flatRec && (_flatRec.recommendation === 'multi-year' || _flatRec.recommendation === 'multi-year-shortfall')) {
                   const sched = _flatRec.schedule || _flatRec.years || [];
@@ -251,14 +312,24 @@ function computeTaxComparison(cfg, recommendation) {
 
             const baseline = _baseScenarioForYear(cfg, yr, gainThisYear);
             const baselineTax = _yearTaxes(baseline);
-            const withStrat = _applyLossesToScenario(baseline, lossThisYear);
+            // Carryforward + this year's generated loss flow into the
+            // single application call so step-3's $3K ordinary cap
+            // applies once per year (§1211(b)).
+            const _availLoss = (_isImmediateLoop ? _stCfImmediate : 0) + lossThisYear;
+            const withStrat = _applyLossesToScenario(baseline, _availLoss);
             const withStratTax = _yearTaxes(withStrat);
+            // Anything not absorbed becomes next year's STCL CF.
+            if (_isImmediateLoop) {
+                  _stCfImmediate = Math.max(0, withStrat._lossUnused || 0);
+            }
 
             const bh = brookhavenSchedule ? brookhavenSchedule.perYear[i] : { setup: 0, quarterly: 0, total: 0 };
             rows.push({
                   year: yr,
                   gainRecognized: gainThisYear,
-                  lossApplied: lossThisYear,
+                  lossApplied: withStrat._lossUsed || 0,
+                  lossGenerated: lossThisYear,
+                  stCarryForward: _isImmediateLoop ? _stCfImmediate : 0,
                   brookhavenFee: bh.total,
                   brookhavenSetupFee: bh.setup,
                   brookhavenQuarterlyFee: bh.quarterly,
@@ -552,10 +623,30 @@ function computeDeferredTaxComparison(cfg) {
             }
             return 0;
       })();
+      // B8: a tranche opening mid-year ages fractionally — at year-end
+      // it's only `yf` years old, not 1.0 years. The published lossByYear
+      // curve is per-full-year-of-operation, so a calendar-year-2 loss
+      // for a July tranche straddles the year-1 and year-2 rates roughly
+      // 50/50. Linear-interpolate between adjacent buckets:
+      //   Y1 (j=0):     yf  * lossByYear[0]                           (partial first year)
+      //   Y2+  (j>=1):  (1-yf) * lossByYear[j-1] + yf * lossByYear[j]   (straddles two buckets)
+      // For yf=1 (Jan-1 sale) the formula collapses to lossByYear[j] —
+      // matches the prior behavior. For yf=0.5 (mid-year sale) Y2 is
+      // 50% year-1-rate + 50% year-2-rate; without this fix Y2 used the
+      // raw year-2 rate even though the position had only aged 1.5 years.
+      const _yfTranche = (typeof yearFractionRemaining === 'function' && cfg.implementationDate)
+            ? yearFractionRemaining(cfg.implementationDate)
+            : 1;
       const lossRateForTrancheYear = (function () {
             // Schwab combos carry a year-by-year tranche curve — keep it.
             if (combo && Array.isArray(combo.lossByYear)) {
-                  return function (j) { return combo.lossByYear[j] || 0; };
+                  var arrS = combo.lossByYear;
+                  return function (j) {
+                        if (j <= 0) return (arrS[0] || 0) * _yfTranche;
+                        var prev = arrS[j - 1] || 0;
+                        var curr = arrS[j] || 0;
+                        return (1 - _yfTranche) * prev + _yfTranche * curr;
+                  };
             }
             // Non-Schwab path: start from the per-tier regression (Y1
             // rate) then taper Y2+ using the Schwab Beta 1 200/100
@@ -578,9 +669,17 @@ function computeDeferredTaxComparison(cfg) {
                   : [0.590, 0.492, 0.427, 0.393, 0.389, 0.376, 0.363, 0.351, 0.342, 0.334];
             var _refY1 = _schwabRef[0] || 1;
             return function (j) {
-                  var idx = Math.min(_schwabRef.length - 1, Math.max(0, j | 0));
-                  // Decay = Schwab[j] / Schwab[0]; multiply our Y1 rate by it.
-                  return year1Rate * (_schwabRef[idx] / _refY1);
+                  // Decay shape derived from Schwab Beta 1 200/100 ratios,
+                  // applied to this tier's year-1 regression rate. Same
+                  // mid-year-start interpolation as the Schwab branch.
+                  function _shape(idx) {
+                        var k = Math.min(_schwabRef.length - 1, Math.max(0, idx | 0));
+                        return _schwabRef[k] / _refY1;
+                  }
+                  if (j <= 0) return year1Rate * _shape(0) * _yfTranche;
+                  var prev = year1Rate * _shape(j - 1);
+                  var curr = year1Rate * _shape(j);
+                  return (1 - _yfTranche) * prev + _yfTranche * curr;
             };
       })();
 
