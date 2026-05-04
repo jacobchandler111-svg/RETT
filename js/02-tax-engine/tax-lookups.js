@@ -21,12 +21,20 @@
 // inflated. Standard deductions ARE inflated.
 
 // UI uses these short codes. JSON keys use snake_case. Translate here.
+// (Issue #59: extended to accept BOTH the UI codes AND the JSON
+// long-form keys so a saved-state migration that stored the long
+// form doesn't silently fall back to single brackets.)
 const TAX_FILING_STATUSES = ['single', 'mfj', 'mfs', 'hoh'];
 const TAX_FS_TO_KEY = {
-          single: 'single',
-          mfj:    'married_joint',
-          mfs:    'married_separate',
-          hoh:    'head_household'
+          single:           'single',
+          mfj:              'married_joint',
+          mfs:              'married_separate',
+          hoh:              'head_household',
+          // Long-form pass-through (defensive — accepts engine codes
+          // already in canonical form):
+          married_joint:    'married_joint',
+          married_separate: 'married_separate',
+          head_household:   'head_household'
 };
 
 function isFilingStatusValid(s) { return TAX_FILING_STATUSES.indexOf(s) !== -1; }

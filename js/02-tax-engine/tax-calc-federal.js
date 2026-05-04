@@ -13,11 +13,13 @@
 
 // ---- Hard-coded AMT + Additional Medicare tables (per IRS) ----
 // Filing-status keys here use snake_case to match the JSON.
+// 2026 OBBB-amended AMT exemptions per IRS notice (single $90,100 /
+// MFJ $140,200; phaseout starts $500,000 / $1,000,000). Issue #54.
 const FED_AMT_2026 = {
-          single:           { exemption: 90400,  phaseoutStart: 642850,  rate26Threshold: 244000, rate26: 0.26, rate28: 0.28 },
-          married_joint:    { exemption: 140565, phaseoutStart: 1285650, rate26Threshold: 244000, rate26: 0.26, rate28: 0.28 },
-          married_separate: { exemption: 70283,  phaseoutStart: 642825,  rate26Threshold: 122000, rate26: 0.26, rate28: 0.28 },
-          head_household:   { exemption: 90400,  phaseoutStart: 642850,  rate26Threshold: 244000, rate26: 0.26, rate28: 0.28 }
+          single:           { exemption: 90100,  phaseoutStart: 500000,   rate26Threshold: 244000, rate26: 0.26, rate28: 0.28 },
+          married_joint:    { exemption: 140200, phaseoutStart: 1000000,  rate26Threshold: 244000, rate26: 0.26, rate28: 0.28 },
+          married_separate: { exemption: 70100,  phaseoutStart: 500000,   rate26Threshold: 122000, rate26: 0.26, rate28: 0.28 },
+          head_household:   { exemption: 90100,  phaseoutStart: 500000,   rate26Threshold: 244000, rate26: 0.26, rate28: 0.28 }
 };
 const FED_AMT_2025 = {
           single:           { exemption: 88100,  phaseoutStart: 626350,  rate26Threshold: 239100, rate26: 0.26, rate28: 0.28 },
@@ -99,13 +101,44 @@ function computeFederalTax(ordinaryIncome, year, status, opts) {
 }
 
 
+// Supported opts keys for computeFederalTaxBreakdown:
+//   longTermGain        — numeric, taxed via the LTCG bracket stack
+//   qualifiedDividend   — numeric, taxed at LTCG rates (treated like LT gain)
+//   investmentIncome    — numeric, NIIT base (defaults to LT + QD)
+//   wages               — numeric, Additional Medicare base (W-2 + SE only)
+//   seIncome            — numeric, added to wages for the Add'l Medicare base
+//   itemized            — numeric, replaces the standard deduction if larger
+// Aliased synonyms (mapped to the canonical keys above):
+//   ltcg, lt              -> longTermGain
+//   qualifiedDiv          -> qualifiedDividend
+//   niitable, niitIncome  -> investmentIncome
+//   wagesIncome,
+//   earnedIncome          -> wages
+//   selfEmployment        -> seIncome
 function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       opts = opts || {};
-      const longTermGain      = Math.max(0, opts.longTermGain || 0);
-      const qualifiedDividend = Math.max(0, opts.qualifiedDividend || 0);
-      const investmentIncome  = Math.max(0, opts.investmentIncome != null
-                                          ? opts.investmentIncome : (longTermGain + qualifiedDividend));
-      const wages             = Math.max(0, opts.wages != null ? opts.wages : ordinaryIncome);
+      // Issue #56: alias common synonyms so a downstream rename (e.g.
+      // ltcg vs longTermGain) doesn't silently zero out tens of
+      // thousands of dollars of tax.
+      var _lt = opts.longTermGain != null ? opts.longTermGain
+              : (opts.ltcg != null ? opts.ltcg : opts.lt);
+      var _qd = opts.qualifiedDividend != null ? opts.qualifiedDividend : opts.qualifiedDiv;
+      var _inv = opts.investmentIncome != null ? opts.investmentIncome
+              : (opts.niitable != null ? opts.niitable : opts.niitIncome);
+      var _w = opts.wages != null ? opts.wages
+              : (opts.wagesIncome != null ? opts.wagesIncome : opts.earnedIncome);
+      var _se = opts.seIncome != null ? opts.seIncome : opts.selfEmployment;
+      const longTermGain      = Math.max(0, _lt || 0);
+      const qualifiedDividend = Math.max(0, _qd || 0);
+      const investmentIncome  = Math.max(0, _inv != null
+                                          ? _inv : (longTermGain + qualifiedDividend));
+      // Wage base for Additional Medicare. Defaults to 0 — NOT
+      // ordinaryIncome — because the surcharge applies only to W-2
+      // wages and SE earnings (IRC §3101(b)(2)). Real-estate clients
+      // with rental/dividend ordinary income but $0 wages should pay
+      // $0 Additional Medicare. Callers (inputs-collector, the test
+      // harness) pass cfg.wages explicitly. (Issue #55.)
+      const wages             = Math.max(0, (_w != null ? _w : 0) + (_se || 0));
       const itemized          = Math.max(0, opts.itemized || 0);
 
       const stdDed   = getFederalStandardDeduction(year, status);

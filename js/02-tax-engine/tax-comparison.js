@@ -53,25 +53,40 @@ function _baseScenarioForYear(cfg, yr, gainTakenThisYear) {
 }
 
 function _yearTaxes(scenario) {
+      // Guard: defensive defaults so a partially-built scenario can't
+      // produce NaN or null for the federal/state/total numbers
+      // (Issues #57/#58). Every numeric input is normalized to 0 if
+      // missing, and `year` falls back to the current year.
+      const _s = scenario || {};
+      const _ord = Number(_s.ordinaryIncome) || 0;
+      const _st  = Number(_s.shortTermGain)  || 0;
+      const _lt  = Number(_s.longTermGain)   || 0;
+      const _qd  = Number(_s.qualifiedDividend) || 0;
+      const _inv = (_s.investmentIncome != null) ? Number(_s.investmentIncome) : (_lt + _qd);
+      const _w   = (_s.wages != null) ? Number(_s.wages) : 0;
+      const _itm = Number(_s.itemized) || 0;
+      const _yr  = _s.year != null ? _s.year : (new Date()).getFullYear();
+      const _stat = _s.status || 'single';
+      const _state = _s.state || 'NONE';
       const fed   = computeFederalTaxBreakdown(
-            scenario.ordinaryIncome + scenario.shortTermGain,
-            scenario.year, scenario.status,
-            { longTermGain: scenario.longTermGain, qualifiedDividend: scenario.qualifiedDividend,
-              investmentIncome: scenario.investmentIncome, wages: scenario.wages,
-              itemized: scenario.itemized });
+            _ord + _st,
+            _yr, _stat,
+            { longTermGain: _lt, qualifiedDividend: _qd,
+              investmentIncome: _inv, wages: _w,
+              itemized: _itm });
       const stateTax = computeStateTax(
-            scenario.ordinaryIncome + scenario.shortTermGain + scenario.longTermGain + scenario.qualifiedDividend,
-            scenario.year, scenario.state, scenario.status,
-            { itemized: scenario.itemized, longTermGain: scenario.longTermGain });
+            _ord + _st + _lt + _qd,
+            _yr, _state, _stat,
+            { itemized: _itm, longTermGain: _lt });
       return {
-            federal: fed.total,
-            ordinaryTax: fed.ordinaryTax,
-            ltTax: fed.ltTax,
-            amt: fed.amtTopUp,
-            niit: fed.niit,
-            addlMedicare: fed.addlMedicare,
-            state: stateTax,
-            total: fed.total + stateTax
+            federal: Number(fed && fed.total) || 0,
+            ordinaryTax: Number(fed && fed.ordinaryTax) || 0,
+            ltTax: Number(fed && fed.ltTax) || 0,
+            amt: Number(fed && fed.amtTopUp) || 0,
+            niit: Number(fed && fed.niit) || 0,
+            addlMedicare: Number(fed && fed.addlMedicare) || 0,
+            state: Number(stateTax) || 0,
+            total: (Number(fed && fed.total) || 0) + (Number(stateTax) || 0)
       };
 }
 
@@ -135,8 +150,11 @@ function computeTaxComparison(cfg, recommendation) {
             : null;
 
       const rows = [];
+      // Defensive year1 default so row.year is never null even when
+      // the caller forgot to set cfg.year1. (Issue #58.)
+      const _y0 = (cfg.year1 != null) ? Number(cfg.year1) : (new Date()).getFullYear();
       for (let i = 0; i < horizon; i++) {
-            const yr = cfg.year1 + i;
+            const yr = _y0 + i;
             let gainThisYear = 0;
             let lossThisYear = 0;
 

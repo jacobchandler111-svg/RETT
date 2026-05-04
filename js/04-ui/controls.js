@@ -417,6 +417,11 @@ function _resetLeverageSelectToEmpty(lcSel, stratSel, info) {
   }
 }
 
+// Populate the leverage-cap select with the custodian's allowedLeverageCaps.
+// Note: the dropdown is overloaded — for Schwab it's populated with combo
+// LABEL strings ('145/45', '200/100') by _populateSchwabComboOptions; for
+// Goldman / no-custodian it's populated here with numeric short ratios.
+// Callers reading the value should know which mode is active. (Issue #60.)
 function _populateLeverageOptions(lcSel, custodian, prevLcVal) {
   while (lcSel.options.length > 0) lcSel.remove(0);
   custodian.allowedLeverageCaps.forEach((lev, idx) => {
