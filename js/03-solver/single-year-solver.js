@@ -58,7 +58,13 @@
 
       var weightedRate = tier.lossRate * yearFraction;
       var loss = investedCapital * weightedRate;
-      var fees = investedCapital * tier.feeRate;
+      // Fee uses the unified regression in fee-split.js so this solver
+      // matches the dashboard / KPI ribbon. Falls back to the legacy
+      // tier.feeRate only if the regression isn't loaded.
+      var feeRate = (typeof root.brooklynFeeRateFor === 'function')
+        ? root.brooklynFeeRateFor(tier.longPct, tier.shortPct)
+        : tier.feeRate;
+      var fees = investedCapital * feeRate;
       var ok = loss >= gainToOffset && gainToOffset > 0;
 
       tested.push({ leverage: lev, loss: loss, fees: fees, ok: ok, tier: tier });

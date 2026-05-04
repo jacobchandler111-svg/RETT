@@ -83,7 +83,12 @@
       if (!pt) continue;
       var weightedRate = pt.lossRate * yf;
       var loss = investedCapital * weightedRate;
-      var fees = investedCapital * pt.feeRate;
+      // Use the unified fee-split regression (single source of truth)
+      // so this solver agrees with the dashboard ribbon.
+      var feeRate = (typeof root.brooklynFeeRateFor === 'function')
+        ? root.brooklynFeeRateFor(pt.longPct, pt.shortPct)
+        : pt.feeRate;
+      var fees = investedCapital * feeRate;
       var ok = loss >= gainToOffset && gainToOffset > 0;
       tested.push({ shortPct: s, longPct: pt.longPct, leverage: pt.leverage, loss: loss, fees: fees, ok: ok });
       if (!chosen && ok) {

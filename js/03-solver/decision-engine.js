@@ -176,12 +176,16 @@
       if (pt) {
         var weightedRate = pt.lossRate * yf;
         var loss = investedCapital * weightedRate;
+        // Unified fee-split regression for the manual override too.
+        var manualFeeRate = (typeof root.brooklynFeeRateFor === 'function')
+          ? root.brooklynFeeRateFor(pt.longPct, pt.shortPct)
+          : pt.feeRate;
         manualPoint = {
           mode: 'manual-variable',
           ok: loss >= gainToOffset && gainToOffset > 0 && pt.leverage <= leverageCap,
           point: pt,
           loss: loss,
-          fees: investedCapital * pt.feeRate,
+          fees: investedCapital * manualFeeRate,
           leverage: pt.leverage,
           yearFraction: yf,
           timeWeighted: yf < 1

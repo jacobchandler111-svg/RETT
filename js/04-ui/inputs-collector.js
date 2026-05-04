@@ -25,6 +25,15 @@ function _sumIncomeSources() {
       return sum;
 }
 
+// Wage base used for Additional Medicare (0.9% over $200K single /
+// $250K MFJ). Per IRC §3101(b)(2) this applies to W-2 wages and
+// self-employment earnings only — NOT to rental, dividend, biz, or
+// retirement income. Keeping this carve-out prevents over-charging
+// the surtax on real-estate clients with no W-2.
+function _wageIncomeForAddlMedicare() {
+      return (parseUSD(_val('w2-wages')) || 0) + (parseUSD(_val('se-income')) || 0);
+}
+
 function collectInputs() {
       const horizon = parseInt(_val('projection-years'), 10) || 5;
       const year1   = parseInt(_val('year1'), 10) || (new Date()).getFullYear();
@@ -43,12 +52,20 @@ function collectInputs() {
                 // investment. If the (hidden) legacy field has a non-zero
                 // value, it still wins so existing programmatic flows can
                 // override.
-                investment:          parseUSD(_val('invested-capital')) || parseUSD(_val('available-capital')),
+                // Prefer available-capital (the visible Page-2 source
+                // of truth). Hidden #invested-capital is a legacy
+                // fallback only — stops stale saved-state values from
+                // overriding the user's current Available Capital edit.
+                investment:          parseUSD(_val('available-capital')) || parseUSD(_val('invested-capital')),
                 tierKey:             _val('strategy-select') || 'beta1',
                 // leverage default; the Schwab-combo and variable-leverage
                 // blocks below override this with the actual selection.
                 leverage:            1,
                 baseOrdinaryIncome:  _sumIncomeSources(),
+                // Additional-Medicare wage base (W-2 + SE only). The
+                // tax engine reads cfg.wages so it doesn't surcharge
+                // rental/dividend/retirement income.
+                wages:               _wageIncomeForAddlMedicare(),
                 baseShortTermGain:   parseUSD(_val('short-term-gain')),
                 baseLongTermGain:    parseUSD(_val('long-term-gain'))
                 // Per-year override arrays (ordinaryByYear, shortGainByYear,

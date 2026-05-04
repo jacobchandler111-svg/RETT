@@ -135,7 +135,13 @@
     }
 
     var totalLossNeeded = lossByYear.reduce(function (a, b) { return a + b; }, 0);
-    var totalFees = investedCapital * (info.feeRate || 0) * yearsUsed;
+    // Use the unified fee-split regression so multi-year fees match the
+    // dashboard / KPI ribbon. Falls back to info.feeRate if regression
+    // isn't loaded (defensive — index.html guarantees it loads first).
+    var _feeRate = (typeof root.brooklynFeeRateFor === 'function' && info && info.longPct != null && info.shortPct != null)
+      ? root.brooklynFeeRateFor(info.longPct, info.shortPct)
+      : (info && info.feeRate ? info.feeRate : 0);
+    var totalFees = investedCapital * _feeRate * yearsUsed;
 
     return {
       feasible: feasibleWithinHorizon,

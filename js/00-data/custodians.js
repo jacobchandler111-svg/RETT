@@ -82,7 +82,18 @@
     });
   }
 
-  function getMinInvestment(custodianId, strategyKey) {
+  function getMinInvestment(custodianId, strategyKey, comboId) {
+    // Schwab combo-specific override: 145/45 needs $1M, 200/100 needs $3M.
+    // The custodian-level minInvestment[strategyKey] is the floor across
+    // ALL combos (the smallest one), so checking against just that lets
+    // a $2M deposit pass when the user actually picked 200/100. Honor
+    // the combo when supplied.
+    if (comboId && typeof root.getSchwabCombo === 'function') {
+      var combo = root.getSchwabCombo(comboId);
+      if (combo && typeof combo.minInvestment === 'number' && isFinite(combo.minInvestment)) {
+        return combo.minInvestment;
+      }
+    }
     var c = getCustodian(custodianId);
     if (!c || !c.minInvestment) return 0;
     var v = c.minInvestment[strategyKey];

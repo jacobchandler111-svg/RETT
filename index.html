@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RETT - Brooklyn Multi-Year Projector</title>
-  <link rel="stylesheet" href="css/styles.css?v=1777500000050">
+  <link rel="stylesheet" href="css/styles.css?v=1777500000051">
 </head>
 <body>
   <a href="#page-inputs" class="skip-link">Skip to main content</a>
@@ -144,7 +144,7 @@
       <div class="input-group"><label for="se-income">Self-Employment Income ($)</label><input type="number" id="se-income" placeholder="0" step="1" min="0" inputmode="numeric"></div>
       <div class="input-group"><label for="biz-revenue">Business Income / Distributions ($)</label><input type="number" id="biz-revenue" placeholder="0" step="1" min="0" inputmode="numeric"></div>
       <div class="input-group"><label for="rental-income">Rental Income ($)</label><input type="number" id="rental-income" placeholder="0" step="1" min="0" inputmode="numeric"></div>
-      <div class="input-group"><label for="dividend-income">Dividend Income ($)</label><input type="number" id="dividend-income" placeholder="0" step="1" min="0" inputmode="numeric"></div>
+      <div class="input-group"><label for="dividend-income">Non-Qualified Dividend / Interest ($)</label><input type="number" id="dividend-income" placeholder="0" step="1" min="0" inputmode="numeric" title="Ordinary-rate dividends and interest only. Qualified dividends are taxed at LTCG rates and should not go here."></div>
       <div class="input-group"><label for="retirement-distributions">Retirement Distributions ($)</label><input type="number" id="retirement-distributions" placeholder="0" step="1" min="0" inputmode="numeric"></div>
     </div>
 
@@ -395,53 +395,53 @@
   <!-- ============ Subsystem load order: 00 -> 01 -> 02 -> 03 -> 05 -> 04 ============ -->
   <!-- date-utils is loaded ahead of 00-data so schwab-strategies can use the
        shared parseLocalDate global instead of defining its own copy. -->
-  <script src="js/01-brooklyn/date-utils.js?v=1777500000050"></script>
-  <script src="js/00-data/custodians.js?v=1777500000050"></script>
-  <script src="js/00-data/schwab-strategies.js?v=1777500000050"></script>
-  <script src="js/01-brooklyn/brooklyn-data.js?v=1777500000050"></script>
-  <script src="js/01-brooklyn/time-weight.js?v=1777500000050"></script>
-  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777500000050"></script>
-  <script src="js/01-brooklyn/variable-leverage.js?v=1777500000050"></script>
+  <script src="js/01-brooklyn/date-utils.js?v=1777500000051"></script>
+  <script src="js/00-data/custodians.js?v=1777500000051"></script>
+  <script src="js/00-data/schwab-strategies.js?v=1777500000051"></script>
+  <script src="js/01-brooklyn/brooklyn-data.js?v=1777500000051"></script>
+  <script src="js/01-brooklyn/time-weight.js?v=1777500000051"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777500000051"></script>
+  <script src="js/01-brooklyn/variable-leverage.js?v=1777500000051"></script>
 
-  <script src="js/02-tax-engine/tax-data.js?v=1777500000050"></script>
-  <script src="js/02-tax-engine/tax-loader.js?v=1777500000050"></script>
-  <script src="js/02-tax-engine/tax-lookups.js?v=1777500000050"></script>
-  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777500000050"></script>
-  <script src="js/02-tax-engine/tax-calc-state.js?v=1777500000050"></script>
-  <script src="js/02-tax-engine/tax-comparison.js?v=1777500000050"></script>
+  <script src="js/02-tax-engine/tax-data.js?v=1777500000051"></script>
+  <script src="js/02-tax-engine/tax-loader.js?v=1777500000051"></script>
+  <script src="js/02-tax-engine/tax-lookups.js?v=1777500000051"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777500000051"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js?v=1777500000051"></script>
+  <script src="js/02-tax-engine/tax-comparison.js?v=1777500000051"></script>
 
-  <script src="js/03-solver/fees.js?v=1777500000050"></script>
-  <script src="js/03-solver/fee-split.js?v=1777500000050"></script>
-  <script src="js/03-solver/brookhaven-fees.js?v=1777500000050"></script>
-  <script src="js/03-solver/single-year-solver.js?v=1777500000050"></script>
-  <script src="js/03-solver/multi-year-solver.js?v=1777500000050"></script>
-  <script src="js/03-solver/structured-sale.js?v=1777500000050"></script>
-  <script src="js/03-solver/decision-engine.js?v=1777500000050"></script>
+  <script src="js/03-solver/fees.js?v=1777500000051"></script>
+  <script src="js/03-solver/fee-split.js?v=1777500000051"></script>
+  <script src="js/03-solver/brookhaven-fees.js?v=1777500000051"></script>
+  <script src="js/03-solver/single-year-solver.js?v=1777500000051"></script>
+  <script src="js/03-solver/multi-year-solver.js?v=1777500000051"></script>
+  <script src="js/03-solver/structured-sale.js?v=1777500000051"></script>
+  <script src="js/03-solver/decision-engine.js?v=1777500000051"></script>
 
-  <script src="js/05-projections/bracket-projector.js?v=1777500000050"></script>
-  <script src="js/05-projections/carryforward-tracker.js?v=1777500000050"></script>
-  <script src="js/05-projections/projection-engine.js?v=1777500000050"></script>
+  <script src="js/05-projections/bracket-projector.js?v=1777500000051"></script>
+  <script src="js/05-projections/carryforward-tracker.js?v=1777500000051"></script>
+  <script src="js/05-projections/projection-engine.js?v=1777500000051"></script>
 
   <!-- format-helpers loads first inside 04-ui so every renderer can use
        fmtUSD / fmtPct / fmtNum directly without a defensive fallback. -->
-  <script src="js/04-ui/format-helpers.js?v=1777500000050"></script>
-  <script src="js/04-ui/banner.js?v=1777500000050"></script>
-  <script src="js/04-ui/number-animator.js?v=1777500000050"></script>
-  <script src="js/04-ui/case-storage.js?v=1777500000050"></script>
-  <script src="js/04-ui/pill-toggles.js?v=1777500000050"></script>
-  <script src="js/04-ui/variable-leverage-ui.js?v=1777500000050"></script>
-  <script src="js/04-ui/input-validation.js?v=1777500000050"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1777500000050"></script>
-  <script src="js/04-ui/controls.js?v=1777500000050"></script>
-  <script src="js/04-ui/recommendation-render.js?v=1777500000050"></script>
-  <script src="js/04-ui/projection-dashboard-render.js?v=1777500000050"></script>
-  <script src="js/04-ui/savings-ribbon.js?v=1777500000050"></script>
-  <script src="js/04-ui/bracket-viz-render.js?v=1777500000050"></script>
-  <script src="js/04-ui/cashflow-schedule-render.js?v=1777500000050"></script>
-  <script src="js/04-ui/narrative-render.js?v=1777500000050"></script>
-  <script src="js/04-ui/strategy-summary-render.js?v=1777500000050"></script>
+  <script src="js/04-ui/format-helpers.js?v=1777500000051"></script>
+  <script src="js/04-ui/banner.js?v=1777500000051"></script>
+  <script src="js/04-ui/number-animator.js?v=1777500000051"></script>
+  <script src="js/04-ui/case-storage.js?v=1777500000051"></script>
+  <script src="js/04-ui/pill-toggles.js?v=1777500000051"></script>
+  <script src="js/04-ui/variable-leverage-ui.js?v=1777500000051"></script>
+  <script src="js/04-ui/input-validation.js?v=1777500000051"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1777500000051"></script>
+  <script src="js/04-ui/controls.js?v=1777500000051"></script>
+  <script src="js/04-ui/recommendation-render.js?v=1777500000051"></script>
+  <script src="js/04-ui/projection-dashboard-render.js?v=1777500000051"></script>
+  <script src="js/04-ui/savings-ribbon.js?v=1777500000051"></script>
+  <script src="js/04-ui/bracket-viz-render.js?v=1777500000051"></script>
+  <script src="js/04-ui/cashflow-schedule-render.js?v=1777500000051"></script>
+  <script src="js/04-ui/narrative-render.js?v=1777500000051"></script>
+  <script src="js/04-ui/strategy-summary-render.js?v=1777500000051"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1777500000050"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1777500000051"></script>
 </body>
 </html>

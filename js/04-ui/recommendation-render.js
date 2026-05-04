@@ -31,7 +31,13 @@
     // continue. The hidden #invested-capital field stays for legacy
     // overrides.
     var availableCapital        = Number(($('available-capital') || {}).value) || 0;
-    var investedCapital         = Number(($('invested-capital') || {}).value) || availableCapital;
+    // Prefer available-capital (the visible source-of-truth on Page 2).
+    // The hidden #invested-capital is a legacy field with safe defaults
+    // — only fall back to it when available-capital is empty so a stale
+    // saved-state value can't silently override the user's current input.
+    var investedCapital         = availableCapital
+      || Number(($('invested-capital') || {}).value)
+      || 0;
 
     // Leverage source. The Page-2 leverage UI is now a slider that writes
     // to #custom-short-pct (along with the always-checked
@@ -53,8 +59,8 @@
     if (!Number.isFinite(leverageCap)) {
       var levRaw = ($('leverage-cap-select') || {}).value || '';
       leverageCap = parseFloat(levRaw);
-      var custodianId = ($('custodian-select') || {}).value || '';
-      if (custodianId === 'schwab' && typeof window.findSchwabCombo === 'function') {
+      var _custForCombo = ($('custodian-select') || {}).value || '';
+      if (_custForCombo === 'schwab' && typeof window.findSchwabCombo === 'function') {
         var combo = window.findSchwabCombo(strategyKey, levRaw);
         if (combo) {
           leverageCap = combo.leverage;
@@ -66,6 +72,12 @@
     if (!Number.isFinite(leverageCap) || leverageCap < 0) leverageCap = 2.25;
 
     var years                   = Number(($('projection-years') || {}).value) || 5;
+    // Hoist custodian out of the leverage-cap branch so it's always
+    // included in the inputs — recommendSale's custodian gate needs
+    // it, and previously the recommendation panel could disagree
+    // with the dashboard / ribbon (which DOES read custodian via
+    // collectInputs) for custodian-violation scenarios.
+    var custodianId = ($('custodian-select') || {}).value || '';
     return {
       salePrice: salePrice,
       costBasis: costBasis,
@@ -74,6 +86,7 @@
       strategyKey: strategyKey,
       investedCapital: investedCapital,
       availableCapital: availableCapital,
+      custodian: custodianId,
       leverageCap: leverageCap,
       comboId: comboId,
       comboLeverageLabel: comboLeverageLabel,

@@ -326,12 +326,16 @@
         var policy = investmentPolicies[p];
         var invByYear = _investmentByYear(policy, lossPerYear, capByYear, totalCapital, lossRate);
 
-        // Per-year fee = invested-this-year * feeRate (computed at the
-        // chosen leverage; feeRate comes from stage2 if available).
+        // Per-year fee = invested-this-year * feeRate using the unified
+        // fee-split regression (single source of truth across solvers).
+        // Stage2 feeRate is honored when supplied (it's already from
+        // the regression); otherwise compute from leverageUsed.
         var feeRate = _num(stage2.feeRate, 0);
-        if (!feeRate && typeof root.brooklynInterpolate === 'function' && stage2.leverageUsed != null) {
-          var info = root.brooklynInterpolate(cfg.strategyKey || 'beta1', stage2.leverageUsed);
-          if (info && info.feeRate) feeRate = info.feeRate;
+        if (!feeRate && stage2.leverageUsed != null && typeof root.brooklynPctsForLeverage === 'function' && typeof root.brooklynFeeRateFor === 'function') {
+          var pcts = root.brooklynPctsForLeverage(cfg.strategyKey || 'beta1', stage2.leverageUsed);
+          if (pcts && pcts.longPct != null && pcts.shortPct != null) {
+            feeRate = root.brooklynFeeRateFor(pcts.longPct, pcts.shortPct);
+          }
         }
         var feeByYear = invByYear.map(function (v) { return v * feeRate; });
         var totalFees = feeByYear.reduce(function (a, b) { return a + b; }, 0);

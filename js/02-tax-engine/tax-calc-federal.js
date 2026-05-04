@@ -136,7 +136,13 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
             }
       }
 
-      const amtAmti     = taxableOrdinary;
+      // AMTI for exemption-phaseout purposes includes BOTH the
+      // ordinary taxable amount AND the LTCG amount (per Form 6251
+      // line 7). Without the LTCG add-on the phaseout is too small
+      // for high-LTCG years and AMT is understated. The 26%/28%
+      // rate application is still on the ordinary slice — LTCG keeps
+      // its preferential rate via the + ltTax line.
+      const amtAmti     = taxableOrdinary + ltAmount;
       const amtOrdOnly  = _computeAmt(amtAmti, year, status);
       const amtTotal    = amtOrdOnly + ltTax;
       const amtTopUp    = Math.max(0, amtTotal - (ordinaryTax + ltTax));

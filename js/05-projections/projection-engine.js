@@ -65,7 +65,9 @@ const ProjectionEngine = {
             let _belowMin = false;
             if (cfg.custodian && typeof window.getMinInvestment === 'function') {
               const _stratKey = cfg.tierKey || cfg.strategyKey;
-              const _min = _stratKey ? window.getMinInvestment(cfg.custodian, _stratKey) : 0;
+              // Pass cfg.comboId so Schwab combo-specific mins apply
+              // (145/45 $1M vs 200/100 $3M) instead of the lower floor.
+              const _min = _stratKey ? window.getMinInvestment(cfg.custodian, _stratKey, cfg.comboId) : 0;
               if (_min > 0) {
                 const _basis = Math.max(0, cfg.costBasis || 0);
                 const _ltGain = Math.max(0, (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0));
@@ -119,12 +121,14 @@ const ProjectionEngine = {
       // year-2+ short-term loss correctly (capped at $3K/yr against
       // ordinary income, rest carries forward).
       const investmentThisYear = cfg.investment;
-      // Schwab combos: leverage already baked into lossRate, so skip
-      // the * leverage step. Non-Schwab uses brooklyn-data lossRate
-      // (now from regression in fee-split.js) at cfg.leverage.
-      const grossLoss = _schwabCombo
-        ? cfg.investment * lossRate
-        : investmentThisYear * cfg.leverage * lossRate;
+      // Loss rate from brooklynLossRateForLeverage / brooklynInterpolate
+      // is already loss-as-fraction-of-invested-capital (leverage is
+      // baked into the published rate: beta1 200/100 => 0.590, 325/225
+      // => 1.224). Multiplying by cfg.leverage again would double-count
+      // it. The deferred path in tax-comparison.js already does
+      // capital * lossRate with no extra leverage multiplier — this
+      // brings the two engines in agreement.
+      const grossLoss = cfg.investment * lossRate;
       // Fee uses the unified regression (fee-split.js) for all paths,
       // including Schwab combos. The combo's published feeRate is
       // intentionally bypassed; see fees.js docstring. Charged every
@@ -158,7 +162,8 @@ const ProjectionEngine = {
                             const fedWith = computeFederalTax(
                                                 Math.max(0, ordinary - applied.ordinaryOffset) + Math.max(0, applied.netST),
                                                 year, cfg.filingStatus,
-                                { longTermGain: Math.max(0, applied.netLT) }
+                                { longTermGain: Math.max(0, applied.netLT),
+                                  wages: cfg.wages != null ? cfg.wages : 0 }
                                             );
                             const stateWith = computeStateTax(
                                                 Math.max(0, ordinary - applied.ordinaryOffset)
@@ -171,7 +176,8 @@ const ProjectionEngine = {
                         const fedNo = computeFederalTax(
                                             ordinary + Math.max(0, shortGain),
                                             year, cfg.filingStatus,
-                            { longTermGain: Math.max(0, longGain) }
+                            { longTermGain: Math.max(0, longGain),
+                              wages: cfg.wages != null ? cfg.wages : 0 }
                                         );
                             const stateNo = computeStateTax(
                                                 ordinary + Math.max(0, shortGain) + Math.max(0, longGain),

@@ -16,7 +16,17 @@ function _baseScenarioForYear(cfg, yr, gainTakenThisYear) {
       // the structured sale. For single-year recommendations, year-1 gets
       // the full longTermGain. For multi-year, the engine spreads it.
       const idx = yr - cfg.year1;
-      const ordOverride = (cfg.ordinaryByYear   && cfg.ordinaryByYear[idx]   != null) ? cfg.ordinaryByYear[idx]   : cfg.baseOrdinaryIncome;
+      // When no per-year override is supplied, scale ordinary income by
+      // the same inflation factor the engine uses for bracket projection
+      // (2% per year past base). Without this, brackets inflate but
+      // income stays flat — clients silently drift into a lower
+      // effective marginal rate, understating baseline tax (and thus
+      // overstating savings) by ~10% over a 5-year horizon.
+      const _infl = (typeof window !== 'undefined' && window.TAX_DATA && typeof window.TAX_DATA.inflationRate === 'number')
+            ? window.TAX_DATA.inflationRate : 0.02;
+      const _scaledBaseOrd = (cfg.baseOrdinaryIncome || 0) * Math.pow(1 + _infl, Math.max(0, idx));
+      const _scaledBaseWages = (cfg.wages || 0) * Math.pow(1 + _infl, Math.max(0, idx));
+      const ordOverride = (cfg.ordinaryByYear   && cfg.ordinaryByYear[idx]   != null) ? cfg.ordinaryByYear[idx]   : _scaledBaseOrd;
       const shortOverride = (cfg.shortGainByYear && cfg.shortGainByYear[idx] != null) ? cfg.shortGainByYear[idx] : (cfg.baseShortTermGain || 0);
       const longOverride  = (cfg.longGainByYear  && cfg.longGainByYear[idx]  != null) ? cfg.longGainByYear[idx]  : 0;
       const ltAmt = (gainTakenThisYear != null ? gainTakenThisYear : 0) + longOverride;
@@ -28,8 +38,16 @@ function _baseScenarioForYear(cfg, yr, gainTakenThisYear) {
             shortTermGain: shortOverride,
             longTermGain: ltAmt,
             qualifiedDividend: 0,
-            investmentIncome: ltAmt,
-            wages: ordOverride,
+            // NIIT base = LT gain + ST gain (both are net investment
+            // income under §1411). Previously this was LT-only, which
+            // understated NIIT for clients with significant ST gains.
+            investmentIncome: ltAmt + Math.max(0, shortOverride),
+            // Additional-Medicare wage base. cfg.wages (W-2 + SE only)
+            // when supplied — scaled by the same inflation factor as
+            // baseOrdinaryIncome so wages grow alongside brackets.
+            // Falls back to ordOverride for backward-compat with cfg
+            // objects that predate the wages split.
+            wages: (cfg.wages != null ? _scaledBaseWages : ordOverride),
             itemized: cfg.itemized || 0
       };
 }
@@ -243,7 +261,9 @@ function _belowMinForLifecycle(cfg) {
       if (!custodianId) return false;
       const stratKey = cfg.tierKey || cfg.strategyKey;
       if (!stratKey) return false;
-      const min = window.getMinInvestment(custodianId, stratKey);
+      // Pass cfg.comboId so Schwab returns the combo-specific minimum
+      // (145/45 = $1M, 200/100 = $3M) instead of the strategy-wide floor.
+      const min = window.getMinInvestment(custodianId, stratKey, cfg.comboId);
       if (!min) return false;
       const basis = Math.max(0, cfg.costBasis || 0);
       // Short-term gain (carved from the property sale) reduces the LT
