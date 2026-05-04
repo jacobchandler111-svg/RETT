@@ -34,6 +34,19 @@ function _wageIncomeForAddlMedicare() {
       return (parseUSD(_val('w2-wages')) || 0) + (parseUSD(_val('se-income')) || 0);
 }
 
+// Passive / portfolio income that's part of the §1411 NIIT base —
+// rental, non-qualified dividends, and interest sit in ordinary
+// income for bracket purposes but ALSO surface on Form 8960 as net
+// investment income subject to the 3.8% NIIT. Without this routing
+// the engine understated NIIT for clients whose ordinary income is
+// mostly passive (a common real-estate-investor pattern). Wages,
+// SE earnings, business distributions, and retirement distributions
+// are NOT in the NIIT base.
+function _ordinaryInvestmentIncome() {
+      return (parseUSD(_val('rental-income'))   || 0)
+           + (parseUSD(_val('dividend-income')) || 0);
+}
+
 function collectInputs() {
       const horizon = parseInt(_val('projection-years'), 10) || 5;
       const year1   = parseInt(_val('year1'), 10) || (new Date()).getFullYear();
@@ -66,6 +79,7 @@ function collectInputs() {
                 // tax engine reads cfg.wages so it doesn't surcharge
                 // rental/dividend/retirement income.
                 wages:               _wageIncomeForAddlMedicare(),
+                investmentIncomeOrdinary: _ordinaryInvestmentIncome(),
                 baseShortTermGain:   parseUSD(_val('short-term-gain')),
                 baseLongTermGain:    parseUSD(_val('long-term-gain')),
                 // Property-sale fields. Engine paths (computeDeferred-

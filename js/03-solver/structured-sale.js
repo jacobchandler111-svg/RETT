@@ -403,12 +403,21 @@
       try {
         var balloonY = year1 + horizon;
         var balloonOrd = _num(cfg && cfg.baseOrdinaryIncome, 0);
+        // Pass wages: 0 explicitly — _baseScenarioForYear's fallback
+        // when cfg.wages is undefined uses the full ordinaryIncome,
+        // which would over-charge Additional Medicare on rental /
+        // dividend / interest portions in this throw-away balloon
+        // calculation.
+        var balloonCfg = { year1: balloonY, horizonYears: 1,
+            filingStatus: (cfg && cfg.filingStatus) || 'mfj',
+            state: (cfg && cfg.state) || 'NY',
+            baseOrdinaryIncome: balloonOrd, wages: 0 };
         var ts = root.computeTaxComparison(
-          { year1: balloonY, horizonYears: 1, filingStatus: (cfg && cfg.filingStatus) || 'mfj', state: (cfg && cfg.state) || 'NY', baseOrdinaryIncome: balloonOrd },
+          balloonCfg,
           { recommendation: 'single-year', longTermGain: shortfallGain, lossGenerated: 0 }
         );
         var bts = root.computeTaxComparison(
-          { year1: balloonY, horizonYears: 1, filingStatus: (cfg && cfg.filingStatus) || 'mfj', state: (cfg && cfg.state) || 'NY', baseOrdinaryIncome: balloonOrd },
+          balloonCfg,
           { recommendation: 'single-year', longTermGain: 0, lossGenerated: 0 }
         );
         var w = (ts && ts.rows && ts.rows[0] && ts.rows[0].withStrategy) ? _num(ts.rows[0].withStrategy.total, 0) : 0;

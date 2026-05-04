@@ -67,15 +67,30 @@ function _amtForYearStatus(year, status) {
           };
 }
 
-function _computeAmt(amti, year, status) {
+// Compute the AMT *on the ordinary slice only*. AMTI (full ordinary +
+// LTCG) drives the exemption phaseout — high-LTCG years correctly
+// shrink the AMT exemption — but the 26%/28% AMT rates apply only to
+// the ordinary portion. LTCG keeps its preferential rate via the
+// `+ ltTax` line at the call site (Form 6251 Part III).
+//
+// Previously this function returned the AMT rate applied to the FULL
+// taxable AMTI (ordinary + LTCG), and the call site then ADDED ltTax
+// on top — double-taxing the LTCG portion at 26/28% AND the LTCG rate.
+// On a $48M LTCG / $0 ordinary case that fabricated ~$13M of AMT
+// liability that doesn't exist on a real return.
+function _computeAmt(amti, year, status, ltAmount) {
           const a = _amtForYearStatus(year, status);
           let exemption = a.exemption;
           const excess = Math.max(0, amti - a.phaseoutStart);
           exemption = Math.max(0, exemption - excess * 0.25);
           const taxable = Math.max(0, amti - exemption);
           if (taxable <= 0) return 0;
-          if (taxable <= a.rate26Threshold) return taxable * a.rate26;
-          return a.rate26Threshold * a.rate26 + (taxable - a.rate26Threshold) * a.rate28;
+          // Strip out LTCG — taxed separately at preferential rates.
+          const lt = Math.max(0, Number(ltAmount) || 0);
+          const ordinarySlice = Math.max(0, taxable - lt);
+          if (ordinarySlice <= 0) return 0;
+          if (ordinarySlice <= a.rate26Threshold) return ordinarySlice * a.rate26;
+          return a.rate26Threshold * a.rate26 + (ordinarySlice - a.rate26Threshold) * a.rate28;
 }
 
 function _computeNiit(investmentIncome, magi, year, status) {
@@ -162,13 +177,25 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       // §1211(b) loss offset reduces taxable ordinary income before
       // brackets are applied. (Issue #67.)
       const taxableOrdinary = Math.max(0, ordinaryIncome - deduction - _carriedLossOrdOffset);
+      // Leftover deduction (when ordinary income alone wasn't enough to
+      // absorb it) bleeds through to the LTCG bracket stack — on a
+      // real return, the standard deduction shifts the LTCG bracket
+      // floors up by the unused amount. Without this, a pure-LTCG year
+      // with $0 ordinary income wastes the entire deduction × 20% in
+      // overstated baseline tax.
+      const _deductionConsumedOnOrd = Math.max(0, ordinaryIncome - taxableOrdinary - _carriedLossOrdOffset);
+      const _leftoverDeduction = Math.max(0, deduction - _deductionConsumedOnOrd);
 
       const ordinaryTax = _flatBracketTax(taxableOrdinary, ordBrk);
 
       let ltTax = 0;
       const ltAmount = longTermGain + qualifiedDividend;
       if (ltAmount > 0 && ltBrk && ltBrk.length) {
-            let remaining = ltAmount;
+            // Apply leftover standard deduction to the LTCG slab — the
+            // first _leftoverDeduction dollars of LT gain are taxed at $0
+            // (the deduction effectively shifts the LTCG bracket floors).
+            const taxableLt = Math.max(0, ltAmount - _leftoverDeduction);
+            let remaining = taxableLt;
             let stackBase = taxableOrdinary;
             let prevMax = 0;
             for (const b of ltBrk) {
@@ -191,7 +218,7 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       // rate application is still on the ordinary slice — LTCG keeps
       // its preferential rate via the + ltTax line.
       const amtAmti     = taxableOrdinary + ltAmount;
-      const amtOrdOnly  = _computeAmt(amtAmti, year, status);
+      const amtOrdOnly  = _computeAmt(amtAmti, year, status, ltAmount);
       const amtTotal    = amtOrdOnly + ltTax;
       const amtTopUp    = Math.max(0, amtTotal - (ordinaryTax + ltTax));
 

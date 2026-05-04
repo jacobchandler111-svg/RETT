@@ -118,25 +118,43 @@ function getStateNode(year, stateCode) {
           return TAX_DATA.states[key][stateCode] || null;
 }
 
+// Map a federal filing status to the state bracket bucket. Source data
+// only carries 'single' and 'married_joint'; MFS uses MFJ-halved
+// brackets (Form 1040 standard treatment), HOH uses single brackets
+// (close approximation — actual HOH brackets are slightly wider in some
+// states but unpublished data points are out of scope here).
+function _stateBracketChoice(status) {
+          const fk = fsKey(status);
+          if (fk === 'married_joint') return { key: 'married_joint', halve: false };
+          if (fk === 'married_separate' || fk === 'mfs')
+                  return { key: 'married_joint', halve: true };
+          // single, hoh, head_of_household → 'single'
+          return { key: 'single', halve: false };
+}
+
 function getStateBrackets(year, stateCode, status) {
           const node = getStateNode(year, stateCode);
           if (!node || node.noIncomeTax) return null;
-          // States only define 'single' and 'married_joint' in the source data.
-    // For 'mfs' and 'hoh' fall back to single.
-    const fk = fsKey(status);
-          const k = (fk === 'married_joint') ? 'married_joint' : 'single';
-          const factor = (TAX_DATA.states[String(year)] && TAX_DATA.states[String(year)][stateCode]) ? 1 : _yearProjectionFactor(year);
-          return _projectFlatBrackets((node.brackets && node.brackets[k]) || [], factor);
+          const choice = _stateBracketChoice(status);
+          const factor = (TAX_DATA.states[String(year)] && TAX_DATA.states[String(year)][stateCode])
+                  ? 1 : _yearProjectionFactor(year);
+          // MFS halves the MFJ thresholds (rates are unchanged) — mirrors
+          // how a real return treats MFS at the federal level.
+          const halve = choice.halve ? 0.5 : 1;
+          const raw = (node.brackets && node.brackets[choice.key]) || [];
+          return _projectFlatBrackets(raw, factor * halve);
 }
 
 function getStateStandardDeduction(year, stateCode, status) {
           const node = getStateNode(year, stateCode);
           if (!node || node.noIncomeTax) return 0;
-          const fk = fsKey(status);
-          const k = (fk === 'married_joint') ? 'married_joint' : 'single';
-          const raw = (node.standardDeduction && node.standardDeduction[k]) || 0;
-          const factor = (TAX_DATA.states[String(year)] && TAX_DATA.states[String(year)][stateCode]) ? 1 : _yearProjectionFactor(year);
-          return raw * factor;
+          const choice = _stateBracketChoice(status);
+          const raw = (node.standardDeduction && node.standardDeduction[choice.key]) || 0;
+          const factor = (TAX_DATA.states[String(year)] && TAX_DATA.states[String(year)][stateCode])
+                  ? 1 : _yearProjectionFactor(year);
+          // MFS gets half the MFJ standard deduction.
+          const halve = choice.halve ? 0.5 : 1;
+          return raw * factor * halve;
 }
 
 function isStateNoIncomeTax(year, stateCode) {

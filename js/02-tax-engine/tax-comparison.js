@@ -22,14 +22,25 @@ function _baseScenarioForYear(cfg, yr, gainTakenThisYear) {
       // income stays flat — clients silently drift into a lower
       // effective marginal rate, understating baseline tax (and thus
       // overstating savings) by ~10% over a 5-year horizon.
-      const _infl = (typeof window !== 'undefined' && window.TAX_DATA && typeof window.TAX_DATA.inflationRate === 'number')
-            ? window.TAX_DATA.inflationRate : 0.02;
+      // Read inflation rate from TAX_DATA directly — keeping a literal
+      // 0.02 fallback silently drifts from the data file if it's ever
+      // tuned. If TAX_DATA isn't loaded, fall through to 0 so the math
+      // breaks loudly rather than silently using a stale rate.
+      const _infl = (typeof TAX_DATA !== 'undefined' && TAX_DATA && typeof TAX_DATA.inflationRate === 'number')
+            ? TAX_DATA.inflationRate
+            : ((typeof window !== 'undefined' && window.TAX_DATA && typeof window.TAX_DATA.inflationRate === 'number')
+                  ? window.TAX_DATA.inflationRate : 0);
       const _scaledBaseOrd = (cfg.baseOrdinaryIncome || 0) * Math.pow(1 + _infl, Math.max(0, idx));
       const _scaledBaseWages = (cfg.wages || 0) * Math.pow(1 + _infl, Math.max(0, idx));
       const ordOverride = (cfg.ordinaryByYear   && cfg.ordinaryByYear[idx]   != null) ? cfg.ordinaryByYear[idx]   : _scaledBaseOrd;
       const shortOverride = (cfg.shortGainByYear && cfg.shortGainByYear[idx] != null) ? cfg.shortGainByYear[idx] : (cfg.baseShortTermGain || 0);
       const longOverride  = (cfg.longGainByYear  && cfg.longGainByYear[idx]  != null) ? cfg.longGainByYear[idx]  : 0;
       const ltAmt = (gainTakenThisYear != null ? gainTakenThisYear : 0) + longOverride;
+      // Passive / portfolio income inside ordinary (rental + non-qualified
+      // div / interest) is also part of the §1411 NIIT base. Inflated
+      // alongside baseOrdinaryIncome so high-income clients with heavy
+      // rental income pay the right NIIT every year.
+      const _scaledInvOrd = (cfg.investmentIncomeOrdinary || 0) * Math.pow(1 + _infl, Math.max(0, idx));
       return {
             year: yr,
             status: cfg.filingStatus,
@@ -38,10 +49,11 @@ function _baseScenarioForYear(cfg, yr, gainTakenThisYear) {
             shortTermGain: shortOverride,
             longTermGain: ltAmt,
             qualifiedDividend: 0,
-            // NIIT base = LT gain + ST gain (both are net investment
-            // income under §1411). Previously this was LT-only, which
-            // understated NIIT for clients with significant ST gains.
-            investmentIncome: ltAmt + Math.max(0, shortOverride),
+            // NIIT base = LT gain + ST gain + passive ordinary
+            // (rental / non-qualified div / interest). Previously
+            // ordinary investment income was missing here, understating
+            // NIIT for real-estate-heavy clients.
+            investmentIncome: ltAmt + Math.max(0, shortOverride) + _scaledInvOrd,
             // Additional-Medicare wage base. cfg.wages (W-2 + SE only)
             // when supplied — scaled by the same inflation factor as
             // baseOrdinaryIncome so wages grow alongside brackets.
@@ -94,10 +106,10 @@ function _applyLossesToScenario(scenario, lossAvailable) {
       // Brooklyn-generated losses are SHORT-TERM. IRS netting rules:
       //   1) Short-term loss first offsets short-term gain (netted at ST level).
       //   2) Net ST loss then offsets long-term gain dollar-for-dollar.
-      //   3) Any remaining net loss offsets ordinary income (subject to the
-      //      $3,000/yr personal cap, but for a structured-sale strategy we
-      //      apply the loss to ordinary up to the offset capacity since the
-      //      loss is sized specifically against the property recognition).
+      //   3) Any remaining net loss offsets ordinary income, CAPPED at the
+      //      §1211(b) annual limit ($3,000 / $1,500 MFS). Excess carries
+      //      forward as STCL — modeled by setting _lossUnused so the
+      //      caller can route it.
       const out = Object.assign({}, scenario);
       let loss = lossAvailable;
 
@@ -116,9 +128,17 @@ function _applyLossesToScenario(scenario, lossAvailable) {
             loss -= offsetLong;
       }
 
-      // Step 3: against ordinary income
+      // Step 3: against ordinary income, capped at §1211(b).
+      // Without this cap the immediate path silently erased uncapped
+      // amounts of ordinary income (including depreciation recapture
+      // bumped in by structured-sale.js _scoreSchedule), inflating
+      // savings by ≈ recapture × ~37%. The deferred-path equivalent
+      // (_applyLossesWithSTCfCap) already applies this cap.
       if (loss > 0) {
-            const offsetOrd = Math.min(out.ordinaryIncome || 0, loss);
+            const ordCap = (out.status === 'mfs' || out.status === 'married_separate')
+                  ? 1500 : 3000;
+            const ordRoom = Math.min(out.ordinaryIncome || 0, ordCap);
+            const offsetOrd = Math.min(ordRoom, loss);
             out.ordinaryIncome = (out.ordinaryIncome || 0) - offsetOrd;
             // Wages are unchanged: capital losses reduce taxable ordinary
             // income, but the Additional Medicare base is W-2 wages
@@ -169,11 +189,28 @@ function computeTaxComparison(cfg, recommendation) {
           (recommendation.recommendation === 'multi-year' ||
            recommendation.recommendation === 'multi-year-shortfall')) {
             const _sched = recommendation.schedule || recommendation.years || [];
-            const _totalLT = (recommendation.longTermGain != null)
+            // B4: derive total LT gain from cfg directly. The multi-year
+            // solver returns gainByYear summing to whatever Brooklyn could
+            // ABSORB — for multi-year-shortfall that's less than the
+            // actual property gain. Using the solver's number flattened
+            // to Y1 silently drops the unabsorbable residual from the
+            // tax calc, overstating savings. Pull from cfg so the full
+            // property gain hits Y1 and any excess over Brooklyn capacity
+            // is taxed at LTCG rates.
+            const _stShortFlat = Math.max(0, cfg.baseShortTermGain || 0);
+            const _totalLTFromCfg = Math.max(0,
+                  (cfg.salePrice || 0) - (cfg.costBasis || 0)
+                  - (cfg.acceleratedDepreciation || 0) - _stShortFlat);
+            const _totalLTFromRec = (recommendation.longTermGain != null)
                   ? recommendation.longTermGain
                   : _sched.reduce(function (s, slot) {
                         return s + (slot && (slot.gainTaken || slot.gain) || 0);
                       }, 0);
+            // Use whichever is larger — cfg-derived is the authoritative
+            // total when sale-price/basis/depr are populated, but fall
+            // back to the rec sum for cfg-less callers (test harnesses,
+            // direct API users).
+            const _totalLT = Math.max(_totalLTFromCfg, _totalLTFromRec || 0);
             // Y1 loss = the recommendation's Y1-capacity. For
             // multi-year-shortfall this is the Y1 slot's lossGenerated;
             // for plain multi-year it's the same since the schedule
