@@ -52,9 +52,19 @@
       totalNo += no;
       totalWith += w;
     });
-    if (totals && totals.cumulativeFees != null) cumFees = totals.cumulativeFees;
-
     var comp = window.__lastComparison;
+    // In deferred mode, comp.totalFees is the tranche-aware authoritative
+    // figure (e.g. Y1-Y2 only basis, Y3 basis + gain release). Don't
+    // override with projection-engine totals.cumulativeFees, which holds
+    // cfg.investment constant every year and underestimates fees for
+    // a structured-sale schedule. Matches savings-ribbon's logic so
+    // the KPI Net Benefit and the ribbon Net Benefit agree.
+    if (comp && comp.deferred && comp.totalFees != null) {
+      cumFees = comp.totalFees;
+    } else if (totals && totals.cumulativeFees != null) {
+      cumFees = totals.cumulativeFees;
+    }
+
     var brookhavenFees = (comp && comp.totalBrookhavenFees) || 0;
     // Single-source engagement detection (format-helpers.rettEngineEngaged).
     var _engineEngaged = (typeof window.rettEngineEngaged === 'function')
