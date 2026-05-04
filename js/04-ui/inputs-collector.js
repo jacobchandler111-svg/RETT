@@ -65,36 +65,52 @@ function collectInputs() {
       var recRaw = parseInt(_val('recognition-start-select'), 10);
       cfg.recognitionStartYearIndex = (Number.isFinite(recRaw) && recRaw >= 1) ? (recRaw - 1) : 0;
 
-      // Schwab combo resolution: when the custodian is Charles Schwab, resolve
-      // the (strategy, leverageLabel) pair to a Schwab combo and inject
-      // cfg.comboId so the projection engine uses the multi-year tranche curve.
-      // Implementation date drives the 365-day tranche anchor.
+      // Schwab combo resolution: when the custodian is Charles Schwab,
+      // resolve the active short% (from either the Page-1 leverage-cap
+      // dropdown OR the Page-2 pill picker via #custom-short-pct) to a
+      // Schwab combo. Inject cfg.comboId so the projection engine uses
+      // the published per-year tranche loss curve (lossByYear) instead
+      // of the regression. Implementation date drives the 365-day
+      // tranche anchor.
       if (cfg.custodian === 'schwab' && typeof findSchwabCombo === 'function') {
         var leverageLabel = _val('leverage-cap-select') || '';
         var combo = findSchwabCombo(cfg.tierKey, leverageLabel);
+        // Fall back to short-pct lookup if the dropdown didn't match
+        // — happens when the Page-2 pill picker is the source.
+        if (!combo && typeof listSchwabCombos === 'function') {
+          var spRawSch = parseFloat(_val('custom-short-pct'));
+          if (Number.isFinite(spRawSch)) {
+            combo = listSchwabCombos().filter(function (c) {
+              return c.strategyKey === cfg.tierKey && c.shortPct === spRawSch;
+            })[0] || null;
+          }
+        }
         if (combo) {
           cfg.comboId = combo.id;
-          cfg.leverageLabel = leverageLabel;
+          cfg.leverageLabel = combo.leverageLabel;
+          cfg.leverage = (combo.shortPct || 0) / 100;
           var implDate = _val('implementation-date') || '';
           cfg.implementationDate = implDate || (cfg.year1 + '-01-01');
         }
       }
 
-      // Custom (variable) leverage override. MUST run AFTER the Schwab
-      // combo block above so we can clear cfg.comboId — Schwab combos are
-      // preset-only, but variable leverage uses the brooklyn-data
-      // regression. When the toggle is on, the user's typed short%
-      // becomes the source of truth: leverage = short% / 100.
-      var customToggle = document.getElementById('use-variable-leverage');
-      if (customToggle && customToggle.checked) {
-        var spRaw = parseFloat(_val('custom-short-pct'));
-        if (Number.isFinite(spRaw) && spRaw >= 0) {
-          cfg.useVariableLeverage = true;
-          cfg.customShortPct = spRaw;
-          cfg.leverage = spRaw / 100;
-          cfg.leverageCap = spRaw / 100;
-          delete cfg.comboId;
-          delete cfg.leverageLabel;
+      // Custom (variable) leverage override — non-Schwab only. Schwab
+      // is preset-only with baked-in per-year loss curves (lossByYear);
+      // running through the regression here would override that and
+      // lose the tapering. So this block ONLY fires when the custodian
+      // is NOT Schwab.
+      if (cfg.custodian !== 'schwab') {
+        var customToggle = document.getElementById('use-variable-leverage');
+        if (customToggle && customToggle.checked) {
+          var spRaw = parseFloat(_val('custom-short-pct'));
+          if (Number.isFinite(spRaw) && spRaw >= 0) {
+            cfg.useVariableLeverage = true;
+            cfg.customShortPct = spRaw;
+            cfg.leverage = spRaw / 100;
+            cfg.leverageCap = spRaw / 100;
+            delete cfg.comboId;
+            delete cfg.leverageLabel;
+          }
         }
       }
 
