@@ -534,31 +534,37 @@
   }
   function _buildScenarioComparison(currentCfg) {
     if (!currentCfg) return '';
-    var horizon = currentCfg.horizonYears || currentCfg.years || 5;
     var userDuration = currentCfg.structuredSaleDurationMonths || 18;
 
-    // Each scenario evaluates with its OWN engine inputs. Explicitly
-    // clear maxRecognitionYearIndex so an active scenario-B override
-    // (set on window when the user clicked the "Delay close" row)
-    // doesn't infect the A and C calculations through collectInputs.
+    // Each row shows the BEST configuration of that strategy — same
+    // auto-pick the section dashboard runs — so row and dashboard never
+    // disagree on the comparison the user is here to make. The Page-1
+    // horizon / leverage / combo are explicitly NOT honored here:
+    // strategies have different optimal horizons (Sell-Now caps at Y1
+    // for max savings, Structured wants 5+), and forcing all three rows
+    // to share Page-1's horizon makes whichever one mismatches it look
+    // artificially terrible.
+    function _bestPickedCfg(type, baseCfg) {
+      var picked = _autoPickSection(type, baseCfg);
+      var sectionCfg = Object.assign({}, baseCfg, {
+        horizonYears: picked.horizon,
+        leverage:     picked.shortPct / 100,
+        leverageCap:  picked.shortPct / 100,
+        comboId:      picked.comboId
+      });
+      return {
+        cfg: _scenarioCfgFor(type, sectionCfg, picked.bestRecC, userDuration),
+        picked: picked
+      };
+    }
 
     // Scenario A: Sell now, no deferral (rec=1 immediate path).
-    var cfgA = Object.assign({}, currentCfg, {
-      recognitionStartYearIndex: 0,
-      maxRecognitionYearIndex: null
-    });
-    var mA = _scenarioMetrics(cfgA);
+    var pickedA = _bestPickedCfg('A', currentCfg);
+    var mA = _scenarioMetrics(pickedA.cfg);
 
     // Scenario B: Delay close to Jan 1 of next year. Force gain into Y2
-    // ONLY (no further deferral) via the explicit maxRecognitionYearIndex
-    // override — bypasses the structured-sale 18-month floor and Jan-1
-    // auto-extend, since this scenario has no insurance product.
-    //
-    // Only feasible when the sale is close to year-end — a buyer won't
-    // wait 9 months to close a March deal, but a 1-3 month nudge from
-    // Oct/Nov/Dec to Jan 1 is realistic. Hide the scenario when the
-    // impl date is before September (month index < 8) so the panel
-    // doesn't recommend a delay that won't actually fly.
+    // ONLY (no further deferral). Only feasible when the sale is close
+    // to year-end — hide when impl date is before September.
     var saleMonth0_b = -1;
     if (currentCfg.implementationDate &&
         typeof window !== 'undefined' &&
@@ -568,34 +574,16 @@
     }
     var mB = null;
     if (saleMonth0_b >= 8) {
-      var cfgB = Object.assign({}, currentCfg, {
-        recognitionStartYearIndex: 1,
-        maxRecognitionYearIndex: 1
-      });
-      mB = _scenarioMetrics(cfgB);
+      var pickedB = _bestPickedCfg('B', currentCfg);
+      mB = _scenarioMetrics(pickedB.cfg);
     }
 
-    // Scenario C: Structured sale at the user's duration. Pick the
-    // recognition-start year that maximizes net under the duration
-    // constraint (rec=2..min(horizon,4)). If the global horizon is too
-    // short for a structured sale (1y), evaluate C at horizon=5 so the
-    // option still appears in the comparison panel — its section
-    // auto-pick will refine the horizon if the user checks the row.
-    var cHorizon = Math.max(horizon, 5);
-    var bestC = null, bestRecC = 2;
-    for (var r = 2; r <= Math.min(4, cHorizon); r++) {
-      var cfgR = Object.assign({}, currentCfg, {
-        horizonYears: cHorizon,
-        recognitionStartYearIndex: r - 1,
-        structuredSaleDurationMonths: userDuration,
-        maxRecognitionYearIndex: null
-      });
-      var m = _scenarioMetrics(cfgR);
-      if (m && (bestC == null || m.net > bestC.net)) {
-        bestC = m;
-        bestRecC = r;
-      }
-    }
+    // Scenario C: Structured sale. Auto-pick searches horizon × leverage
+    // × recognition year and returns the (h, lev, combo, bestRecC)
+    // tuple with max net.
+    var pickedC = _bestPickedCfg('C', currentCfg);
+    var bestC = _scenarioMetrics(pickedC.cfg);
+    var bestRecC = pickedC.picked.bestRecC;
 
     var rows = [];
     if (mA) rows.push({
