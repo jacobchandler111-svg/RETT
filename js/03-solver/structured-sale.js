@@ -47,9 +47,23 @@
   // legal Jan-1 payout slips to year index 2.
   function _earliestPayoutIndex(implementationDate, year1) {
     if (!implementationDate) return 1;            // assume Jan-1 of Y1, payout in Y2 OK
-    var sale = new Date(implementationDate);
-    if (isNaN(sale.getTime())) return 1;
-    var fifteen = new Date(sale.getFullYear(), sale.getMonth() + 15, sale.getDate());
+    // Use the shared parseLocalDate so we don't trip on UTC-vs-local
+    // shifts for early-January implementation dates.
+    var sale = (typeof root.parseLocalDate === 'function')
+      ? root.parseLocalDate(implementationDate)
+      : new Date(implementationDate);
+    if (!sale || isNaN(sale.getTime())) return 1;
+    // Add 15 months WITHOUT relying on the Date constructor's silent
+    // day-of-month rollover (e.g. new Date(2026, 22, 31) becomes
+    // Dec 1 2027 instead of Nov 30 2027 because Nov has only 30 days).
+    // Compute the target year/month explicitly and clamp the day
+    // to the last day of the target month.
+    var targetMonth0 = sale.getMonth() + 15;             // 0-indexed months
+    var targetYear   = sale.getFullYear() + Math.floor(targetMonth0 / 12);
+    var targetMonth  = targetMonth0 % 12;
+    var lastDayOfTargetMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+    var clampedDay = Math.min(sale.getDate(), lastDayOfTargetMonth);
+    var fifteen = new Date(targetYear, targetMonth, clampedDay);
     // We need the smallest yearOffset such that Jan 1 of (year1 + yearOffset) >= sale + 15mo.
     var y0 = Number(year1) || sale.getFullYear();
     for (var off = 1; off < 20; off++) {
@@ -403,13 +417,29 @@
 
     // Compute a no-deferral baseline for comparison: recognize the
     // entire LTCG in Y1, full Brooklyn capital in Y1, score it.
+    // capByYear was sized for LTCG only; recompute the Y1 cap to
+    // include recapture so the no-defer scenario isn't clipped.
+    // (Previously: Math.min(capByYear[0], ltcg+recapture) used a
+    // capByYear[0] that ignored recapture, silently under-attributing
+    // losses against the recapture portion of the gain.)
     var noDeferGain = _zeros(horizon); noDeferGain[0] = ltcg;
-    var noDeferLoss = _zeros(horizon); noDeferLoss[0] = Math.min(_num(capByYear[0], 0), ltcg + recapture);
+    var _noDeferTotalGain = ltcg + recapture;
+    var _noDeferCap = totalCapital * (_num(stage2.capLossRate, 0) ||
+      ((typeof root.brooklynLossRateForLeverage === 'function' && stage2.leverageUsed != null)
+        ? root.brooklynLossRateForLeverage(cfg.strategyKey || 'beta1', stage2.leverageUsed)
+        : 0));
+    var noDeferLoss = _zeros(horizon);
+    noDeferLoss[0] = Math.min(Math.max(_noDeferCap, _num(capByYear[0], 0)), _noDeferTotalGain);
     var noDeferInv = _zeros(horizon); noDeferInv[0] = totalCapital;
+    // Use the unified fee-split regression (matches the rest of the engine).
     var noDeferFeeRate = _num(stage2.feeRate, 0);
-    if (!noDeferFeeRate && typeof root.brooklynInterpolate === 'function' && stage2.leverageUsed != null) {
-      var info2 = root.brooklynInterpolate(cfg.strategyKey || 'beta1', stage2.leverageUsed);
-      if (info2 && info2.feeRate) noDeferFeeRate = info2.feeRate;
+    if (!noDeferFeeRate && stage2.leverageUsed != null
+        && typeof root.brooklynPctsForLeverage === 'function'
+        && typeof root.brooklynFeeRateFor === 'function') {
+      var pcts2 = root.brooklynPctsForLeverage(cfg.strategyKey || 'beta1', stage2.leverageUsed);
+      if (pcts2 && pcts2.longPct != null && pcts2.shortPct != null) {
+        noDeferFeeRate = root.brooklynFeeRateFor(pcts2.longPct, pcts2.shortPct);
+      }
     }
     var noDeferFees = totalCapital * noDeferFeeRate;
     var noDeferScore = _scoreSchedule(cfg, noDeferGain, noDeferLoss, leverageByYear, recapture);

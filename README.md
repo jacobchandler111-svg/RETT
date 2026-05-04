@@ -12,7 +12,7 @@ Deferred to future versions: Delphi (Class A/B) and Helix funds, the multi-strat
 
 ## Bracket Projection Methodology
 
-The IRS does not publish brackets beyond 2026. For 2027 through 2031, this engine takes each 2026 bracket threshold and multiplies it by 1.02 raised to the power of (year minus 2026). Rates are held constant. Thresholds are kept at full floating-point precision because this is a planning model, not a return preparation tool. The assumption is configurable in `js/05-projections/bracket-projector.js`.
+The IRS does not publish brackets beyond 2026. For 2027 through 2031, this engine takes each 2026 bracket threshold and multiplies it by 1.02 raised to the power of (year minus 2026). Rates are held constant. Thresholds are kept at full floating-point precision because this is a planning model, not a return preparation tool. The 2% assumption is configurable via `TAX_DATA.inflationRate` in `js/02-tax-engine/tax-data.js`; the projection logic lives in `_yearProjectionFactor` / `_projectFlatBrackets` in `js/02-tax-engine/tax-lookups.js`.
 
 ## Project Structure
 
@@ -24,23 +24,31 @@ css/styles.css
 data/taxBrackets.json
 js/
   00-data/             custodians.js, schwab-strategies.js
-  01-brooklyn/         brooklyn-data.js, date-utils.js, time-weight.js,
+  01-brooklyn/         date-utils.js (loads first — shared parseLocalDate),
+                       brooklyn-data.js, time-weight.js,
                        brooklyn-interpolation.js, variable-leverage.js,
                        defaults.js
   02-tax-engine/       tax-data.js, tax-loader.js, tax-lookups.js,
                        tax-calc-federal.js, tax-calc-state.js,
-                       tax-baseline.js, tax-comparison.js
-  03-solver/           fees.js, brooklyn-allocator.js, single-year-solver.js,
-                       multi-year-solver.js, structured-sale.js,
-                       decision-engine.js
-  04-ui/               banner.js, format-helpers.js, input-validation.js,
-                       inputs-collector.js, controls.js, projection-render.js,
-                       recommendation-render.js,
-                       projection-dashboard-render.js,
-                       strategy-summary-render.js
-  05-projections/      bracket-projector.js, carryforward-tracker.js,
-                       projection-engine.js
+                       tax-comparison.js
+  03-solver/           fees.js, fee-split.js, brookhaven-fees.js,
+                       single-year-solver.js, multi-year-solver.js,
+                       structured-sale.js, decision-engine.js
+  04-ui/               format-helpers.js (loads first), banner.js,
+                       number-animator.js, case-storage.js,
+                       pill-toggles.js, variable-leverage-ui.js,
+                       input-validation.js, inputs-collector.js,
+                       controls.js, recommendation-render.js,
+                       projection-dashboard-render.js, savings-ribbon.js,
+                       bracket-viz-render.js, cashflow-schedule-render.js,
+                       narrative-render.js, strategy-summary-render.js
+  05-projections/      carryforward-tracker.js, projection-engine.js
 ```
+
+Files no longer in the codebase (deleted as dead code in earlier
+cleanup passes): `tax-baseline.js`, `brooklyn-allocator.js`,
+`projection-render.js`, `bracket-projector.js`. Their responsibilities
+are documented inline in the surviving files.
 
 ## Script Load Order
 
@@ -48,7 +56,7 @@ Subsystems load in numeric order: `00 → 01 → 02 → 03 → 05 → 04`. The U
 
 ## Adding a New Year of IRS Data
 
-When the IRS publishes 2027 brackets, replace the synthetic projection by adding the published 2027 block to `data/taxBrackets.json` for federal and each state, then update `js/05-projections/bracket-projector.js` to start its synthetic roll from 2027 instead of 2026.
+When the IRS publishes 2027 brackets, add the published 2027 block to `data/taxBrackets.json` for federal and each state. The synthetic projection in `js/02-tax-engine/tax-lookups.js` (`_yearProjectionFactor`) already short-circuits to the published data when present, so no projector code change is needed — bump `TAX_DATA.baseYear` in `tax-data.js` only if you want the 2% roll to start from 2027 instead of 2026.
 
 ## Deployment (GitHub Pages)
 

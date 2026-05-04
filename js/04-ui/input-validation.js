@@ -67,11 +67,18 @@
     var implDate = _str('implementation-date');
     var year1    = parseInt(_str('year1'), 10) || (new Date()).getFullYear();
     if (implDate) {
-      var d = new Date(implDate);
-      if (isNaN(d.getTime())) {
+      // Use the shared parseLocalDate so the validator agrees with the
+      // engine. new Date(YYYY-MM-DD) parses as UTC midnight in most
+      // browsers; reading getUTCFullYear() in negative-UTC timezones
+      // can return the prior year for early-January dates and produce
+      // a spurious "outside Year 1" warning.
+      var d = (typeof window.parseLocalDate === 'function')
+        ? window.parseLocalDate(implDate)
+        : new Date(implDate);
+      if (!d || isNaN(d.getTime())) {
         errors.push({ field: 'implementation-date', message: 'Implementation date is not a valid date.' });
       } else {
-        var yr = d.getUTCFullYear();
+        var yr = d.getFullYear();
         if (yr < year1 || yr > year1 + 1) {
           warnings.push({
             field: 'implementation-date',

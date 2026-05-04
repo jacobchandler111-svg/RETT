@@ -27,9 +27,14 @@ function brooklynFee(tierKey, leverage, investment) {
     var split = window.brooklynFeeSplitForLeverage(tierKey, leverage);
     return investment * (split.totalRate || 0);
   }
-  // Defensive fallback (fee-split module hasn't loaded): use the
-  // legacy interpolated feeRate from brooklyn-data.
-  const interp = brooklynInterpolate(tierKey, leverage);
-  return investment * (interp ? (interp.feeRate || 0) : 0);
+  // The fee-split module loads BEFORE fees.js per index.html load
+  // order, so this branch is effectively unreachable in production.
+  // We surface a clear error if it ever fires (instead of silently
+  // diverging from the rest of the engine via brooklyn-data's
+  // legacy feeRate) so the misconfiguration is caught at runtime.
+  if (typeof console !== 'undefined' && console.error) {
+    console.error('[fees.js] fee-split.js not loaded — brooklynFee returning 0. Check index.html script load order.');
+  }
+  return 0;
 }
            

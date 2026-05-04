@@ -50,22 +50,11 @@
     return opts;
   }
 
-  // Recognition options track the Horizon. We never let recognition exceed
-  // (horizon - 1) since otherwise the gain would be force-recognized in the
-  // final year with no offset capacity.
-  function _readRecognitionOptions() {
-    var horSel = document.getElementById('projection-years');
-    var horizon = horSel ? (parseInt(horSel.value, 10) || 5) : 5;
-    var opts = [];
-    var maxStart = Math.min(horizon, 4);
-    for (var y = 1; y <= maxStart; y++) {
-      var label;
-      if (y === 1) label = 'Year 1 (immediate)';
-      else label = 'Year ' + y + ' (defer ' + (y - 1) + ' yr)';
-      opts.push({ value: String(y), label: label });
-    }
-    return opts;
-  }
+  // Note: an old recognition pill-row used to render here. The
+  // recognition year is now silently optimized by
+  // searchBestRecognitionForCurrent — there's no visible UI for it.
+  // The hidden #recognition-start-select stays as the engine's
+  // source-of-truth.
 
   function _renderTrack(trackId, opts, currentValue) {
     var track = document.getElementById(trackId);
@@ -103,13 +92,12 @@
 
   function buildPillToggles() {
     var horSel  = document.getElementById('projection-years');
-    var recSel  = document.getElementById('recognition-start-select');
-    // Leverage is now driven by the slider (#leverage-slider), not a
-    // pill row — its tick marks rebuild via variable-leverage-ui.js.
+    // Only the Horizon pill row is visible. Leverage is the slider
+    // (or the Schwab pills via variable-leverage-ui.js). Recognition
+    // is engine-driven and headless — searchBestRecognitionForCurrent
+    // picks the optimal recognition year silently, no pill row.
     _renderTrack('horizon-pill-track',  _readHorizonOptions(),
       horSel ? horSel.value : '');
-    _renderTrack('recognition-pill-track', _readRecognitionOptions(),
-      recSel ? recSel.value : '1');
     if (typeof root.refreshVariableLeverageReadouts === 'function') {
       try { root.refreshVariableLeverageReadouts(); } catch (e) { /* */ }
     }
@@ -117,16 +105,9 @@
 
   function syncPillSelection() {
     var horSel = document.getElementById('projection-years');
-    var recSel = document.getElementById('recognition-start-select');
     var horVal = horSel ? horSel.value : '';
-    var recVal = recSel ? recSel.value : '1';
     document.querySelectorAll('#horizon-pill-track .pill').forEach(function (b) {
       var on = (b.getAttribute('data-value') === horVal);
-      b.classList.toggle('active', on);
-      b.setAttribute('aria-checked', on ? 'true' : 'false');
-    });
-    document.querySelectorAll('#recognition-pill-track .pill').forEach(function (b) {
-      var on = (b.getAttribute('data-value') === recVal);
       b.classList.toggle('active', on);
       b.setAttribute('aria-checked', on ? 'true' : 'false');
     });
@@ -517,9 +498,6 @@
     if (trackId === 'horizon-pill-track') {
       _setSelect('projection-years', value);
       _hideAutoHint('horizon');
-    } else if (trackId === 'recognition-pill-track') {
-      _setSelect('recognition-start-select', value);
-      _hideAutoHint('recognition');
     } else {
       return;
     }

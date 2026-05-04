@@ -243,7 +243,10 @@ function resetAllInputs(skipConfirm) {
     // Page 1: Custodian
     'custodian-select', 'leverage-cap-select',
     // Page 2: Brooklyn config
-    'available-capital', 'invested-capital', 'strategy-select', 'beta1'
+    'available-capital', 'invested-capital', 'strategy-select'
+    // Note: legacy IDs that don't exist in the current HTML
+    // ('beta1', 'computed-total-taxable') were removed from this list
+    // — forEach silently skipped them but they were drift indicators.
   ];
   resetIds.forEach(function (id) {
     const el = document.getElementById(id);

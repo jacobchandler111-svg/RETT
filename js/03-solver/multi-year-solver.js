@@ -13,10 +13,23 @@
   'use strict';
 
   function invertLossRate(strategyKey, requiredRate) {
+    // Guard: NaN / negative input. A negative or NaN required rate
+    // is meaningless here (the solver wants a positive loss target).
+    // Return the lowest-leverage point so callers don't iterate the
+    // full ladder for nothing.
+    if (!Number.isFinite(requiredRate) || requiredRate < 0) {
+      return null;
+    }
     var bounds = (typeof root.getStrategyBounds === 'function')
       ? root.getStrategyBounds(strategyKey)
       : { minShort: 0, maxShort: 225 };
     if (!bounds) return null;
+    // Special-case requiredRate <= 0: the minLeverage point already
+    // satisfies it, no need to walk.
+    if (requiredRate === 0) {
+      var minLev = (bounds.minLeverage != null ? bounds.minLeverage : bounds.minShort / 100);
+      return { leverage: minLev, info: root.brooklynInterpolate(strategyKey, minLev) };
+    }
     for (var s = bounds.minShort; s <= bounds.maxShort; s++) {
       var info = root.brooklynInterpolate(strategyKey, s / 100);
       if (info && info.lossRate >= requiredRate) {

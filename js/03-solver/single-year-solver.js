@@ -42,6 +42,19 @@
     var strategyKey     = opts.strategyKey || 'beta1';
     var gainToOffset    = Number(opts.gainToOffset) || 0;
     var investedCapital = Number(opts.investedCapital) || 0;
+    // Contract: yearFraction applies to a same-year recognition only.
+    // A deferred recognition (year R > 1) lands on Jan 1 of year R, so
+    // a full 365-day tranche is available against it — yearFraction
+    // should not apply. decision-engine forces yf=1 for the deferred
+    // single-year case before calling here. If a caller bypasses that
+    // and passes a partial yf with deferred recognition (opts.deferred
+    // truthy), the result is wrong. Surface that loudly.
+    if (opts.deferred && opts.yearFraction != null && opts.yearFraction < 1) {
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn('[single-year-solver] yearFraction <1 with deferred=true — this is unsupported. Forcing yf=1.');
+      }
+      opts.yearFraction = 1;
+    }
     var yearFraction    = clampFraction(opts.yearFraction != null ? opts.yearFraction : 1);
 
     var ladder = PRESET_LEVERAGES_BY_STRATEGY[strategyKey] || PRESET_LEVERAGES_BY_STRATEGY.beta1;

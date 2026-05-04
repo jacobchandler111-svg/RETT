@@ -46,10 +46,12 @@
     'withhold-yes-no', 'withhold-amount',
     // Page 1: Implementation
     'implementation-date',
-    // Hidden / Page 2 controls (legacy + horizon + recognition)
+    // Hidden / Page 2 controls (legacy + horizon + recognition).
+    // 'beta1' was a placeholder hidden field that no consumer actually
+    // reads; removed to stop saved-state drift from re-introducing it.
     'projection-years', 'leverage-cap-select', 'long-term-gain',
     'available-capital', 'invested-capital',
-    'strategy-select', 'beta1',
+    'strategy-select',
     'recognition-start-select'
   ];
 
