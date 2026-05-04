@@ -1225,6 +1225,17 @@
     // Disconnect any prior observer — new section list, fresh observer.
     if (root.__rettSectionRibbonObserver) {
       try { root.__rettSectionRibbonObserver.disconnect(); } catch (e) { /* */ }
+      root.__rettSectionRibbonObserver = null;
+    }
+    // When multiple scenarios are checked the ribbon can't pick a single
+    // truth without misleading the user, and the scroll-handoff logic
+    // has known glitches across stacked sections. Hide it entirely in
+    // that case; bring it back the moment the user narrows to one.
+    if (renderedTypes.length > 1) {
+      ribbon.hidden = true;
+      ribbon.innerHTML = '';
+      root.__rettActiveRibbonType = null;
+      return;
     }
     // Default to the FIRST rendered section so the ribbon has content
     // before the user has scrolled.
@@ -1426,9 +1437,11 @@
       host.innerHTML = html;
     }
 
-    // Refresh the sticky savings ribbon (Page 2). Defensive — may not be
-    // loaded yet if this runs very early in page init.
-    if (typeof root.renderSavingsRibbon === 'function') {
+    // Refresh the sticky savings ribbon. Skip in splitMode — the
+    // section observer already chose the right scenario (or hid the
+    // ribbon for the multi-checked case), and an unconditional re-render
+    // here would resurrect the ribbon with global numbers and undo that.
+    if (!splitMode && typeof root.renderSavingsRibbon === 'function') {
       try { root.renderSavingsRibbon(); } catch (e) { if (typeof window !== "undefined" && typeof window.reportFailure === "function") window.reportFailure("non-fatal in projection-dashboard-render.js", e); else if (typeof console !== "undefined") console.warn(e); }
     }
     // Refresh the plain-English narrative card.
