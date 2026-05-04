@@ -1389,7 +1389,13 @@
       return;
     }
     // Default to the FIRST rendered section so the ribbon has content
-    // before the user has scrolled.
+    // before the user has scrolled. Reset the dedupe key first — the
+    // sections were just rebuilt with fresh data, so even if the type
+    // is unchanged from the prior render we MUST refresh the ribbon's
+    // numbers. Without this reset, reloading a saved client whose
+    // recommended scenario type matches the prior page state leaves
+    // the ribbon stuck displaying the old client's totals.
+    root.__rettActiveRibbonType = null;
     var initialType = renderedTypes[0];
     _maybeRenderRibbonForSection(initialType, labelByType[initialType]);
 

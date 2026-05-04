@@ -190,16 +190,7 @@ function computeTaxComparison(cfg, recommendation) {
       // open over the horizon, return zero results (no Brooklyn loss
       // applied, no Brookhaven fees). The dashboard renders this as
       // "no engagement". See _belowMinForLifecycle for the condition.
-      // Same suppression when there is no LT gain to offset — the
-      // engine would otherwise rack up full-year fees against $3K/yr
-      // §1211 ordinary offsets, a strict net loss the user shouldn't
-      // be shown as a "scenario."
-      const _stShortIm = Math.max(0, cfg && cfg.baseShortTermGain || 0);
-      const _ltGainIm = Math.max(0,
-            (cfg && cfg.salePrice || 0) - (cfg && cfg.costBasis || 0)
-            - (cfg && cfg.acceleratedDepreciation || 0) - _stShortIm);
-      const _recapIm = Math.max(0, cfg && cfg.acceleratedDepreciation || 0);
-      const _belowMin = _belowMinForLifecycle(cfg) || ((_ltGainIm + _recapIm) <= 0);
+      const _belowMin = _belowMinForLifecycle(cfg);
 
       // Brookhaven advisory wrap fees attach to every comparison row.
       const yfImpl = (typeof yearFractionRemaining === 'function' && cfg.implementationDate)
@@ -631,19 +622,19 @@ function computeDeferredTaxComparison(cfg) {
       // zeroed result so the dashboard / ribbon / narrative all show
       // "no engagement" rather than fabricated Brooklyn math.
       if (_belowMinForLifecycle(cfg)) return _zeroDeferredComparison(cfg);
-      // No-gain short-circuit: if the property sale produced no LT gain
-      // (basis >= sale, or no sale entered), there is nothing to defer
-      // and Brooklyn would only generate small §1211 ordinary offsets
-      // ($3K/yr cap) at the cost of full-year fees — a strict net loss
-      // that's confusing to surface as a "scenario." Return zero.
-      // Recapture is treated as gain for this check; STCL carryforward
-      // benefits live in the immediate path, not here.
+      // No-deferral-possible short-circuit: with no LT gain AND no
+      // standalone Brooklyn investment, there is literally nothing for
+      // the deferred path to do. (Note: a Brooklyn-only client with
+      // cfg.investment > 0 and no sale should NOT be suppressed — the
+      // engine still generates small §1211 ordinary offsets that
+      // legitimately appear in the ribbon.)
       const _stShortNG = Math.max(0, cfg && cfg.baseShortTermGain || 0);
       const _ltGainNG  = Math.max(0,
             (cfg && cfg.salePrice || 0) - (cfg && cfg.costBasis || 0)
             - (cfg && cfg.acceleratedDepreciation || 0) - _stShortNG);
       const _recapNG   = Math.max(0, cfg && cfg.acceleratedDepreciation || 0);
-      if ((_ltGainNG + _recapNG) <= 0) return _zeroDeferredComparison(cfg);
+      const _hasInvestment = Number(cfg && cfg.investment || cfg && cfg.investedCapital || 0) > 0;
+      if ((_ltGainNG + _recapNG) <= 0 && !_hasInvestment) return _zeroDeferredComparison(cfg);
       const horizon = Math.max(1, cfg.horizonYears || cfg.years || 5);
       const startIdxRaw = Math.max(1, Math.min(horizon - 1,
             (cfg.recognitionStartYearIndex != null ? cfg.recognitionStartYearIndex : 1)));
