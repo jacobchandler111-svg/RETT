@@ -101,6 +101,12 @@
     if (!state || typeof state !== 'object') return;
     var ordered = ['custodian-select', 'projection-years'];
     var rest    = FIELD_IDS.filter(function (id) { return ordered.indexOf(id) === -1; });
+    // Belt-and-suspenders flag for the auto-save listener. The
+    // existing __rettSuppressAutoSave is cleared by a setTimeout
+    // 800ms after restore, but the events we dispatch here can land
+    // after that timeout closes if the page is slow. The auto-save
+    // listener also checks this flag (see controls.js debouncedAutoSave).
+    root.__rettApplyingState = true;
     var apply = function (id) {
       if (!(id in state)) return;
       var el = document.getElementById(id);
@@ -116,6 +122,7 @@
     };
     ordered.forEach(apply);
     rest.forEach(apply);
+    root.__rettApplyingState = false;
   }
 
   // ---- Working-state API -----------------------------------------------

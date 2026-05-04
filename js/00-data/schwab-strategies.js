@@ -168,7 +168,15 @@
         var trancheStartDay = trancheIdx * 365;
         var trancheEndDay = (trancheIdx + 1) * 365;
         var daysLeftInTranche = trancheEndDay - daysFromImpl;
-        var msStep = Math.max(1, daysLeftInTranche) * 86400000;
+        // If the cursor sits exactly on a tranche boundary
+        // (daysLeftInTranche === 0), Math.max(1, 0) would step
+        // forward 1ms still inside the previous tranche before
+        // flipping. Force a full-tranche step so the math advances
+        // cleanly into the next tranche. Negligible numerically but
+        // it keeps the year-on-year-Jan-1 case land exactly on the
+        // published lossByYear curve.
+        if (daysLeftInTranche <= 0) daysLeftInTranche = 365;
+        var msStep = daysLeftInTranche * 86400000;
         var stepEnd = new Date(cursor.getTime() + msStep);
         if (stepEnd > yearEnd) stepEnd = yearEnd;
         var daysInStep = _daysBetween(cursor, stepEnd);

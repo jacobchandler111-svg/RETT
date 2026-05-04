@@ -77,22 +77,12 @@
     // Brookhaven advisory wrap fees ($45K setup + $2K/qtr × 8 qtrs).
     // Show as a separate tile and subtract from the net benefit.
     var brookhavenFees = (comp && comp.totalBrookhavenFees) || 0;
-    // No-engagement detection: when the engine deployed no capital
-    // and produced no recognized gain or applied loss anywhere, we
-    // suppress the Brookhaven setup fee too (those fees only accrue
-    // if the client actually engages). Without this guard the ribbon
-    // showed Net Benefit = -$61K for clients with no Brooklyn need
-    // (no property gain, no offsetable activity).
-    var engineEngaged = false;
-    if (comp && Array.isArray(comp.rows) && comp.rows.length) {
-      engineEngaged = comp.rows.some(function (r) {
-        return (r.investmentThisYear || 0) > 0 ||
-               (r.gainRecognized || 0) > 0 ||
-               (r.lossApplied || 0) > 0;
-      });
-    } else {
-      engineEngaged = totalSave !== 0 || cumFees > 0;
-    }
+    // Shared engagement detector lives in format-helpers.js so the
+    // ribbon, dashboard, and narrative can never disagree on the
+    // no-engagement state.
+    var engineEngaged = (typeof root.rettEngineEngaged === 'function')
+      ? root.rettEngineEngaged(comp, result)
+      : (totalSave !== 0 || cumFees > 0);
     if (!engineEngaged) {
       cumFees = 0;
       brookhavenFees = 0;

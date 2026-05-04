@@ -230,9 +230,13 @@
   }
 
   // Build the normalized recommendation shape that computeTaxComparison
-  // expects. Mirrors the logic in recommendation-render.js so the
-  // auto-pick optimizes on the same model the user actually sees in the
-  // savings ribbon and KPI tiles.
+  // expects. KEEP IN SYNC with the inline normRec block in
+  // recommendation-render.js's runRecommendation — both implementations
+  // exist because the optimizer (this file) and the page-render path
+  // produce differently shaped intermediate results. TODO: extract to
+  // a shared module (Issue #30 in the 5-4-26 debugging doc); covered
+  // here is rec.summary-shaped input, while recommendation-render
+  // handles result.stage2-shaped input.
   function _normalizeRec(rec, cfg) {
     if (!rec) return null;
     var lossGen = (rec.summary && rec.summary.loss) ||
@@ -247,11 +251,10 @@
       });
     }
     // longTermGain: prefer the engine's recommendation field; if not
-    // present, derive from cfg property-sale fields. The previous form
-    // `rec.longTermGain || cfg.salePrice ? Math.max(...) : 0` had a
-    // precedence bug — the OR resolved before the ternary, so the
-    // engine-provided rec.longTermGain was always overwritten when
-    // cfg.salePrice was truthy.
+    // present, derive from cfg property-sale fields explicitly.
+    // (Historical note: an earlier form
+    //   `rec.longTermGain || cfg.salePrice ? Math.max(...) : 0`
+    // had an operator-precedence bug. Now derived in two steps.)
     var derivedLT = (cfg.salePrice || 0) > 0
       ? Math.max(0, (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0))
       : 0;
@@ -300,9 +303,35 @@
     if (tier && Array.isArray(tier.dataPoints)) {
       maxShort = Math.max.apply(null, tier.dataPoints.map(function (p) { return p.shortPct || 0; }));
     }
-    var step = 1;
+    // Coarse sweep at 5% steps. The auto-pick driver runs a second
+    // 1%-step refinement around the coarse winner so the global max
+    // is preserved without paying for ~225 evaluations on every
+    // input change. On Page-2 entry this drops total evaluations
+    // from ~225 to ~46+22=68 short% candidates.
+    var coarse = 5;
     var out = [];
-    for (var s = 0; s <= maxShort; s += step) out.push(s);
+    for (var s = 0; s <= maxShort; s += coarse) out.push(s);
+    if (out[out.length - 1] !== maxShort) out.push(maxShort);
+    return out;
+  }
+
+  // Build a refined candidate list around a coarse winner: ±5 short%
+  // in 1% steps, clamped to [0, maxShort]. Returns just the new
+  // short% values (without the coarse winner itself, which has
+  // already been scored).
+  function _refineShortPcts(centerSp, stratKey, custodianId) {
+    if (custodianId === 'schwab') return []; // Schwab is preset-only.
+    var maxShort = 225;
+    var tier = (root.BROOKLYN_STRATEGIES || {})[stratKey];
+    if (tier && Array.isArray(tier.dataPoints)) {
+      maxShort = Math.max.apply(null, tier.dataPoints.map(function (p) { return p.shortPct || 0; }));
+    }
+    var lo = Math.max(0, centerSp - 5);
+    var hi = Math.min(maxShort, centerSp + 5);
+    var out = [];
+    for (var s = lo; s <= hi; s++) {
+      if (s !== centerSp) out.push(s);
+    }
     return out;
   }
 
@@ -332,124 +361,112 @@
     var shortPcts = _candidateShortPcts(stratKey, custId);
 
     var best = null;
-    shortPcts.forEach(function (sp) {
-      horOpts.forEach(function (hor) {
-        var horizonNum = parseInt(hor.value, 10) || 5;
-        var maxRec = Math.min(horizonNum, 4);
-        for (var rStart = 1; rStart <= maxRec; rStart++) {
-          if (customSp) customSp.value = String(sp);
-          if (horSel) horSel.value = hor.value;
-          if (recSel) recSel.value = String(rStart);
-          var cfg;
-          try { cfg = collectInputs(); }
-          catch (e) { continue; }
-          // Note: avoid `sp` here — that's the outer loop's short%
-          // candidate and `var` would shadow it via hoisting.
-          var spSale = Number((document.getElementById('sale-price') || {}).value) || 0;
-          var cb = Number((document.getElementById('cost-basis') || {}).value) || 0;
-          var ad = Number((document.getElementById('accelerated-depreciation') || {}).value) || 0;
-          if (spSale) cfg.salePrice = spSale;
-          if (cb) cfg.costBasis = cb;
-          if (ad) cfg.acceleratedDepreciation = ad;
-          cfg.strategyKey = cfg.tierKey;
-          cfg.investedCapital = cfg.investment;
-          cfg.years = cfg.horizonYears;
-          cfg.recognitionStartYearIndex = rStart - 1;
+    function _runSweep(spList) {
+      spList.forEach(function (sp) {
+        horOpts.forEach(function (hor) {
+          var horizonNum = parseInt(hor.value, 10) || 5;
+          var maxRec = Math.min(horizonNum, 4);
+          for (var rStart = 1; rStart <= maxRec; rStart++) {
+            if (customSp) customSp.value = String(sp);
+            if (horSel) horSel.value = hor.value;
+            if (recSel) recSel.value = String(rStart);
+            var cfg;
+            try { cfg = collectInputs(); } catch (e) { continue; }
+            var spSale = Number((document.getElementById('sale-price') || {}).value) || 0;
+            var cb = Number((document.getElementById('cost-basis') || {}).value) || 0;
+            var ad = Number((document.getElementById('accelerated-depreciation') || {}).value) || 0;
+            if (spSale) cfg.salePrice = spSale;
+            if (cb) cfg.costBasis = cb;
+            if (ad) cfg.acceleratedDepreciation = ad;
+            cfg.strategyKey = cfg.tierKey;
+            cfg.investedCapital = cfg.investment;
+            cfg.years = cfg.horizonYears;
+            cfg.recognitionStartYearIndex = rStart - 1;
 
-          var totalSave = 0;
-          var cumFees = 0;
-          var brookhavenFees = 0;
-          var duration = 0;
-
-          if (rStart > 1 && typeof root.computeDeferredTaxComparison === 'function') {
-            // Deferred path: comparison + fees come from the same engine
-            // since it tracks tranches and per-year fees.
-            try {
-              var defComp = root.computeDeferredTaxComparison(cfg);
-              if (defComp && defComp.rows && defComp.rows.length) {
-                totalSave = defComp.totalSavings || 0;
-                cumFees = defComp.totalFees || 0;
-                brookhavenFees = defComp.totalBrookhavenFees || 0;
-                duration = defComp.durationYears || 0;
-              }
-            } catch (e) { continue; }
-          } else {
-            // Immediate-recognition path: use the existing recommendation +
-            // comparison pipeline, plus projection-engine fees.
-            var projResult;
-            try { projResult = ProjectionEngine.run(cfg); }
-            catch (e) { continue; }
-            if (!projResult || !projResult.years || !projResult.years.length) continue;
-            projResult.years.forEach(function (y) { cumFees += (y.fee || 0); });
-            if (projResult.totals && projResult.totals.cumulativeFees != null) {
-              cumFees = projResult.totals.cumulativeFees;
-            }
-            if (typeof root.recommendSale === 'function' &&
-                typeof root.computeTaxComparison === 'function') {
+            var totalSave = 0;
+            var cumFees = 0;
+            var brookhavenFees = 0;
+            var duration = 0;
+            if (rStart > 1 && typeof root.computeDeferredTaxComparison === 'function') {
               try {
-                var recCfg = Object.assign({}, cfg);
-                delete recCfg.custodian;
-                if (typeof recCfg.leverageCap === 'number' && recCfg.leverageCap > 3) {
-                  recCfg.leverageCap = 2.25;
+                var defComp = root.computeDeferredTaxComparison(cfg);
+                if (defComp && defComp.rows && defComp.rows.length) {
+                  totalSave = defComp.totalSavings || 0;
+                  cumFees = defComp.totalFees || 0;
+                  brookhavenFees = defComp.totalBrookhavenFees || 0;
+                  duration = defComp.durationYears || 0;
                 }
-                var rec = root.recommendSale(recCfg);
-                var normRec = _normalizeRec(rec, cfg);
-                var comp = root.computeTaxComparison(cfg, normRec);
-                if (comp && Array.isArray(comp.rows)) {
-                  if (comp.totalSavings != null) {
-                    totalSave = comp.totalSavings;
-                  } else {
-                    comp.rows.forEach(function (r) { totalSave += (r.savings || 0); });
+              } catch (e) { continue; }
+            } else {
+              var projResult;
+              try { projResult = ProjectionEngine.run(cfg); } catch (e) { continue; }
+              if (!projResult || !projResult.years || !projResult.years.length) continue;
+              projResult.years.forEach(function (y) { cumFees += (y.fee || 0); });
+              if (projResult.totals && projResult.totals.cumulativeFees != null) {
+                cumFees = projResult.totals.cumulativeFees;
+              }
+              if (typeof root.recommendSale === 'function' &&
+                  typeof root.computeTaxComparison === 'function') {
+                try {
+                  var recCfg = Object.assign({}, cfg);
+                  delete recCfg.custodian;
+                  if (typeof recCfg.leverageCap === 'number' && recCfg.leverageCap > 3) {
+                    recCfg.leverageCap = 2.25;
                   }
-                  brookhavenFees = comp.totalBrookhavenFees || 0;
-                }
-              } catch (e) { /* fall back below */ }
+                  var rec = root.recommendSale(recCfg);
+                  var normRec = _normalizeRec(rec, cfg);
+                  var comp = root.computeTaxComparison(cfg, normRec);
+                  if (comp && Array.isArray(comp.rows)) {
+                    if (comp.totalSavings != null) totalSave = comp.totalSavings;
+                    else comp.rows.forEach(function (r) { totalSave += (r.savings || 0); });
+                    brookhavenFees = comp.totalBrookhavenFees || 0;
+                  }
+                } catch (e) { /* fall back below */ }
+              }
+              if (!totalSave) {
+                projResult.years.forEach(function (y) {
+                  var no = y.taxNoBrooklyn || 0;
+                  var w  = (y.taxWithBrooklyn != null) ? y.taxWithBrooklyn : no;
+                  totalSave += (no - w);
+                });
+              }
+              if (!brookhavenFees && typeof brookhavenFeeSchedule === 'function') {
+                var horSched = brookhavenFeeSchedule(cfg.horizonYears || 5, 1);
+                brookhavenFees = horSched.total;
+              }
+              duration = 1;
             }
-            if (!totalSave) {
-              projResult.years.forEach(function (y) {
-                var no = y.taxNoBrooklyn || 0;
-                var w  = (y.taxWithBrooklyn != null) ? y.taxWithBrooklyn : no;
-                totalSave += (no - w);
-              });
-            }
-            // For immediate path without comparison, derive Brookhaven from horizon.
-            if (!brookhavenFees && typeof brookhavenFeeSchedule === 'function') {
-              var horSched = brookhavenFeeSchedule(cfg.horizonYears || 5, 1);
-              brookhavenFees = horSched.total;
-            }
-            duration = 1;
-          }
 
-          var net = totalSave - cumFees - brookhavenFees;
-          var levNumeric = sp / 100;
-
-          // Pure max-net optimization (per user direction): the engine
-          // picks whichever (leverage, horizon, recognition) combo
-          // produces the absolute highest net savings. The previous
-          // $5K bucket was leaving small amounts of net on the table
-          // for the sake of "lower leverage feels safer" — the user
-          // has now explicitly asked for the highest net, period.
-          //
-          // Tiebreak only on EXACT-cent ties: prefer shorter horizon,
-          // then lower leverage. Real-money ties at this granularity
-          // are vanishingly rare; the tiebreak is just for determinism.
-          var better = false;
-          if (!best) better = true;
-          else if (net > best.net) better = true;
-          else if (net === best.net) {
-            if (duration < best.duration) better = true;
-            else if (duration === best.duration && levNumeric < best.leverage) better = true;
+            var net = totalSave - cumFees - brookhavenFees;
+            var levNumeric = sp / 100;
+            var better = false;
+            if (!best) better = true;
+            else if (net > best.net) better = true;
+            else if (Math.abs(net - best.net) < 0.005) {
+              if (duration < best.duration) better = true;
+              else if (duration === best.duration && levNumeric < best.leverage) better = true;
+            }
+            if (better) {
+              best = {
+                shortPct: sp, hor: hor.value, rec: String(rStart),
+                net: net, save: totalSave, fees: cumFees,
+                duration: duration, leverage: levNumeric
+              };
+            }
           }
-          if (better) {
-            best = {
-              shortPct: sp, hor: hor.value, rec: String(rStart),
-              net: net, save: totalSave, fees: cumFees,
-              duration: duration, leverage: levNumeric
-            };
-          }
-        }
+        });
       });
-    });
+    }
+    // Coarse pass: 5%-step sweep across the strategy's range.
+    _runSweep(shortPcts);
+    // Refine ±5 around the coarse winner in 1% steps so we recover
+    // the global max without paying ~225 evaluations on every input
+    // change. Schwab is preset-only (no continuous range), so refine
+    // is a no-op there.
+    if (best) {
+      var refined = _refineShortPcts(best.shortPct, stratKey, custId);
+      if (refined && refined.length) _runSweep(refined);
+    }
 
     // Restore previous selection or apply the best one.
     if (best) {

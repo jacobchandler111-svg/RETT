@@ -93,13 +93,11 @@
     }
     if (!(comp && comp.deferred) && totals.cumulativeFees != null) cumFees = totals.cumulativeFees;
     var brookhavenFees = (comp && comp.totalBrookhavenFees) || 0;
-    // Suppress fees in no-engagement results so the narrative's net
-    // figure matches the ribbon (which suppresses the same fees).
-    var _engineEngaged = comp && Array.isArray(comp.rows) && comp.rows.some(function (r) {
-      return (r.investmentThisYear || 0) > 0 ||
-             (r.gainRecognized || 0) > 0 ||
-             (r.lossApplied || 0) > 0;
-    });
+    // Shared engagement detector in format-helpers.js — keeps the
+    // narrative net figure in sync with the ribbon and dashboard.
+    var _engineEngaged = (typeof window.rettEngineEngaged === 'function')
+      ? window.rettEngineEngaged(comp, window.__lastResult)
+      : false;
     if (comp && comp.rows && !_engineEngaged) {
       cumFees = 0;
       brookhavenFees = 0;
@@ -171,7 +169,15 @@
         prevInv = inv;
       });
     }
-    if (!trancheParts.length && invested > 0) {
+    // Only fall through to the "Investing $X starting <year>" line
+    // when the engine ACTUALLY deployed capital. If it returned
+    // no-action (custodian min, no gain to offset, etc.), don't
+    // echo the user-typed Available Capital — let the no-engagement
+    // s2 branch handle the messaging.
+    var _engaged = (typeof window.rettEngineEngaged === 'function')
+      ? window.rettEngineEngaged(comp, window.__lastResult)
+      : true;
+    if (!trancheParts.length && invested > 0 && _engaged) {
       trancheParts.push(_fmt(invested) + ' starting ' + year1);
     }
 

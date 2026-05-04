@@ -378,18 +378,31 @@ function computeDeferredTaxComparison(cfg) {
             if (combo && Array.isArray(combo.lossByYear)) {
                   return function (j) { return combo.lossByYear[j] || 0; };
             }
-            // Non-Schwab path: use the per-tier linear regression from
-            // fee-split.js (smoother and more forward-accurate than the
-            // piecewise data-point interpolation).
+            // Non-Schwab path: start from the per-tier regression (Y1
+            // rate) then taper Y2+ using the Schwab Beta 1 200/100
+            // decay shape as a proxy. Brooklyn's published rate cards
+            // don't break out year-by-year for non-Schwab custodians;
+            // assuming a flat rate forever overstates losses past Y1
+            // because real positions taper as gains crystallize and
+            // the position rebalances.
             var lev = cfg.leverage || cfg.leverageCap || 2.25;
-            var flatRate = 0;
+            var year1Rate = 0;
             if (typeof window.brooklynLossRateForLeverage === 'function') {
-                  flatRate = window.brooklynLossRateForLeverage(cfg.tierKey || 'beta1', lev);
+                  year1Rate = window.brooklynLossRateForLeverage(cfg.tierKey || 'beta1', lev);
             } else if (typeof brooklynInterpolate === 'function') {
                   var snap = brooklynInterpolate(cfg.tierKey || 'beta1', lev);
-                  flatRate = snap ? (snap.lossRate || 0) : 0;
+                  year1Rate = snap ? (snap.lossRate || 0) : 0;
             }
-            return function () { return flatRate; };
+            // Schwab Beta 1 200/100 lossByYear (canonical decay shape).
+            var _schwabRef = (typeof window.SCHWAB_COMBOS === 'object' && window.SCHWAB_COMBOS.beta1_200_100)
+                  ? window.SCHWAB_COMBOS.beta1_200_100.lossByYear
+                  : [0.590, 0.492, 0.427, 0.393, 0.389, 0.376, 0.363, 0.351, 0.342, 0.334];
+            var _refY1 = _schwabRef[0] || 1;
+            return function (j) {
+                  var idx = Math.min(_schwabRef.length - 1, Math.max(0, j | 0));
+                  // Decay = Schwab[j] / Schwab[0]; multiply our Y1 rate by it.
+                  return year1Rate * (_schwabRef[idx] / _refY1);
+            };
       })();
 
       // Tranche state. tranches[k] = { capital, startIdx } where startIdx is

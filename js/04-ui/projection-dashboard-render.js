@@ -56,21 +56,10 @@
 
     var comp = window.__lastComparison;
     var brookhavenFees = (comp && comp.totalBrookhavenFees) || 0;
-    // No-engagement detection (matches savings-ribbon.js): suppress
-    // both Brooklyn and Brookhaven fees when the engine deployed
-    // nothing. Without this guard the KPI tiles displayed Brookhaven
-    // setup fees for clients who weren't actually engaging the
-    // strategy.
-    var _engineEngaged = false;
-    if (comp && Array.isArray(comp.rows) && comp.rows.length) {
-      _engineEngaged = comp.rows.some(function (r) {
-        return (r.investmentThisYear || 0) > 0 ||
-               (r.gainRecognized || 0) > 0 ||
-               (r.lossApplied || 0) > 0;
-      });
-    } else {
-      _engineEngaged = totalSave !== 0 || cumFees > 0;
-    }
+    // Single-source engagement detection (format-helpers.rettEngineEngaged).
+    var _engineEngaged = (typeof window.rettEngineEngaged === 'function')
+      ? window.rettEngineEngaged(comp, window.__lastResult)
+      : (totalSave !== 0 || cumFees > 0);
     if (!_engineEngaged) {
       cumFees = 0;
       brookhavenFees = 0;
@@ -362,27 +351,33 @@
       return;
     }
     var totals = (result && result.totals) || {};
-    // If the comparison shows no taxable activity (engine recommended no-action),
-    // suppress projection-engine fees so the dashboard reflects the engine's recommendation.
-    if (comp && Array.isArray(comp.rows) && comp.rows.length &&
-        comp.totalSavings === 0 &&
-        comp.rows.every(function (r) {
-          return (!r.gainRecognized || r.gainRecognized === 0) &&
-                 (!r.lossApplied || r.lossApplied === 0);
-        })) {
+    // Single source of truth for engagement state (format-helpers).
+    var _isEngaged = (typeof window.rettEngineEngaged === 'function')
+      ? window.rettEngineEngaged(comp, result)
+      : true;
+    if (!_isEngaged) {
       totals = { cumulativeFees: 0, cumulativeNetSavings: 0 };
     }
+    // No-engagement card replaces the bar chart so the user doesn't
+    // see "Without strategy" vs "With strategy" bars that are
+    // visually identical (both equal to baseline).
+    var noEngagementCard = '<div class="rett-no-engagement-card" role="note" style="' +
+      'background:rgba(15, 76, 129, 0.18);border:1px solid rgba(26, 58, 110, 0.6);' +
+      'border-radius:6px;padding:18px;margin:18px 0;color:#cfe1ff;text-align:center;">' +
+      '<strong>No Brooklyn engagement recommended for these inputs.</strong> ' +
+      'The strategy produces no net tax offset here — try a different strategy, leverage, or recognition timing.' +
+      '</div>';
 
     if (splitMode) {
       summaryHost.innerHTML = '<div class="rett-dashboard">' +
         _buildKpiRow(years, totals) +
-        _buildChart(years) +
+        (_isEngaged ? _buildChart(years) : noEngagementCard) +
         '</div>';
       detailsHost.innerHTML = _buildTable(years);
     } else {
       var html = '<div class="rett-dashboard">';
       html += _buildKpiRow(years, totals);
-      html += _buildChart(years);
+      html += (_isEngaged ? _buildChart(years) : noEngagementCard);
       html += _buildTable(years);
       html += '</div>';
       host.innerHTML = html;

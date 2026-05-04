@@ -99,7 +99,11 @@ function _bindCaseControls() {
   // we don't hammer localStorage on fast typing. Routes to the right
   // slot (named case OR un-named draft) based on the current state.
   var debouncedAutoSave = _debounce(function () {
-    if (window.__rettSuppressAutoSave) return;
+    // Belt-and-suspenders: __rettApplyingState flips synchronously
+    // around the form-restore dispatch loop. Even if the time-based
+    // __rettSuppressAutoSave window has expired, the apply-loop's
+    // events should never trigger an auto-save.
+    if (window.__rettSuppressAutoSave || window.__rettApplyingState) return;
     try {
       var result = store.autoSaveCurrent();
       // Refresh dropdown if a brand-new client was just created.
