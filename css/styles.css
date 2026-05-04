@@ -1184,6 +1184,109 @@ select.input-error {
   padding-bottom: 10px;
   margin-bottom: 14px;
   border-bottom: 1px solid rgba(95, 168, 255, 0.18);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 14px;
+  justify-content: space-between;
+}
+.rett-scenario-section-config {
+  font-size: 0.78em;
+  font-weight: 500;
+  color: #8fb3e0;
+  letter-spacing: 0;
+}
+
+/* Per-section controls bar — horizon pills, leverage slider/pills,
+   revert button. Sits between section header and KPI tiles. */
+.rett-section-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  padding: 8px 0 14px 0;
+  margin-bottom: 8px;
+  border-bottom: 1px dashed rgba(95, 168, 255, 0.12);
+}
+.rett-section-pillgroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rett-section-pillgroup .pill-group-label {
+  font-size: 0.72em;
+  font-weight: 600;
+  color: #8fb3e0;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.rett-section-pillgroup .pill-track {
+  display: inline-flex;
+  background: rgba(13, 34, 64, 0.7);
+  border: 1px solid rgba(95, 168, 255, 0.18);
+  border-radius: 5px;
+  padding: 2px;
+  gap: 1px;
+}
+.rett-section-pillgroup .pill {
+  background: transparent;
+  color: #b3d4ff;
+  border: none;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 500;
+}
+.rett-section-pillgroup .pill:hover {
+  background: rgba(95, 168, 255, 0.1);
+}
+.rett-section-pillgroup .pill.active {
+  background: #5fa8ff;
+  color: #0a1929;
+  font-weight: 700;
+}
+.rett-section-slidergroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 220px;
+  min-width: 220px;
+}
+.rett-section-slidergroup .pill-group-label {
+  font-size: 0.72em;
+  font-weight: 600;
+  color: #8fb3e0;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.rett-section-leverage-slider {
+  flex: 1;
+  min-width: 120px;
+  accent-color: #5fa8ff;
+}
+.rett-section-leverage-readout {
+  font-size: 0.82em;
+  color: #cfe1ff;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.rett-section-controls .btn-revert {
+  font-size: 0.78em;
+  padding: 4px 10px;
+}
+.rett-section-optimized-tag {
+  font-size: 0.7em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #5fd97e;
+  font-weight: 600;
+  padding: 2px 8px;
+  background: rgba(95, 217, 126, 0.1);
+  border: 1px solid rgba(95, 217, 126, 0.3);
+  border-radius: 3px;
 }
 @media (max-width: 720px) {
   .rett-scenario-table thead { display: none; }

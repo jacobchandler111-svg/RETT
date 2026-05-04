@@ -557,6 +557,9 @@
     // so the auto-pick can roam freely and pick the optimal combo.
     delete root.__rettScenarioMaxRec;
     delete root.__rettScenarioPinnedRec;
+    // Also clear per-section overrides — global "Revert to optimized"
+    // means EVERY section re-auto-picks on the next render.
+    delete root.__rettSectionState;
     try { runAutoPick(); } catch (e) { if (typeof window !== "undefined" && typeof window.reportFailure === "function") window.reportFailure("non-fatal in pill-toggles.js", e); else if (typeof console !== "undefined") console.warn(e); }
     if (typeof root.runFullPipeline === 'function') {
       try { root.runFullPipeline(); } catch (err) { /* */ }

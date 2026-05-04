@@ -753,16 +753,272 @@
     return { comp: comp, result: result, years: years };
   }
 
-  function _buildScenarioSection(label, data) {
+  // ---- Per-section state + auto-pick + controls ---------------------
+  // Each scenario section (A / B / C) holds its OWN horizon, leverage,
+  // and (for C) duration overrides — so checking multiple scenarios
+  // doesn't lock all of them to the global Page-2 toolbar's settings.
+  // Section state lives on window.__rettSectionState[type] and survives
+  // section re-renders. Page-1 edits and the global revert clear it.
+  function _candidateShortPctsLocal(stratKey, custodianId) {
+    if (custodianId === 'schwab' && typeof root.listSchwabCombos === 'function') {
+      var combos = root.listSchwabCombos().filter(function (c) { return c.strategyKey === stratKey; });
+      return combos.map(function (c) { return { shortPct: c.shortPct || 0, comboId: c.id }; });
+    }
+    var maxShort = 225;
+    var tier = (root.BROOKLYN_STRATEGIES || {})[stratKey];
+    if (tier && Array.isArray(tier.dataPoints)) {
+      maxShort = Math.max.apply(null, tier.dataPoints.map(function (p) { return p.shortPct || 0; }));
+    }
+    var out = [];
+    for (var s = 0; s <= maxShort; s += 5) out.push({ shortPct: s, comboId: null });
+    if (out.length === 0 || out[out.length - 1].shortPct !== maxShort) {
+      out.push({ shortPct: maxShort, comboId: null });
+    }
+    return out;
+  }
+
+  // Find the (horizon, shortPct, comboId, bestRec for C) tuple that
+  // maximizes net for this scenario type. Used both when a section is
+  // first checked AND when the user clicks Revert on a section.
+  function _autoPickSection(type, baseCfg) {
+    if (!baseCfg) return { horizon: 5, shortPct: 100, comboId: null, bestRecC: 2 };
+    var stratKey = baseCfg.tierKey || 'beta1';
+    var custId = baseCfg.custodian || '';
+    var pcts = _candidateShortPctsLocal(stratKey, custId);
+    var horizons = [1, 3, 5, 7];
+    var userDuration = baseCfg.structuredSaleDurationMonths || 18;
+    var best = null;
+    horizons.forEach(function (hor) {
+      // Scenarios B and C need horizon >= 2 (recognition starts in Y2 or later).
+      if (hor < 2 && (type === 'B' || type === 'C')) return;
+      pcts.forEach(function (p) {
+        var cfgSection = Object.assign({}, baseCfg, {
+          horizonYears: hor,
+          leverage: p.shortPct / 100,
+          leverageCap: p.shortPct / 100,
+          comboId: p.comboId
+        });
+        // For scenario C, also find the best recognition year.
+        var pickRec = 2;
+        if (type === 'C') {
+          var bestRecNet = -Infinity;
+          for (var r = 2; r <= Math.min(4, hor); r++) {
+            var cfgR = Object.assign({}, cfgSection, {
+              recognitionStartYearIndex: r - 1,
+              structuredSaleDurationMonths: userDuration,
+              maxRecognitionYearIndex: null
+            });
+            var mr = _scenarioMetrics(cfgR);
+            if (mr && mr.net > bestRecNet) { bestRecNet = mr.net; pickRec = r; }
+          }
+        }
+        var typedCfg = _scenarioCfgFor(type, cfgSection, pickRec, userDuration);
+        var m = _scenarioMetrics(typedCfg);
+        if (m && (!best || m.net > best.net)) {
+          best = { horizon: hor, shortPct: p.shortPct, comboId: p.comboId, bestRecC: pickRec, net: m.net };
+        }
+      });
+    });
+    return best || { horizon: 5, shortPct: 100, comboId: null, bestRecC: 2 };
+  }
+
+  function _ensureSectionState(type, baseCfg) {
+    if (!root.__rettSectionState) root.__rettSectionState = {};
+    var existing = root.__rettSectionState[type];
+    if (existing && existing.autoPickEnabled === false) return existing;
+    // Auto-pick from scratch (or refresh after a Page-1 edit).
+    var picked = _autoPickSection(type, baseCfg);
+    root.__rettSectionState[type] = {
+      horizon: picked.horizon,
+      shortPct: picked.shortPct,
+      comboId: picked.comboId,
+      bestRecC: picked.bestRecC,
+      durationMonths: baseCfg.structuredSaleDurationMonths || 18,
+      autoPickEnabled: true
+    };
+    return root.__rettSectionState[type];
+  }
+
+  function _resolveSectionCfg(type, baseCfg) {
+    var st = _ensureSectionState(type, baseCfg);
+    var cfgSection = Object.assign({}, baseCfg, {
+      horizonYears: st.horizon,
+      leverage: st.shortPct / 100,
+      leverageCap: st.shortPct / 100,
+      comboId: st.comboId
+    });
+    return _scenarioCfgFor(type, cfgSection, st.bestRecC, st.durationMonths);
+  }
+
+  function _sectionConfigDescription(type, st) {
+    if (!st) return '';
+    var lev = st.shortPct + '% short';
+    // Schwab: show the friendly label
+    if (st.comboId && typeof root.getSchwabCombo === 'function') {
+      var combo = root.getSchwabCombo(st.comboId);
+      if (combo) lev = combo.leverageLabel;
+    }
+    var hor = st.horizon + ' yr' + (st.horizon === 1 ? '' : 's');
+    if (type === 'A') return hor + ' / ' + lev;
+    if (type === 'B') return hor + ' / ' + lev;
+    if (type === 'C') return st.durationMonths + ' months / ' + hor + ' / ' + lev + ' / Y' + (st.bestRecC || 2) + ' recog.';
+    return '';
+  }
+
+  function _buildSectionControls(type, baseCfg) {
+    var st = _ensureSectionState(type, baseCfg);
+    var custId = baseCfg.custodian || '';
+    var stratKey = baseCfg.tierKey || 'beta1';
+    var horizons = [1, 3, 5, 7];
+    var horHtml = '<div class="rett-section-pillgroup"><span class="pill-group-label">Horizon</span><div class="pill-track">';
+    horizons.forEach(function (h) {
+      // Hide 1-year for B/C — recognition needs ≥ 2 years.
+      if (h < 2 && (type === 'B' || type === 'C')) return;
+      var active = h === st.horizon;
+      horHtml += '<button type="button" class="pill' + (active ? ' active' : '') +
+        '" data-section-pill="horizon" data-section="' + type +
+        '" data-value="' + h + '" role="radio" aria-checked="' + (active ? 'true' : 'false') +
+        '">' + h + 'y</button>';
+    });
+    horHtml += '</div></div>';
+
+    var levHtml = '';
+    if (custId === 'schwab' && typeof root.listSchwabCombos === 'function') {
+      var combos = root.listSchwabCombos().filter(function (c) { return c.strategyKey === stratKey; });
+      levHtml = '<div class="rett-section-pillgroup"><span class="pill-group-label">Leverage</span><div class="pill-track">';
+      combos.forEach(function (c) {
+        var active = c.id === st.comboId;
+        levHtml += '<button type="button" class="pill' + (active ? ' active' : '') +
+          '" data-section-pill="combo" data-section="' + type +
+          '" data-combo-id="' + c.id + '" data-value="' + (c.shortPct || 0) +
+          '" role="radio" aria-checked="' + (active ? 'true' : 'false') +
+          '">' + c.leverageLabel + '</button>';
+      });
+      levHtml += '</div></div>';
+    } else {
+      levHtml = '<div class="rett-section-slidergroup">' +
+        '<span class="pill-group-label">Leverage</span>' +
+        '<input type="range" class="rett-section-leverage-slider" data-section="' + type +
+        '" min="0" max="225" step="1" value="' + st.shortPct + '">' +
+        '<span class="rett-section-leverage-readout" data-section-readout="' + type + '">' +
+        st.shortPct + '% short</span>' +
+        '</div>';
+    }
+
+    var revertHtml = '';
+    if (st.autoPickEnabled === false) {
+      revertHtml = '<button type="button" class="btn btn-secondary btn-revert"' +
+        ' data-section-revert="' + type + '">Revert to optimized</button>';
+    } else {
+      revertHtml = '<span class="rett-section-optimized-tag">auto-optimized</span>';
+    }
+
+    return '<div class="rett-section-controls">' + horHtml + levHtml + revertHtml + '</div>';
+  }
+
+  function _buildScenarioSection(label, data, type, baseCfg) {
     if (!data || !data.years) return '';
     var totals = (data.result && data.result.totals) || {};
-    var html = '<div class="rett-dashboard rett-scenario-section">';
-    html += '<div class="rett-scenario-section-header">' + label + '</div>';
+    var st = (root.__rettSectionState || {})[type] || null;
+    var configStr = _sectionConfigDescription(type, st);
+    var html = '<div class="rett-dashboard rett-scenario-section" id="rett-section-' + (type || 'X') + '">';
+    html += '<div class="rett-scenario-section-header">' +
+            '<span class="rett-scenario-section-title-text">' + label + '</span>' +
+            (configStr ? ' <span class="rett-scenario-section-config">' + configStr + '</span>' : '') +
+            '</div>';
+    if (type && baseCfg) {
+      html += _buildSectionControls(type, baseCfg);
+    }
     html += _buildKpiRow(data.years, totals, data.comp, data.result);
     html += _buildChart(data.years);
     html += _buildPies(data.years, data.comp, data.result);
     html += '</div>';
     return html;
+  }
+
+  // Re-render a single section in place (no full pipeline, no global
+  // recompute). Called from per-section pill / slider / revert handlers.
+  function _renderSingleSection(type) {
+    var host = document.getElementById('rett-section-' + type);
+    if (!host) return;
+    var baseCfg = (typeof collectInputs === 'function') ? (function () {
+      try { return collectInputs(); } catch (e) { return null; }
+    })() : null;
+    if (!baseCfg) return;
+    var rows = root.__rettScenarioRows || [];
+    var row = rows.filter(function (r) { return r.type === type; })[0];
+    var label = row ? row.label : type;
+    var sectionCfg = _resolveSectionCfg(type, baseCfg);
+    var data = _scenarioFullData(sectionCfg);
+    if (!data) return;
+    // Replace the entire section in place by rebuilding its HTML.
+    var newHtml = _buildScenarioSection(label, data, type, baseCfg);
+    var tmp = document.createElement('div');
+    tmp.innerHTML = newHtml;
+    var newSection = tmp.firstChild;
+    if (newSection && host.parentNode) {
+      host.parentNode.replaceChild(newSection, host);
+    }
+    if (typeof root.animateRettNumbers === 'function') {
+      try { root.animateRettNumbers(newSection); } catch (e) { /* */ }
+    }
+  }
+
+  // Click delegation for per-section controls — wired once on the
+  // summary host. Catches horizon pills, Schwab combo pills, slider
+  // input, and revert clicks; routes each to the right section's state
+  // update + single-section re-render.
+  function _wireSectionControls() {
+    var host = document.getElementById('projection-summary-host');
+    if (!host || host.__rettSectionControlsWired) return;
+    host.__rettSectionControlsWired = true;
+    host.addEventListener('click', function (e) {
+      var pill = e.target.closest && e.target.closest('button[data-section-pill]');
+      if (pill) {
+        var type = pill.getAttribute('data-section');
+        var kind = pill.getAttribute('data-section-pill');
+        var value = pill.getAttribute('data-value');
+        if (!type || !root.__rettSectionState || !root.__rettSectionState[type]) return;
+        var st = root.__rettSectionState[type];
+        if (kind === 'horizon') {
+          st.horizon = parseInt(value, 10) || st.horizon;
+        } else if (kind === 'combo') {
+          st.shortPct = parseFloat(value) || st.shortPct;
+          st.comboId = pill.getAttribute('data-combo-id') || null;
+        }
+        st.autoPickEnabled = false;
+        _renderSingleSection(type);
+        return;
+      }
+      var revertBtn = e.target.closest && e.target.closest('[data-section-revert]');
+      if (revertBtn) {
+        var rType = revertBtn.getAttribute('data-section-revert');
+        if (root.__rettSectionState && root.__rettSectionState[rType]) {
+          delete root.__rettSectionState[rType];
+        }
+        _renderSingleSection(rType);
+        return;
+      }
+    });
+    host.addEventListener('input', function (e) {
+      if (!e.target.classList || !e.target.classList.contains('rett-section-leverage-slider')) return;
+      var type = e.target.getAttribute('data-section');
+      if (!type || !root.__rettSectionState || !root.__rettSectionState[type]) return;
+      var st = root.__rettSectionState[type];
+      st.shortPct = parseInt(e.target.value, 10) || 0;
+      st.comboId = null;
+      st.autoPickEnabled = false;
+      // Cheap immediate update of the readout text; full section
+      // re-render coalesced via rAF to keep drag responsive.
+      var readout = document.querySelector('[data-section-readout="' + type + '"]');
+      if (readout) readout.textContent = st.shortPct + '% short';
+      if (st.__rafPending) return;
+      st.__rafPending = true;
+      (root.requestAnimationFrame || function (cb) { return setTimeout(cb, 16); })(function () {
+        st.__rafPending = false;
+        _renderSingleSection(type);
+      });
+    });
   }
 
   // Click delegation for scenario rows. Toggles the row's checked state
@@ -835,26 +1091,18 @@
       try { return collectInputs(); } catch (e) { return null; }
     })() : null;
     if (!currentCfg) return;
-    var horizon = currentCfg.horizonYears || currentCfg.years || 5;
-    var userDuration = currentCfg.structuredSaleDurationMonths || 18;
-    // Recompute scenario C's best rec in case duration changed.
-    var bestRecC = 2;
-    var bestNetC = -Infinity;
-    for (var r = 2; r <= Math.min(4, horizon); r++) {
-      var cfgR = Object.assign({}, currentCfg, {
-        recognitionStartYearIndex: r - 1,
-        structuredSaleDurationMonths: userDuration,
-        maxRecognitionYearIndex: null
-      });
-      var m = _scenarioMetrics(cfgR);
-      if (m && m.net > bestNetC) { bestNetC = m.net; bestRecC = r; }
-    }
     var sections = '';
     rows.forEach(function (row) {
       if (!checked[row.type]) return;
-      var cfg = _scenarioCfgFor(row.type, currentCfg, bestRecC, userDuration);
+      // Per-section: each section auto-picks its OWN (horizon, leverage,
+      // bestRec for C) — independent of the global Page-2 toolbar — so
+      // checking multiple scenarios surfaces three independently
+      // optimized dashboards. _resolveSectionCfg ensures each section
+      // has state and applies it to the cfg.
+      var cfg = _resolveSectionCfg(row.type, currentCfg);
       var data = _scenarioFullData(cfg);
-      sections += _buildScenarioSection(row.label, data);
+      if (!data) return;
+      sections += _buildScenarioSection(row.label, data, row.type, currentCfg);
     });
     if (!sections) {
       sections = '<div class="rett-no-scenarios" style="' +
@@ -864,6 +1112,7 @@
         '</div>';
     }
     summaryHost.innerHTML = sections;
+    _wireSectionControls();
     if (typeof root.animateRettNumbers === 'function') {
       try { root.animateRettNumbers(); } catch (e) { /* */ }
     }

@@ -660,6 +660,12 @@ function bindControls() {
       // can pick fresh against the new fundamentals.
       delete window.__rettScenarioMaxRec;
       delete window.__rettScenarioPinnedRec;
+      // Per-section state (horizon / leverage / revert per scenario
+      // section) is also scoped to the active scenario fundamentals —
+      // a sale-price or income change invalidates the previously
+      // auto-picked tuple so each section re-optimizes on the next
+      // render.
+      delete window.__rettSectionState;
     });
   });
 
