@@ -905,3 +905,30 @@ function bindControls() {
 }
 
 document.addEventListener('DOMContentLoaded', bindControls);
+
+// Cache-buster mismatch guard. Every <script src=".../?v=NNN"> is
+// expected to share the same v= value (we bump them together on every
+// push). If a partial deploy ships some files and not others, the
+// browser will load a mix of fresh and cached scripts — the engine
+// might be the new shape while the renderer still expects the old one,
+// producing subtle wrong numbers instead of a clean error. Surface the
+// mismatch in the console at boot so it's debuggable from the start.
+(function _checkCacheBusterSync() {
+  try {
+    var scripts = document.querySelectorAll('script[src]');
+    var versions = {};
+    scripts.forEach(function (s) {
+      var m = /[?&]v=([^&]+)/.exec(s.src || '');
+      if (m) {
+        var v = m[1];
+        if (!versions[v]) versions[v] = [];
+        versions[v].push(s.src.split('/').pop());
+      }
+    });
+    var keys = Object.keys(versions);
+    if (keys.length > 1) {
+      console.warn('[RETT cache-buster] Mixed script versions loaded — ' +
+        'partial deploy or stale cache. Versions:', versions);
+    }
+  } catch (e) { /* never block boot on a guard */ }
+})();
