@@ -631,6 +631,33 @@ function runFullPipeline() {
 }
 
 function bindControls() {
+  // Page-1 scenario fields. Editing any of these means the *fundamentals*
+  // of the client's situation changed — the prior (leverage, horizon,
+  // recognition) optimum the auto-pick chose is now stale. Re-enable
+  // auto-pick so the next pipeline run re-optimizes from scratch instead
+  // of carrying over a Page-2 pill override the user clicked under the
+  // old scenario. Without this, loading a saved client and editing
+  // their sale price keeps the prior selection locked in.
+  ['custodian-select', 'year1', 'filing-status', 'state-code',
+   'w2-wages', 'se-income', 'biz-revenue', 'rental-income',
+   'dividend-income', 'retirement-distributions',
+   'sale-price', 'cost-basis', 'accelerated-depreciation', 'short-term-gain',
+   'withhold-yes-no', 'withhold-amount', 'implementation-date'
+  ].forEach(function (fid) {
+    var el = document.getElementById(fid);
+    if (!el) return;
+    var evt = (el.tagName === 'SELECT' || el.type === 'date') ? 'change' : 'input';
+    el.addEventListener(evt, function () {
+      // Skip while case-storage is programmatically restoring state —
+      // applyFormState fires synthetic input/change events on every
+      // saved field, which would otherwise re-enable auto-pick mid-load
+      // (harmless) but also flag every field as "user touched" (it
+      // wasn't). Honoring the flag keeps the signal clean.
+      if (window.__rettApplyingState) return;
+      window.__rettAutoPickEnabled = true;
+    });
+  });
+
   // Auto-recalc when Brooklyn Configuration inputs change. The pipeline
   // fires automatically on Page 2 entry and on any of these field changes.
   ['available-capital', 'invested-capital', 'strategy-select',
@@ -759,6 +786,15 @@ function bindControls() {
     // Final sync — make sure available-capital reflects sale-withhold
     // before the projection runs.
     _recomputeAvailableCapital();
+    // Always re-optimize when launching the projection from the Continue
+    // button. If the user previously overrode a Page-2 pill (which set
+    // __rettAutoPickEnabled = false), then came back here and edited a
+    // Page-1 scenario field, the prior selection is stale — the new
+    // sale price / basis / income mix likely has a different optimal
+    // (leverage, horizon, recognition) combo. Forcing the flag back on
+    // means showPage('page-projection') → maybeAutoPick will run a
+    // fresh search before runFullPipeline.
+    window.__rettAutoPickEnabled = true;
     // showPage('page-projection') triggers runFullPipeline() internally,
     // so the recommendation engine + dashboard render run automatically
     // on arrival.
