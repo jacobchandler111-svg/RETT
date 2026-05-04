@@ -552,6 +552,29 @@ function _structuredSaleMaturityYearIdx(cfg, horizon) {
       return Math.max(0, Math.min(horizon - 1, idx));
 }
 
+// Marginal tax rate the recognized LT gain attracts, used by the
+// "cover taxes from sale" carve-out. Rate = (tax with full LT lump-sum
+// in Y1 minus tax without it) / LT gain. Computed once at engine entry
+// — using the lump-sum rate gives a slight conservative over-reserve
+// per chunk (vs. computing the marginal rate on each smaller annual
+// slice), which matches the user's intent: ensure the client never
+// ends up cash-short for an April due date.
+function _estimateGainTaxRate(cfg) {
+      if (!cfg) return 0;
+      const stShort = Math.max(0, cfg.baseShortTermGain || 0);
+      const totalLT = Math.max(0,
+            (cfg.salePrice || 0) - (cfg.costBasis || 0)
+            - (cfg.acceleratedDepreciation || 0) - stShort);
+      if (totalLT <= 0) return 0;
+      const yr = (cfg.year1 != null) ? Number(cfg.year1) : (new Date()).getFullYear();
+      const sWith    = _baseScenarioForYear(cfg, yr, totalLT);
+      const sWithout = _baseScenarioForYear(cfg, yr, 0);
+      const taxWith    = _yearTaxes(sWith).total;
+      const taxWithout = _yearTaxes(sWithout).total;
+      const rate = (taxWith - taxWithout) / totalLT;
+      return Math.max(0, Math.min(0.5, rate));
+}
+
 function computeDeferredTaxComparison(cfg) {
       // Below-min lifecycle check: if the position can never legally
       // open over the horizon (basis + total gain proceeds < custodian
@@ -683,6 +706,17 @@ function computeDeferredTaxComparison(cfg) {
             };
       })();
 
+      // Per-tranche tax carve-out for "cover taxes from sale" toggle.
+      // Each year's recognized gain spawns a new Brooklyn tranche; when
+      // the user wants to cover taxes from the sale itself, the
+      // estimated tax on the recognized chunk is reserved (carved out)
+      // before the proceeds get reinvested. "A dollar paid for tax is
+      // a dollar that can't be in Brooklyn." Rate is held constant
+      // across the recognition window so the client can plan a stable
+      // cash reserve.
+      const _gainTaxRate = cfg.coverTaxesFromSale ? _estimateGainTaxRate(cfg) : 0;
+      const _reinvestFrac = 1 - _gainTaxRate;
+
       // Tranche state. tranches[k] = { capital, startIdx } where startIdx is
       // the cfg-relative year (0 = year1).
       const tranches = [];
@@ -726,14 +760,16 @@ function computeDeferredTaxComparison(cfg) {
             // Step 2 — decide gain to recognize this year. Gain proceeds
             // are received Jan 1 of year R and reinvested same year, so
             // the new tranche generates fresh year-1 losses in year R
-            // alongside the existing tranches' year-N losses. The max
-            // recognizable gain therefore solves:
-            //     G ≤ stCF + existingLoss + G * year1Rate
-            // i.e. G ≤ (stCF + existingLoss) / (1 - year1Rate).
+            // alongside the existing tranches' year-N losses. With the
+            // "cover taxes from sale" toggle, only (1-taxRate)·G is
+            // reinvested — so the absorption inequality becomes:
+            //     G ≤ stCF + existingLoss + (G · reinvestFrac) · year1Rate
+            // i.e. G ≤ (stCF + existingLoss) / (1 - reinvestFrac · year1Rate).
             // Final-year fallback: recognize any remaining gain even if
             // it can't be fully offset.
             const year1Rate = lossRateForTrancheYear(0);
-            const denom = Math.max(0.001, 1 - year1Rate);
+            const effYear1Rate = year1Rate * _reinvestFrac;
+            const denom = Math.max(0.001, 1 - effYear1Rate);
             let gainRecThisYear = 0;
             if (i >= startIdx && i <= maturityIdx && gainRemaining > 0) {
                   const maxAbsorbable = (stCF + existingLoss) / denom;
@@ -748,17 +784,25 @@ function computeDeferredTaxComparison(cfg) {
                   gainRemaining -= gainRecThisYear;
             }
 
-            // Step 3 — push the new tranche (immediate same-year reinvestment).
-            if (gainRecThisYear > 0) {
-                  tranches.push({ capital: gainRecThisYear, startIdx: i });
+            // Step 3 — carve estimated tax out of the proceeds (when the
+            // toggle is on) before pushing the new tranche. The full
+            // gainRecThisYear is still TAXED — the carve only changes
+            // how much of the after-tax proceeds get redeployed into
+            // Brooklyn.
+            const trancheTaxCarve = gainRecThisYear * _gainTaxRate;
+            const reinvested = Math.max(0, gainRecThisYear - trancheTaxCarve);
+            if (reinvested > 0) {
+                  tranches.push({ capital: reinvested, startIdx: i });
             }
 
             // Step 4 — recompute year totals INCLUDING the new tranche.
-            const newTrancheLoss = gainRecThisYear * year1Rate;
-            const newTrancheFee = gainRecThisYear * feeRate;
+            // Loss / fee / invested capital all scale with the
+            // reinvested portion, not the gross gain.
+            const newTrancheLoss = reinvested * year1Rate;
+            const newTrancheFee = reinvested * feeRate;
             const yearLoss = existingLoss + newTrancheLoss;
             const yearFee = existingFee + newTrancheFee;
-            const yearInvested = existingInvested + gainRecThisYear;
+            const yearInvested = existingInvested + reinvested;
 
             recognitionSchedule.push({ year: year, gainRecognized: gainRecThisYear });
 
@@ -792,6 +836,8 @@ function computeDeferredTaxComparison(cfg) {
             rows.push({
                   year: year,
                   gainRecognized: gainRecThisYear,
+                  taxCarveOut: trancheTaxCarve,
+                  reinvestedThisYear: reinvested,
                   lossGenerated: yearLoss,
                   lossApplied: withStrat._lossUsed || 0,
                   stCarryForward: stCF,
