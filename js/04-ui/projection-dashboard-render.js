@@ -464,22 +464,56 @@
       brooklynFees = def.totalFees || 0;
       brookhavenTotal = def.totalBrookhavenFees || 0;
     } else {
-      if (typeof ProjectionEngine === 'undefined' || !ProjectionEngine.run) return null;
-      var proj;
-      try { proj = ProjectionEngine.run(cfg); } catch (e) { return null; }
-      if (!proj || !Array.isArray(proj.years)) return null;
-      proj.years.forEach(function (y) {
-        var no = y.taxNoBrooklyn || 0;
-        var w = (y.taxWithBrooklyn != null) ? y.taxWithBrooklyn : no;
-        tax += w;
-        doNothing += no;
-        brooklynFees += (y.fee || 0);
+      // Immediate path. Use computeTaxComparison so the Y1 baseline
+      // INCLUDES the full property LT gain (via _flatRec's cfg-derived
+      // _totalLT). ProjectionEngine.run alone produces taxNoBrooklyn
+      // for ordinary income only — for scenarios with $0 ordinary
+      // income (e.g. retirees with a real-estate gain) that read of
+      // "do nothing" registers as ~zero, which made the auto-pick
+      // optimizer choose 0% short (no Brooklyn) since any positive
+      // leverage just added fees against a zero-savings baseline.
+      if (typeof computeTaxComparison !== 'function' ||
+          typeof recommendSale !== 'function' ||
+          typeof ProjectionEngine === 'undefined' ||
+          !ProjectionEngine.run) return null;
+      // recommendSale expects strategyKey + investedCapital — patch
+      // them on so it doesn't return zero capacity.
+      cfg = _engineFlavoredCfg(cfg);
+      var recObj;
+      try { recObj = recommendSale(cfg); } catch (e) { return null; }
+      var lossGenIm = (recObj && recObj.summary && recObj.summary.lossByYear && recObj.summary.lossByYear[0]) || 0;
+      var scheduleIm = recObj && recObj.summary && Array.isArray(recObj.summary.gainByYear)
+        ? recObj.summary.gainByYear.map(function (g, i) {
+            return { year: i, gainTaken: g || 0,
+              lossGenerated: (recObj.summary.lossByYear && recObj.summary.lossByYear[i]) || 0 };
+          })
+        : null;
+      var normRecIm = {
+        recommendation: recObj ? recObj.recommendation : 'no-action',
+        longTermGain: (recObj && recObj.longTermGain) || 0,
+        lossGenerated: lossGenIm,
+        schedule: scheduleIm
+      };
+      var compIm;
+      try { compIm = computeTaxComparison(cfg, normRecIm); } catch (e) { return null; }
+      if (!compIm || !Array.isArray(compIm.rows)) return null;
+      compIm.rows.forEach(function (r) {
+        tax += r.withStrategy ? r.withStrategy.total : 0;
+        // Immediate path's _flatRec forces full LT gain into Y1, so
+        // baseline.total IS the do-nothing baseline by construction.
+        doNothing += r.baseline ? r.baseline.total : 0;
       });
-      if (proj.totals && proj.totals.cumulativeFees != null) {
-        brooklynFees = proj.totals.cumulativeFees;
+      // Brooklyn fees: pull from ProjectionEngine's per-year accrual
+      // (it tracks the position open across the horizon — same as the
+      // immediate-path scoring elsewhere in the codebase).
+      var projIm;
+      try { projIm = ProjectionEngine.run(cfg); } catch (e) {}
+      if (projIm && projIm.totals && projIm.totals.cumulativeFees != null) {
+        brooklynFees = projIm.totals.cumulativeFees;
+      } else if (projIm && Array.isArray(projIm.years)) {
+        projIm.years.forEach(function (y) { brooklynFees += (y.fee || 0); });
       }
-      // Immediate path: pull Brookhaven from the schedule directly since
-      // ProjectionEngine doesn't accumulate it on the year rows.
+      // Brookhaven flat fees from the schedule directly.
       if (typeof brookhavenFeeSchedule === 'function') {
         var yfImpl = (typeof yearFractionRemaining === 'function' && cfg.implementationDate)
           ? yearFractionRemaining(cfg.implementationDate) : 1;
@@ -498,7 +532,6 @@
       net: netBenefit
     };
   }
-
   function _buildScenarioComparison(currentCfg) {
     if (!currentCfg) return '';
     var horizon = currentCfg.horizonYears || currentCfg.years || 5;
@@ -520,18 +553,39 @@
     // ONLY (no further deferral) via the explicit maxRecognitionYearIndex
     // override — bypasses the structured-sale 18-month floor and Jan-1
     // auto-extend, since this scenario has no insurance product.
-    var cfgB = Object.assign({}, currentCfg, {
-      recognitionStartYearIndex: 1,
-      maxRecognitionYearIndex: 1
-    });
-    var mB = _scenarioMetrics(cfgB);
+    //
+    // Only feasible when the sale is close to year-end — a buyer won't
+    // wait 9 months to close a March deal, but a 1-3 month nudge from
+    // Oct/Nov/Dec to Jan 1 is realistic. Hide the scenario when the
+    // impl date is before September (month index < 8) so the panel
+    // doesn't recommend a delay that won't actually fly.
+    var saleMonth0_b = -1;
+    if (currentCfg.implementationDate &&
+        typeof window !== 'undefined' &&
+        typeof window.parseLocalDate === 'function') {
+      var dB = window.parseLocalDate(currentCfg.implementationDate);
+      if (dB && !isNaN(dB.getTime())) saleMonth0_b = dB.getMonth();
+    }
+    var mB = null;
+    if (saleMonth0_b >= 8) {
+      var cfgB = Object.assign({}, currentCfg, {
+        recognitionStartYearIndex: 1,
+        maxRecognitionYearIndex: 1
+      });
+      mB = _scenarioMetrics(cfgB);
+    }
 
     // Scenario C: Structured sale at the user's duration. Pick the
     // recognition-start year that maximizes net under the duration
-    // constraint (rec=2..min(horizon,4)).
+    // constraint (rec=2..min(horizon,4)). If the global horizon is too
+    // short for a structured sale (1y), evaluate C at horizon=5 so the
+    // option still appears in the comparison panel — its section
+    // auto-pick will refine the horizon if the user checks the row.
+    var cHorizon = Math.max(horizon, 5);
     var bestC = null, bestRecC = 2;
-    for (var r = 2; r <= Math.min(4, horizon); r++) {
+    for (var r = 2; r <= Math.min(4, cHorizon); r++) {
       var cfgR = Object.assign({}, currentCfg, {
+        horizonYears: cHorizon,
         recognitionStartYearIndex: r - 1,
         structuredSaleDurationMonths: userDuration,
         maxRecognitionYearIndex: null
@@ -714,6 +768,9 @@
     } else {
       // Immediate path. Use the same chain runRecommendation uses.
       if (typeof ProjectionEngine === 'undefined' || !ProjectionEngine.run) return null;
+      // Patch tierKey→strategyKey and investment→investedCapital so
+      // recommendSale doesn't silently treat the position as zero.
+      cfg = _engineFlavoredCfg(cfg);
       try { result = ProjectionEngine.run(cfg); } catch (e) { return null; }
       if (!result || !Array.isArray(result.years)) return null;
       var rec = (typeof recommendSale === 'function') ? recommendSale(cfg) : null;
@@ -751,6 +808,23 @@
       });
     }
     return { comp: comp, result: result, years: years };
+  }
+
+  // recommendSale and ProjectionEngine.run expect cfg.strategyKey and
+  // cfg.investedCapital, but collectInputs returns cfg.tierKey and
+  // cfg.investment. controls.js' _buildEngineCfg patches these for the
+  // dashboard pipeline; dashboard-side scenario code needs the same
+  // patch so recommendSale doesn't silently return lossByYear=[0...]
+  // (treating the position as zero capital → zero capacity → engine
+  // says "no losses possible" → auto-pick sees only fee drag and
+  // chooses 0% short).
+  function _engineFlavoredCfg(cfg) {
+    if (!cfg) return cfg;
+    var out = Object.assign({}, cfg);
+    if (out.strategyKey == null) out.strategyKey = out.tierKey;
+    if (out.investedCapital == null) out.investedCapital = out.investment;
+    if (out.years == null) out.years = out.horizonYears;
+    return out;
   }
 
   // ---- Per-section state + auto-pick + controls ---------------------
