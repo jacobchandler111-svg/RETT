@@ -154,6 +154,13 @@
       leverageByYear[i5] = hit ? hit.leverage : null;
     }
 
+    // Issue #64 note: recapture is NOT included in this gainByYear /
+    // lossByYear stream. Recapture is recognized at sale (Y1) as
+    // ordinary income and is taxed separately by the comparison
+    // engine. The dashboard reads its display-level gainRecognized
+    // from comp.rows (which DO carry recapture-adjusted totals
+    // when accelDepr > 0), so this is internally consistent — just
+    // know that summing gainByYear here gives LTCG only.
     var totalLossNeeded = lossByYear.reduce(function (a, b) { return a + b; }, 0);
     // Use the unified fee-split regression so multi-year fees match the
     // dashboard / KPI ribbon. Falls back to info.feeRate if regression
@@ -172,7 +179,15 @@
       gainByYear: gainByYear,
       lossByYear: lossByYear,
       capByYear: capByYear,
+      // leverageByYear is named that way for back-compat but the
+      // values are loss yields (capLossRate-derived percent of
+      // invested capital that becomes harvestable loss in that year),
+      // not actual leverage ratios. Issue #65: also exposed as
+      // lossYieldByYear so future consumers can use the unambiguous
+      // name. leverageUsed below is the actual leverage cap (e.g.
+      // 0.45 for 145/45) — different quantity.
       leverageByYear: leverageByYear,
+      lossYieldByYear: leverageByYear,
       capLossRate: info.lossRate,
       leverageUsed: leverageCap,
       leverageRequested: requestedCap,

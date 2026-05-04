@@ -43,6 +43,21 @@ function fsKey(s) { return TAX_FS_TO_KEY[s] || s; }
 function _yearProjectionFactor(year) {
           const base = TAX_DATA.baseYear;
           if (year <= base) return 1;
+          // Issue #68: far-future projections (>10 yrs past base)
+          // are increasingly speculative because real bracket creep
+          // diverges from a flat 2% over decades. Warn once per
+          // session so the dashboard can label projections beyond
+          // the comfort horizon as "projected, beyond IRS horizon".
+          if (year - base > 10 && typeof window !== 'undefined') {
+                if (!window.__rettFarFutureWarned) {
+                      window.__rettFarFutureWarned = true;
+                      if (typeof console !== 'undefined' && console.warn) {
+                            console.warn('[tax-lookups] _yearProjectionFactor called for year ' + year +
+                              ' (' + (year - base) + ' yrs past base ' + base +
+                              '). Numbers beyond +10 yrs are speculative.');
+                      }
+                }
+          }
           return Math.pow(1 + TAX_DATA.inflationRate, year - base);
 }
 

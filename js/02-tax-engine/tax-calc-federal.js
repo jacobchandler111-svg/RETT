@@ -122,6 +122,19 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       // thousands of dollars of tax.
       var _lt = opts.longTermGain != null ? opts.longTermGain
               : (opts.ltcg != null ? opts.ltcg : opts.lt);
+      // Issue #67: a negative LT gain (capital loss) qualifies for a
+      // §1211(b) ordinary-income offset of up to $3,000/yr ($1,500
+      // MFS). Surface that as an ordinaryIncome reduction here so
+      // the bracket math sees the lower taxable amount. The remainder
+      // carries forward (carryforward-tracker handles multi-year
+      // accounting in projection-engine; this is the single-year
+      // offset only). Previously the engine clamped LT to 0 silently.
+      var _carriedLossOrdOffset = 0;
+      if (_lt != null && Number(_lt) < 0) {
+            var _cap = (status === 'mfs' || status === 'married_separate') ? 1500 : 3000;
+            _carriedLossOrdOffset = Math.min(_cap, Math.abs(Number(_lt)));
+            _lt = 0; // cap LT at 0 for the LTCG bracket loop
+      }
       var _qd = opts.qualifiedDividend != null ? opts.qualifiedDividend : opts.qualifiedDiv;
       var _inv = opts.investmentIncome != null ? opts.investmentIncome
               : (opts.niitable != null ? opts.niitable : opts.niitIncome);
@@ -146,7 +159,9 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       const ltBrk    = getFederalLTCGBrackets(year, status);
 
       const deduction = Math.max(stdDed, itemized);
-      const taxableOrdinary = Math.max(0, ordinaryIncome - deduction);
+      // §1211(b) loss offset reduces taxable ordinary income before
+      // brackets are applied. (Issue #67.)
+      const taxableOrdinary = Math.max(0, ordinaryIncome - deduction - _carriedLossOrdOffset);
 
       const ordinaryTax = _flatBracketTax(taxableOrdinary, ordBrk);
 
