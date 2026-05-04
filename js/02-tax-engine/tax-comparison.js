@@ -427,12 +427,24 @@ function computeDeferredTaxComparison(cfg) {
       // "no engagement" rather than fabricated Brooklyn math.
       if (_belowMinForLifecycle(cfg)) return _zeroDeferredComparison(cfg);
       const horizon = Math.max(1, cfg.horizonYears || cfg.years || 5);
-      const startIdx = Math.max(1, Math.min(horizon - 1,
+      const startIdxRaw = Math.max(1, Math.min(horizon - 1,
             (cfg.recognitionStartYearIndex != null ? cfg.recognitionStartYearIndex : 1)));
       // Structured-sale maturity caps the recognition window. After this
       // year index, no further gain can be deferred — the product has
       // matured and any remainder must be recognized.
-      const maturityIdx = Math.max(startIdx, _structuredSaleMaturityYearIdx(cfg, horizon));
+      //
+      // If the user (or auto-pick) requested a startIdx LATER than the
+      // maturity year, that's infeasible: gain literally cannot be
+      // deferred past the product term. Clamp startIdx DOWN to maturity
+      // so the engine produces a legal schedule (gain forced into the
+      // last legal year). Without this, picking rec=4 with an 18-month
+      // duration silently extended the recognition into illegal years
+      // and produced fake savings that beat the legal rec=1 / rec=2
+      // options in the auto-pick optimizer — making the calculator
+      // refuse to choose "no structured sale" even when it should.
+      const matIdxRaw = _structuredSaleMaturityYearIdx(cfg, horizon);
+      const startIdx = Math.min(startIdxRaw, Math.max(1, matIdxRaw));
+      const maturityIdx = Math.max(startIdx, matIdxRaw);
       const ordCap = (cfg.filingStatus === 'mfs') ? 1500 : 3000;
 
       // Long-term gain bucket: salePrice net of basis, depreciation
