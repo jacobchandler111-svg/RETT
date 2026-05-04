@@ -143,8 +143,14 @@ function _bindCaseControls() {
         return;
       }
       if (current && current !== typed) {
-        // Rename in place.
-        store.renameCase(current, typed);
+        // Rename in place. renameCase returns false if the new name
+        // collides with an existing case — in that case we revert
+        // the input value so the rename doesn't silently overwrite.
+        var ok = store.renameCase(current, typed);
+        if (ok === false) {
+          nameInput.value = current; // revert
+          return;
+        }
         _refreshCaseDropdown(typed);
         _refreshCaseStatus();
         return;
@@ -622,7 +628,14 @@ function runFullPipeline() {
 function bindControls() {
   // Auto-recalc when Brooklyn Configuration inputs change. The pipeline
   // fires automatically on Page 2 entry and on any of these field changes.
-  ['available-capital', 'invested-capital', 'strategy-select', 'beta1'].forEach(function (fid) {
+  ['available-capital', 'invested-capital', 'strategy-select',
+   // Issue #40: leverage-cap-select drives non-Schwab leverage in
+   // some flows; auto-recalc needs to fire when it changes.
+   // recognition-start-select + custom-short-pct included for the
+   // same reason — the slider/pill click handlers normally trigger
+   // recompute, but programmatic changes (case-storage applyFormState)
+   // bypass them.
+   'leverage-cap-select', 'recognition-start-select', 'custom-short-pct'].forEach(function (fid) {
     const el = document.getElementById(fid);
     if (!el) return;
     const evt = (el.tagName === 'SELECT') ? 'change' : 'input';

@@ -217,6 +217,10 @@ const ProjectionEngine = {
 
             return {
                             config: cfg,
+                            // Top-level flag the dashboard reads to swap the
+                            // bar chart for a "No Brooklyn engagement"
+                            // callout when below-min was triggered.
+                            engaged: !_belowMin,
                             years: yearRows,
                             totals: {
                                                 cumulativeFees,

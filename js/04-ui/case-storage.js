@@ -187,6 +187,16 @@
     if (oldName === newName) return true;
     var cases = _safeGetJson(CASES_KEY, {}) || {};
     if (!(oldName in cases)) return false;
+    // Refuse to overwrite an existing case. The caller (controls.js
+    // _bindCaseControls debouncedName handler) reads the false return
+    // and surfaces a banner so the user knows their rename was
+    // rejected; the input value is reverted to the prior name.
+    if (newName in cases) {
+      if (typeof root.reportFailure === 'function') {
+        root.reportFailure('Client "' + newName + '" already exists. Rename canceled — pick a different name.');
+      }
+      return false;
+    }
     cases[newName] = cases[oldName];
     delete cases[oldName];
     _safeSetJson(CASES_KEY, cases);

@@ -66,13 +66,24 @@
     }
     var allFees = cumFees + brookhavenFees;
     var net = totalSave - allFees;
-    var roi = allFees > 0 ? (net / allFees * 100) : (totalSave > 0 ? Infinity : 0);
-    var roiTxt = isFinite(roi) ? roi.toFixed(0) + '%' : '∞';
+    var roi = allFees > 0 ? (net / allFees * 100) : 0;
+    // When fees are exactly $0 with positive savings, the old code
+    // displayed "∞" — hard to defend in front of a client and not
+    // animatable. Show "1000%+" as a sensible cap that still
+    // communicates the "all upside, no fee drag" message.
+    var roiTxt;
+    if (allFees <= 0 && totalSave > 0) {
+      roiTxt = '1000%+';
+    } else {
+      roiTxt = roi.toFixed(0) + '%';
+    }
     var pctReduce = totalNo > 0 ? (totalSave / totalNo * 100).toFixed(1) + '% lower tax' : '';
 
     var savedKind = totalSave > 0 ? 'positive' : (totalSave < 0 ? 'negative' : '');
     var netKind = net > 0 ? 'positive' : (net < 0 ? 'negative' : '');
-    var roiKind = isFinite(roi) && roi > 0 ? 'positive' : (isFinite(roi) && roi < 0 ? 'negative' : '');
+    var roiKind = (allFees <= 0 && totalSave > 0)
+      ? 'positive'
+      : (isFinite(roi) && roi > 0 ? 'positive' : (isFinite(roi) && roi < 0 ? 'negative' : ''));
 
     var brookhavenTile = brookhavenFees > 0
       ? _kpiTile('Brookhaven Fees', _fmt(brookhavenFees), 'Setup + quarterly retainer', '')

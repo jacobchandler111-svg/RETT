@@ -162,6 +162,13 @@
       // Otherwise: shorting-contribution only.
       return Math.max(0, _beta1LossAt(gn) - LONG_ONLY_BASELINE);
     }
+    // Beta 1 long-only (100/0) point: published data is 0.104 but the
+    // linear regression evaluates to ~0.099 at gn=100. Pin the
+    // long-only point exactly so beta1 100/0 matches advisorManaged
+    // 100/0 (they're the same data point per the underlying model).
+    if (tierKey === 'beta1' && sp === 0) {
+      return LONG_ONLY_BASELINE;
+    }
     var coef = LOSS_REGRESSION[tierKey] || LOSS_REGRESSION.beta1;
     return Math.max(0, coef.intercept + coef.slope * gn);
   }

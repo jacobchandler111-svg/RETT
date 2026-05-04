@@ -125,6 +125,16 @@
   // and return the all-in net (savings - Brooklyn fees - Brookhaven fees).
   // Used by both runAutoPick (full search) and the recognition-only
   // optimizer below.
+  //
+  // KNOWN DISCONTINUITY (Issue #32 in 5-4-26 debugging doc): rec=1
+  // routes to the immediate-recognition engine (ProjectionEngine.run +
+  // recommendSale + computeTaxComparison) while rec=2/3/4 route to
+  // computeDeferredTaxComparison. Those engines disagree on fee model
+  // (Issue #3, partially mitigated), tranche curve (Issue #26, fixed),
+  // and below-min behavior. Toggling rec=1 ⇄ rec=2 can therefore
+  // produce a non-monotonic savings curve that's an engine artifact
+  // rather than a real economic effect. Long-term fix: unify so
+  // immediate is just deferred-with-startIdx=0.
   function _netForCfg(cfg) {
     var totalSave = 0, cumFees = 0, brookhavenFees = 0;
     if ((cfg.recognitionStartYearIndex || 0) >= 1 &&

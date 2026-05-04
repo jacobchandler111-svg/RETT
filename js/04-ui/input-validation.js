@@ -58,10 +58,21 @@
     });
 
     // --- Other capital gains ---
+    // The long-term gain comes from sale-price - cost-basis -
+    // accelerated-depreciation - short-term-gain (the user can carve
+    // ST out of the property gain). The hidden #long-term-gain field
+    // exists for legacy reasons and is never user-edited; validating
+    // it directly checked a value that's always 0. Validate the
+    // COMPUTED LT instead.
     var stGain = _num('short-term-gain');
-    var ltGain = _num('long-term-gain');
     if (stGain < 0) errors.push({ field: 'short-term-gain', message: 'Short-term gain cannot be negative. (Use the projection engine to handle losses.)' });
-    if (ltGain < 0) errors.push({ field: 'long-term-gain',  message: 'Long-term gain cannot be negative. (Use the projection engine to handle losses.)' });
+    var computedLT = Math.max(0, salePrice - costBasis - accelDep - stGain);
+    if (computedLT > 100_000_000) {
+      warnings.push({
+        field: 'sale-price',
+        message: 'Computed long-term gain exceeds $100M — please double-check the inputs.'
+      });
+    }
 
     // --- Implementation date ---
     var implDate = _str('implementation-date');

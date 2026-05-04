@@ -63,6 +63,9 @@ function parsePct(s) {
 // disagree on whether to suppress fees / show "no engagement"
 // messaging.
 function rettEngineEngaged(comp, projectionResult) {
+  // Highest-priority signal: explicit engaged:false from the
+  // projection engine's below-min path.
+  if (projectionResult && projectionResult.engaged === false) return false;
   if (comp && Array.isArray(comp.rows) && comp.rows.length) {
     return comp.rows.some(function (r) {
       return (r.investmentThisYear || 0) > 0 ||

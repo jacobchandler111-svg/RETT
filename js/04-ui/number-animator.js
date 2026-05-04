@@ -75,7 +75,19 @@
   // Animate one element from (cached previous, or 0) to its currently rendered value.
   function _animateEl(el) {
     var rendered = el.textContent;
-    var parsed = _parseNumber(rendered);
+    // Prefer an explicit data-numeric-value attribute when the
+    // renderer set one — that's the locale-proof source of truth.
+    // Falls back to the regex parse on rendered text for older
+    // renderers that don't set the attr yet.
+    var explicitNum = el.getAttribute('data-numeric-value');
+    var parsed;
+    if (explicitNum != null && explicitNum !== '') {
+      var n = Number(explicitNum);
+      if (Number.isFinite(n)) {
+        parsed = { value: n };
+      }
+    }
+    if (!parsed) parsed = _parseNumber(rendered);
     if (!parsed) {
       delete el.__rett_lastValue;
       return;
