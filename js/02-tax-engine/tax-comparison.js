@@ -2,31 +2,17 @@
 // Side-by-side baseline vs. post-strategy tax. Per-year, multi-year aware.
 
 // --- Module-local helpers -----------------------------------------------
-// Pick the first positive numeric value from a list. Falsy-zero safe:
-// `cfg.leverage || cfg.leverageCap || 2.25` silently maps an explicit
-// leverage=0 to 2.25 because 0 is falsy. _firstPositive keeps the
-// distinction by requiring `> 0` instead of just truthy.
-function _firstPositive(/* values... */) {
-      for (var i = 0; i < arguments.length; i++) {
-            var v = Number(arguments[i]);
-            if (Number.isFinite(v) && v > 0) return v;
-      }
-      return 0;
-}
-
-// Default leverage when neither cfg.leverage nor cfg.leverageCap is a
-// positive number. 2.25 is the Brooklyn published max — historically
-// the silent fallback when || was used. Centralized so a future change
-// (e.g. drop default to a more conservative 1.5) only touches here.
-//
-// Open question: an EXPLICIT leverage=0 currently falls through to
-// 2.25 (matches pre-refactor || behavior). If a future UI path lets a
-// user set leverage=0 to mean "no Brooklyn engagement," this helper
-// would need to honor that explicitly: change to
-//     cfg.leverage != null ? cfg.leverage : (cfg.leverageCap != null ? ...)
-// — a behavior change worth a UX decision before flipping.
+// Default leverage when cfg supplies neither leverage nor leverageCap
+// as a finite number. Honors EXPLICIT zero — leverage=0 in Brooklyn
+// data maps to the "Long-Only" tier (100/0, lossRate ~0.104, fee
+// 0.17%), not "no engagement". Falls through to leverageCap, then to
+// the published max 2.25 only when neither field is finite.
 function _defaultLeverage(cfg) {
-      return _firstPositive(cfg && cfg.leverage, cfg && cfg.leverageCap) || 2.25;
+      var lev = cfg && cfg.leverage;
+      if (Number.isFinite(Number(lev))) return Number(lev);
+      var cap = cfg && cfg.leverageCap;
+      if (Number.isFinite(Number(cap))) return Number(cap);
+      return 2.25;
 }
 
 // Schwab Beta 1 200/100 lossByYear curve. Used as the canonical decay
@@ -204,7 +190,16 @@ function computeTaxComparison(cfg, recommendation) {
       // open over the horizon, return zero results (no Brooklyn loss
       // applied, no Brookhaven fees). The dashboard renders this as
       // "no engagement". See _belowMinForLifecycle for the condition.
-      const _belowMin = _belowMinForLifecycle(cfg);
+      // Same suppression when there is no LT gain to offset — the
+      // engine would otherwise rack up full-year fees against $3K/yr
+      // §1211 ordinary offsets, a strict net loss the user shouldn't
+      // be shown as a "scenario."
+      const _stShortIm = Math.max(0, cfg && cfg.baseShortTermGain || 0);
+      const _ltGainIm = Math.max(0,
+            (cfg && cfg.salePrice || 0) - (cfg && cfg.costBasis || 0)
+            - (cfg && cfg.acceleratedDepreciation || 0) - _stShortIm);
+      const _recapIm = Math.max(0, cfg && cfg.acceleratedDepreciation || 0);
+      const _belowMin = _belowMinForLifecycle(cfg) || ((_ltGainIm + _recapIm) <= 0);
 
       // Brookhaven advisory wrap fees attach to every comparison row.
       const yfImpl = (typeof yearFractionRemaining === 'function' && cfg.implementationDate)
@@ -636,6 +631,19 @@ function computeDeferredTaxComparison(cfg) {
       // zeroed result so the dashboard / ribbon / narrative all show
       // "no engagement" rather than fabricated Brooklyn math.
       if (_belowMinForLifecycle(cfg)) return _zeroDeferredComparison(cfg);
+      // No-gain short-circuit: if the property sale produced no LT gain
+      // (basis >= sale, or no sale entered), there is nothing to defer
+      // and Brooklyn would only generate small §1211 ordinary offsets
+      // ($3K/yr cap) at the cost of full-year fees — a strict net loss
+      // that's confusing to surface as a "scenario." Return zero.
+      // Recapture is treated as gain for this check; STCL carryforward
+      // benefits live in the immediate path, not here.
+      const _stShortNG = Math.max(0, cfg && cfg.baseShortTermGain || 0);
+      const _ltGainNG  = Math.max(0,
+            (cfg && cfg.salePrice || 0) - (cfg && cfg.costBasis || 0)
+            - (cfg && cfg.acceleratedDepreciation || 0) - _stShortNG);
+      const _recapNG   = Math.max(0, cfg && cfg.acceleratedDepreciation || 0);
+      if ((_ltGainNG + _recapNG) <= 0) return _zeroDeferredComparison(cfg);
       const horizon = Math.max(1, cfg.horizonYears || cfg.years || 5);
       const startIdxRaw = Math.max(1, Math.min(horizon - 1,
             (cfg.recognitionStartYearIndex != null ? cfg.recognitionStartYearIndex : 1)));

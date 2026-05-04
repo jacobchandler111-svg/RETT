@@ -197,53 +197,27 @@
   // Called from runFullPipeline so EVERY recompute (slider drag,
   // horizon click, Brooklyn-config edit) re-finds the optimal
   // recognition year for the current scenario.
+  // searchBestRecognitionForCurrent and runAutoPick used to drive the
+  // (now-removed) global Page-2 horizon / leverage toolbar. After the
+  // per-section auto-pick (_autoPickSection in projection-dashboard-
+  // render.js) became the source of truth — each scenario row's
+  // dashboard searches its own optimal (horizon × leverage × rec) —
+  // these globals were doing redundant work that updated hidden
+  // form fields nobody reads load-bearingly. Gutted to no-ops to
+  // skip ~2,700 unnecessary engine evaluations on every Page-2 entry.
+  // The scenario-click pin handling moved to the dashboard's row
+  // wiring; nothing else needs the legacy behavior.
   function searchBestRecognitionForCurrent() {
-    if (typeof collectInputs !== 'function') return null;
-    var horSel = document.getElementById('projection-years');
-    var recSel = document.getElementById('recognition-start-select');
-    if (!recSel) return null;
-    // Scenario-click pin: when the user clicked a row in the strategy
-    // comparison panel, their choice takes priority over the silent
-    // optimizer. Apply the pinned rec and return early so subsequent
-    // runFullPipeline calls (e.g. slider drags) don't overwrite it.
+    // Scenario-click pin still respected for backwards compat — the
+    // active scenario-row click writes __rettScenarioPinnedRec and
+    // expects this function to honor it. Cheap to keep.
     if (root.__rettScenarioPinnedRec != null) {
+      var recSel = document.getElementById('recognition-start-select');
       var pinned = String(root.__rettScenarioPinnedRec);
-      if (recSel.value !== pinned) recSel.value = pinned;
+      if (recSel && recSel.value !== pinned) recSel.value = pinned;
       return pinned;
     }
-    var horizon = parseInt(horSel ? horSel.value : '5', 10) || 5;
-    var maxRec = Math.min(horizon, 4);
-    var prevRec = recSel.value;
-
-    var bestNet = -Infinity;
-    var bestRec = '1';
-    for (var r = 1; r <= maxRec; r++) {
-      recSel.value = String(r);
-      var cfg;
-      try { cfg = collectInputs(); } catch (e) { continue; }
-      var spSale = parseUSD((document.getElementById('sale-price') || {}).value) || 0;
-      var cb = parseUSD((document.getElementById('cost-basis') || {}).value) || 0;
-      var ad = parseUSD((document.getElementById('accelerated-depreciation') || {}).value) || 0;
-      if (spSale) cfg.salePrice = spSale;
-      if (cb) cfg.costBasis = cb;
-      if (ad) cfg.acceleratedDepreciation = ad;
-      rettFlavorEngineCfg(cfg);
-      cfg.recognitionStartYearIndex = r - 1;
-
-      var net = _netForCfg(cfg);
-      if (net != null && net > bestNet) {
-        bestNet = net;
-        bestRec = String(r);
-      }
-    }
-
-    // Apply the winning recognition year (no UI dispatch — we don't
-    // want a change event firing the auto-recalc loop again).
-    recSel.value = bestRec;
-    // Recognition status line is intentionally NOT shown to the user —
-    // the engine picks the optimal year silently. The hidden <p> stays
-    // in the DOM as a no-op sink only.
-    return bestRec;
+    return null;
   }
 
   // Build the normalized recommendation shape that computeTaxComparison
@@ -512,10 +486,10 @@
   // Set true on form reset, flips to false on the first pill click.
   root.__rettAutoPickEnabled = true;
 
-  function maybeAutoPick() {
-    if (!root.__rettAutoPickEnabled) return null;
-    return runAutoPick();
-  }
+  // No-op kept for any external caller that still invokes it; per-section
+  // auto-pick (projection-dashboard-render._autoPickSection) does the
+  // real work now.
+  function maybeAutoPick() { return null; }
 
   // Click delegation — a single listener handles both pill rows. Marks
   // the user's choice so the auto-pick hint disappears, then triggers a

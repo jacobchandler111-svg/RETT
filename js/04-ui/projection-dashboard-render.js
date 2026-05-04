@@ -721,9 +721,11 @@
     rows.forEach(function (row, idx) {
       var isWinner = (idx === winnerIdx);
       var isChecked = !!root.__rettCheckedScenarios[row.type];
+      var isNetNegative = row.metrics && row.metrics.net < 0;
       var classes = ['rett-scenario-row'];
       if (isWinner) classes.push('rett-scenario-winner');
       if (isChecked) classes.push('rett-scenario-checked');
+      if (isNetNegative) classes.push('rett-scenario-net-negative');
       html += '<tr class="' + classes.join(' ') + '"' +
               ' data-scenario="' + row.type + '"' +
               ' data-rec="' + row.rec + '"' +
@@ -738,6 +740,10 @@
       html += '<td>';
       html += '<div class="rett-scenario-label">' + row.label;
       if (isWinner) html += ' <span class="rett-scenario-badge">RECOMMENDED</span>';
+      // Net-negative badge: a scenario whose fees exceed its savings
+      // costs the client money. Surface that explicitly so the row
+      // doesn\'t look like a viable choice tied for ranking.
+      if (isNetNegative) html += ' <span class="rett-scenario-badge rett-scenario-badge-warn">NET NEGATIVE</span>';
       html += '</div>';
       html += '<div class="rett-scenario-sub">' + row.sub + '</div>';
       html += '</td>';

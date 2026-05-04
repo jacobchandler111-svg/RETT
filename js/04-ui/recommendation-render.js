@@ -121,7 +121,16 @@
     // was pruned alongside them.
   }
 
+  // The #recommendation-panel that this function used to render into
+  // is permanently `display:none` since the user-facing summary moved
+  // to the strategy comparison rows + ribbon + per-section dashboards.
+  // Skipping the HTML build saves ~150 lines of string concatenation
+  // per recompute. The rest of runRecommendation (which sets
+  // window.__lastComparison / __lastRecommendation that the narrative
+  // falls back to) still runs.
   function renderRecommendation(result) {
+    return;
+    /* eslint-disable no-unreachable */
     var panel = $('recommendation-panel');
     if (!panel) return;
     var html = [];

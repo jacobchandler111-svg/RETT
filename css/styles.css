@@ -1130,6 +1130,13 @@ select.input-error {
   margin-left: 8px;
   vertical-align: 1px;
 }
+.rett-scenario-badge-warn {
+  background: #d9a05f;
+  color: #0a1929;
+}
+.rett-scenario-net-negative td.num strong {
+  color: #d96f6f;
+}
 /* Scenario rows are clickable — clicking activates the scenario in
    the dashboard below. Active scenario gets a stronger highlight than
    the recommendation. */
