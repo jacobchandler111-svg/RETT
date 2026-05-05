@@ -2941,26 +2941,31 @@ body { font-size: 16px; }
    hierarchy stays calm and presentation-readable. */
 .strategy-keyaspect {
     margin-top: 14px;
-    padding: 20px 22px;
+    padding: 24px 26px;
     background: var(--paper-warm);
     border: 1px solid var(--rule-soft);
     border-radius: 2px;
     /* Sized to absorb the longest body copy (Seller Finance) so all
-       three keyaspect blocks align horizontally across the three cards. */
-    min-height: 230px;
+       three keyaspect blocks align horizontally across the three cards.
+       Flex column with center justify so short copy lands on the
+       vertical mid-line of the tan box instead of sticking to the top. */
+    min-height: 350px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
 .strategy-keyaspect-label {
     font-family: var(--font-mono);
-    font-size: 0.95em;
+    font-size: 1.05em;
     letter-spacing: 0.16em;
     text-transform: uppercase;
     color: var(--bh-blue-deep);
     font-weight: 700;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
 }
 .strategy-keyaspect-body {
     font-family: var(--font-body);
-    font-size: 1.05em;
+    font-size: 1.2em;
     color: var(--ink);
     line-height: 1.5;
     margin: 0;
