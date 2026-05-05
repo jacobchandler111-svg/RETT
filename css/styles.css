@@ -2800,7 +2800,7 @@ body { font-size: 16px; }
     background: var(--paper);
     border: 1px solid var(--rule);
     box-shadow: var(--shadow);
-    padding: 30px 30px 26px;
+    padding: 26px 18px 22px;
     /* Grid keeps the same rows in every card — header / name / tagline /
        tradeoffs / buttons. Because the row template is identical and
        the cards are stretched to the same height by the parent grid,
@@ -3333,30 +3333,33 @@ body { font-size: 16px; }
    Details panel. Renders only for type === 'C'. The seller's real-world
    question is "when does the buyer's cash actually arrive?" — this
    table answers it date-by-date so the advisor can plan liquidity. */
-.rett-interested-payments-details {
-    margin-top: 12px;
-    padding-top: 10px;
-    border-top: 1px dashed var(--rule);
+/* Page-3 Structured Sale: payment schedule lives BELOW the Use This
+   Strategy button as a chevron-only toggle (no text). Stays out of
+   the way until the presenter wants to walk through cash timing. */
+.rett-interested-paysched-arrow {
+    margin-top: 10px;
 }
-.rett-interested-payments-details > summary {
-    font-family: var(--font-body);
-    font-weight: 600;
-    color: var(--bh-blue-deep);
-    cursor: pointer;
+.rett-interested-paysched-arrow > summary {
     list-style: none;
-    padding: 4px 0;
-    font-size: 0.92em;
+    cursor: pointer;
+    padding: 6px 0;
+    text-align: center;
+    color: var(--bh-blue-deep);
 }
-.rett-interested-payments-details > summary::before {
-    content: "\25B8";
+.rett-interested-paysched-arrow > summary::-webkit-details-marker { display: none; }
+.rett-paysched-arrow-glyph {
     display: inline-block;
-    margin-right: 8px;
+    width: 0;
+    height: 0;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-top: 9px solid currentColor;
     transition: transform 0.15s;
+    vertical-align: middle;
 }
-.rett-interested-payments-details[open] > summary::before {
-    transform: rotate(90deg);
+.rett-interested-paysched-arrow[open] .rett-paysched-arrow-glyph {
+    transform: rotate(180deg);
 }
-.rett-interested-payments-details > summary::-webkit-details-marker { display: none; }
 .rett-interested-payments {
     margin-top: 16px;
     padding-top: 12px;

@@ -1985,9 +1985,14 @@
         (chosen ? '✓ Selected &mdash; continue to Supplemental' : 'Use This Strategy &rarr;') +
       '</button>';
     var donutHtml = (visuals && visuals.donut) ? visuals.donut : '';
-    var paymentNested = (typeLabel === 'C' && paymentScheduleHtml)
-      ? '<details class="rett-interested-payments-details">' +
-          '<summary>Show payment schedule</summary>' +
+    // Payment schedule (C only) lives BELOW the Use This Strategy
+    // button as a small chevron-only toggle, so the button line stays
+    // aligned across all three cards. A presenter can click it during
+    // the meeting if a payment-cadence question comes up; otherwise
+    // it stays out of the way.
+    var paymentArrow = (typeLabel === 'C' && paymentScheduleHtml)
+      ? '<details class="rett-interested-paysched-arrow">' +
+          '<summary aria-label="Show payment schedule"><span class="rett-paysched-arrow-glyph" aria-hidden="true"></span></summary>' +
           paymentScheduleHtml +
         '</details>'
       : '';
@@ -2005,9 +2010,9 @@
       '<details class="rett-interested-details">' +
         '<summary>Show details</summary>' +
         donutHtml +
-        paymentNested +
       '</details>' +
       chooseBtn +
+      paymentArrow +
     '</div>';
   }
 
@@ -2140,7 +2145,6 @@
     //   - If the resulting set is empty, show an explicit empty-state
     //     CTA back to Page 2 (P1-2) instead of a blank page.
     var interest = (typeof window !== 'undefined' && window.__rettStrategyInterest) || {};
-    var anyExplicit = ['A','B','C'].some(function (k) { return interest[k] === true || interest[k] === false; });
 
     // Tri-state filter: hide ONLY cards the user explicitly marked
     // Not Interested (interest === false). Unmarked cards (null)
@@ -2151,9 +2155,11 @@
       return interest[e.type] !== false;
     });
 
-    var hint = anyExplicit
-      ? ''
-      : '<div class="rett-interested-hint">Mark <strong>Interested</strong> or <strong>Not Interested</strong> on the Strategies page to filter this view to the options you actually want to compare.</div>';
+    // The legacy "Mark Interested / Not Interested on the Strategies
+    // page to filter this view ..." hint was removed — the cards
+    // speak for themselves and the hint added visual noise above the
+    // grid during presentations.
+    var hint = '';
 
     if (!filtered.length) {
       // Empty state per P1-2: every strategy was clicked Not Interested
