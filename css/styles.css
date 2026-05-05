@@ -3204,17 +3204,20 @@ body { font-size: 16px; }
    Uses a soft neutral-blue so the eye reads it as the "default" /
    already-yours portion of the income pie. */
 .rett-donut .rett-donut-kept    { fill: var(--bh-powder); opacity: 0.55; }
-/* Slice 2 — net benefit CLAWED BACK by the strategy. Bright green so
-   it pops as "this is the part the strategy gave you." */
+/* Slice — net benefit / savings clawed back by the strategy. Bright
+   green so it pops as "this is the part the strategy gave you." */
 .rett-donut .rett-donut-benefit { fill: var(--green); }
-/* Slice 3 — tax still owed under the strategy. Dark ink so it's
-   visually the "loss" portion. */
+/* Slice — fees paid to operate the strategy (variant A only).
+   Mid-blue so it visually sits between "savings" and "tax due." */
+.rett-donut .rett-donut-fees    { fill: var(--bh-blue-deep); opacity: 0.85; }
+/* Slice — tax still owed under the strategy. Dark ink so it reads as
+   the "loss" portion. */
 .rett-donut .rett-donut-owed    { fill: var(--ink); opacity: 0.82; }
 .rett-donut-center-pct {
     font-family: var(--font-display);
     font-style: italic;
     font-weight: 500;
-    font-size: 30px;
+    font-size: 38px;
     fill: var(--ink);
     letter-spacing: -0.02em;
 }
@@ -3258,7 +3261,24 @@ body { font-size: 16px; }
 }
 .rett-donut-swatch.sw-kept    { background: var(--bh-powder); opacity: 0.55; }
 .rett-donut-swatch.sw-benefit { background: var(--green); }
+.rett-donut-swatch.sw-fees    { background: var(--bh-blue-deep); opacity: 0.85; }
 .rett-donut-swatch.sw-owed    { background: var(--ink); opacity: 0.82; }
+.rett-donut-legend-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.rett-donut-fees-callout {
+    font-family: var(--font-mono);
+    font-size: 0.82em;
+    color: var(--ink-soft);
+    padding: 8px 0 0;
+    border-top: 1px dashed var(--rule);
+}
+.rett-donut-fees-callout strong {
+    color: var(--bh-blue-deep);
+    font-variant-numeric: tabular-nums;
+}
 
 
 /* ============================================================

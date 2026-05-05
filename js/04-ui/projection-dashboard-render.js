@@ -1780,17 +1780,21 @@
   // user is here to see what the strategy does to the SALE TAX, not
   // their overall tax picture.
   //
-  // Slices:
-  //   - "Original income" (light): saleGain - saleTaxDoNothing — what
-  //     the client would have kept of the sale doing nothing.
-  //   - "Net benefit" (green): the dollars the strategy claws BACK
-  //     from the original sale-tax slice (capped at saleTaxDoNothing).
-  //   - "Tax still owed" (dark): saleTaxDoNothing - netBenefit.
+  // Three variants while the user is choosing presentation framing:
+  //   A — 4-slice: kept-doing-nothing | net benefit | fees | tax due
+  //       Most granular. Each slice is a real-world dollar.
+  //   B — 3-slice: kept-doing-nothing | net benefit | tax+fees combined
+  //       Hides the fee/tax split inside one "outflow" slice.
+  //   C — 3-slice + callout: kept-doing-nothing | savings (gross)
+  //       | tax due. Fees shown separately as an annotation under the
+  //       legend so the user sees savings before fees were taken out.
   //
-  // Center label compares % of sale gain kept after strategy vs doing
-  // nothing. Inline SVG, no chart-lib deps, zero external requests.
+  // ALL three center the same percentage — the actual fraction of the
+  // sale the client takes home after the strategy + fees — so the
+  // headline stays consistent regardless of variant.
+  // Inline SVG, no chart-lib deps, zero external requests.
   // -------------------------------------------------------------------
-  function _saleOnlyDonutSvg(cfg, metrics) {
+  function _saleOnlyDonutSvg(cfg, metrics, variant) {
     if (!cfg || !metrics) return '';
     var sale  = Math.max(0, Number(cfg.salePrice) || 0);
     var basis = Math.max(0, Number(cfg.costBasis) || 0);
@@ -1838,21 +1842,60 @@
       saleTaxDoNothing = fedTotal + stateTax;
     }
 
-    // Engine's overall savings — attributable mostly to the sale since
-    // Brooklyn losses target capital gains. Cap at saleTaxDoNothing so
-    // the pie can't display "we saved more tax than the sale generated."
+    // Real-world dollar quantities each slice can describe:
+    //   keptOriginal     — saleGain − saleTaxDoNothing (kept doing nothing)
+    //   savings          — gross tax savings (capped at saleTaxDoNothing)
+    //   fees             — strategy fees
+    //   netBenefit       — savings − fees (= extra in pocket vs do-nothing)
+    //   taxWithStrategy  — saleTaxDoNothing − savings (tax actually owed)
+    var fees = Math.max(0, metrics.fees || 0);
     var savings = Math.max(0, (metrics.doNothing || 0) - (metrics.tax || 0));
-    var netBenefit = Math.max(0, savings - (metrics.fees || 0));
+    savings = Math.min(savings, saleTaxDoNothing);
+    var netBenefit = Math.max(0, savings - fees);
     netBenefit = Math.min(netBenefit, saleTaxDoNothing);
-    var taxStillOwed = Math.max(0, saleTaxDoNothing - netBenefit);
+    var taxWithStrategy = Math.max(0, saleTaxDoNothing - savings);
     var keptOriginal = Math.max(0, saleGain - saleTaxDoNothing);
-    if (keptOriginal + netBenefit + taxStillOwed <= 0) return '';
 
+    // Center percentage = actual fraction of sale the client takes
+    // home AFTER strategy + fees. Same denominator across all variants
+    // so the headline doesn't change between A/B/C framing.
+    var keptAfterStrategy = saleGain - taxWithStrategy - fees;
+    var pctKept = ((Math.max(0, keptAfterStrategy) / saleGain) * 100).toFixed(1) + '%';
+
+    // Build the slice list per-variant. Each slice is { value, fill,
+    // label } where the slice values must SUM TO saleGain so the pie
+    // closes the circle.
+    var slicesData = [];
+    var legendRows = [];
+    var feesCallout = '';
+    if (variant === 'A') {
+      // 4-slice: kept | net benefit | fees | tax due
+      slicesData = [
+        { value: keptOriginal,    fill: 'rett-donut-kept',    label: 'Original income kept', amt: keptOriginal },
+        { value: netBenefit,      fill: 'rett-donut-benefit', label: 'Net benefit',          amt: netBenefit },
+        { value: fees,            fill: 'rett-donut-fees',    label: 'Fees',                 amt: fees },
+        { value: taxWithStrategy, fill: 'rett-donut-owed',    label: 'Tax due',              amt: taxWithStrategy }
+      ];
+    } else if (variant === 'B') {
+      // 3-slice: kept | net benefit | tax+fees combined
+      slicesData = [
+        { value: keptOriginal,             fill: 'rett-donut-kept',    label: 'Original income kept', amt: keptOriginal },
+        { value: netBenefit,               fill: 'rett-donut-benefit', label: 'Net benefit',          amt: netBenefit },
+        { value: taxWithStrategy + fees,   fill: 'rett-donut-owed',    label: 'Tax + fees',           amt: taxWithStrategy + fees }
+      ];
+    } else {
+      // C: 3-slice with savings (gross) green + fees as separate callout
+      slicesData = [
+        { value: keptOriginal,    fill: 'rett-donut-kept',    label: 'Original income kept', amt: keptOriginal },
+        { value: savings,         fill: 'rett-donut-benefit', label: 'Savings (gross)',      amt: savings },
+        { value: taxWithStrategy, fill: 'rett-donut-owed',    label: 'Tax due',              amt: taxWithStrategy }
+      ];
+      feesCallout = '<div class="rett-donut-fees-callout">Less fees: <strong>&minus;' + _fmt(fees) +
+                    '</strong> <span class="muted">(net benefit ' + _fmt(netBenefit) + ')</span></div>';
+    }
+
+    // Render slices by sweeping clockwise starting at 12 o'clock.
     var twoPi = Math.PI * 2;
-    var keptSweep = (keptOriginal / saleGain) * twoPi;
-    var benSweep  = (netBenefit   / saleGain) * twoPi;
-    var owedSweep = Math.max(0, twoPi - keptSweep - benSweep);
-
     var cx = 110, cy = 110, r = 88, rInner = 56;
     function _slice(startA, sweepA, fillCss) {
       if (sweepA <= 0.0001) return '';
@@ -1875,66 +1918,73 @@
     }
     var startA = -Math.PI / 2;
     var slices = '';
-    slices += _slice(startA,                              keptSweep, 'rett-donut-kept');
-    slices += _slice(startA + keptSweep,                  benSweep,  'rett-donut-benefit');
-    slices += _slice(startA + keptSweep + benSweep,       owedSweep, 'rett-donut-owed');
+    var cursor = startA;
+    slicesData.forEach(function (s) {
+      var sweep = (s.value / saleGain) * twoPi;
+      slices += _slice(cursor, sweep, s.fill);
+      cursor += sweep;
+    });
 
-    var keptAfterStrategy = saleGain - taxStillOwed - (metrics.fees || 0);
-    var pctKept   = ((Math.max(0, keptAfterStrategy) / saleGain) * 100).toFixed(1) + '%';
-    var pctDoNoth = ((keptOriginal / saleGain) * 100).toFixed(1) + '%';
-
-    var legend =
-      '<div class="rett-donut-legend">' +
-        '<div class="rett-donut-leg-row"><span class="rett-donut-swatch sw-kept"></span><span class="rett-donut-leg-label">Original income kept</span><strong>' + _fmt(keptOriginal) + '</strong></div>' +
-        '<div class="rett-donut-leg-row"><span class="rett-donut-swatch sw-benefit"></span><span class="rett-donut-leg-label">Net benefit clawed back</span><strong>' + _fmt(netBenefit) + '</strong></div>' +
-        '<div class="rett-donut-leg-row"><span class="rett-donut-swatch sw-owed"></span><span class="rett-donut-leg-label">Tax still owed (on sale)</span><strong>' + _fmt(taxStillOwed) + '</strong></div>' +
-      '</div>';
+    // Map slice fill class → swatch class for the legend.
+    var swatchMap = {
+      'rett-donut-kept':    'sw-kept',
+      'rett-donut-benefit': 'sw-benefit',
+      'rett-donut-fees':    'sw-fees',
+      'rett-donut-owed':    'sw-owed'
+    };
+    legendRows = slicesData.map(function (s) {
+      return '<div class="rett-donut-leg-row">' +
+               '<span class="rett-donut-swatch ' + (swatchMap[s.fill] || '') + '"></span>' +
+               '<span class="rett-donut-leg-label">' + s.label + '</span>' +
+               '<strong>' + _fmt(s.amt) + '</strong>' +
+             '</div>';
+    }).join('');
 
     return '<div class="rett-donut-wrap">' +
-      '<svg class="rett-donut" viewBox="0 0 220 220" role="img" aria-label="Sale tax: kept vs net benefit vs still owed">' +
+      '<svg class="rett-donut" viewBox="0 0 220 220" role="img" aria-label="Sale tax breakdown">' +
         slices +
-        '<text x="110" y="103" text-anchor="middle" class="rett-donut-center-pct">' + pctKept + '</text>' +
-        '<text x="110" y="125" text-anchor="middle" class="rett-donut-center-sub">of sale kept</text>' +
-        '<text x="110" y="142" text-anchor="middle" class="rett-donut-center-sub">vs ' + pctDoNoth + ' doing nothing</text>' +
+        '<text x="110" y="120" text-anchor="middle" class="rett-donut-center-pct">' + pctKept + '</text>' +
       '</svg>' +
-      legend +
+      '<div class="rett-donut-legend-wrap">' +
+        '<div class="rett-donut-legend">' + legendRows + '</div>' +
+        feesCallout +
+      '</div>' +
     '</div>';
   }
 
-  // Build the visualizations object for a card. Every card gets the
-  // sale-only donut. Bar charts and timelines were dropped per user
-  // spec — donut alone tells the kept-vs-clawed-back story and lives
-  // inside the Show Details accordion (not always-visible).
+  // Build the visualizations object for a card. Each card type gets
+  // a different donut variant so the user can compare A/B/C framings
+  // side-by-side and choose one for the canonical version:
+  //   Sell Now (A)        → variant A (4-slice)
+  //   Seller Finance (B)  → variant B (3-slice with tax+fees combined)
+  //   Structured Sale (C) → variant C (3-slice + fees callout)
   function _buildVisuals(typeLabel, metrics, cfg, comp) {
-    return { donut: _saleOnlyDonutSvg(cfg, metrics) };
+    var variant = (typeLabel === 'B') ? 'B' : (typeLabel === 'C' ? 'C' : 'A');
+    return { donut: _saleOnlyDonutSvg(cfg, metrics, variant) };
   }
 
   function _interestedCard(typeLabel, num, name, picked, metrics, lossSum, isRecommended, durationMonths, paymentScheduleHtml, visuals) {
-    // Recommended badge intentionally suppressed on Page 3 — the user
-    // surfaces the recommendation in conversation, not via UI. The
-    // isRecommended flag still controls the engine-level filter logic
-    // (Recommended-survives-Not-Interested in renderInterestedSnapshot)
-    // so we can't drop the parameter without rewiring the filter.
-    var autoSummary = 'horizon = ' + picked.horizon + 'y, leverage = ' +
-      picked.shortPct + '%';
+    // Format leverage as a multiplier ("0.45×", "1.0×", "2.25×")
+    // instead of "45%" — matches how the user verbally describes
+    // strategies (1.0× / 1.65×) and reads cleaner next to "Time
+    // horizon" in the auto-pick line. Trailing-zero kept for whole
+    // numbers (1.0× not 1×) so the format is uniform.
+    function _fmtLev(pct) {
+      var x = (pct || 0) / 100;
+      if (Math.abs(x - Math.round(x)) < 0.005) return x.toFixed(1) + '×';
+      return x.toFixed(2) + '×';
+    }
+    // Auto-pick line. Pages 2/3 dropped detail rows entirely per user
+    // spec — the only context kept under the donut is the engine's
+    // chosen tuple (time horizon + leverage, plus recognition year +
+    // duration for C). Everything else (losses, fees breakdown, net
+    // echo) was noise and is gone.
+    var autoSummary = 'Time horizon: ' + picked.horizon + 'y &middot; Leverage: ' + _fmtLev(picked.shortPct);
     if (typeLabel === 'C') {
       var pickedDur = picked.durationMonths || durationMonths || 18;
-      autoSummary += ', recognition = Year ' + (picked.bestRecC || 2) +
-        ', duration = ' + pickedDur + ' mo';
+      autoSummary += ' &middot; Recognition: Year ' + (picked.bestRecC || 2) +
+        ' &middot; Duration: ' + pickedDur + ' mo';
     }
-    // Time-window suffix for the still-shown cumulative figures.
-    // Removed "Total tax (with strategy)" and "Do-nothing tax baseline"
-    // per user spec — those are implicit in the donut chart now and
-    // cluttered the details panel. Kept: losses, fees breakdown, net
-    // benefit (echoed for verification math).
-    var horizonY = (picked && picked.horizon) || 5;
-    var hSuffix  = ' <span class="muted" style="font-weight:400;">(' + horizonY + '-yr cumulative)</span>';
-    var detailItems = '';
-    detailItems += _interestedDetailRow('Total losses generated' + hSuffix,     lossSum);
-    detailItems += _interestedDetailRow('Total fees' + hSuffix,                 metrics.fees);
-    detailItems += _interestedDetailRow('&#8627; Brooklyn fees',      metrics.brooklynFees, true);
-    detailItems += _interestedDetailRow('&#8627; Brookhaven fees',    metrics.brookhavenFees, true);
-    detailItems += '<li class="rett-interested-detail-net"><span>Net benefit' + hSuffix + '</span><strong>' + _fmt(metrics.net) + '</strong></li>';
 
     // Card visual: only the user's own "chosen" pick gets a ring.
     // The engine-recommended border treatment was intentionally removed
@@ -1955,13 +2005,15 @@
       '<div class="rett-interested-net-value">' + _fmt(metrics.net) + '</div>' +
       '<details class="rett-interested-details">' +
         '<summary>Show details</summary>' +
-        // Donut chart leads — sale-only pie showing how much of the
-        // sale is offset, with "original income kept" as the dominant
-        // slice and "net benefit" as the green sliver clawed back from
-        // the tax slice.
+        // Donut chart + auto-pick line are the only things in the
+        // accordion now. Detail rows (losses / fees breakdown / net
+        // benefit echo) were stripped per user spec — the donut
+        // already shows the sale story and the headline net benefit
+        // number is right above the accordion. Structured Sale (C)
+        // additionally keeps its payment schedule since cash-arrival
+        // timing is the whole point of that strategy.
         ((visuals && visuals.donut) ? visuals.donut : '') +
-        '<ul class="rett-interested-detail-list">' + detailItems + '</ul>' +
-        '<div class="rett-interested-autopick">Auto-picked: ' + autoSummary + '</div>' +
+        '<div class="rett-interested-autopick">' + autoSummary + '</div>' +
         (paymentScheduleHtml || '') +
       '</details>' +
       chooseBtn +
