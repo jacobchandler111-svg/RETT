@@ -319,8 +319,52 @@
     html += '</div>'; // /forward-results
     html += '</div>'; // /forward-layout
 
+    // Implementation panel — hidden by default, expand via the small
+    // triangle on the trailing dash. Advisor-only audit view: shows
+    // the dollar allocation across Brooklyn + each enabled supplemental
+    // so the math can be checked (no double-spending sale proceeds).
+    // Not for client presentation — kept minimal and quiet.
+    html += _renderImplementationPanel(currentCfg);
+
     host.innerHTML = html;
     _bindSupplementalToggleEvents();
+  }
+
+  function _renderImplementationPanel(cfg) {
+    if (typeof root.runAllocator !== 'function') return '';
+    var totalAvailable = (cfg && Number(cfg.availableCapital)) || 0;
+    var alloc = root.runAllocator(totalAvailable);
+    var rows = '';
+    rows += '<div class="impl-row"><span class="impl-name">Total available capital</span>' +
+            '<span class="impl-amt">' + _fmt(alloc.totalAvailable) + '</span></div>';
+    alloc.supplementals.forEach(function (s) {
+      var note = s.enabled && s.available ? '' :
+                 (!s.enabled ? ' (disabled on Page 5)' :
+                  !s.available ? ' (awaiting Page 4 input)' : '');
+      rows += '<div class="impl-row impl-row-supp">' +
+              '<span class="impl-name">&rarr; ' + s.name + note + '</span>' +
+              '<span class="impl-amt">' + _fmt(s.investment) + '</span></div>';
+    });
+    rows += '<div class="impl-row impl-row-brooklyn">' +
+            '<span class="impl-name">&rarr; Brooklyn (remaining)</span>' +
+            '<span class="impl-amt">' + _fmt(alloc.brooklynRemaining) + '</span></div>';
+    var warn = '';
+    if (alloc.overAllocated) {
+      warn = '<div class="impl-warn">Over-allocated by ' + _fmt(alloc.overage) +
+             ' &mdash; the supplemental investments exceed available capital. Reduce a supplemental on Page 4 or raise Available Capital on Page 1.</div>';
+    }
+    return '' +
+      '<details class="forward-implementation">' +
+        '<summary class="forward-implementation-summary" aria-label="Show implementation breakdown">' +
+          '<span class="impl-dash" aria-hidden="true"></span>' +
+        '</summary>' +
+        '<div class="forward-implementation-body">' +
+          '<div class="impl-head">Implementation &mdash; dollar allocation</div>' +
+          '<p class="impl-sub">Advisor audit view. Confirms no dollar is committed to more than one strategy.</p>' +
+          rows +
+          warn +
+        '</div>' +
+      '</details>';
   }
 
   // -----------------------------------------------------------------

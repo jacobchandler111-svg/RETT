@@ -157,6 +157,60 @@
     };
   }
 
+  // Allocate dollars across the chosen Brooklyn position and any
+  // enabled supplementals. The same dollar can't fund Brooklyn AND
+  // Oil & Gas AND Delphi — sale proceeds are finite. This function is
+  // the auditor: read the user's total available capital, walk the
+  // registry for enabled supplementals, sum each one's committed
+  // investment via spec.getInvestment(result), and return a tidy
+  // breakdown the Implementation panel can render.
+  //
+  //   totalAvailable        — Page-1 Available Capital.
+  //   supplementals[]       — { id, name, investment } per enabled spec.
+  //   allocatedToSupplementals — sum of supplemental investments.
+  //   brooklynRemaining     — totalAvailable − allocatedToSupplementals.
+  //                           This is the dollar Brooklyn is ENTITLED
+  //                           to deploy under correct accounting; the
+  //                           engine still uses cfg.availableCapital
+  //                           for now (no enforcement, just visibility).
+  //   overAllocated         — true if supplementals exceed totalAvailable.
+  //                           Surfaces in the Implementation panel so
+  //                           the advisor can spot a broken rule.
+  function runAllocator(totalAvailable) {
+    var avail = Math.max(0, Number(totalAvailable) || 0);
+    var list = listSupplementals();
+    var supps = list
+      .map(function (spec) {
+        var enabled = isSupplementalEnabled(spec.id);
+        var result  = (typeof spec.getResult === 'function') ? spec.getResult() : null;
+        var inv = (typeof spec.getInvestment === 'function')
+          ? Number(spec.getInvestment(result)) || 0
+          : 0;
+        return {
+          id:         spec.id,
+          name:       spec.name,
+          shortName:  spec.shortName || spec.name,
+          enabled:    enabled,
+          available:  !!result,
+          investment: enabled && result ? inv : 0
+        };
+      })
+      .filter(function (s) {
+        var spec = getSupplemental(s.id);
+        if (!spec || typeof spec.getInterest !== 'function') return false;
+        return spec.getInterest() === true;
+      });
+    var alloc = supps.reduce(function (sum, s) { return sum + s.investment; }, 0);
+    return {
+      totalAvailable:           avail,
+      supplementals:            supps,
+      allocatedToSupplementals: alloc,
+      brooklynRemaining:        Math.max(0, avail - alloc),
+      overAllocated:            alloc > avail,
+      overage:                  Math.max(0, alloc - avail)
+    };
+  }
+
   // Wipe the Page-5 enabled override for a single supplemental, so the
   // next render falls back to the default-on rule (enabled iff Interest
   // is true). Used to fix two bugs that share the same root cause:
@@ -199,4 +253,5 @@
   root.setSupplementalEnabled       = setSupplementalEnabled;
   root.resetSupplementalEnabledOverride = resetEnabledOverride;
   root.runMasterSolver              = runMasterSolver;
+  root.runAllocator                 = runAllocator;
 })(window);
