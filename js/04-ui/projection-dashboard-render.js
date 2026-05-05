@@ -1639,4 +1639,152 @@
   }
 
   root.renderProjectionDashboard = renderProjectionDashboard;
+
+  // -------------------------------------------------------------------
+  // Page-3 minimal view: filter to scenarios marked Interested on Page 2,
+  // show one card per scenario with the net benefit big and a click-to-
+  // expand details panel for math verification. The legacy comparison
+  // table + dashboards live behind the Next button (#full-projection-region)
+  // and stay rendered (so calculations still run + state stays consistent).
+  // -------------------------------------------------------------------
+  function _scenarioLossSum(cfg) {
+    var data = _scenarioFullData(cfg);
+    if (!data || !Array.isArray(data.years)) return 0;
+    var sum = 0;
+    data.years.forEach(function (y) { sum += (y.grossLoss || 0); });
+    return sum;
+  }
+
+  function _interestedDetailRow(label, value, indent) {
+    var pad = indent ? 'style="padding-left:18px;color:var(--ink-soft)"' : '';
+    return '<li ' + pad + '><span>' + label + '</span><strong>' + _fmt(value) + '</strong></li>';
+  }
+
+  function _interestedCard(typeLabel, num, name, picked, metrics, lossSum, isRecommended, durationMonths) {
+    var badge = isRecommended
+      ? '<span class="rett-interested-rec-tag">Recommended</span>'
+      : '';
+    var autoSummary = 'horizon = ' + picked.horizon + 'y, leverage = ' +
+      picked.shortPct + '%';
+    if (typeLabel === 'C') {
+      autoSummary += ', recognition = Year ' + (picked.bestRecC || 2) +
+        ', duration = ' + (durationMonths || 18) + ' mo';
+    }
+    var detailItems = '';
+    detailItems += _interestedDetailRow('Total tax (with strategy)',  metrics.tax);
+    detailItems += _interestedDetailRow('Do-nothing tax baseline',    metrics.doNothing);
+    detailItems += _interestedDetailRow('Total losses generated',     lossSum);
+    detailItems += _interestedDetailRow('Total fees',                 metrics.fees);
+    detailItems += _interestedDetailRow('&#8627; Brooklyn fees',      metrics.brooklynFees, true);
+    detailItems += _interestedDetailRow('&#8627; Brookhaven fees',    metrics.brookhavenFees, true);
+    detailItems += '<li class="rett-interested-detail-net"><span>Net benefit</span><strong>' + _fmt(metrics.net) + '</strong></li>';
+
+    var cls = 'rett-interested-card' + (isRecommended ? ' is-recommended' : '');
+    return '<div class="' + cls + '" data-type="' + typeLabel + '">' +
+      '<div class="rett-interested-header">' +
+        '<span class="rett-interested-num">STRATEGY ' + num + '</span>' +
+        badge +
+      '</div>' +
+      '<div class="rett-interested-name">' + name + '</div>' +
+      '<div class="rett-interested-net-label">Net Benefit</div>' +
+      '<div class="rett-interested-net-value">' + _fmt(metrics.net) + '</div>' +
+      '<details class="rett-interested-details">' +
+        '<summary>Show details</summary>' +
+        '<ul class="rett-interested-detail-list">' + detailItems + '</ul>' +
+        '<div class="rett-interested-autopick">Auto-picked: ' + autoSummary + '</div>' +
+      '</details>' +
+    '</div>';
+  }
+
+  function renderInterestedSnapshot() {
+    var host = document.getElementById('interested-cards-host');
+    if (!host) return;
+    if (typeof collectInputs !== 'function') {
+      host.innerHTML = '';
+      return;
+    }
+    var currentCfg;
+    try { currentCfg = collectInputs(); } catch (e) { currentCfg = null; }
+    if (!currentCfg) {
+      host.innerHTML = '<div class="muted" style="padding:18px 0;">Fill in the client inputs on Page 1 to see projections.</div>';
+      return;
+    }
+    var userDuration = currentCfg.structuredSaleDurationMonths || 18;
+
+    function _bestPickedCfgLocal(type) {
+      var picked = _autoPickSection(type, currentCfg);
+      var sectionCfg = Object.assign({}, currentCfg, {
+        horizonYears: picked.horizon,
+        leverage:     picked.shortPct / 100,
+        leverageCap:  picked.shortPct / 100,
+        comboId:      picked.comboId
+      });
+      return {
+        cfg: _scenarioCfgFor(type, sectionCfg, picked.bestRecC, userDuration),
+        picked: picked
+      };
+    }
+
+    var saleMonth0 = -1;
+    if (currentCfg.implementationDate &&
+        typeof window !== 'undefined' &&
+        typeof window.parseLocalDate === 'function') {
+      var d = window.parseLocalDate(currentCfg.implementationDate);
+      if (d && !isNaN(d.getTime())) saleMonth0 = d.getMonth();
+    }
+
+    var pickedA = _bestPickedCfgLocal('A');
+    var mA = _scenarioMetrics(pickedA.cfg);
+    var lossA = mA ? _scenarioLossSum(pickedA.cfg) : 0;
+
+    var pickedB = null, mB = null, lossB = 0;
+    if (saleMonth0 >= 8) {
+      pickedB = _bestPickedCfgLocal('B');
+      mB = _scenarioMetrics(pickedB.cfg);
+      lossB = mB ? _scenarioLossSum(pickedB.cfg) : 0;
+    }
+
+    var pickedC = _bestPickedCfgLocal('C');
+    var mC = _scenarioMetrics(pickedC.cfg);
+    var lossC = mC ? _scenarioLossSum(pickedC.cfg) : 0;
+
+    var entries = [];
+    if (mA) entries.push({ type: 'A', num: '01', name: 'Sell Now', picked: pickedA.picked, metrics: mA, loss: lossA });
+    if (mB) entries.push({ type: 'B', num: '02', name: 'Seller Finance', picked: pickedB.picked, metrics: mB, loss: lossB });
+    if (mC) entries.push({ type: 'C', num: '03', name: 'Structured Sale', picked: pickedC.picked, metrics: mC, loss: lossC });
+
+    if (!entries.length) {
+      host.innerHTML = '';
+      return;
+    }
+
+    // Recommended = highest net across ALL three (matches Page-2 badge logic).
+    var maxNet = -Infinity, recIdx = -1;
+    entries.forEach(function (e, i) {
+      if (e.metrics.net > maxNet) { maxNet = e.metrics.net; recIdx = i; }
+    });
+
+    var interest = (typeof window !== 'undefined' && window.__rettStrategyInterest) || {};
+    var anyTrue = ['A','B','C'].some(function (k) { return interest[k] === true; });
+
+    var filtered = anyTrue
+      ? entries.filter(function (e) { return interest[e.type] === true; })
+      : entries.slice();
+
+    var hint = anyTrue
+      ? ''
+      : '<div class="rett-interested-hint">Mark <strong>Interested</strong> on the Strategies page to filter this view to the options you want to compare.</div>';
+
+    var grid = '<div class="rett-interested-grid count-' + filtered.length + '">';
+    filtered.forEach(function (e, i) {
+      // Recommended badge follows the original entry index, not the filter index.
+      var isRec = (entries.indexOf(e) === recIdx);
+      grid += _interestedCard(e.type, e.num, e.name, e.picked, e.metrics, e.loss, isRec, userDuration);
+    });
+    grid += '</div>';
+
+    host.innerHTML = hint + grid;
+  }
+
+  root.renderInterestedSnapshot = renderInterestedSnapshot;
 })(window);

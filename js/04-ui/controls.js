@@ -424,6 +424,10 @@ function showPage(id) {
       // Run the full pipeline: recommendation engine -> projection engine ->
       // dashboard render. Replaces the legacy click-the-hidden-button trick.
       runFullPipeline();
+      if (typeof renderInterestedSnapshot === 'function') {
+        try { renderInterestedSnapshot(); }
+        catch (e) { (window.reportFailure || console.warn)('Interested-snapshot render failed', e); }
+      }
     } catch (e) {
       (window.reportFailure || console.warn)('Could not run the projection pipeline', e, { level: 'error' });
     }
@@ -783,6 +787,22 @@ function bindControls() {
   if (strategiesBack) strategiesBack.addEventListener('click', function () { showPage('page-inputs'); });
   var strategiesContinue = document.getElementById('strategies-continue');
   if (strategiesContinue) strategiesContinue.addEventListener('click', function () { showPage('page-projection'); });
+
+  // Page 3 "Next" button: reveal the legacy projection visuals
+  // (comparison table + KPI dashboards + chart) below the minimal
+  // interested-only cards. The full region stays loaded in the DOM so
+  // calculations + state stay coherent — we just keep it hidden until
+  // the user explicitly asks for full detail.
+  var showFullProj = document.getElementById('show-full-projection');
+  if (showFullProj) showFullProj.addEventListener('click', function () {
+    var region = document.getElementById('full-projection-region');
+    if (!region) return;
+    region.hidden = false;
+    showFullProj.hidden = true;
+    if (typeof region.scrollIntoView === 'function') {
+      region.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
 
   // Sub-tabs on Page 2 (Summary | Details).
   const subnavSummary = document.getElementById('subnav-summary');

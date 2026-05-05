@@ -2961,3 +2961,181 @@ body { font-size: 16px; }
     color: var(--paper);
     border-color: var(--ink);
 }
+
+/* ============ Page 3 — Interested-Only Snapshot ============ */
+.rett-interested-hint {
+    background: var(--paper-warm);
+    border: 1px solid var(--rule);
+    color: var(--ink-soft);
+    font-family: var(--font-body);
+    font-size: 0.95em;
+    padding: 12px 16px;
+    border-radius: 2px;
+    margin: 16px 0 20px;
+}
+.rett-interested-grid {
+    display: grid;
+    gap: 22px;
+    margin-top: 16px;
+}
+.rett-interested-grid.count-1 { grid-template-columns: minmax(380px, 720px); justify-content: center; }
+.rett-interested-grid.count-2 { grid-template-columns: 1fr 1fr; }
+.rett-interested-grid.count-3 { grid-template-columns: 1fr 1fr 1fr; }
+@media (max-width: 1100px) {
+    .rett-interested-grid.count-2,
+    .rett-interested-grid.count-3 { grid-template-columns: 1fr; }
+}
+
+.rett-interested-card {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    box-shadow: var(--shadow);
+    padding: 26px 28px 22px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.rett-interested-card.is-recommended {
+    border: 2px solid var(--ink);
+    box-shadow: var(--shadow-lg);
+}
+.rett-interested-card.is-recommended::before {
+    content: "";
+    position: absolute;
+    top: -2px; left: -2px; right: -2px;
+    height: 5px;
+    background: var(--ink);
+}
+.rett-interested-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 10px;
+    margin-bottom: 6px;
+}
+.rett-interested-num {
+    font-family: var(--font-mono);
+    font-size: 0.78em;
+    letter-spacing: 0.18em;
+    color: var(--bh-blue-deep);
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.rett-interested-rec-tag {
+    background: var(--ink);
+    color: var(--paper);
+    font-family: var(--font-mono);
+    font-size: 0.68em;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 2px;
+}
+.rett-interested-name {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 500;
+    font-size: 1.85em;
+    color: var(--ink);
+    line-height: 1.05;
+    text-align: center;
+    margin: 4px 0 12px;
+}
+.rett-interested-net-label {
+    font-family: var(--font-mono);
+    font-size: 0.75em;
+    letter-spacing: 0.18em;
+    color: var(--muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    text-align: center;
+}
+.rett-interested-net-value {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 2.6em;
+    color: var(--green);
+    text-align: center;
+    letter-spacing: -0.01em;
+    margin-bottom: 14px;
+}
+.rett-interested-details {
+    border-top: 1px solid var(--rule);
+    padding-top: 12px;
+}
+.rett-interested-details > summary {
+    font-family: var(--font-body);
+    font-weight: 600;
+    color: var(--bh-blue-deep);
+    cursor: pointer;
+    list-style: none;
+    padding: 4px 0;
+    font-size: 0.95em;
+}
+.rett-interested-details > summary::before {
+    content: "\25B8";  /* right-pointing triangle */
+    display: inline-block;
+    margin-right: 8px;
+    transition: transform 0.15s;
+}
+.rett-interested-details[open] > summary::before {
+    transform: rotate(90deg);
+}
+.rett-interested-details > summary::-webkit-details-marker { display: none; }
+.rett-interested-detail-list {
+    list-style: none;
+    padding: 10px 0 4px;
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 0.92em;
+}
+.rett-interested-detail-list li {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+    border-bottom: 1px dashed var(--rule);
+    color: var(--ink);
+}
+.rett-interested-detail-list li:last-child { border-bottom: none; }
+.rett-interested-detail-list li.rett-interested-detail-net {
+    margin-top: 4px;
+    border-top: 1px solid var(--ink);
+    border-bottom: none;
+    padding-top: 8px;
+    font-weight: 700;
+}
+.rett-interested-detail-list li.rett-interested-detail-net strong {
+    color: var(--green);
+}
+.rett-interested-autopick {
+    margin-top: 10px;
+    font-family: var(--font-mono);
+    font-size: 0.82em;
+    color: var(--muted);
+    padding: 6px 0;
+}
+
+.rett-next-projection-row {
+    text-align: center;
+    margin: 28px 0 12px;
+}
+#show-full-projection {
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--ink);
+    padding: 12px 28px;
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 1em;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: background 0.15s, color 0.15s;
+}
+#show-full-projection:hover {
+    background: var(--ink);
+    color: var(--paper);
+}
