@@ -174,22 +174,38 @@ function _yearTaxes(scenario) {
 }
 
 function _applyLossesToScenario(scenario, lossAvailable) {
-      // Brooklyn-generated losses are SHORT-TERM. IRS netting rules:
-      //   1) Short-term loss first offsets short-term gain (netted at ST level).
-      //   2) Net ST loss then offsets long-term gain dollar-for-dollar.
-      //   3) Any remaining net loss offsets ordinary income, CAPPED at the
-      //      §1211(b) annual limit ($3,000 / $1,500 MFS). Excess carries
-      //      forward as STCL — modeled by setting _lossUnused so the
-      //      caller can route it.
+      // IRC §1(h) loss ordering — capital losses absorb gain buckets
+      // highest-rate first (taxpayer-favorable):
+      //   1) ST gain (ordinary rates, up to 37%)
+      //   2) §1250 unrecaptured gain (capped at 25%)
+      //   3) Regular LT gain (0/15/20%)
+      //   4) Ordinary income (capped at $3K / $1.5K MFS per §1211(b))
+      // Mirrors _applyLossesWithSTCfCap (deferred path); without step 2,
+      // a sale with significant accelerated depreciation in the immediate
+      // path saturated only the LT bucket and wasted the rest of the
+      // loss at the $3K ordinary cap — leaving recapture fully taxed and
+      // making Sell-Now (partial-year fees) beat Seller-Finance (full-year
+      // fees) on net since both ended up with identical savings.
       const out = Object.assign({}, scenario);
       let loss = lossAvailable;
 
-      // Step 1: against short-term gain
+      // Step 1: ST gain
       const offsetShort = Math.min(out.shortTermGain || 0, loss);
       out.shortTermGain = (out.shortTermGain || 0) - offsetShort;
       loss -= offsetShort;
 
-      // Step 2: against long-term gain (qualified div NOT a capital gain;
+      // Step 2: §1250 unrecaptured gain (recapture, 25% bucket).
+      // Still a capital gain for §1211 netting purposes, just rate-capped
+      // at 25% downstream. NIIT base also shrinks since recapture is
+      // investment income.
+      if (loss > 0) {
+            const offsetRecap = Math.min(out.depreciationRecapture || 0, loss);
+            out.depreciationRecapture = (out.depreciationRecapture || 0) - offsetRecap;
+            out.investmentIncome = Math.max(0, (out.investmentIncome || 0) - offsetRecap);
+            loss -= offsetRecap;
+      }
+
+      // Step 3: LT gain (qualified div NOT a capital gain;
       // it's taxed at LTCG rates but loss netting only applies to actual gains)
       if (loss > 0) {
             const offsetLong = Math.min(out.longTermGain || 0, loss);
@@ -199,12 +215,9 @@ function _applyLossesToScenario(scenario, lossAvailable) {
             loss -= offsetLong;
       }
 
-      // Step 3: against ordinary income, capped at §1211(b).
+      // Step 4: ordinary income, capped at §1211(b).
       // Without this cap the immediate path silently erased uncapped
-      // amounts of ordinary income (including depreciation recapture
-      // bumped in by structured-sale.js _scoreSchedule), inflating
-      // savings by ≈ recapture × ~37%. The deferred-path equivalent
-      // (_applyLossesWithSTCfCap) already applies this cap.
+      // amounts of ordinary income, inflating savings by ≈ amount × ~37%.
       if (loss > 0) {
             const ordCap = (out.status === 'mfs' || out.status === 'married_separate')
                   ? 1500 : 3000;
