@@ -323,9 +323,19 @@ function computeTaxComparison(cfg, recommendation) {
       // capacity, leftover gain just taxed at LTCG.
       const _isImmediate = (cfg.recognitionStartYearIndex || 0) === 0;
       let _flatRec = recommendation;
+      // Rebuild for any non-single-year recommendation — multi-year,
+      // multi-year-shortfall, custodian-violation, no-action, anything
+      // else. The sale happens regardless of whether Brooklyn engages,
+      // so Y1 gain must be cfg-derived totalLT or the engine silently
+      // drops the property gain (legacy bug surfaced when sweep added
+      // a $1.5M sale into Goldman with $2.5M min — recommendSale
+      // returned 'custodian-violation' with longTermGain=0, the loop
+      // matched neither branch, gainThisYear stayed 0, baseline tax
+      // was wildly under-reported). Note `single-year` recs are
+      // trusted as-is; their recommendation.longTermGain comes from
+      // recommendSale's own cfg-derived calc.
       if (_isImmediate && recommendation &&
-          (recommendation.recommendation === 'multi-year' ||
-           recommendation.recommendation === 'multi-year-shortfall')) {
+          recommendation.recommendation !== 'single-year') {
             const _sched = recommendation.schedule || recommendation.years || [];
             // B4: derive total LT gain from cfg directly. The multi-year
             // solver returns gainByYear summing to whatever Brooklyn could
@@ -395,6 +405,15 @@ function computeTaxComparison(cfg, recommendation) {
       // undefined → showed $0 for every year, contradicting the summary
       // tile that pulls fees from ProjectionEngine.run.
       const _immediateFeeFn = (function () {
+            // Below-min: position can't legally open, so no Brooklyn fees
+            // are charged. Mirrors the brookhavenSchedule null-when-belowMin
+            // gate above and ProjectionEngine.run's lifecycle zero-out;
+            // without this, legacy charged ~$10K Brooklyn fees on a sale
+            // whose capital was below the custodian min, producing an
+            // engine/UI inconsistency (UI read ProjectionEngine and showed
+            // $0; engine internals showed >$0). Unified engine already
+            // gates here.
+            if (_belowMin) return null;
             if (!_isImmediateLoop || _immediateCapital <= 0) return null;
             const _yfImm = yfImpl;
             const _comboImm = (cfg.comboId && typeof getSchwabCombo === 'function')
@@ -1319,17 +1338,32 @@ function unifiedTaxComparison(cfg) {
             // Basis tranche (startIdx=0) gets partial-year fee in Y1.
             // Gain-reinvest tranches always open Jan 1 of their start
             // year, so they get full-year fees from that year on.
+            //
+            // Below-min lifecycle: when the position can't legally open
+            // (cumulative deposit < custodian min over the horizon),
+            // Brooklyn doesn't operate at all. Zero out per-tranche loss
+            // and fee. The legacy immediate engine does this via
+            // `if (_belowMin) lossThisYear = 0`; legacy deferred returns
+            // _zeroDeferredComparison wholesale (handled at function
+            // entry above for isDeferred). Without this gate, immediate-
+            // mode below-min cfgs (e.g., $1.5M sale into a Schwab combo
+            // with $3M min) would emit non-zero Brooklyn loss the user-
+            // facing dashboard correctly zeroes via ProjectionEngine —
+            // a real engine/UI inconsistency exposed during live UI
+            // soak testing.
             let existingLoss = 0;
             let existingFee = 0;
             let existingInvested = 0;
-            tranches.forEach(function (t) {
-                  const trancheAge = i - t.startIdx;
-                  if (trancheAge < 0) return;
-                  existingLoss += t.capital * lossRateForTrancheYear(trancheAge);
-                  const _trancheYf = (t.startIdx === 0 && trancheAge === 0) ? yfImpl : 1;
-                  existingFee += t.capital * feeRate * _trancheYf;
-                  existingInvested += t.capital;
-            });
+            if (!_belowMin) {
+                  tranches.forEach(function (t) {
+                        const trancheAge = i - t.startIdx;
+                        if (trancheAge < 0) return;
+                        existingLoss += t.capital * lossRateForTrancheYear(trancheAge);
+                        const _trancheYf = (t.startIdx === 0 && trancheAge === 0) ? yfImpl : 1;
+                        existingFee += t.capital * feeRate * _trancheYf;
+                        existingInvested += t.capital;
+                  });
+            }
 
             // Step 2 — decide gain to recognize this year.
             // Immediate mode (startIdx=0, maturityIdx=0): force ALL
@@ -1544,6 +1578,12 @@ function runEngineParitySweep(opts) {
       const SALE_DATES   = ['2026-01-15','2026-04-15','2026-07-15','2026-10-15','2026-12-15'];
       const DEPR_AMTS    = [0, 500000, 1500000, 3000000];
       const SALES        = [
+            // $1.5M sale: BELOW Schwab beta1_200_100 min ($3M) and below
+            // beta1_145_45 min ($1M) marginally — exercises the below-min
+            // lifecycle path. Without this row, the sweep missed an
+            // engine/UI inconsistency where unified emitted non-zero
+            // Brooklyn loss for below-min while ProjectionEngine zeroed it.
+            { salePrice: 1500000,  costBasis: 300000   },
             { salePrice: 5000000,  costBasis: 1000000  },
             { salePrice: 12000000, costBasis: 4000000  },
             { salePrice: 48000000, costBasis: 5000000  }
