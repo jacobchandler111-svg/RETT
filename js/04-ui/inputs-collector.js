@@ -14,24 +14,28 @@ function _val(id) {
       return el ? el.value : '';
 }
 
-// Income inputs are clamped to >= 0 here. parseUSD permits negatives
-// (the user can paste "-$500K"), but income MEANINGFULLY can't be
-// negative — losses are tracked via separate STCL/LTCL fields. Without
-// this clamp a negative wage silently dropped the projection's tax
-// baseline by tens of thousands and ran without warning. The
-// validator (input-validation.js) still surfaces an error banner;
-// this is the engine-side guard so the math never sees the bad value
-// even if the user bypasses Continue and navigates straight to Page 2.
+// Most income inputs are clamped to >= 0 (a negative wage / dividend
+// is meaningless — capital losses are tracked separately). But
+// biz-revenue and rental-income legitimately can be negative —
+// Schedule C / Schedule E losses are real ordinary-income offsets.
+// _signedIncome is used for those; _safeIncome for the others.
 function _safeIncome(id) {
       const v = parseUSD(_val(id));
       return Math.max(0, Number.isFinite(v) ? v : 0);
 }
+function _signedIncome(id) {
+      const v = parseUSD(_val(id));
+      return Number.isFinite(v) ? v : 0;
+}
 
 function _sumIncomeSources() {
-      const ids = ['w2-wages', 'se-income', 'biz-revenue', 'rental-income',
-                   'dividend-income', 'retirement-distributions'];
+      // Positive-only sources: wages, SE earnings, dividends, retirement.
+      const posIds = ['w2-wages', 'se-income', 'dividend-income', 'retirement-distributions'];
+      // Signed sources: business and rental — real-world losses allowed.
+      const signedIds = ['biz-revenue', 'rental-income'];
       let sum = 0;
-      for (const id of ids) sum += _safeIncome(id);
+      for (const id of posIds) sum += _safeIncome(id);
+      for (const id of signedIds) sum += _signedIncome(id);
       return sum;
 }
 

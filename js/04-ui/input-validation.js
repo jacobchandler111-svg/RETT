@@ -51,9 +51,12 @@
       });
     }
 
-    // --- Income sources (just sanity, all should be non-negative) ---
-    var incomeIds = ['w2-wages','se-income','biz-revenue','rental-income','dividend-income','retirement-distributions'];
-    incomeIds.forEach(function (id) {
+    // --- Income sources ---
+    // Most fields must be non-negative; biz-revenue and rental-income
+    // are signed because Schedule C / Schedule E losses are real
+    // ordinary-income offsets. (Bug #14.)
+    var positiveIncomeIds = ['w2-wages','se-income','dividend-income','retirement-distributions'];
+    positiveIncomeIds.forEach(function (id) {
       if (_num(id) < 0) errors.push({ field: id, message: 'Income value cannot be negative.' });
     });
 

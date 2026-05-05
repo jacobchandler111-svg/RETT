@@ -46,12 +46,16 @@
     // Year tag in the section heading
     _set('baseline-year-tag', year + ' PROJECTION');
 
-    // Sum ordinary income sources
-    var ordSources = ['w2-wages', 'se-income', 'biz-revenue',
-                      'rental-income', 'dividend-income',
-                      'retirement-distributions'];
+    // Sum ordinary income sources. Positive-only fields (W-2, SE,
+    // dividend, retirement) clamp at $0; biz-revenue and rental-income
+    // pass through SIGNED so Schedule C / Schedule E losses can offset
+    // other ordinary income. (Bug #14.)
+    var ordSourcesPos    = ['w2-wages', 'se-income', 'dividend-income',
+                            'retirement-distributions'];
+    var ordSourcesSigned = ['biz-revenue', 'rental-income'];
     var ordTotal = 0;
-    ordSources.forEach(function (id) { ordTotal += Math.max(0, _num(id)); });
+    ordSourcesPos.forEach(function (id)    { ordTotal += Math.max(0, _num(id)); });
+    ordSourcesSigned.forEach(function (id) { ordTotal += _num(id); });
 
     var stGain = Math.max(0, _num('short-term-gain'));
     var sale  = Math.max(0, _num('sale-price'));

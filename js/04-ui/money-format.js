@@ -22,19 +22,24 @@
     'payment-on-sale-date'
   ];
 
-  // Fields where negative values are nonsensical. parseUSD permits
-  // them (the user can paste "-$500K"), and the engine has its own
-  // _safeIncome clamp, but displaying a negative in the field misleads
-  // the user into thinking the value was accepted as-is. Reject at
-  // format time so the visible value matches what the engine uses.
-  // accelerated-depreciation explicitly flagged here per P2-6 — prior
-  // version let -$500,000 flow through and produce nonsense tax.
+  // Fields where negative values are nonsensical (W-2 / SE / dividend /
+  // retirement / sale-price / basis / depr / withhold / available
+  // capital). parseUSD permits negatives so the user can paste them,
+  // but for these fields a negative is silently clamped to 0 here so
+  // the displayed value matches what the engine uses.
+  //
+  // biz-revenue and rental-income INTENTIONALLY allow negatives —
+  // Schedule C / Schedule E losses are real ordinary-income losses
+  // that legitimately offset other income. Previously they were
+  // clamped to $0 here, which silently dropped tens of thousands of
+  // dollars of legitimate loss offset. (Bug #14.)
   var NON_NEGATIVE_IDS = {
-    'w2-wages': 1, 'se-income': 1, 'biz-revenue': 1, 'rental-income': 1,
+    'w2-wages': 1, 'se-income': 1,
     'dividend-income': 1, 'retirement-distributions': 1,
     'sale-price': 1, 'cost-basis': 1, 'accelerated-depreciation': 1,
     'short-term-gain': 1,
-    'withhold-amount': 1, 'available-capital': 1
+    'withhold-amount': 1, 'available-capital': 1,
+    'payment-on-sale-date': 1
   };
 
   function _toNum(s) {
