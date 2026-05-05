@@ -157,11 +157,46 @@
     };
   }
 
-  root.registerSupplemental    = registerSupplemental;
-  root.unregisterSupplemental  = unregisterSupplemental;
-  root.listSupplementals       = listSupplementals;
-  root.getSupplemental         = getSupplemental;
-  root.isSupplementalEnabled   = isSupplementalEnabled;
-  root.setSupplementalEnabled  = setSupplementalEnabled;
-  root.runMasterSolver         = runMasterSolver;
+  // Wipe the Page-5 enabled override for a single supplemental, so the
+  // next render falls back to the default-on rule (enabled iff Interest
+  // is true). Used to fix two bugs that share the same root cause:
+  //   (a) user toggles off on Page 5 → unmarks Interested on Page 4 →
+  //       re-marks Interested. Expected: toggle ON (fresh start).
+  //   (b) loading a different client carries over the prior client's
+  //       OFF toggle, even though the new client never toggled it.
+  // Both reset to the right behavior by clearing enabled[id] whenever
+  // interest is changed on Page 4 (or the form is cleared).
+  function resetEnabledOverride(id) {
+    var en = _enabledState();
+    if (id == null) {
+      // Clear all — used on form reset.
+      Object.keys(en).forEach(function (k) { delete en[k]; });
+      return;
+    }
+    if (id in en) delete en[id];
+  }
+
+  // Listen for Page-4 Interested/Not-Interested clicks (event delegation
+  // on document). The supplemental-render.js card uses
+  // [data-supp-pick-action] / [data-supp-pick-target]; we read the
+  // target id and clear the corresponding enabled override. Doesn't
+  // require modifying supplemental-render.js — purely additive.
+  if (typeof document !== 'undefined') {
+    document.addEventListener('click', function (ev) {
+      var t = ev.target;
+      var btn = t && t.closest && t.closest('[data-supp-pick-action]');
+      if (!btn) return;
+      var id = btn.getAttribute('data-supp-pick-target');
+      if (id) resetEnabledOverride(id);
+    }, true);
+  }
+
+  root.registerSupplemental         = registerSupplemental;
+  root.unregisterSupplemental       = unregisterSupplemental;
+  root.listSupplementals            = listSupplementals;
+  root.getSupplemental              = getSupplemental;
+  root.isSupplementalEnabled        = isSupplementalEnabled;
+  root.setSupplementalEnabled       = setSupplementalEnabled;
+  root.resetSupplementalEnabledOverride = resetEnabledOverride;
+  root.runMasterSolver              = runMasterSolver;
 })(window);

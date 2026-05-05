@@ -352,6 +352,12 @@ function resetAllInputs(skipConfirm) {
   // Strategy" pick also clears so Page 4 doesn't render stale state.
   window.__rettStrategyInterest = { A: null, B: null, C: null };
   window.__rettChosenStrategy = null;
+  // Page-5 supplemental toggle overrides clear too, so a new client
+  // starts with default-on for any strategy they later mark Interested
+  // — no carry-over from the prior client's session toggles.
+  if (typeof window.resetSupplementalEnabledOverride === 'function') {
+    try { window.resetSupplementalEnabledOverride(); } catch (e) { /* */ }
+  }
   if (typeof _refreshStrategyPickCards === 'function') {
     try { _refreshStrategyPickCards(); } catch (e) { /* */ }
   }
