@@ -298,14 +298,9 @@
     var dlBtn = document.getElementById('pmq-download-btn');
     if (dlBtn) dlBtn.addEventListener('click', _downloadTemplate);
 
-    // +/- glyph toggle on the <details>
-    var details = document.getElementById('prior-meeting-questionnaire');
-    var glyph   = details && details.querySelector('.prior-meeting-glyph');
-    if (details && glyph) {
-      details.addEventListener('toggle', function () {
-        glyph.textContent = details.open ? '−' : '+';
-      });
-    }
+    // The PMQ used to be a collapsible <details> on Page 1; the
+    // +/- glyph swap is no longer needed now that it's a dedicated
+    // page.
   }
 
   if (document.readyState === 'loading') {
