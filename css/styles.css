@@ -5655,6 +5655,17 @@ body { font-size: 16px; }
 .supp-all-grid > #supplemental-strategies-host,
 .supp-all-grid > #supplemental-extra-host { display: contents; }
 .supp-all-grid .supp-strategies-grid { display: contents; }
+/* Not-Interested cards float to the bottom of the unified grid via
+   CSS order. Neutral and Interested stay at their natural DOM
+   position (order: 0). Not-Interested gets a high order value so
+   the grid places them last — but still in 3-per-row sequence,
+   no gaps in the rows above. The grid auto-flow handles the "rows
+   above pull up" behavior automatically.
+   Pre-existing behavior: each card-host renderer ALSO sorts its
+   own not-interested cards to its local end. Combined with this
+   CSS order rule, the union flows correctly even though the two
+   hosts (oilGas/delphi vs the 8 extras) remain separately rendered. */
+.supp-all-grid .strategy-pick-card.is-not-interested { order: 100; }
 @media (max-width: 1000px) {
     .supp-all-grid { grid-template-columns: 1fr; }
 }
