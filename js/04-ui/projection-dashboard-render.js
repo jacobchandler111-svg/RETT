@@ -1774,38 +1774,83 @@
   }
 
   // -------------------------------------------------------------------
-  // Visuals: SVG donut + horizontal-bar payment timeline.
+  // Sale-only donut chart. The pie's whole-circle quantity is the
+  // GAIN FROM THE SALE alone — LT gain + recapture + ST gain. Ordinary
+  // income (W-2, rental, dividend) is intentionally OUT of frame; the
+  // user is here to see what the strategy does to the SALE TAX, not
+  // their overall tax picture.
   //
-  // Donut framing — pie of GROSS INCOME (not just tax):
-  //   - Big slice: "Income you kept" (gross income minus the do-nothing
-  //     tax the client would have owed without any planning)
-  //   - Tax slice (the rest of the pie): split into TWO sub-slices:
-  //       - Green sliver: "Net benefit" — the dollars the strategy
-  //         clawed BACK from the tax slice and into the client's pocket
-  //         (savings minus fees)
-  //       - Dark slice:   "Taxes you still owe" after the strategy
-  //   Center label compares post-strategy take-home to do-nothing.
-  // Inline SVG, no chart-lib dependency, zero external requests.
+  // Slices:
+  //   - "Original income" (light): saleGain - saleTaxDoNothing — what
+  //     the client would have kept of the sale doing nothing.
+  //   - "Net benefit" (green): the dollars the strategy claws BACK
+  //     from the original sale-tax slice (capped at saleTaxDoNothing).
+  //   - "Tax still owed" (dark): saleTaxDoNothing - netBenefit.
+  //
+  // Center label compares % of sale gain kept after strategy vs doing
+  // nothing. Inline SVG, no chart-lib deps, zero external requests.
   // -------------------------------------------------------------------
-  function _donutSvg(grossIncome, doNothingTax, savings, fees) {
-    if (!isFinite(grossIncome) || grossIncome <= 0) return '';
-    if (!isFinite(doNothingTax) || doNothingTax < 0) doNothingTax = 0;
-    var netBenefit = Math.max(0, savings - fees);
-    // Cap netBenefit at doNothingTax — you can't claw back more tax
-    // than was owed. Excess shouldn't happen mathematically but the
-    // guard keeps the visual honest if metrics drift.
-    netBenefit = Math.min(netBenefit, doNothingTax);
-    var taxStillOwed = Math.max(0, doNothingTax - netBenefit);
-    var keptOriginal = Math.max(0, grossIncome - doNothingTax);
-    // Total: kept + (clawed-back via strategy = netBenefit) + (still owed) = grossIncome
+  function _saleOnlyDonutSvg(cfg, metrics) {
+    if (!cfg || !metrics) return '';
+    var sale  = Math.max(0, Number(cfg.salePrice) || 0);
+    var basis = Math.max(0, Number(cfg.costBasis) || 0);
+    var depr  = Math.max(0, Number(cfg.acceleratedDepreciation) || 0);
+    var stGain = Math.max(0, Number(cfg.baseShortTermGain) || 0);
+    var ltGain = Math.max(0, sale - basis - depr - stGain);
+    // Total taxable from the sale. Cost basis is NOT income — it's
+    // recovery of capital — so we exclude it.
+    var saleGain = ltGain + depr + stGain;
+    if (saleGain <= 0) return '';
+
+    // Compute the do-nothing tax IF the sale were the only income.
+    // Treats LT gain through the LTCG bracket stack, recapture as
+    // ordinary, ST gain as ordinary. This isolates the tax bill the
+    // user is actually seeing this strategy address.
+    var year   = cfg.year1 || (new Date()).getFullYear();
+    var status = cfg.filingStatus || 'mfj';
+    var state  = cfg.state || 'NONE';
+    var saleTaxDoNothing = 0;
+    if (typeof computeFederalTaxBreakdown === 'function') {
+      var fedB = computeFederalTaxBreakdown(0, year, status, {
+        longTermGain: ltGain,
+        shortTermGain: stGain,
+        // Recapture flows in via ordinaryIncome arg. We use 0 above so
+        // ordinary brackets don't tax W-2/rental — the recapture piece
+        // is the only sale-side ordinary contribution and we add it
+        // here explicitly via shortTermGain's ordinary path. Actually
+        // simpler: pass recapture as ordinaryIncome.
+      });
+      // Recompute with depr as ordinary (the canonical recapture flow).
+      if (depr > 0) {
+        fedB = computeFederalTaxBreakdown(depr, year, status, {
+          longTermGain: ltGain,
+          shortTermGain: stGain
+        });
+      }
+      var fedTotal = (Number(fedB.ordinaryTax) || 0) + (Number(fedB.ltTax) || 0)
+                   + (Number(fedB.amtTopUp) || 0) + (Number(fedB.niit) || 0)
+                   + (Number(fedB.addlMedicare) || 0);
+      var stateTax = (typeof computeStateTax === 'function')
+        ? (computeStateTax(depr + ltGain + stGain, year, state, status, {
+            longTermGain: ltGain, shortTermGain: stGain
+          }) || 0)
+        : 0;
+      saleTaxDoNothing = fedTotal + stateTax;
+    }
+
+    // Engine's overall savings — attributable mostly to the sale since
+    // Brooklyn losses target capital gains. Cap at saleTaxDoNothing so
+    // the pie can't display "we saved more tax than the sale generated."
+    var savings = Math.max(0, (metrics.doNothing || 0) - (metrics.tax || 0));
+    var netBenefit = Math.max(0, savings - (metrics.fees || 0));
+    netBenefit = Math.min(netBenefit, saleTaxDoNothing);
+    var taxStillOwed = Math.max(0, saleTaxDoNothing - netBenefit);
+    var keptOriginal = Math.max(0, saleGain - saleTaxDoNothing);
     if (keptOriginal + netBenefit + taxStillOwed <= 0) return '';
 
-    // Compute slice sweeps. Start at 12 o'clock (-90°) and sweep
-    // clockwise: kept (largest) → net-benefit sliver (green, sits at
-    // the boundary) → tax still owed (closes the circle).
     var twoPi = Math.PI * 2;
-    var keptSweep = (keptOriginal / grossIncome) * twoPi;
-    var benSweep  = (netBenefit  / grossIncome) * twoPi;
+    var keptSweep = (keptOriginal / saleGain) * twoPi;
+    var benSweep  = (netBenefit   / saleGain) * twoPi;
     var owedSweep = Math.max(0, twoPi - keptSweep - benSweep);
 
     var cx = 110, cy = 110, r = 88, rInner = 56;
@@ -1830,177 +1875,38 @@
     }
     var startA = -Math.PI / 2;
     var slices = '';
-    slices += _slice(startA,                                  keptSweep, 'rett-donut-kept');
-    slices += _slice(startA + keptSweep,                      benSweep,  'rett-donut-benefit');
-    slices += _slice(startA + keptSweep + benSweep,           owedSweep, 'rett-donut-owed');
+    slices += _slice(startA,                              keptSweep, 'rett-donut-kept');
+    slices += _slice(startA + keptSweep,                  benSweep,  'rett-donut-benefit');
+    slices += _slice(startA + keptSweep + benSweep,       owedSweep, 'rett-donut-owed');
 
-    // Two key percentages:
-    //   keptWithStrategy = (grossIncome - taxStillOwed - fees) / grossIncome
-    //   keptDoNothing    = (grossIncome - doNothingTax) / grossIncome
-    var keptWithStrategy = Math.max(0, grossIncome - taxStillOwed - fees);
-    var pctKept    = ((keptWithStrategy / grossIncome) * 100).toFixed(1) + '%';
-    var pctDoNoth  = ((keptOriginal     / grossIncome) * 100).toFixed(1) + '%';
+    var keptAfterStrategy = saleGain - taxStillOwed - (metrics.fees || 0);
+    var pctKept   = ((Math.max(0, keptAfterStrategy) / saleGain) * 100).toFixed(1) + '%';
+    var pctDoNoth = ((keptOriginal / saleGain) * 100).toFixed(1) + '%';
 
     var legend =
       '<div class="rett-donut-legend">' +
-        '<div class="rett-donut-leg-row"><span class="rett-donut-swatch sw-kept"></span><span class="rett-donut-leg-label">Income kept (do nothing)</span><strong>' + _fmt(keptOriginal) + '</strong></div>' +
+        '<div class="rett-donut-leg-row"><span class="rett-donut-swatch sw-kept"></span><span class="rett-donut-leg-label">Original income kept</span><strong>' + _fmt(keptOriginal) + '</strong></div>' +
         '<div class="rett-donut-leg-row"><span class="rett-donut-swatch sw-benefit"></span><span class="rett-donut-leg-label">Net benefit clawed back</span><strong>' + _fmt(netBenefit) + '</strong></div>' +
-        '<div class="rett-donut-leg-row"><span class="rett-donut-swatch sw-owed"></span><span class="rett-donut-leg-label">Tax still owed</span><strong>' + _fmt(taxStillOwed) + '</strong></div>' +
+        '<div class="rett-donut-leg-row"><span class="rett-donut-swatch sw-owed"></span><span class="rett-donut-leg-label">Tax still owed (on sale)</span><strong>' + _fmt(taxStillOwed) + '</strong></div>' +
       '</div>';
 
     return '<div class="rett-donut-wrap">' +
-      '<svg class="rett-donut" viewBox="0 0 220 220" role="img" aria-label="Income kept vs taxes vs net benefit">' +
+      '<svg class="rett-donut" viewBox="0 0 220 220" role="img" aria-label="Sale tax: kept vs net benefit vs still owed">' +
         slices +
         '<text x="110" y="103" text-anchor="middle" class="rett-donut-center-pct">' + pctKept + '</text>' +
-        '<text x="110" y="125" text-anchor="middle" class="rett-donut-center-sub">income kept</text>' +
+        '<text x="110" y="125" text-anchor="middle" class="rett-donut-center-sub">of sale kept</text>' +
         '<text x="110" y="142" text-anchor="middle" class="rett-donut-center-sub">vs ' + pctDoNoth + ' doing nothing</text>' +
       '</svg>' +
       legend +
     '</div>';
   }
 
-  // Compute total gross income for the projection horizon — used as the
-  // donut's whole-pie denominator. Ordinary income recurs every year;
-  // sale-gain components hit once. We use cumulative across horizon so
-  // it lines up with the existing cumulative tax / fees figures.
-  function _grossIncomeForCfg(cfg) {
-    if (!cfg) return 0;
-    var horizon = cfg.horizonYears || cfg.years || 5;
-    var ord = Math.max(0, Number(cfg.baseOrdinaryIncome) || 0);
-    var stGain = Math.max(0, Number(cfg.baseShortTermGain) || 0);
-    var sale = Math.max(0, Number(cfg.salePrice) || 0);
-    var basis = Math.max(0, Number(cfg.costBasis) || 0);
-    var depr = Math.max(0, Number(cfg.acceleratedDepreciation) || 0);
-    var ltGain = Math.max(0, sale - basis - depr - stGain);
-    // Recapture (depreciation) is taxable as ordinary in the recognition
-    // year — counts as part of gross income once.
-    return ord * horizon + stGain + ltGain + depr;
-  }
-
-  function _paymentTimelineSvg(rows) {
-    if (!rows || !rows.length) return '';
-    var maxCash = 0;
-    rows.forEach(function (r) { if (r.cash > maxCash) maxCash = r.cash; });
-    if (maxCash <= 0) return '';
-    // SVG geometry — horizontal stacked bars, each row gets one bar.
-    var rowHeight = 36;
-    var labelColW = 130;
-    var barColW   = 320;
-    var amtColW   = 110;
-    var pad       = 12;
-    var svgWidth  = labelColW + barColW + amtColW + pad * 2;
-    var svgHeight = rows.length * rowHeight + pad * 2;
-    var bars = '';
-    rows.forEach(function (r, i) {
-      var y = pad + i * rowHeight + 6;
-      var w = Math.max(2, (r.cash / maxCash) * barColW);
-      var barX = pad + labelColW;
-      var amtX = barX + w + 8;
-      var label = r.year + ' (' + r.dateShort + ')';
-      bars +=
-        // Year + date label (left column)
-        '<text x="' + (pad + labelColW - 8) + '" y="' + (y + 16) + '" class="rett-payviz-year" text-anchor="end">' + label + '</text>' +
-        // Bar
-        '<rect x="' + barX + '" y="' + y + '" width="' + w.toFixed(1) + '" height="22" rx="2" class="rett-payviz-bar' + (r.isClosing ? ' is-closing' : '') + '"></rect>' +
-        // Amount label (just past the bar end)
-        '<text x="' + amtX + '" y="' + (y + 16) + '" class="rett-payviz-amt">' + _fmt(r.cash) + '</text>';
-    });
-    return '<div class="rett-payviz-wrap">' +
-      '<div class="rett-payviz-title">Payments arrive</div>' +
-      '<svg class="rett-payviz" viewBox="0 0 ' + svgWidth + ' ' + svgHeight + '" role="img" aria-label="Payment timeline">' +
-        bars +
-      '</svg>' +
-      '<div class="rett-payviz-legend">' +
-        '<span class="rett-payviz-leg-item"><span class="rett-payviz-swatch is-closing"></span>Basis at closing</span>' +
-        '<span class="rett-payviz-leg-item"><span class="rett-payviz-swatch"></span>Gain installment</span>' +
-      '</div>' +
-    '</div>';
-  }
-
-  // Horizontal "without strategy vs with strategy" comparison bar.
-  // Two stacked bars sharing a common scale so the visual difference =
-  // the savings. Bottom bar shows tax + fees actually paid; top bar
-  // shows what the client would have owed doing nothing. Used on A and
-  // B cards (single-year strategies where a year-by-year timeline
-  // doesn't add value).
-  function _comparisonBarSvg(doNothingTax, taxWithStrategy, fees) {
-    if (!isFinite(doNothingTax) || doNothingTax <= 0) return '';
-    var withFees = Math.max(0, taxWithStrategy + fees);
-    var maxBar = Math.max(doNothingTax, withFees, 1);
-    // Layout
-    var pad      = 12;
-    var labelW   = 130;
-    var amtW     = 140;
-    var barW     = 320;
-    var rowH     = 38;
-    var svgW     = labelW + barW + amtW + pad * 2;
-    var svgH     = rowH * 2 + pad * 2 + 24;
-    var doNothingPct = (doNothingTax / maxBar) * barW;
-    var withPct      = (withFees     / maxBar) * barW;
-    var taxPortion   = (withPct > 0)
-      ? (Math.max(0, taxWithStrategy) / withFees) * withPct
-      : 0;
-    var feePortion   = withPct - taxPortion;
-    var savings = Math.max(0, doNothingTax - taxWithStrategy);
-    // Net benefit shown as the visible delta between bars
-    var deltaPct = (savings / maxBar) * barW;
-    var bars = '';
-    var y1 = pad;
-    var y2 = pad + rowH + 4;
-    // Bar 1: Doing nothing (full tax bill)
-    bars += '<text x="' + (pad + labelW - 8) + '" y="' + (y1 + 22) + '" class="rett-cmpbar-label" text-anchor="end">Doing nothing</text>';
-    bars += '<rect x="' + (pad + labelW) + '" y="' + (y1 + 4) + '" width="' + doNothingPct.toFixed(1) + '" height="22" rx="2" class="rett-cmpbar-donothing"></rect>';
-    bars += '<text x="' + (pad + labelW + doNothingPct + 8) + '" y="' + (y1 + 22) + '" class="rett-cmpbar-amt">' + _fmt(doNothingTax) + '</text>';
-    // Bar 2: With strategy — stacked: tax (dark) + fees (mid) + saved sliver (green)
-    bars += '<text x="' + (pad + labelW - 8) + '" y="' + (y2 + 22) + '" class="rett-cmpbar-label" text-anchor="end">With strategy</text>';
-    if (taxPortion > 0) {
-      bars += '<rect x="' + (pad + labelW) + '" y="' + (y2 + 4) + '" width="' + taxPortion.toFixed(1) + '" height="22" rx="2" class="rett-cmpbar-tax"></rect>';
-    }
-    if (feePortion > 0) {
-      bars += '<rect x="' + (pad + labelW + taxPortion) + '" y="' + (y2 + 4) + '" width="' + feePortion.toFixed(1) + '" height="22" class="rett-cmpbar-fees"></rect>';
-    }
-    // Savings sliver appended (visually shows the delta between the two bars)
-    if (deltaPct > 0) {
-      bars += '<rect x="' + (pad + labelW + withPct) + '" y="' + (y2 + 4) + '" width="' + deltaPct.toFixed(1) + '" height="22" rx="2" class="rett-cmpbar-saved"></rect>';
-    }
-    bars += '<text x="' + (pad + labelW + barW + 8) + '" y="' + (y2 + 22) + '" class="rett-cmpbar-amt">' + _fmt(withFees) + '</text>';
-    // Footer legend
-    var legend =
-      '<div class="rett-cmpbar-legend">' +
-        '<span class="rett-cmpbar-leg-item"><span class="rett-cmpbar-swatch sw-donothing"></span>Tax (do nothing)</span>' +
-        '<span class="rett-cmpbar-leg-item"><span class="rett-cmpbar-swatch sw-tax"></span>Tax with strategy</span>' +
-        '<span class="rett-cmpbar-leg-item"><span class="rett-cmpbar-swatch sw-fees"></span>Fees</span>' +
-        '<span class="rett-cmpbar-leg-item"><span class="rett-cmpbar-swatch sw-saved"></span>You save</span>' +
-      '</div>';
-    return '<div class="rett-cmpbar-wrap">' +
-      '<div class="rett-cmpbar-title">Tax bill comparison</div>' +
-      '<svg class="rett-cmpbar" viewBox="0 0 ' + svgW + ' ' + svgH + '" role="img" aria-label="Tax with strategy vs without">' +
-        bars +
-      '</svg>' +
-      legend +
-    '</div>';
-  }
-
-  // Build the visualizations object for a card.
-  //   - Every card gets the donut.
-  //   - Sell Now (A) and Seller Finance (B) get a comparison bar chart
-  //     (single-year strategies — a payment timeline isn't useful).
-  //   - Structured Sale (C) gets just the donut. The donut already
-  //     conveys the kept-vs-clawed-back story; an extra bar would
-  //     duplicate without adding insight.
+  // Build the visualizations object for a card. Every card gets the
+  // sale-only donut. Bar charts and timelines were dropped per user
+  // spec — donut alone tells the kept-vs-clawed-back story and lives
+  // inside the Show Details accordion (not always-visible).
   function _buildVisuals(typeLabel, metrics, cfg, comp) {
-    var grossIncome = _grossIncomeForCfg(cfg);
-    var donut = _donutSvg(grossIncome,
-                          metrics.doNothing || 0,
-                          Math.max(0, (metrics.doNothing || 0) - (metrics.tax || 0)),
-                          metrics.fees || 0);
-    var compareBar = '';
-    if (typeLabel === 'A' || typeLabel === 'B') {
-      compareBar = _comparisonBarSvg(metrics.doNothing || 0,
-                                     metrics.tax || 0,
-                                     metrics.fees || 0);
-    }
-    return { donut: donut, compareBar: compareBar };
+    return { donut: _saleOnlyDonutSvg(cfg, metrics) };
   }
 
   function _interestedCard(typeLabel, num, name, picked, metrics, lossSum, isRecommended, durationMonths, paymentScheduleHtml, visuals) {
@@ -2014,17 +1920,14 @@
       autoSummary += ', recognition = Year ' + (picked.bestRecC || 2) +
         ', duration = ' + pickedDur + ' mo';
     }
-    // Time-window for the cumulative figures. The metrics object sums
-    // tax / doNothing / losses / fees across the auto-pick'd horizon,
-    // so the labels need an explicit "(N-yr cumulative)" qualifier or
-    // users compare a Page-1 single-year baseline to a Page-3 multi-
-    // year cumulative one and rightly conclude the math is broken.
-    // (P0-1.)
+    // Time-window suffix for the still-shown cumulative figures.
+    // Removed "Total tax (with strategy)" and "Do-nothing tax baseline"
+    // per user spec — those are implicit in the donut chart now and
+    // cluttered the details panel. Kept: losses, fees breakdown, net
+    // benefit (echoed for verification math).
     var horizonY = (picked && picked.horizon) || 5;
     var hSuffix  = ' <span class="muted" style="font-weight:400;">(' + horizonY + '-yr cumulative)</span>';
     var detailItems = '';
-    detailItems += _interestedDetailRow('Total tax (with strategy)' + hSuffix,  metrics.tax);
-    detailItems += _interestedDetailRow('Do-nothing tax baseline' + hSuffix,    metrics.doNothing);
     detailItems += _interestedDetailRow('Total losses generated' + hSuffix,     lossSum);
     detailItems += _interestedDetailRow('Total fees' + hSuffix,                 metrics.fees);
     detailItems += _interestedDetailRow('&#8627; Brooklyn fees',      metrics.brooklynFees, true);
@@ -2047,13 +1950,13 @@
       '<div class="rett-interested-name">' + name + '</div>' +
       '<div class="rett-interested-net-label">Net Benefit</div>' +
       '<div class="rett-interested-net-value">' + _fmt(metrics.net) + '</div>' +
-      // Visuals always-visible above Show Details. Donut goes on every
-      // card; comparison bar lives on A/B only (single-year strategies
-      // where a tax-bill comparison adds insight).
-      ((visuals && visuals.donut) ? visuals.donut : '') +
-      ((visuals && visuals.compareBar) ? visuals.compareBar : '') +
       '<details class="rett-interested-details">' +
         '<summary>Show details</summary>' +
+        // Donut chart leads — sale-only pie showing how much of the
+        // sale is offset, with "original income kept" as the dominant
+        // slice and "net benefit" as the green sliver clawed back from
+        // the tax slice.
+        ((visuals && visuals.donut) ? visuals.donut : '') +
         '<ul class="rett-interested-detail-list">' + detailItems + '</ul>' +
         '<div class="rett-interested-autopick">Auto-picked: ' + autoSummary + '</div>' +
         (paymentScheduleHtml || '') +
