@@ -909,21 +909,91 @@ function bindControls() {
   if (navProjection)   navProjection.addEventListener('click', () => showPage('page-projection'));
   if (navAllocator)    navAllocator.addEventListener('click', () => showPage('page-allocator'));
 
-  // Print Strategy Summary button. The @media print rules in
-  // styles.css hide everything except #page-allocator and reformat
-  // the visible content into a single-page client-facing layout.
-  // The print-header block (logo + client name + state + date) is
-  // populated by renderStrategySummary on each render.
+  // Native browser print (Cmd/Ctrl-P) — flip body.print-mode on
+  // for the duration of the print so the print-mode CSS rules
+  // apply, then remove afterward. Without this, the browser print
+  // dialog would render the screen UI verbatim.
+  window.addEventListener('beforeprint', function () {
+    document.body.classList.add('print-mode');
+    if (typeof window.renderStrategySummary === 'function') {
+      try { window.renderStrategySummary(); } catch (e) { /* */ }
+    }
+  });
+  window.addEventListener('afterprint', function () {
+    document.body.classList.remove('print-mode');
+  });
+
+  // Download PDF button. Uses html2pdf.js (loaded via CDN in
+  // index.html) to render #page-allocator into a single-page PDF
+  // and push it to the browser's downloads folder. The body
+  // print-mode class is toggled around the snapshot so the same
+  // CSS rules that govern native print also govern the PDF.
+  // Filename pattern: "<Client Name> - Strategy Summary.pdf",
+  // falling back to "RETT Strategy Summary.pdf" when no client
+  // name is set.
   var printBtn = document.getElementById('print-summary-btn');
   if (printBtn) {
     printBtn.addEventListener('click', function () {
-      // Render once more so the print-header reflects the latest
-      // case-name / state values, then trigger the browser print
-      // dialog. Browsers handle the rest (preview, save as PDF).
+      // Make sure we're on the allocator page so the target
+      // exists in the layout — otherwise its bounding box is 0.
+      if (typeof showPage === 'function') showPage('page-allocator');
+      // Re-render so the print-header text is fresh.
       if (typeof window.renderStrategySummary === 'function') {
         try { window.renderStrategySummary(); } catch (e) { /* */ }
       }
-      window.print();
+      var target = document.getElementById('page-allocator');
+      if (!target) return;
+
+      // Build filename from client name (sanitized) — fallback to
+      // a generic name if blank.
+      var rawName = (document.getElementById('case-name-input') || {}).value || '';
+      var safeName = rawName.replace(/[^A-Za-z0-9 ,.'\-]/g, '').trim();
+      var filename = (safeName ? (safeName + ' - ') : '')
+        + 'Strategy Summary.pdf';
+
+      // No html2pdf? Fall back to native print so the user still
+      // gets a usable export path.
+      if (typeof window.html2pdf !== 'function') {
+        if (typeof window !== 'undefined' && typeof console !== 'undefined') {
+          console.warn('html2pdf.js not loaded — falling back to window.print()');
+        }
+        document.body.classList.add('print-mode');
+        try { window.print(); }
+        finally { setTimeout(function () { document.body.classList.remove('print-mode'); }, 100); }
+        return;
+      }
+
+      // Apply print-mode for the snapshot, then flip it off when
+      // html2pdf finishes (or errors out — the .finally is paranoid
+      // because html2canvas occasionally throws on cross-origin
+      // resources we may have included).
+      document.body.classList.add('print-mode');
+      var opts = {
+        margin: [0.4, 0.45, 0.4, 0.45], // inches: top, left, bottom, right
+        filename: filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          // Background color rather than transparent so the white
+          // card surfaces don't render as gray.
+          backgroundColor: '#ffffff'
+        },
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
+        pagebreak: { mode: ['avoid-all', 'css'] }
+      };
+
+      window.html2pdf()
+        .set(opts)
+        .from(target)
+        .save()
+        .then(function () {
+          document.body.classList.remove('print-mode');
+        })
+        .catch(function (err) {
+          (window.reportFailure || console.warn)('PDF export failed', err);
+          document.body.classList.remove('print-mode');
+        });
     });
   }
   if (navSupplemental) navSupplemental.addEventListener('click', () => showPage('page-supplemental'));
