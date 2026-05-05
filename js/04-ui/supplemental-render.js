@@ -4,90 +4,105 @@
 // as one workflow: pick a sale structure on Page 2, pick supplemental
 // strategies on Page 4, see the combined math on Page 5.
 //
-// Card UX (advisor convo 2026-05-05):
-//   - The card's job is to capture INTEREST, not to display savings.
-//   - A small chevron under the Interested button toggles a Details
-//     drop-down with two knobs only:
-//       * Max Investment (overall cap, NOT per-year)
-//       * Depreciation %  (default 95)
-//   - Math runs silently. The latest multi-year result is parked at
-//       window.__rettSupplemental.oilGas.lastResult
+// Currently shipping: Oil & Gas Working Interest, Delphi Fund.
+//
+// Lego-piece architecture:
+//   - Each card has Interested / Not Interested + a small chevron
+//     under the Interested button that opens a Details panel with
+//     just the knobs the advisor needs (per-strategy).
+//   - Math runs silently on every relevant input change. The latest
+//     result is parked at
+//       window.__rettSupplemental[strategyKey].lastResult
 //     so the future unified solver / Page-5 renderer can read it
 //     without re-computing.
-//   - The interest state is the lego pin:
-//       window.__rettSupplementalInterest = { oilGas: true|false|null }
-//     The solver legs this strategy in iff interest === true.
+//   - Interest state is the lego pin:
+//       window.__rettSupplementalInterest = { oilGas, delphi, ... }
+//     The solver legs each strategy in iff interest === true.
 //
-// Year-count detection comes from the picked sale structure on Page 2/3:
-//   A (Sell Now)        → 1 year
-//   B (Seller Finance)  → 2 years (sale year + Jan-1 payout)
-//   C (Structured Sale) → derived from #structured-sale-duration-months
-//                         (default 18 mo → 2 yrs; cap 7).
-//
-// Capital-allocation rule for now: Max Investment is split EVENLY
-// across the detected investment years. The future unified solver
-// will replace this with an optimal allocator (highest-marginal-rate
-// year first, etc.). All years run against the SAME Y1 ordinary
-// baseline (advisor's instruction: "keep year-one ordinary consistent
-// across the years").
+// Adding a new strategy = (a) write a calc-<name>.js with a pure
+// computeXYearN() function, (b) add an entry to STRATEGIES below
+// with its key + render functions, (c) add a state subtree.
 
 (function (root) {
   'use strict';
 
-  var STATE_KEY            = '__rettSupplemental';
-  var INTEREST_KEY         = '__rettSupplementalInterest';
-  var DEFAULT_MAX_INV      = 250000;
-  var DEFAULT_DEPR_PCT     = 0.95;
-  var YEAR_HARD_CAP        = 7;
+  var STATE_KEY    = '__rettSupplemental';
+  var INTEREST_KEY = '__rettSupplementalInterest';
+  var YEAR_HARD_CAP = 7;
+
+  var DEFAULTS = {
+    oilGas: { maxInvestment: 250000, depreciationPct: 0.95 },
+    delphi: { classKey: 'classB', investment: 1000000 }
+  };
 
   function _state() {
     if (!root[STATE_KEY]) {
       root[STATE_KEY] = {
-        oilGas: {
-          interest: null,
-          maxInvestment: DEFAULT_MAX_INV,
-          depreciationPct: DEFAULT_DEPR_PCT,
-          detailsOpen: false,
-          lastResult: null
-        }
+        oilGas: { interest: null, maxInvestment: DEFAULTS.oilGas.maxInvestment,
+                  depreciationPct: DEFAULTS.oilGas.depreciationPct,
+                  detailsOpen: false, lastResult: null },
+        delphi: { interest: null, classKey: DEFAULTS.delphi.classKey,
+                  investment: DEFAULTS.delphi.investment,
+                  detailsOpen: false, lastResult: null }
       };
     }
-    var st = root[STATE_KEY].oilGas;
-    if (typeof st.interest === 'undefined') st.interest = null;
-    // Migrate any old per-year shape into the simplified scalar form.
-    if (Array.isArray(st.years)) {
-      var totalInv = 0, firstPct = DEFAULT_DEPR_PCT;
-      for (var i = 0; i < st.years.length; i++) {
-        totalInv += Number(st.years[i] && st.years[i].investment) || 0;
-        if (i === 0 && Number.isFinite(st.years[0].idcPct)) firstPct = st.years[0].idcPct;
+    var s = root[STATE_KEY];
+
+    // ---- Oil & Gas migration / defaults ----
+    if (!s.oilGas) s.oilGas = {};
+    if (typeof s.oilGas.interest === 'undefined') s.oilGas.interest = null;
+    if (Array.isArray(s.oilGas.years)) {
+      var totalInv = 0, firstPct = DEFAULTS.oilGas.depreciationPct;
+      for (var i = 0; i < s.oilGas.years.length; i++) {
+        totalInv += Number(s.oilGas.years[i] && s.oilGas.years[i].investment) || 0;
+        if (i === 0 && Number.isFinite(s.oilGas.years[0].idcPct)) firstPct = s.oilGas.years[0].idcPct;
       }
-      st.maxInvestment   = totalInv > 0 ? totalInv : DEFAULT_MAX_INV;
-      st.depreciationPct = firstPct;
-      delete st.years;
+      s.oilGas.maxInvestment   = totalInv > 0 ? totalInv : DEFAULTS.oilGas.maxInvestment;
+      s.oilGas.depreciationPct = firstPct;
+      delete s.oilGas.years;
     }
-    if (!Number.isFinite(st.maxInvestment))   st.maxInvestment   = DEFAULT_MAX_INV;
-    if (!Number.isFinite(st.depreciationPct)) st.depreciationPct = DEFAULT_DEPR_PCT;
-    if (typeof st.detailsOpen === 'undefined') st.detailsOpen = false;
-    return root[STATE_KEY];
+    if (!Number.isFinite(s.oilGas.maxInvestment))   s.oilGas.maxInvestment   = DEFAULTS.oilGas.maxInvestment;
+    if (!Number.isFinite(s.oilGas.depreciationPct)) s.oilGas.depreciationPct = DEFAULTS.oilGas.depreciationPct;
+    if (typeof s.oilGas.detailsOpen === 'undefined') s.oilGas.detailsOpen = false;
+
+    // ---- Delphi defaults ----
+    if (!s.delphi) s.delphi = {};
+    if (typeof s.delphi.interest === 'undefined') s.delphi.interest = null;
+    if (s.delphi.classKey !== 'classA' && s.delphi.classKey !== 'classB') s.delphi.classKey = DEFAULTS.delphi.classKey;
+    if (!Number.isFinite(s.delphi.investment))    s.delphi.investment    = DEFAULTS.delphi.investment;
+    if (typeof s.delphi.detailsOpen === 'undefined') s.delphi.detailsOpen = false;
+
+    return s;
   }
 
   function _interestState() {
-    if (!root[INTEREST_KEY]) root[INTEREST_KEY] = { oilGas: null };
+    if (!root[INTEREST_KEY]) root[INTEREST_KEY] = { oilGas: null, delphi: null };
+    if (typeof root[INTEREST_KEY].oilGas === 'undefined') root[INTEREST_KEY].oilGas = null;
+    if (typeof root[INTEREST_KEY].delphi === 'undefined') root[INTEREST_KEY].delphi = null;
     return root[INTEREST_KEY];
   }
 
   function _val(id) { var el = document.getElementById(id); return el ? el.value : ''; }
-
   function _fmtMoney(n) {
     if (!Number.isFinite(n)) return '$0';
     var sign = n < 0 ? '-' : '';
     return sign + '$' + Math.round(Math.abs(n)).toLocaleString('en-US');
   }
+  function _fmtUSD(n) {
+    return (typeof fmtUSD === 'function') ? fmtUSD(n) : _fmtMoney(n);
+  }
+  function _interestClassFor(target) {
+    var s = _interestState()[target];
+    if (s === true)  return 'is-interested';
+    if (s === false) return 'is-not-interested';
+    return '';
+  }
 
   // -----------------------------------------------------------------
-  // Year-count detection from the picked sale structure
+  // Strategy: OIL & GAS
   // -----------------------------------------------------------------
-  function _resolvedStrategyKey() {
+
+  function _resolvedSaleStrategyKey() {
     var chosen = root.__rettChosenStrategy;
     if (chosen === 'A' || chosen === 'B' || chosen === 'C') return chosen;
     var interest = root.__rettStrategyInterest || {};
@@ -96,8 +111,7 @@
     if (interest.A === true) return 'A';
     return 'A';
   }
-
-  function _yearCountForStrategy(key) {
+  function _yearCountForSaleStrategy(key) {
     if (key === 'A') return 1;
     if (key === 'B') return 2;
     var monthsRaw = parseInt(_val('structured-sale-duration-months'), 10);
@@ -106,20 +120,16 @@
     if (years > YEAR_HARD_CAP) years = YEAR_HARD_CAP;
     return years;
   }
-
-  function _strategySummaryLabel(key, n) {
+  function _saleStrategyLabel(key, n) {
     if (key === 'A') return 'Sell Now &middot; 1 investment year';
     if (key === 'B') return 'Seller Finance &middot; 2 investment years';
     if (key === 'C') return 'Structured Sale &middot; ' + n + ' investment years';
     return n + ' investment year' + (n === 1 ? '' : 's');
   }
-
-  // Build the per-year array the math (and eventually the solver)
-  // consumes. Even split for now; replaceable when the solver lands.
-  function _resolvedYears() {
+  function _oilGasResolvedYears() {
     var st = _state().oilGas;
-    var key = _resolvedStrategyKey();
-    var count = _yearCountForStrategy(key);
+    var key = _resolvedSaleStrategyKey();
+    var count = _yearCountForSaleStrategy(key);
     var per = (st.maxInvestment || 0) / count;
     var years = [];
     for (var i = 0; i < count; i++) {
@@ -127,19 +137,6 @@
     }
     return years;
   }
-
-  // -----------------------------------------------------------------
-  // Card markup — reuses .strategy-pick-card / .strategy-keyaspect /
-  // .strategy-lockup-graphic / .strategy-pick-buttons from Page 2.
-  // -----------------------------------------------------------------
-
-  function _interestClassFor(target) {
-    var s = _interestState()[target];
-    if (s === true)  return 'is-interested';
-    if (s === false) return 'is-not-interested';
-    return '';
-  }
-
   function _oilGasIconSVG() {
     return '' +
       '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
@@ -151,17 +148,13 @@
         '<path d="M14 28 L8 30"/>' +
       '</svg>';
   }
-
-  function _renderCard() {
+  function _renderOilGasCard() {
     var st = _state().oilGas;
-    var key = _resolvedStrategyKey();
-    var count = _yearCountForStrategy(key);
+    var key = _resolvedSaleStrategyKey();
+    var count = _yearCountForSaleStrategy(key);
     var interestCls = _interestClassFor('oilGas');
     var detailsOpenCls = st.detailsOpen ? ' is-open' : '';
-
-    var maxInvDisplay = (typeof fmtUSD === 'function')
-      ? fmtUSD(st.maxInvestment)
-      : ('$' + Math.round(st.maxInvestment).toLocaleString('en-US'));
+    var maxInvDisplay = _fmtUSD(st.maxInvestment);
     var deprPctDisplay = Math.round(st.depreciationPct * 100);
 
     return '' +
@@ -170,30 +163,25 @@
           '<div class="strategy-pick-num">SUPPLEMENTAL <span class="num-big">01</span></div>' +
         '</div>' +
         '<h3 class="strategy-pick-name">Oil &amp; Gas Working Interest</h3>' +
-
         '<div class="strategy-keyaspect">' +
           '<div class="strategy-keyaspect-label">Ordinary Income Offset</div>' +
           '<p class="strategy-keyaspect-body">An investment in oil &amp; gas allows for early depreciation that offsets ordinary income under IRC &sect;469(c)(3).</p>' +
         '</div>' +
-
         '<div class="strategy-lockup-graphic" data-lockup-style="ordinary">' +
           '<span class="strategy-lockup-icon" aria-hidden="true">' + _oilGasIconSVG() + '</span>' +
           '<div class="strategy-lockup-text">' +
             '<span class="strategy-lockup-value">95% Y1 Deduction</span>' +
-            '<span class="strategy-lockup-sub">' + _strategySummaryLabel(key, count) + '</span>' +
+            '<span class="strategy-lockup-sub">' + _saleStrategyLabel(key, count) + '</span>' +
           '</div>' +
         '</div>' +
-
         '<div class="strategy-pick-buttons">' +
           '<button type="button" class="strategy-pick-btn supp-pick-btn" data-supp-pick-action="interested" data-supp-pick-target="oilGas">&#10003; Interested</button>' +
           '<button type="button" class="strategy-pick-btn supp-pick-btn" data-supp-pick-action="not-interested" data-supp-pick-target="oilGas">Not Interested</button>' +
         '</div>' +
-
         '<button type="button" class="supp-details-arrow' + detailsOpenCls + '" data-supp-details-target="oilGas" aria-expanded="' + (st.detailsOpen ? 'true' : 'false') + '" aria-controls="supp-details-oilGas" title="' + (st.detailsOpen ? 'Hide details' : 'Show details') + '">' +
           '<span class="supp-details-arrow-chev" aria-hidden="true">&#9662;</span>' +
           '<span class="supp-details-arrow-label">Details</span>' +
         '</button>' +
-
         '<div class="supp-details-panel" id="supp-details-oilGas"' + (st.detailsOpen ? '' : ' hidden') + '>' +
           '<div class="supp-details-row">' +
             '<div class="supp-details-rowlabel">Max Investment <span class="supp-details-rowsub">overall</span></div>' +
@@ -206,20 +194,125 @@
         '</div>' +
       '</div>';
   }
+  function _runOilGasMath() {
+    if (typeof root.computeOilGasMultiYear !== 'function') return;
+    var st = _state().oilGas;
+    try { st.lastResult = root.computeOilGasMultiYear(_oilGasResolvedYears()); }
+    catch (e) { st.lastResult = null; }
+  }
 
+  // -----------------------------------------------------------------
+  // Strategy: DELPHI
+  // -----------------------------------------------------------------
+
+  function _delphiClassMeta(key) {
+    var DS = root.DELPHI_STRATEGIES || {};
+    return DS[key] || DS.classB || { name: 'Class B', minInvestment: 1000000, managementFee: 0.02, liquidity: 'Quarterly' };
+  }
+  function _delphiSubLabel(st) {
+    var meta = _delphiClassMeta(st.classKey);
+    var minDisplay = '$' + (meta.minInvestment / 1e6) + 'M minimum';
+    return meta.name + ' &middot; ' + minDisplay;
+  }
+  function _delphiIconSVG() {
+    // Two arrows in opposite directions — visualizes character
+    // conversion (ordinary → preferential-rate capital gain).
+    return '' +
+      '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+        '<path d="M10 17 L36 17"/>' +
+        '<path d="M30 11 L36 17 L30 23"/>' +
+        '<path d="M38 31 L12 31"/>' +
+        '<path d="M18 25 L12 31 L18 37"/>' +
+      '</svg>';
+  }
+  function _renderDelphiCard() {
+    var st = _state().delphi;
+    var meta = _delphiClassMeta(st.classKey);
+    var interestCls = _interestClassFor('delphi');
+    var detailsOpenCls = st.detailsOpen ? ' is-open' : '';
+    var invDisplay = _fmtUSD(st.investment);
+    var minNotMet = st.investment > 0 && st.investment < meta.minInvestment;
+
+    var classOptions =
+      '<option value="classA"' + (st.classKey === 'classA' ? ' selected' : '') + '>Class A &mdash; $5M min, 1.75% fee</option>' +
+      '<option value="classB"' + (st.classKey === 'classB' ? ' selected' : '') + '>Class B &mdash; $1M min, 2% fee</option>';
+
+    var minWarning = minNotMet
+      ? '<p class="supp-min-warning">Below the ' + _fmtUSD(meta.minInvestment) + ' minimum for ' + meta.name + '. Math runs proportionally; fund won&rsquo;t accept the subscription as-is.</p>'
+      : '';
+
+    return '' +
+      '<div class="strategy-pick-card supp-strategy-card ' + interestCls + '" data-supp-strategy="delphi">' +
+        '<div class="strategy-pick-card-header">' +
+          '<div class="strategy-pick-num">SUPPLEMENTAL <span class="num-big">02</span></div>' +
+        '</div>' +
+        '<h3 class="strategy-pick-name">Delphi Fund</h3>' +
+        '<div class="strategy-keyaspect">' +
+          '<div class="strategy-keyaspect-label">Character Conversion</div>' +
+          '<p class="strategy-keyaspect-body">A K-1 fund recharacterizes ordinary income as long-term capital gain via offsetting ordinary expense and LT gain allocations.</p>' +
+        '</div>' +
+        '<div class="strategy-lockup-graphic" data-lockup-style="exchange">' +
+          '<span class="strategy-lockup-icon" aria-hidden="true">' + _delphiIconSVG() + '</span>' +
+          '<div class="strategy-lockup-text">' +
+            '<span class="strategy-lockup-value">Rate Arbitrage</span>' +
+            '<span class="strategy-lockup-sub">' + _delphiSubLabel(st) + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="strategy-pick-buttons">' +
+          '<button type="button" class="strategy-pick-btn supp-pick-btn" data-supp-pick-action="interested" data-supp-pick-target="delphi">&#10003; Interested</button>' +
+          '<button type="button" class="strategy-pick-btn supp-pick-btn" data-supp-pick-action="not-interested" data-supp-pick-target="delphi">Not Interested</button>' +
+        '</div>' +
+        '<button type="button" class="supp-details-arrow' + detailsOpenCls + '" data-supp-details-target="delphi" aria-expanded="' + (st.detailsOpen ? 'true' : 'false') + '" aria-controls="supp-details-delphi" title="' + (st.detailsOpen ? 'Hide details' : 'Show details') + '">' +
+          '<span class="supp-details-arrow-chev" aria-hidden="true">&#9662;</span>' +
+          '<span class="supp-details-arrow-label">Details</span>' +
+        '</button>' +
+        '<div class="supp-details-panel" id="supp-details-delphi"' + (st.detailsOpen ? '' : ' hidden') + '>' +
+          '<div class="supp-details-row">' +
+            '<div class="supp-details-rowlabel">Class</div>' +
+            '<div class="supp-details-cell"><select id="supp-delphi-class" class="supp-select">' + classOptions + '</select></div>' +
+          '</div>' +
+          '<div class="supp-details-row">' +
+            '<div class="supp-details-rowlabel">Investment <span class="supp-details-rowsub">overall</span></div>' +
+            '<div class="supp-details-cell"><div class="currency-input"><input type="text" id="supp-delphi-inv" inputmode="numeric" autocomplete="off" value="' + invDisplay + '"></div></div>' +
+          '</div>' +
+          minWarning +
+        '</div>' +
+      '</div>';
+  }
+  function _runDelphiMath() {
+    if (typeof root.computeDelphiYear1 !== 'function') return;
+    var st = _state().delphi;
+    try {
+      st.lastResult = root.computeDelphiYear1({
+        classKey:   st.classKey,
+        investment: st.investment
+      });
+    } catch (e) { st.lastResult = null; }
+  }
+
+  // -----------------------------------------------------------------
+  // Public lego pins for the future solver
+  // -----------------------------------------------------------------
+  function getOilGasConfiguredYears() { return _oilGasResolvedYears(); }
+  function getDelphiConfiguration() {
+    var st = _state().delphi;
+    return { classKey: st.classKey, investment: st.investment };
+  }
+
+  // -----------------------------------------------------------------
+  // Host render + event delegation
+  // -----------------------------------------------------------------
   function _renderHost() {
     var host = document.getElementById('supplemental-strategies-host');
     if (!host) return;
     host.innerHTML =
       '<div class="supp-strategies-grid">' +
-        _renderCard() +
+        _renderOilGasCard() +
+        _renderDelphiCard() +
       '</div>';
     _bindEvents();
   }
 
-  // -----------------------------------------------------------------
-  // Events
-  // -----------------------------------------------------------------
   function _bindEvents() {
     var host = document.getElementById('supplemental-strategies-host');
     if (!host) return;
@@ -230,6 +323,7 @@
       var t = ev.target;
       if (!t) return;
 
+      // Interested / Not Interested
       var pickBtn = t.closest && t.closest('[data-supp-pick-action]');
       if (pickBtn) {
         var target = pickBtn.getAttribute('data-supp-pick-target');
@@ -238,75 +332,102 @@
         var iState = _interestState();
         iState[target] = (iState[target] === newVal) ? null : newVal;
         _renderHost();
-        _runMath();
+        _runAllMath();
         return;
       }
 
+      // Details disclosure
       var detailsBtn = t.closest && t.closest('[data-supp-details-target]');
       if (detailsBtn) {
         var dTarget = detailsBtn.getAttribute('data-supp-details-target');
-        if (dTarget === 'oilGas') {
-          _state().oilGas.detailsOpen = !_state().oilGas.detailsOpen;
+        var s = _state()[dTarget];
+        if (s) {
+          s.detailsOpen = !s.detailsOpen;
           _renderHost();
         }
         return;
       }
     });
 
-    host.addEventListener('input', _onInputDelegate);
-    host.addEventListener('blur', _onBlurDelegate, true);
+    host.addEventListener('input',  _onInputDelegate);
+    host.addEventListener('change', _onChangeDelegate);
+    host.addEventListener('blur',   _onBlurDelegate, true);
   }
 
   function _onInputDelegate(ev) {
     var t = ev.target;
     if (!t) return;
-    var st = _state().oilGas;
+    var s = _state();
+
     if (t.id === 'supp-oilgas-max') {
       var v = (typeof parseUSD === 'function') ? parseUSD(t.value) : Number(t.value);
-      st.maxInvestment = Math.max(0, Number.isFinite(v) ? v : 0);
-      _runMath();
+      s.oilGas.maxInvestment = Math.max(0, Number.isFinite(v) ? v : 0);
+      _runOilGasMath();
     } else if (t.id === 'supp-oilgas-pct') {
       var raw = parseFloat(t.value);
-      if (!Number.isFinite(raw)) raw = DEFAULT_DEPR_PCT * 100;
+      if (!Number.isFinite(raw)) raw = DEFAULTS.oilGas.depreciationPct * 100;
       if (raw < 0) raw = 0;
       if (raw > 100) raw = 100;
-      st.depreciationPct = raw / 100;
-      _runMath();
+      s.oilGas.depreciationPct = raw / 100;
+      _runOilGasMath();
+    } else if (t.id === 'supp-delphi-inv') {
+      var dv = (typeof parseUSD === 'function') ? parseUSD(t.value) : Number(t.value);
+      s.delphi.investment = Math.max(0, Number.isFinite(dv) ? dv : 0);
+      _runDelphiMath();
+      // Re-render only the Delphi card body to reflect the min-warning
+      // and the lockup sub label without losing input focus. Easiest:
+      // re-render whole host but restore focus to the input afterwards.
+      _renderHostKeepFocus(t.id);
+    }
+  }
+
+  function _onChangeDelegate(ev) {
+    var t = ev.target;
+    if (!t) return;
+    if (t.id === 'supp-delphi-class') {
+      var val = t.value;
+      if (val !== 'classA' && val !== 'classB') return;
+      _state().delphi.classKey = val;
+      _runDelphiMath();
+      _renderHostKeepFocus(t.id);
     }
   }
 
   function _onBlurDelegate(ev) {
     var t = ev.target;
     if (!t) return;
+    var s = _state();
     if (t.id === 'supp-oilgas-max') {
-      var v = _state().oilGas.maxInvestment;
-      t.value = (typeof fmtUSD === 'function') ? fmtUSD(v) : ('$' + Math.round(v).toLocaleString('en-US'));
+      t.value = _fmtUSD(s.oilGas.maxInvestment);
+    } else if (t.id === 'supp-delphi-inv') {
+      t.value = _fmtUSD(s.delphi.investment);
     }
   }
 
-  // -----------------------------------------------------------------
-  // Math — runs silently, parks the latest result on state for the
-  // solver / Strategy Summary to consume.
-  // -----------------------------------------------------------------
-  function _runMath() {
-    if (typeof root.computeOilGasMultiYear !== 'function') return;
-    var st = _state().oilGas;
-    try { st.lastResult = root.computeOilGasMultiYear(_resolvedYears()); }
-    catch (e) { st.lastResult = null; }
+  function _renderHostKeepFocus(id) {
+    _renderHost();
+    if (!id) return;
+    var el = document.getElementById(id);
+    if (el && typeof el.focus === 'function') {
+      try {
+        el.focus();
+        if (typeof el.setSelectionRange === 'function' && el.value != null) {
+          var len = el.value.length;
+          el.setSelectionRange(len, len);
+        }
+      } catch (e) { /* */ }
+    }
   }
 
-  // Public lego-pin helper for the solver.
-  function getOilGasConfiguredYears() {
-    return _resolvedYears();
+  function _runAllMath() {
+    _runOilGasMath();
+    _runDelphiMath();
   }
 
-  // -----------------------------------------------------------------
-  // Top-level render + listeners
-  // -----------------------------------------------------------------
   function renderSupplementalPage() {
     if (!document.getElementById('supplemental-strategies-host')) return;
     _renderHost();
-    _runMath();
+    _runAllMath();
   }
 
   function _attachBaselineListeners() {
@@ -342,11 +463,14 @@
       setTimeout(renderSupplementalPage, 0);
     });
 
-    var lastKey = _resolvedStrategyKey();
+    // Strategy-pick clicks on Page 2 don't fire a global event; poll
+    // lazily — only when Page 4 is on screen. Affects Oil & Gas's
+    // year-count detection.
+    var lastKey = _resolvedSaleStrategyKey();
     setInterval(function () {
       var page4 = document.getElementById('page-supplemental');
       if (!page4 || !page4.classList.contains('active')) return;
-      var k = _resolvedStrategyKey();
+      var k = _resolvedSaleStrategyKey();
       if (k !== lastKey) {
         lastKey = k;
         renderSupplementalPage();
@@ -362,4 +486,5 @@
 
   root.renderSupplementalPage   = renderSupplementalPage;
   root.getOilGasConfiguredYears = getOilGasConfiguredYears;
+  root.getDelphiConfiguration   = getDelphiConfiguration;
 })(window);

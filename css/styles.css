@@ -4177,3 +4177,39 @@ body { font-size: 16px; }
     font-size: 0.9em;
     pointer-events: none;
 }
+
+/* ---- Delphi card additions: select dropdown + min-investment warning ---- */
+.supp-select {
+    width: 100%;
+    padding: 7px 28px 7px 10px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    color: var(--ink);
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+                      linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+    background-position: calc(100% - 14px) center, calc(100% - 9px) center;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+}
+.supp-select:focus {
+    outline: none;
+    border-color: var(--ink);
+    box-shadow: 0 0 0 2px rgba(35,31,85,0.08);
+    background-color: var(--paper-warm);
+}
+.supp-min-warning {
+    margin: 10px 0 0;
+    padding: 8px 10px;
+    background: rgba(252,165,165,0.12);
+    border-left: 3px solid #d97706;
+    color: var(--ink);
+    font-size: 0.78em;
+    line-height: 1.45;
+}
