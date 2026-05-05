@@ -127,8 +127,25 @@
 
     var m = entry.metrics;
     var fees = m.fees || 0;
-    var savings = Math.max(0, (m.doNothing || 0) - (m.tax || 0));
-    var net = m.net || 0;
+    var primarySavings = Math.max(0, (m.doNothing || 0) - (m.tax || 0));
+    var primaryNet = m.net || 0;
+    // Pull supplementals through the master solver so the hero numbers
+    // (Net Benefit, You Save, ROI) reflect everything the client opted
+    // in to. Each enabled supplemental's netBenefit is post-its-own-fees,
+    // so adding them to primarySavings gives the actual dollar the
+    // client keeps. Fees stay equal to primary fees (Brookhaven +
+    // Brooklyn) — supplemental product fees are wrapped into their own
+    // netBenefit, not double-counted in the planning fee bucket.
+    var solverOut = (typeof root.runMasterSolver === 'function')
+      ? root.runMasterSolver(primaryNet) : null;
+    var enabledSupplements = (solverOut && solverOut.supplementals)
+      ? solverOut.supplementals.filter(function (s) { return s.enabled && s.available; })
+      : [];
+    var supplementalBenefit = enabledSupplements.reduce(function (sum, s) {
+      return sum + (Number(s.netBenefit) || 0);
+    }, 0);
+    var savings = primarySavings + supplementalBenefit;
+    var net = primaryNet + supplementalBenefit;
     var roi = fees > 0 ? (savings / fees) : 0;
     var maxBar = Math.max(fees, savings, 1);
     var feePct = Math.max(1, (fees / maxBar) * 100);
@@ -192,7 +209,7 @@
           '<div class="forward-balance">' + _filingLabel(currentCfg.filingStatus) + '</div>' +
         '</div>' +
         '<div class="input-row">' +
-          '<div class="label">Auto-pick<span class="sub">Engine-chosen tuple</span></div>' +
+          '<div class="label">Brooklyn<span class="sub">Position parameters</span></div>' +
           '<div class="forward-balance" style="font-size:0.85em;">' +
             'Horizon ' + horizon + 'y &middot; Leverage ' + leverage + '%' +
             (entry.type === 'C' ? ' &middot; ' + dur + ' mo' : '') +
@@ -200,6 +217,15 @@
         '</div>' +
       '</div>' +
     '</div>';
+
+    // Section: Supplemental Strategies (left column, sits between
+    // Selected Strategy and Fees Baked In). Only renders when at least
+    // one supplemental was marked Interested on Page 4. Each row is a
+    // single line — toggle, name, signed contribution. Toggling a row
+    // re-runs the master solver and updates the hero numbers above.
+    if (enabledSupplements.length || (solverOut && solverOut.anyInterested)) {
+      html += _renderSupplementalLeftColumn(solverOut);
+    }
 
     // Section: Fees Included
     html += '<div class="input-section" id="fee-strategies-section">' +
@@ -293,64 +319,47 @@
     html += '</div>'; // /forward-results
     html += '</div>'; // /forward-layout
 
-    // ============ SUPPLEMENTAL STRATEGIES ============
-    // Layered on top of the chosen sale-side strategy. The master
-    // solver walks the registry, reads each strategy's published
-    // result, and returns a combined view. Toggling a card off
-    // re-runs the solver and updates the combined-net-benefit footer.
-    html += _renderSupplementalSection(net);
-
     host.innerHTML = html;
     _bindSupplementalToggleEvents();
   }
 
   // -----------------------------------------------------------------
-  // Supplemental section render. Returns '' when no supplemental
-  // strategies have been marked Interested on Page 4 — the section
-  // doesn't appear at all in that case so the layout stays clean for
-  // the simple "primary only" client.
+  // Supplemental section render — sits in the LEFT column between
+  // Selected Strategy and Fees Baked In. One slim row per Interested
+  // supplemental: toggle · name · signed contribution. Descriptors
+  // are intentionally suppressed — Page 4 has already explained the
+  // strategy. Hero numbers (Net Benefit / You Save / ROI) reflect
+  // the combined picture, so this section's job is just letting the
+  // advisor dial supplementals on/off mid-meeting.
   // -----------------------------------------------------------------
-  function _renderSupplementalSection(primaryNet) {
-    if (typeof root.runMasterSolver !== 'function') return '';
-    var combined = root.runMasterSolver(primaryNet);
-    if (!combined || !combined.anyInterested) return '';
-
-    var rows = combined.supplementals.map(function (s) {
+  function _renderSupplementalLeftColumn(solverOut) {
+    if (!solverOut || !solverOut.anyInterested) return '';
+    var rows = solverOut.supplementals.map(function (s) {
       var sign = s.netBenefit >= 0 ? '+' : '';
       var amt  = sign + _fmt(s.netBenefit);
-      var unavailable = (!s.available)
+      var pending = (!s.available)
         ? '<span class="supp-row-pending" title="Configure on Page 4 to populate">awaiting input</span>'
         : '';
       return '' +
-        '<div class="supp-row" data-supp-row="' + s.id + '">' +
+        '<div class="supp-strat-row" data-supp-row="' + s.id + '">' +
           '<label class="supp-row-toggle">' +
             '<input type="checkbox" data-supp-toggle="' + s.id + '"' +
               (s.enabled ? ' checked' : '') +
               (!s.available ? ' disabled' : '') + '>' +
             '<span class="supp-row-switch" aria-hidden="true"></span>' +
           '</label>' +
-          '<div class="supp-row-info">' +
-            '<div class="supp-row-name">' + s.name + '</div>' +
-            (s.descriptor ? '<div class="supp-row-desc">' + s.descriptor + '</div>' : '') +
-            unavailable +
-          '</div>' +
-          '<div class="supp-row-amt' + (s.enabled && s.available ? '' : ' is-off') + '">' + amt + '</div>' +
+          '<div class="supp-strat-name">' + s.name + pending + '</div>' +
+          '<div class="supp-strat-amt' + (s.enabled && s.available ? '' : ' is-off') + '">' + amt + '</div>' +
         '</div>';
     }).join('');
 
-    var combinedAmt = Math.round(combined.totalCombinedNetBenefit);
-
     return '' +
-      '<div class="forward-supplemental">' +
-        '<div class="forward-supplemental-head">' +
+      '<div class="input-section">' +
+        '<div class="section-heading">' +
           '<h2>Supplemental Strategies</h2>' +
-          '<p class="forward-supplemental-sub">Toggle to add or remove. The combined net benefit updates as strategies layer in.</p>' +
+          '<span class="num">ADD-ONS</span>' +
         '</div>' +
-        '<div class="forward-supplemental-rows">' + rows + '</div>' +
-        '<div class="forward-supplemental-total">' +
-          '<div class="net-label">Combined Net Benefit</div>' +
-          '<div class="net-amt"><span class="currency">$</span>' + combinedAmt.toLocaleString('en-US') + '</div>' +
-        '</div>' +
+        '<div class="section-body">' + rows + '</div>' +
       '</div>';
   }
 
