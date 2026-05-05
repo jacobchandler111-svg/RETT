@@ -61,7 +61,17 @@ window.RETT_DEFAULTS = {
     return;
   }
   try {
-    window.loadTaxData().catch(notifyFailure);
+    window.loadTaxData().then(function () {
+      // The Page-1 baseline table fires its initial render BEFORE the
+      // async tax-bracket fetch resolves, so on a fresh refresh the
+      // cells render as $0 even though form values are restored.
+      // Re-render once brackets are live so the user sees the correct
+      // "Tax Liability if you did nothing" without having to touch the
+      // form first.
+      if (typeof window.renderBaselineTable === 'function') {
+        try { window.renderBaselineTable(); } catch (e) { /* */ }
+      }
+    }).catch(notifyFailure);
   } catch (e) {
     notifyFailure(e);
   }

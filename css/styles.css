@@ -3132,13 +3132,19 @@ body { font-size: 16px; }
     font-weight: 600;
     font-size: 0.95em;
     color: var(--ink);
-    margin: 0 0 8px 0;
+    margin: 0 0 4px 0;
     letter-spacing: 0.01em;
 }
 .rett-interested-payments h4 .muted {
     font-weight: 400;
     color: var(--muted);
     font-size: 0.92em;
+}
+.rett-payments-subtitle {
+    margin: 0 0 8px 0;
+    font-size: 0.85em;
+    line-height: 1.4;
+    color: var(--ink-soft);
 }
 .rett-payments-table {
     width: 100%;

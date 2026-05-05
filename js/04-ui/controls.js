@@ -92,6 +92,17 @@ function _bindCaseControls() {
   // Page-load restore: prefer the active named case over the un-named
   // draft. Returns 'case' / 'draft' / null.
   try { store.restoreOnPageLoad(); } catch (e) { if (typeof window !== "undefined" && typeof window.reportFailure === "function") window.reportFailure("non-fatal in controls.js", e); else if (typeof console !== "undefined") console.warn(e); }
+  // The Page-1 baseline-table renderer attaches its input/change
+  // listeners on DOMContentLoaded but THIS path (restoreOnPageLoad)
+  // dispatches the form-restore events as part of bindControls — and
+  // bindControls runs in the same DOMContentLoaded tick, so depending
+  // on script load order the listener can attach AFTER the events
+  // fire, leaving the baseline cells at $0 until the user touches
+  // the form. Force a render here so the baseline always reflects the
+  // restored state immediately. Idempotent and cheap.
+  if (typeof window.renderBaselineTable === 'function') {
+    try { window.renderBaselineTable(); } catch (e) { /* */ }
+  }
   _refreshCaseDropdown(store.getCurrentCaseName());
   _refreshCaseStatus();
 
@@ -787,6 +798,13 @@ function bindControls() {
       var current = window.__rettStrategyInterest[target];
       window.__rettStrategyInterest[target] = (current === newVal) ? null : newVal;
       _refreshStrategyPickCards();
+      // Defensive: keep the Page-3 Interested-cards view in sync the
+      // instant interest changes, so navigating to Projection always
+      // shows the latest filter even if the navigation handler somehow
+      // skips renderInterestedSnapshot. Idempotent.
+      if (typeof window.renderInterestedSnapshot === 'function') {
+        try { window.renderInterestedSnapshot(); } catch (e) { /* */ }
+      }
     });
   });
   var strategiesBack = document.getElementById('strategies-back');

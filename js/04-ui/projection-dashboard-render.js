@@ -1734,8 +1734,14 @@
       '<td class="muted">Sum of all installments</td>' +
     '</tr>';
 
+    var months = durationMonths || 18;
+    var atMinimum = months <= 18;
+    var termSubtitle = atMinimum
+      ? '<p class="rett-payments-subtitle muted">Sale term: <strong>' + months + ' months</strong> (the regulatory minimum). The engine will recommend a longer term if a transaction this size needs one to satisfy the safe-harbor schedule.</p>'
+      : '<p class="rett-payments-subtitle muted">Sale term: <strong>' + months + ' months</strong> — extended past the 18-month minimum for this transaction size.</p>';
     return '<div class="rett-interested-payments">' +
-      '<h4>Payment Schedule <span class="muted">(' + (durationMonths || 18) + '-month structured sale)</span></h4>' +
+      '<h4>Payment Schedule</h4>' +
+      termSubtitle +
       '<table class="rett-payments-table">' +
         '<thead><tr><th>Year</th><th>Date</th><th>Cash Received</th><th>Notes</th></tr></thead>' +
         '<tbody>' + rows + '</tbody>' +
