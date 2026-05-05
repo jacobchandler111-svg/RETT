@@ -126,22 +126,17 @@
 
     var m = entry.metrics;
 
-    // Run Brooklyn optimizer: compute whether the investment should be
-    // scaled back to avoid generating more loss carryforward than the
-    // client can absorb. Brooklyn fees scale linearly with investment;
-    // Brookhaven is a fixed schedule and doesn't change. Tax savings stay
-    // constant — the scaled investment still generates exactly enough loss
-    // to absorb all available gain, so the net benefit goes UP when we
-    // dial back (same savings, lower fees).
-    var opt = (typeof root.runBrooklynOptimizer === 'function')
-      ? root.runBrooklynOptimizer(currentCfg, entry.loss || 0)
-      : null;
-    var optScale = (opt && opt.dialBack) ? opt.recommendedScale : 1;
-
-    var effectiveBrooklynFees = (m.brooklynFees || 0) * optScale;
-    var fees = effectiveBrooklynFees + (m.brookhavenFees || 0);
+    // entry.metrics already has the Brooklyn-optimizer dial-back
+    // applied at buildInterestedSummary() time — so brooklynFees,
+    // fees and net here are the OPTIMIZED values. The full-investment
+    // baseline is preserved on m._brooklynFeesAtFull and m._lossAtFull
+    // for any UI that wants to surface the "if invested heavier" line.
+    var opt = entry._opt || null;
+    var optScale = (typeof entry._optScale === 'number') ? entry._optScale : 1;
+    var effectiveBrooklynFees = m.brooklynFees || 0;
+    var fees = m.fees || 0;
     var primarySavings = Math.max(0, (m.doNothing || 0) - (m.tax || 0));
-    var primaryNet = primarySavings - fees;
+    var primaryNet = m.net || (primarySavings - fees);
     // Pull supplementals through the master solver so the hero numbers
     // (Net Benefit, You Save, ROI) reflect everything the client opted
     // in to. Each enabled supplemental's netBenefit is post-its-own-fees,

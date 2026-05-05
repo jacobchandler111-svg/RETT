@@ -2109,6 +2109,37 @@
 
     if (!entries.length) return null;
 
+    // Apply Brooklyn optimizer to each entry so Page 3 cards AND the
+    // Page 5 hero numbers reflect the optimized investment. Without
+    // this, the projection cards show "fully invested in Brooklyn"
+    // math which over-states fees (and understates net) when the
+    // optimizer recommends dialing back. Mutates metrics in place
+    // so all consumers (Page 3 cards, Page 5 strategy summary,
+    // Implementation panel) see the same numbers. The full-investment
+    // values are preserved on metrics._brooklynFeesAtFull and
+    // metrics._lossAtFull for the reference-line UI on the cards.
+    if (typeof root.runBrooklynOptimizer === 'function') {
+      entries.forEach(function (e) {
+        var opt = root.runBrooklynOptimizer(currentCfg, e.loss || 0);
+        var scale = (opt && opt.dialBack) ? opt.recommendedScale : 1;
+        e._opt = opt;
+        e._optScale = scale;
+        // Always preserve the full-investment baseline so the card
+        // can render "if invested heavier, up to $X loss could be
+        // generated" without re-running the engine.
+        e.metrics._brooklynFeesAtFull = (e.metrics.brooklynFees || 0);
+        e.metrics._lossAtFull         = e.loss || 0;
+        if (scale < 1) {
+          var effectiveBF = (e.metrics.brooklynFees || 0) * scale;
+          var newFees = effectiveBF + (e.metrics.brookhavenFees || 0);
+          var sav = Math.max(0, (e.metrics.doNothing || 0) - (e.metrics.tax || 0));
+          e.metrics.brooklynFees = effectiveBF;
+          e.metrics.fees         = newFees;
+          e.metrics.net          = sav - newFees;
+        }
+      });
+    }
+
     var maxNet = -Infinity, recIdx = -1;
     entries.forEach(function (e, i) {
       if (e.metrics.net > maxNet) { maxNet = e.metrics.net; recIdx = i; }
