@@ -5,7 +5,7 @@
 //   - 'projection' : multi-year results table
 //   - 'allocator'  : year-1 allocator suggestions
 
-const PAGE_IDS = ['page-inputs', 'page-strategies', 'page-projection', 'page-allocator'];
+const PAGE_IDS = ['page-inputs', 'page-strategies', 'page-projection', 'page-allocator', 'page-supplemental'];
 const PROJECTION_SUBPAGE_IDS = ['subpage-summary', 'subpage-details'];
 
 function showProjectionSubpage(id) {
@@ -815,10 +815,12 @@ function bindControls() {
   const navStrategies = document.getElementById('nav-strategies');
   const navProjection = document.getElementById('nav-projection');
   const navAllocator = document.getElementById('nav-allocator');
-  if (navInputs)     navInputs.addEventListener('click', () => showPage('page-inputs'));
-  if (navStrategies) navStrategies.addEventListener('click', () => showPage('page-strategies'));
-  if (navProjection) navProjection.addEventListener('click', () => showPage('page-projection'));
-  if (navAllocator)  navAllocator.addEventListener('click', () => showPage('page-allocator'));
+  const navSupplemental = document.getElementById('nav-supplemental');
+  if (navInputs)       navInputs.addEventListener('click', () => showPage('page-inputs'));
+  if (navStrategies)   navStrategies.addEventListener('click', () => showPage('page-strategies'));
+  if (navProjection)   navProjection.addEventListener('click', () => showPage('page-projection'));
+  if (navAllocator)    navAllocator.addEventListener('click', () => showPage('page-allocator'));
+  if (navSupplemental) navSupplemental.addEventListener('click', () => showPage('page-supplemental'));
 
   // Strategy-selection page (between Inputs and Projection): three
   // cards, each with Interested / Not Interested. Currently NOT wired
