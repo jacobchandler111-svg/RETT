@@ -62,59 +62,78 @@ function _yearProjectionFactor(year) {
 }
 
 function _resolveYearKey(year) {
-          if (TAX_DATA.federal && TAX_DATA.federal[String(year)]) return String(year);
-          return String(TAX_DATA.baseYear);
+          // Hardened against tax-data not yet loaded (async fetch in
+          // tax-loader still in flight) and against missing keys: returns
+          // null when no usable node exists, so callers can short-circuit
+          // instead of crashing on a TypeError. (P1-4.)
+          if (!TAX_DATA.federal) return null;
+          if (TAX_DATA.federal[String(year)]) return String(year);
+          if (TAX_DATA.baseYear != null && TAX_DATA.federal[String(TAX_DATA.baseYear)])
+                return String(TAX_DATA.baseYear);
+          return null;
 }
 
 function _projectFlatBrackets(brackets, factor) {
           // Original shape: [[max, rate], [max, rate], ...]. We project the max
     // (except sentinel max which is Infinity post-decode) by factor.
+    if (!Array.isArray(brackets)) return [];
     return brackets.map(b => [b[0] === Infinity ? Infinity : b[0] * factor, b[1]]);
 }
 
 function getFederalNode(year) {
           const key = _resolveYearKey(year);
+          if (!key || !TAX_DATA.federal) return null;
           return TAX_DATA.federal[key] || null;
 }
 
 function getFederalBrackets(year, status) {
           const node = getFederalNode(year);
-          if (!node) return null;
+          if (!node || !node.brackets) return [];
           const k = fsKey(status);
-          const factor = (TAX_DATA.federal[String(year)]) ? 1 : _yearProjectionFactor(year);
+          const factor = (TAX_DATA.federal && TAX_DATA.federal[String(year)]) ? 1 : _yearProjectionFactor(year);
           return _projectFlatBrackets(node.brackets[k] || [], factor);
 }
 
 function getFederalLTCGBrackets(year, status) {
           const node = getFederalNode(year);
-          if (!node) return null;
+          if (!node || !node.ltcgRates) return [];
           const k = fsKey(status);
-          const factor = (TAX_DATA.federal[String(year)]) ? 1 : _yearProjectionFactor(year);
+          const factor = (TAX_DATA.federal && TAX_DATA.federal[String(year)]) ? 1 : _yearProjectionFactor(year);
           return _projectFlatBrackets(node.ltcgRates[k] || [], factor);
 }
 
 function getFederalStandardDeduction(year, status) {
           const node = getFederalNode(year);
-          if (!node) return 0;
+          if (!node || !node.standardDeduction) return 0;
           const k = fsKey(status);
           const raw = node.standardDeduction[k] || 0;
-          const factor = (TAX_DATA.federal[String(year)]) ? 1 : _yearProjectionFactor(year);
+          const factor = (TAX_DATA.federal && TAX_DATA.federal[String(year)]) ? 1 : _yearProjectionFactor(year);
           return raw * factor;
 }
 
 function getFederalNiitThreshold(year, status) {
           const node = getFederalNode(year);
-          if (!node) return Infinity;
+          if (!node || !node.niitThreshold) return Infinity;
           const k = fsKey(status);
           const raw = node.niitThreshold[k] != null ? node.niitThreshold[k] : Infinity;
-          const factor = (TAX_DATA.federal[String(year)]) ? 1 : _yearProjectionFactor(year);
+          const factor = (TAX_DATA.federal && TAX_DATA.federal[String(year)]) ? 1 : _yearProjectionFactor(year);
           return raw === Infinity ? Infinity : raw * factor;
 }
 
 function getStateNode(year, stateCode) {
           if (!stateCode || stateCode === 'NONE') return null;
-          const key = _resolveYearKey(year);
-          if (!TAX_DATA.states || !TAX_DATA.states[key]) return null;
+          if (!TAX_DATA.states) return null;
+          // State-side year resolver mirrors federal: try the literal year,
+          // fall back to baseYear, then return null. We can't reuse
+          // _resolveYearKey because that one only checks federal.
+          let key = String(year);
+          if (!TAX_DATA.states[key]) {
+                if (TAX_DATA.baseYear != null && TAX_DATA.states[String(TAX_DATA.baseYear)]) {
+                      key = String(TAX_DATA.baseYear);
+                } else {
+                      return null;
+                }
+          }
           return TAX_DATA.states[key][stateCode] || null;
 }
 

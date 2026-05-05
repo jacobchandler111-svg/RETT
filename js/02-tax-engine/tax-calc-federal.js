@@ -117,19 +117,37 @@ function computeFederalTax(ordinaryIncome, year, status, opts) {
 
 
 // Supported opts keys for computeFederalTaxBreakdown:
-//   longTermGain        — numeric, taxed via the LTCG bracket stack
+//   longTermGain        — numeric, taxed via the LTCG bracket stack.
+//                         A NEGATIVE value is a capital loss: up to
+//                         $3,000/yr ($1,500 MFS) offsets ordinary income
+//                         (§1211(b)); the remainder carries forward via
+//                         carryforward-tracker.
+//   shortTermGain       — numeric, taxed at ordinary rates. Folded into
+//                         the ordinary stack inside this function so
+//                         callers don't all have to pre-stack it. (P0-5.)
 //   qualifiedDividend   — numeric, taxed at LTCG rates (treated like LT gain)
-//   investmentIncome    — numeric, NIIT base (defaults to LT + QD)
-//   wages               — numeric, Additional Medicare base (W-2 + SE only)
-//   seIncome            — numeric, added to wages for the Add'l Medicare base
+//   investmentIncome    — numeric, NIIT base (defaults to LT + QD + ST + rental + non-qual divs)
+//   wages               — numeric, Additional Medicare base (W-2 only)
+//   seIncome            — numeric, added to wages × 0.9235 for the
+//                         Add'l Medicare base (Form 8959). The 0.9235
+//                         multiplier is the SE-earnings adjustment;
+//                         applying it AFTER summing was double-counting
+//                         (P0-7).
 //   itemized            — numeric, replaces the standard deduction if larger
+//   carriedLossPriorYear — numeric, prior-year carried capital loss
+//                         that ALSO qualifies for the $3,000 ordinary
+//                         offset (separate from this year's LT loss).
 // Aliased synonyms (mapped to the canonical keys above):
 //   ltcg, lt              -> longTermGain
+//   stcg, st              -> shortTermGain
 //   qualifiedDiv          -> qualifiedDividend
 //   niitable, niitIncome  -> investmentIncome
 //   wagesIncome,
 //   earnedIncome          -> wages
 //   selfEmployment        -> seIncome
+//
+// Returns { ordinaryTax, ltTax, seTax, amtTopUp, niit, addlMedicare,
+//           lossOrdOffsetApplied, lossCarryforward, total }.
 function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       opts = opts || {};
       // Issue #56: alias common synonyms so a downstream rename (e.g.
@@ -137,19 +155,20 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       // thousands of dollars of tax.
       var _lt = opts.longTermGain != null ? opts.longTermGain
               : (opts.ltcg != null ? opts.ltcg : opts.lt);
-      // Issue #67: a negative LT gain (capital loss) qualifies for a
-      // §1211(b) ordinary-income offset of up to $3,000/yr ($1,500
-      // MFS). Surface that as an ordinaryIncome reduction here so
-      // the bracket math sees the lower taxable amount. The remainder
-      // carries forward (carryforward-tracker handles multi-year
-      // accounting in projection-engine; this is the single-year
-      // offset only). Previously the engine clamped LT to 0 silently.
-      var _carriedLossOrdOffset = 0;
-      if (_lt != null && Number(_lt) < 0) {
-            var _cap = (status === 'mfs' || status === 'married_separate') ? 1500 : 3000;
-            _carriedLossOrdOffset = Math.min(_cap, Math.abs(Number(_lt)));
-            _lt = 0; // cap LT at 0 for the LTCG bracket loop
-      }
+      var _st = opts.shortTermGain != null ? opts.shortTermGain
+              : (opts.stcg != null ? opts.stcg : opts.st);
+      // §1211(b) loss offset: up to $3,000/yr ($1,500 MFS) of net
+      // capital loss reduces ordinary income; the remainder carries
+      // forward. Both this-year LT loss AND a prior-year carried loss
+      // contribute, capped at the same single annual ceiling. Previously
+      // the engine clamped LT to 0 silently and ignored carryforwards.
+      var _capLoss = (status === 'mfs' || status === 'married_separate') ? 1500 : 3000;
+      var _ltLossThisYear = (_lt != null && Number(_lt) < 0) ? Math.abs(Number(_lt)) : 0;
+      var _carriedLossPrior = Math.max(0, Number(opts.carriedLossPriorYear) || 0);
+      var _totalNetLoss = _ltLossThisYear + _carriedLossPrior;
+      var _carriedLossOrdOffset = Math.min(_capLoss, _totalNetLoss);
+      var _lossCarryforward = Math.max(0, _totalNetLoss - _carriedLossOrdOffset);
+      if (_ltLossThisYear > 0) _lt = 0; // cap LT at 0 for the LTCG bracket loop
       var _qd = opts.qualifiedDividend != null ? opts.qualifiedDividend : opts.qualifiedDiv;
       var _inv = opts.investmentIncome != null ? opts.investmentIncome
               : (opts.niitable != null ? opts.niitable : opts.niitIncome);
@@ -157,16 +176,19 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
               : (opts.wagesIncome != null ? opts.wagesIncome : opts.earnedIncome);
       var _se = opts.seIncome != null ? opts.seIncome : opts.selfEmployment;
       const longTermGain      = Math.max(0, _lt || 0);
+      const shortTermGain     = Math.max(0, _st || 0);
       const qualifiedDividend = Math.max(0, _qd || 0);
+      const seIncomeRaw       = Math.max(0, Number(_se) || 0);
       const investmentIncome  = Math.max(0, _inv != null
-                                          ? _inv : (longTermGain + qualifiedDividend));
-      // Wage base for Additional Medicare. Defaults to 0 — NOT
-      // ordinaryIncome — because the surcharge applies only to W-2
-      // wages and SE earnings (IRC §3101(b)(2)). Real-estate clients
-      // with rental/dividend ordinary income but $0 wages should pay
-      // $0 Additional Medicare. Callers (inputs-collector, the test
-      // harness) pass cfg.wages explicitly. (Issue #55.)
-      const wages             = Math.max(0, (_w != null ? _w : 0) + (_se || 0));
+                                          ? _inv : (longTermGain + qualifiedDividend + shortTermGain));
+      // Wage base for Additional Medicare per Form 8959. W-2 wages are
+      // counted dollar-for-dollar; SE income is multiplied by 0.9235
+      // (the SE-earnings adjustment that excludes the half-of-SE-tax
+      // employer-equivalent deduction). Real-estate clients with $0
+      // wages and $0 SE pay $0 Additional Medicare regardless of
+      // ordinary rental/dividend income (IRC §3101(b)(2)). (P0-7.)
+      const seTaxMult = (typeof TAX_DATA !== 'undefined' && TAX_DATA && TAX_DATA.seTaxMultiplier) || 0.9235;
+      const wages             = Math.max(0, (_w != null ? _w : 0) + (seIncomeRaw * seTaxMult));
       const itemized          = Math.max(0, opts.itemized || 0);
 
       const stdDed   = getFederalStandardDeduction(year, status);
@@ -174,16 +196,19 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       const ltBrk    = getFederalLTCGBrackets(year, status);
 
       const deduction = Math.max(stdDed, itemized);
-      // §1211(b) loss offset reduces taxable ordinary income before
-      // brackets are applied. (Issue #67.)
-      const taxableOrdinary = Math.max(0, ordinaryIncome - deduction - _carriedLossOrdOffset);
+      // §1211(b) loss offset + short-term gain both run through the
+      // ordinary-income bracket stack. STG is taxed at ordinary rates
+      // (no preferential bucket), and the loss offset reduces the base
+      // before brackets apply. (P0-4, P0-5.)
+      const ordinaryGross   = ordinaryIncome + shortTermGain;
+      const taxableOrdinary = Math.max(0, ordinaryGross - deduction - _carriedLossOrdOffset);
       // Leftover deduction (when ordinary income alone wasn't enough to
       // absorb it) bleeds through to the LTCG bracket stack — on a
       // real return, the standard deduction shifts the LTCG bracket
       // floors up by the unused amount. Without this, a pure-LTCG year
       // with $0 ordinary income wastes the entire deduction × 20% in
       // overstated baseline tax.
-      const _deductionConsumedOnOrd = Math.max(0, ordinaryIncome - taxableOrdinary - _carriedLossOrdOffset);
+      const _deductionConsumedOnOrd = Math.max(0, ordinaryGross - taxableOrdinary - _carriedLossOrdOffset);
       const _leftoverDeduction = Math.max(0, deduction - _deductionConsumedOnOrd);
 
       const ordinaryTax = _flatBracketTax(taxableOrdinary, ordBrk);
@@ -222,18 +247,48 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       const amtTotal    = amtOrdOnly + ltTax;
       const amtTopUp    = Math.max(0, amtTotal - (ordinaryTax + ltTax));
 
-      const magi = ordinaryIncome + ltAmount;
+      // MAGI for NIIT phase-in includes ordinary, ST gain, and LT gain.
+      // Note: NIIT threshold is intentionally NOT inflation-indexed —
+      // §1411 thresholds are set by statute at $200K single / $250K MFJ
+      // / $125K MFS / $200K HoH and have stayed there since 2013. If a
+      // future contributor "fixes" this by indexing it, they're wrong:
+      // the IRS has not adjusted them and the JOBS Act / TCJA / OBBBA
+      // explicitly left them flat. (P0-10.)
+      const magi = ordinaryGross + ltAmount;
       const niit = _computeNiit(investmentIncome, magi, year, status);
 
       const addlMed = _computeAddlMedicare(wages, status);
 
-      const total = ordinaryTax + ltTax + amtTopUp + niit + addlMed;
+      // Self-employment tax: SECA. 12.4% Social Security on the first
+      // ssWageBase of (SE × 0.9235), plus 2.9% Medicare on all of
+      // (SE × 0.9235). The half-of-SE-tax employer-equivalent deduction
+      // is NOT applied here — that's an above-the-line deduction that
+      // belongs on the AGI side (handled by callers via itemized/std
+      // calc). Wages already paid into SS reduce the SS base. (P0-6.)
+      let seTax = 0;
+      if (seIncomeRaw > 0 && typeof TAX_DATA !== 'undefined' && TAX_DATA) {
+            const seBase = seIncomeRaw * seTaxMult;
+            const ssWageBase = Number(TAX_DATA.ssWageBase) || 176100; // 2025 SSA cap, 2026 TBD
+            const w2Wages = Math.max(0, _w != null ? Number(_w) : 0);
+            const ssRoom = Math.max(0, ssWageBase - w2Wages);
+            const ssBase = Math.min(seBase, ssRoom);
+            const ssTax = ssBase * 0.124;        // 12.4% Social Security
+            const medTax = seBase * 0.029;       // 2.9% Medicare (no cap)
+            seTax = ssTax + medTax;
+      }
+
+      const total = ordinaryTax + ltTax + amtTopUp + niit + addlMed + seTax;
       return {
             ordinaryTax: ordinaryTax,
             ltTax: ltTax,
+            seTax: seTax,
             amtTopUp: amtTopUp,
             niit: niit,
             addlMedicare: addlMed,
+            // Surface the §1211(b) accounting so callers can render a
+            // "$3K loss offset applied" line + a carryforward note.
+            lossOrdOffsetApplied: _carriedLossOrdOffset,
+            lossCarryforward: _lossCarryforward,
             total: total
       };
 }

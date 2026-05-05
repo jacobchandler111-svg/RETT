@@ -8,9 +8,25 @@
 //   - millionaireSurcharge (MA)          -> 4% over $1M
 //   - capitalGainsTax (WA)               -> 7% on LT gains over $270k
 //
-// Capital gains in most states are taxed as ordinary income; the engine
-// passes the combined (ordinary + ST gain + LT gain) figure as 'income'
-// unless the caller pre-splits.
+// Capital gains in MOST states are taxed at ordinary rates. The engine
+// honors opts.longTermGain only via three explicit channels:
+//   1) WA's stand-alone capital gains tax (no income tax otherwise)
+//   2) State-specific preferential-LT data on the state node:
+//        node.stateLtcg = { rate?: 0.07, exclusionPct?: 0.30, ... }
+//      where rate replaces the ordinary stack for the LT slice and
+//      exclusionPct subtracts that fraction of LT from taxable income.
+//   3) §1211(b) capital-loss offset — most states conform to the
+//      federal $3K / $1.5K MFS ordinary offset; we apply it here
+//      against the state taxable base too. States that explicitly
+//      disconform can set stateLtcg.disconformLossOffset = true on
+//      the data node.
+//
+// If a state has known preferential LT treatment (HI 7.25%, NM 0.40%
+// LT deduction, WI 30% LT exclusion, AR 50% LT exclusion, MT $5,500
+// LT exclusion) and the state node lacks stateLtcg metadata, the
+// engine falls through to ORDINARY treatment with a console TODO so
+// the data audit shows up. Adding stateLtcg fields requires citing the
+// state DOR — do not fabricate rates. (P0-12.)
 
 function _flatBracketTaxState(amount, brackets) {
           if (amount <= 0 || !brackets || !brackets.length) return 0;
@@ -26,13 +42,28 @@ function _flatBracketTaxState(amount, brackets) {
           return tax;
 }
 
+// Track which (stateCode, year) combos we've already warned about so
+// the TODO log fires once per session per state instead of on every
+// keystroke as the user types.
+const _stateLtcgTodoWarned = (typeof window !== 'undefined') ? (window.__rettStateLtcgWarned = window.__rettStateLtcgWarned || {}) : {};
+const _STATE_LTCG_PREFERENTIAL = new Set(['HI','NM','WI','AR','MT','SC','AL','VT','NJ']);
+
 function computeStateTax(income, year, stateCode, status, opts) {
           if (!stateCode || stateCode === 'NONE') return 0;
+          opts = opts || {};
+          const lt = Math.max(0, Number(opts.longTermGain) || 0);
+          const st = Math.max(0, Number(opts.shortTermGain) || 0);
+          // Carried-loss offset matches the federal §1211(b) handling:
+          // most states conform. The caller passes lossOrdOffsetApplied
+          // (the dollar amount the federal engine actually applied) so
+          // both engines stay consistent on the same base.
+          const lossOff = Math.max(0, Number(opts.lossOrdOffsetApplied) || 0);
+
           if (isStateNoIncomeTax(year, stateCode)) {
                         // WA has a stand-alone capital gains tax even though there's no
               // income tax. Caller can opt-in via opts.longTermGain.
               const sur = getStateSurcharges(year, stateCode);
-                        if (sur.capitalGainsTax && opts && opts.longTermGain) {
+                        if (sur.capitalGainsTax && lt > 0) {
                                           // B13: project the threshold by inflation for years
                                           // past the published baseYear so a 2030 sale doesn't
                                           // pay WA cap-gains tax on the same nominal $270K
@@ -42,23 +73,72 @@ function computeStateTax(income, year, stateCode, status, opts) {
                                                   ? 1 : _yearProjectionFactor(year);
                                           const t   = sur.capitalGainsTax.threshold * projFactor;
                                           const r   = sur.capitalGainsTax.rate;
-                                          const lt  = Math.max(0, opts.longTermGain);
                                           return Math.max(0, lt - t) * r;
                         }
                         return 0;
           }
 
-    opts = opts || {};
           const itemized = Math.max(0, opts.itemized || 0);
           const stdDed   = getStateStandardDeduction(year, stateCode, status);
           const deduction = Math.max(stdDed, itemized);
-          const taxable   = Math.max(0, income - deduction);
 
-    const brackets = getStateBrackets(year, stateCode, status);
+          // State preferential-LT data (when present on the state node).
+          const node = getStateNode(year, stateCode);
+          const stateLtcg = (node && node.stateLtcg) || null;
+          const disconformLossOffset = !!(stateLtcg && stateLtcg.disconformLossOffset);
+          const effectiveLossOff = disconformLossOffset ? 0 : lossOff;
+
+          // Decide how much of the LT gain feeds the ordinary stack
+          // versus a separate preferential calc.
+          let ltOrdinaryPortion = lt;
+          let ltPreferentialPortion = 0;
+          let ltPreferentialTax = 0;
+          if (stateLtcg) {
+                        const exclusionPct = Math.min(1, Math.max(0, Number(stateLtcg.exclusionPct) || 0));
+                        const flatExclusion = Math.max(0, Number(stateLtcg.flatExclusion) || 0);
+                        const excluded = Math.min(lt, lt * exclusionPct + flatExclusion);
+                        ltOrdinaryPortion = Math.max(0, lt - excluded);
+                        // If the state taxes LT at a flat preferential rate, peel
+                        // that off the ordinary stack and apply it directly.
+                        if (Number.isFinite(stateLtcg.rate)) {
+                                          ltPreferentialPortion = ltOrdinaryPortion;
+                                          ltPreferentialTax = ltPreferentialPortion * Number(stateLtcg.rate);
+                                          ltOrdinaryPortion = 0;
+                        }
+          } else if (_STATE_LTCG_PREFERENTIAL.has(stateCode) && lt > 0) {
+                        // The data file is missing preferential-LT info for a state
+                        // that actually has it on the books. Log once so the audit
+                        // surfaces; treat as ordinary in the meantime so the user
+                        // sees a CONSERVATIVE-HIGH baseline instead of a silent
+                        // under-collection. See P0-12 for the audit list.
+                        const k = stateCode + ':' + year;
+                        if (!_stateLtcgTodoWarned[k]) {
+                                          _stateLtcgTodoWarned[k] = true;
+                                          if (typeof console !== 'undefined' && console.warn) {
+                                                          console.warn('[tax-calc-state] TODO: ' + stateCode +
+                                                                ' has preferential LTCG treatment but no stateLtcg data — treating LT as ordinary. Audit data/taxBrackets.json against state DOR.');
+                                          }
+                        }
+          }
+
+          // Build the state's ordinary bracket base. Most states tax
+          // (ordinary + ST + LT-treated-as-ordinary) at progressive rates,
+          // less the standard deduction and federal-conforming loss
+          // offset. The caller passed `income` already including ord+LT
+          // pre-deduction; if we're peeling off an LT-preferential slice
+          // we subtract it from the ordinary base and add the
+          // preferential tax separately. (NB: callers that DIDN'T add LT
+          // to `income` will see this as a no-op subtraction, which is
+          // safe; the engine never "doubles" gains it didn't see.)
+          const adjIncome = Math.max(0, income - (lt - ltOrdinaryPortion));
+          const taxable   = Math.max(0, adjIncome - deduction - effectiveLossOff);
+
+          const brackets = getStateBrackets(year, stateCode, status);
           let tax = _flatBracketTaxState(taxable, brackets);
+          tax += ltPreferentialTax;
 
-    // Surcharges.
-    const sur = getStateSurcharges(year, stateCode);
+          // Surcharges.
+          const sur = getStateSurcharges(year, stateCode);
           if (sur.mentalHealthSurcharge) {
                         const t = sur.mentalHealthSurcharge.threshold;
                         const r = sur.mentalHealthSurcharge.rate;
@@ -70,5 +150,5 @@ function computeStateTax(income, year, stateCode, status, opts) {
                         tax += Math.max(0, taxable - t) * r;
           }
 
-    return tax;
+          return tax;
 }
