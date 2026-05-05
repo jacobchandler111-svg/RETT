@@ -35,15 +35,25 @@
     delphi: { classKey: 'classB', investment: 1000000 }
   };
 
+  var _p5Timer;
+  function _scheduleP5Refresh() {
+    clearTimeout(_p5Timer);
+    _p5Timer = setTimeout(function () {
+      if (typeof root.renderStrategySummary === 'function') {
+        try { root.renderStrategySummary(); } catch (e) { /* */ }
+      }
+    }, 120);
+  }
+
   function _state() {
     if (!root[STATE_KEY]) {
       root[STATE_KEY] = {
         oilGas: { interest: null, maxInvestment: DEFAULTS.oilGas.maxInvestment,
                   depreciationPct: DEFAULTS.oilGas.depreciationPct,
-                  detailsOpen: false, lastResult: null },
+                  detailsOpen: false, valueOpen: false, lastResult: null },
         delphi: { interest: null, classKey: DEFAULTS.delphi.classKey,
                   investment: DEFAULTS.delphi.investment,
-                  detailsOpen: false, lastResult: null }
+                  detailsOpen: false, valueOpen: false, lastResult: null }
       };
     }
     var s = root[STATE_KEY];
@@ -64,6 +74,7 @@
     if (!Number.isFinite(s.oilGas.maxInvestment))   s.oilGas.maxInvestment   = DEFAULTS.oilGas.maxInvestment;
     if (!Number.isFinite(s.oilGas.depreciationPct)) s.oilGas.depreciationPct = DEFAULTS.oilGas.depreciationPct;
     if (typeof s.oilGas.detailsOpen === 'undefined') s.oilGas.detailsOpen = false;
+    if (typeof s.oilGas.valueOpen === 'undefined')   s.oilGas.valueOpen   = false;
 
     // ---- Delphi defaults ----
     if (!s.delphi) s.delphi = {};
@@ -71,6 +82,7 @@
     if (s.delphi.classKey !== 'classA' && s.delphi.classKey !== 'classB') s.delphi.classKey = DEFAULTS.delphi.classKey;
     if (!Number.isFinite(s.delphi.investment))    s.delphi.investment    = DEFAULTS.delphi.investment;
     if (typeof s.delphi.detailsOpen === 'undefined') s.delphi.detailsOpen = false;
+    if (typeof s.delphi.valueOpen === 'undefined')   s.delphi.valueOpen   = false;
 
     return s;
   }
@@ -106,6 +118,41 @@
     var on = (action === 'interested' && s === true) ||
              (action === 'not-interested' && s === false);
     return on ? ' is-' + action : '';
+  }
+
+  function _netBenefitForKey(key) {
+    if (typeof root.getSupplemental !== 'function') return null;
+    var spec = root.getSupplemental(key);
+    if (!spec || typeof spec.getResult !== 'function' || typeof spec.getNetBenefit !== 'function') return null;
+    var result = spec.getResult();
+    if (!result) return null;
+    var v = Number(spec.getNetBenefit(result));
+    return Number.isFinite(v) ? v : null;
+  }
+
+  function _renderValueArrow(key, st) {
+    var openCls = st.valueOpen ? ' is-open' : '';
+    return '' +
+      '<button type="button" class="supp-details-arrow supp-value-arrow' + openCls + '" ' +
+          'data-supp-value-target="' + key + '" ' +
+          'aria-expanded="' + (st.valueOpen ? 'true' : 'false') + '" ' +
+          'title="' + (st.valueOpen ? 'Hide value' : 'Show value added') + '">' +
+        '<span class="supp-details-arrow-chev" aria-hidden="true">&#9662;</span>' +
+        '<span class="supp-details-arrow-label">Value Added</span>' +
+      '</button>';
+  }
+
+  function _renderValuePanel(key, st) {
+    var benefit = _netBenefitForKey(key);
+    var display = (benefit !== null) ? _fmtUSD(benefit) : '—';
+    var label   = (benefit !== null && benefit >= 0) ? 'Tax Savings Added' : 'Net Impact';
+    return '' +
+      '<div class="supp-value-panel"' + (st.valueOpen ? '' : ' hidden') + '>' +
+        '<div class="supp-value-row">' +
+          '<span class="supp-value-label">' + label + '</span>' +
+          '<span class="supp-value-amt">' + display + '</span>' +
+        '</div>' +
+      '</div>';
   }
 
   // -----------------------------------------------------------------
@@ -195,6 +242,8 @@
             '<div class="supp-details-cell"><div class="currency-input percent"><input type="number" id="supp-oilgas-pct" min="0" max="100" step="1" value="' + deprPctDisplay + '"><span class="pct-suffix" aria-hidden="true">%</span></div></div>' +
           '</div>' +
         '</div>' +
+        _renderValueArrow('oilGas', st) +
+        _renderValuePanel('oilGas', st) +
       '</div>';
   }
   function _runOilGasMath() {
@@ -274,6 +323,8 @@
           '</div>' +
           minWarning +
         '</div>' +
+        _renderValueArrow('delphi', st) +
+        _renderValuePanel('delphi', st) +
       '</div>';
   }
   function _runDelphiMath() {
@@ -299,14 +350,23 @@
   // -----------------------------------------------------------------
   // Host render + event delegation
   // -----------------------------------------------------------------
+  var _CARD_RENDERERS = {
+    oilGas: _renderOilGasCard,
+    delphi:  _renderDelphiCard
+  };
+  var _CARD_ORDER = ['oilGas', 'delphi'];
+
   function _renderHost() {
     var host = document.getElementById('supplemental-strategies-host');
     if (!host) return;
-    host.innerHTML =
-      '<div class="supp-strategies-grid">' +
-        _renderOilGasCard() +
-        _renderDelphiCard() +
-      '</div>';
+    var iState = _interestState();
+    var sorted = _CARD_ORDER.slice().sort(function (a, b) {
+      var an = iState[a] === false ? 1 : 0;
+      var bn = iState[b] === false ? 1 : 0;
+      return an - bn;
+    });
+    var cards = sorted.map(function (k) { return _CARD_RENDERERS[k](); }).join('');
+    host.innerHTML = '<div class="supp-strategies-grid">' + cards + '</div>';
     _bindEvents();
   }
 
@@ -352,6 +412,19 @@
         var s = _state()[dTarget];
         if (s) {
           s.detailsOpen = !s.detailsOpen;
+          _renderHost();
+          _persist();
+        }
+        return;
+      }
+
+      // Value disclosure
+      var valueBtn = t.closest && t.closest('[data-supp-value-target]');
+      if (valueBtn) {
+        var vTarget = valueBtn.getAttribute('data-supp-value-target');
+        var vs = _state()[vTarget];
+        if (vs) {
+          vs.valueOpen = !vs.valueOpen;
           _renderHost();
           _persist();
         }
@@ -436,6 +509,7 @@
   function _runAllMath() {
     _runOilGasMath();
     _runDelphiMath();
+    _scheduleP5Refresh();
   }
 
   function renderSupplementalPage() {

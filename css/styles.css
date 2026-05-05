@@ -4242,7 +4242,11 @@ body { font-size: 16px; }
 
 /* ---- Page 4 header + actions row ---- */
 .page-supplemental-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     margin: 8px 0 4px;
+    gap: 16px;
 }
 .page-supplemental-header h2 {
     font-family: var(--font-display);
@@ -4254,10 +4258,62 @@ body { font-size: 16px; }
     margin: 0;
     text-align: left;
 }
+.supp-advance-btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
 .page-supplemental-actions {
     display: flex;
     justify-content: flex-end;
     margin-top: 28px;
     padding-top: 20px;
     border-top: 1px solid var(--rule-soft);
+}
+
+/* ---- Not-interested fade animation ---- */
+@keyframes supp-card-fade-back {
+    from { opacity: 1; }
+    to   { opacity: 0.55; }
+}
+.strategy-pick-card.is-not-interested {
+    animation: supp-card-fade-back 0.32s ease-out forwards;
+}
+
+/* ---- Second chevron: value added ---- */
+.supp-value-arrow {
+    margin-top: 6px;
+    color: var(--bh-blue-mid, #41b9ea);
+}
+.supp-value-arrow:hover {
+    color: var(--bh-blue-deep, #1a8cb8);
+    background: var(--paper-warm);
+}
+
+/* ---- Value panel ---- */
+.supp-value-panel {
+    margin-top: 4px;
+    padding: 10px 14px;
+    background: var(--paper-warm);
+    border-top: 1px solid var(--rule-soft);
+}
+.supp-value-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+.supp-value-label {
+    font-family: var(--font-mono);
+    font-size: 0.8em;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+}
+.supp-value-amt {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 1.35em;
+    font-weight: 700;
+    color: var(--bh-blue-deep, #1a8cb8);
+    letter-spacing: -0.01em;
 }
