@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=1777600000042">
+  <link rel="stylesheet" href="css/styles.css?v=1777600000043">
 </head>
 <body>
   <a href="#page-inputs" class="skip-link">Skip to main content</a>
@@ -30,62 +30,81 @@
   <!-- ============ PAGE: CLIENT INPUTS ============ -->
   <section id="page-inputs" class="page active" role="tabpanel" aria-labelledby="nav-inputs">
     <h2>Client Financial Inputs</h2>
+    <p class="subtitle">Enter the client&rsquo;s tax situation on the left. The right column shows what they would owe in 2026 if they did nothing &mdash; the baseline this engagement is trying to beat.</p>
 
-    <h3 class="section-title">Client</h3>
-    <p class="subtitle">Type a client name and start filling out the form &mdash; every change auto-saves under that name. Pick a saved client from the dropdown to load their last state. Click <strong>New Client</strong> to start fresh.</p>
-    <div class="input-grid case-controls">
-      <div class="input-group">
-        <label for="case-name-input">Client Name</label>
-        <input type="text" id="case-name-input" placeholder="e.g. John Smith" autocomplete="off" maxlength="80">
+    <!-- Client controls (full-width strip above the 2-column layout) -->
+    <div class="input-section" style="margin-top: 12px;">
+      <div class="section-heading">
+        <h2>Client</h2>
+        <span class="num">SECTION 00</span>
       </div>
-      <div class="input-group">
-        <label for="case-load-select">Load Saved Client</label>
-        <select id="case-load-select">
-          <option value="" selected>-- Select a saved client --</option>
-        </select>
-      </div>
-      <div class="input-group case-actions" style="grid-column: 1 / -1;">
-        <button type="button" class="btn btn-primary" id="case-new-btn">New Client</button>
-        <button type="button" class="btn btn-secondary" id="case-delete-btn">Delete</button>
-        <span id="case-status" class="case-status" aria-live="polite">Untitled (auto-saving)</span>
+      <div class="section-body">
+        <div class="input-row">
+          <div class="label">Client Name<span class="sub">Auto-saves on edit</span></div>
+          <input type="text" id="case-name-input" placeholder="e.g. John Smith" autocomplete="off" maxlength="80">
+        </div>
+        <div class="input-row">
+          <div class="label">Load Saved Client<span class="sub">Pick to swap the form</span></div>
+          <select id="case-load-select">
+            <option value="" selected>-- Select a saved client --</option>
+          </select>
+        </div>
+        <div class="input-row">
+          <div class="label">Case Actions<span class="sub" id="case-status" aria-live="polite">Untitled (auto-saving)</span></div>
+          <div style="display:flex; gap:8px;">
+            <button type="button" class="btn btn-primary" id="case-new-btn">New Client</button>
+            <button type="button" class="btn btn-secondary" id="case-delete-btn">Delete</button>
+          </div>
+        </div>
       </div>
     </div>
 
-    <h3 class="section-title">Custodian</h3>
-    <div class="input-grid">
-      <div class="input-group">
-        <label for="custodian-select">Custodian</label>
-        <select id="custodian-select" required aria-required="true">
-          <option value="" selected>-- Select Custodian --</option>
-        </select>
-      </div>
-      <!-- The verbose "X combos available, leverage pairs..." info line
-           that used to live here was removed per user request — the
-           custodian dropdown is self-explanatory and the constraints
-           come through on the Strategy / Leverage controls below. -->
-    </div>
+    <!-- Two-column form: input sections on the left, live Baseline Tax Liability on the right -->
+    <div class="inputs-layout">
+      <div class="inputs-stack">
 
-    <h3 class="section-title">Filing Information</h3>
-    <div class="input-grid">
-      <div class="input-group">
-        <label for="year1">Tax Year</label>
-        <select id="year1">
-          <option value="2026" selected>2026</option>
-          <option value="2025">2025</option>
-        </select>
-      </div>
-      <div class="input-group">
-        <label for="filing-status">Filing Status</label>
-        <select id="filing-status">
-          <option value="single">Single</option>
-          <option value="mfj" selected>Married Filing Jointly</option>
-          <option value="mfs">Married Filing Separately</option>
-          <option value="hoh">Head of Household</option>
-        </select>
-      </div>
-      <div class="input-group">
-        <label for="state-code">State</label>
-        <select id="state-code">
+        <!-- ====== Custodian ====== -->
+        <div class="input-section">
+          <div class="section-heading">
+            <h2>Custodian</h2>
+            <span class="num">SECTION 01</span>
+          </div>
+          <div class="section-body">
+            <div class="input-row">
+              <div class="label">Custodian<span class="sub">Holds the Brooklyn position</span></div>
+              <select id="custodian-select" required aria-required="true">
+                <option value="" selected>-- Select Custodian --</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- ====== Filing Information ====== -->
+        <div class="input-section">
+          <div class="section-heading">
+            <h2>Filing Information</h2>
+            <span class="num">SECTION 02</span>
+          </div>
+          <div class="section-body">
+            <div class="input-row">
+              <div class="label">Tax Year<span class="sub">Drives bracket projection</span></div>
+              <select id="year1">
+                <option value="2026" selected>2026</option>
+                <option value="2025">2025</option>
+              </select>
+            </div>
+            <div class="input-row">
+              <div class="label">Filing Status<span class="sub">Federal brackets + std. deduction</span></div>
+              <select id="filing-status">
+                <option value="single">Single</option>
+                <option value="mfj" selected>Married Filing Jointly</option>
+                <option value="mfs">Married Filing Separately</option>
+                <option value="hoh">Head of Household</option>
+              </select>
+            </div>
+            <div class="input-row">
+              <div class="label">State<span class="sub">For state income / capital gains tax</span></div>
+              <select id="state-code">
           <option value="AL">Alabama</option>
           <option value="AK">Alaska</option>
           <option value="AZ">Arizona</option>
@@ -137,77 +156,150 @@
           <option value="WV">West Virginia</option>
           <option value="WI">Wisconsin</option>
           <option value="WY">Wyoming</option>
-        </select>
-      </div>
-    </div>
+              </select>
+            </div>
+          </div>
+        </div>
 
-    <h3 class="section-title">Income Sources (Year 1)</h3>
-    <p class="subtitle">Annual income excluding the appreciated assets entered below.</p>
-    <div class="input-grid">
-      <div class="input-group"><label for="w2-wages">W-2 Wages</label><input type="text" id="w2-wages" placeholder="$0" inputmode="numeric" autocomplete="off"></div>
-      <div class="input-group"><label for="se-income">Self-Employment Income</label><input type="text" id="se-income" placeholder="$0" inputmode="numeric" autocomplete="off"></div>
-      <div class="input-group"><label for="biz-revenue">Business Income / Distributions</label><input type="text" id="biz-revenue" placeholder="$0" inputmode="numeric" autocomplete="off"></div>
-      <div class="input-group"><label for="rental-income">Rental Income</label><input type="text" id="rental-income" placeholder="$0" inputmode="numeric" autocomplete="off"></div>
-      <div class="input-group"><label for="dividend-income">Non-Qualified Dividend / Interest</label><input type="text" id="dividend-income" placeholder="$0" inputmode="numeric" autocomplete="off" title="Ordinary-rate dividends and interest only. Qualified dividends are taxed at LTCG rates and should not go here."></div>
-      <div class="input-group"><label for="retirement-distributions">Retirement Distributions</label><input type="text" id="retirement-distributions" placeholder="$0" inputmode="numeric" autocomplete="off"></div>
-    </div>
+        <!-- ====== Income Sources ====== -->
+        <div class="input-section">
+          <div class="section-heading">
+            <h2>Income Sources</h2>
+            <span class="num">SECTION 03</span>
+          </div>
+          <div class="section-body">
+            <p class="help">Annual income excluding the appreciated assets entered below. Drives the do-nothing baseline on the right.</p>
+            <div class="input-row">
+              <div class="label">W-2 Wages<span class="sub">Officer compensation</span></div>
+              <div class="currency-input"><input type="text" id="w2-wages" placeholder="0" inputmode="numeric" autocomplete="off"></div>
+            </div>
+            <div class="input-row">
+              <div class="label">Self-Employment Income<span class="sub">Schedule C / SE earnings</span></div>
+              <div class="currency-input"><input type="text" id="se-income" placeholder="0" inputmode="numeric" autocomplete="off"></div>
+            </div>
+            <div class="input-row">
+              <div class="label">Business Income<span class="sub">Distributions / K-1</span></div>
+              <div class="currency-input"><input type="text" id="biz-revenue" placeholder="0" inputmode="numeric" autocomplete="off"></div>
+            </div>
+            <div class="input-row">
+              <div class="label">Rental Income<span class="sub">Net of expenses</span></div>
+              <div class="currency-input"><input type="text" id="rental-income" placeholder="0" inputmode="numeric" autocomplete="off"></div>
+            </div>
+            <div class="input-row">
+              <div class="label">Dividend / Interest<span class="sub">Non-qualified, ordinary-rate</span></div>
+              <div class="currency-input"><input type="text" id="dividend-income" placeholder="0" inputmode="numeric" autocomplete="off"></div>
+            </div>
+            <div class="input-row">
+              <div class="label">Retirement Distributions<span class="sub">IRA / 401(k) withdrawals</span></div>
+              <div class="currency-input"><input type="text" id="retirement-distributions" placeholder="0" inputmode="numeric" autocomplete="off"></div>
+            </div>
+          </div>
+        </div>
 
-    <h3 class="section-title">Date of Proposed Sale</h3>
-    <p class="subtitle">When is (or was) the property sale closing? Drives the structured-sale legal window and Brooklyn implementation timing.</p>
-    <div class="input-grid">
-      <div class="input-group">
-        <label for="implementation-date">Sale / Closing Date</label>
-        <input type="date" id="implementation-date">
-      </div>
-    </div>
+        <!-- ====== Date of Proposed Sale ====== -->
+        <div class="input-section">
+          <div class="section-heading">
+            <h2>Date of Proposed Sale</h2>
+            <span class="num">SECTION 04</span>
+          </div>
+          <div class="section-body">
+            <p class="help">When is (or was) the property sale closing? Drives the structured-sale legal window and Brooklyn implementation timing.</p>
+            <div class="input-row">
+              <div class="label">Sale / Closing Date<span class="sub">Drives partial-year Brooklyn deployment</span></div>
+              <input type="date" id="implementation-date">
+            </div>
+          </div>
+        </div>
 
-    <h3 class="section-title">Appreciated Assets</h3>
-    <div class="input-grid">
-      <div class="input-group">
-        <label for="sale-price">Sale Price</label>
-        <input type="text" id="sale-price" placeholder="$10,000,000" inputmode="numeric" autocomplete="off">
-      </div>
-      <div class="input-group">
-        <label for="cost-basis">Cost Basis</label>
-        <input type="text" id="cost-basis" placeholder="$5,000,000" inputmode="numeric" autocomplete="off">
-      </div>
-      <div class="input-group">
-        <label for="accelerated-depreciation">Accelerated Depreciation</label>
-        <input type="text" id="accelerated-depreciation" placeholder="$1,000,000" inputmode="numeric" autocomplete="off">
-      </div>
-      <div class="input-group">
-        <label for="computed-gain">Long-Term Gain <span class="muted">(auto)</span></label>
-        <input type="text" id="computed-gain" readonly placeholder="$0" aria-readonly="true" aria-describedby="computed-gain-hint">
-        <span id="computed-gain-hint" class="visually-hidden">Calculated as sale price minus cost basis minus accelerated depreciation.</span>
-      </div>
-      <div class="input-group">
-        <label for="short-term-gain">Short-Term Gain</label>
-        <input type="text" id="short-term-gain" placeholder="$0" inputmode="numeric" autocomplete="off">
-      </div>
-    </div>
+        <!-- ====== Appreciated Assets ====== -->
+        <div class="input-section">
+          <div class="section-heading">
+            <h2>Appreciated Assets</h2>
+            <span class="num">SECTION 05</span>
+          </div>
+          <div class="section-body">
+            <div class="input-row">
+              <div class="label">Sale Price<span class="sub">Total proceeds at close</span></div>
+              <div class="currency-input"><input type="text" id="sale-price" placeholder="0" inputmode="numeric" autocomplete="off"></div>
+            </div>
+            <div class="input-row">
+              <div class="label">Cost Basis<span class="sub">Original purchase + improvements</span></div>
+              <div class="currency-input"><input type="text" id="cost-basis" placeholder="0" inputmode="numeric" autocomplete="off"></div>
+            </div>
+            <div class="input-row">
+              <div class="label">Accelerated Depreciation<span class="sub">§1245/1250 recapture (ordinary)</span></div>
+              <div class="currency-input"><input type="text" id="accelerated-depreciation" placeholder="0" inputmode="numeric" autocomplete="off"></div>
+            </div>
+            <div class="input-row">
+              <div class="label">Long-Term Gain<span class="sub">Auto: sale &minus; basis &minus; depr</span></div>
+              <div class="currency-input"><input type="text" id="computed-gain" readonly placeholder="0" aria-readonly="true" aria-describedby="computed-gain-hint"></div>
+              <span id="computed-gain-hint" class="visually-hidden">Calculated as sale price minus cost basis minus accelerated depreciation.</span>
+            </div>
+            <div class="input-row">
+              <div class="label">Short-Term Gain<span class="sub">Held &lt; 1 year &mdash; ordinary rate</span></div>
+              <div class="currency-input"><input type="text" id="short-term-gain" placeholder="0" inputmode="numeric" autocomplete="off"></div>
+            </div>
+          </div>
+        </div>
 
-    <h3 class="section-title">Sale Proceeds</h3>
-    <p class="subtitle">How much of the sale proceeds do you want to deploy into Brooklyn? Available Capital on the next page auto-populates from your answers below.</p>
-    <div class="input-grid">
-      <div class="input-group">
-        <label for="withhold-yes-no">Do you want to keep any of the proceeds?</label>
-        <select id="withhold-yes-no">
-          <option value="no" selected>No — invest everything</option>
-          <option value="yes">Yes — keep a portion</option>
-        </select>
+        <!-- ====== Sale Proceeds ====== -->
+        <div class="input-section">
+          <div class="section-heading">
+            <h2>Sale Proceeds</h2>
+            <span class="num">SECTION 06</span>
+          </div>
+          <div class="section-body">
+            <p class="help">How much of the sale proceeds do you want to deploy into Brooklyn? Available Capital on Page 3 auto-populates from your answers below.</p>
+            <div class="input-row">
+              <div class="label">Will the client be investing everything?<span class="sub">Or keeping some proceeds aside</span></div>
+              <select id="withhold-yes-no" class="yes-no">
+                <option value="no" selected>Yes &mdash; invest everything</option>
+                <option value="yes">No &mdash; keep a portion</option>
+              </select>
+            </div>
+            <div class="input-row" id="withhold-amount-group" hidden>
+              <div class="label">Amount to keep<span class="sub">Reduces what goes to Brooklyn</span></div>
+              <div class="currency-input"><input type="text" id="withhold-amount" placeholder="0" inputmode="numeric" autocomplete="off"></div>
+            </div>
+            <p id="withhold-error" class="error-text" role="alert" hidden></p>
+            <div class="input-row">
+              <div class="label">Cover the tax bill from the sale?<span class="sub">Sets aside estimated tax so the client isn&rsquo;t cash-short in April</span></div>
+              <select id="cover-taxes-yes-no" class="yes-no">
+                <option value="no" selected>No &mdash; client covers separately</option>
+                <option value="yes">Yes &mdash; carve out estimated tax</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
       </div>
-      <div class="input-group" id="withhold-amount-group" hidden>
-        <label for="withhold-amount">Amount to keep</label>
-        <input type="text" id="withhold-amount" placeholder="$0" inputmode="numeric" autocomplete="off">
-        <p id="withhold-error" class="error-text" role="alert" hidden></p>
-      </div>
-      <div class="input-group">
-        <label for="cover-taxes-yes-no">Do you want taxes to be covered by the sale?</label>
-        <select id="cover-taxes-yes-no">
-          <option value="no" selected>No — I'll cover the tax bill myself</option>
-          <option value="yes">Yes — set aside the estimated tax</option>
-        </select>
-        <p class="muted" style="font-size:0.82em; margin-top:4px;">When yes, the calculator carves out the estimated federal + state tax on the gain so you don't end up cash-short on the April due date. Reduces the amount that goes into Brooklyn.</p>
+
+      <!-- ====== Right column: Baseline Tax Liability (live "do nothing" calc) ====== -->
+      <div class="baseline-table-wrapper" id="baseline-table-wrapper">
+        <div class="section-heading">
+          <h2>Tax Liability if you did nothing</h2>
+          <span class="num" id="baseline-year-tag">2026 PROJECTION</span>
+        </div>
+        <table class="baseline-table">
+          <tbody>
+            <tr><td>Ordinary Income</td><td id="bt-ord">$0</td></tr>
+            <tr class="indent"><td>W-2 + SE + Business + Rental + Dividend + Retirement</td><td id="bt-ord-sub">$0</td></tr>
+            <tr><td>Short-Term Capital Gain</td><td id="bt-stg">$0</td></tr>
+            <tr><td>Long-Term Capital Gain</td><td id="bt-ltg">$0</td></tr>
+            <tr class="indent"><td>From the property sale (sale &minus; basis &minus; depr &minus; ST)</td><td id="bt-ltg-sub">$0</td></tr>
+            <tr><td>Depreciation Recapture (ordinary)</td><td id="bt-recap">$0</td></tr>
+            <tr class="subtotal"><td>Total Taxable Income</td><td id="bt-taxable">$0</td></tr>
+            <tr><td>Federal Income Tax</td><td id="bt-fed">$0</td></tr>
+            <tr><td>State Income Tax</td><td id="bt-state">$0</td></tr>
+            <tr><td>NIIT (3.8%)</td><td id="bt-niit">$0</td></tr>
+            <tr><td>Additional Medicare (0.9%)</td><td id="bt-addmed">$0</td></tr>
+            <tr class="total"><td>Total Tax If You Did Nothing</td><td id="bt-tot">$0</td></tr>
+          </tbody>
+        </table>
+        <div class="baseline-footnotes">
+          <p>This is the do-nothing baseline before any planning strategies &mdash; the number every option on the next page is trying to beat.</p>
+          <p>Updates live as you edit the form. State tax includes capital-gains treatment per the selected state&rsquo;s rules.</p>
+        </div>
       </div>
     </div>
 
@@ -237,9 +329,13 @@
       <input type="hidden" id="long-term-gain" value="0">
     </div>
 
-    <div class="actions">
-      <button type="button" id="continue-to-projection" class="btn btn-primary">Continue to Strategies &rarr;</button>
-      <button type="button" id="reset-form" class="btn btn-secondary" aria-label="Reset all form inputs to defaults">Reset Form</button>
+    <div class="page-actions">
+      <div class="actions-left">
+        <button type="button" id="reset-form" class="btn btn-secondary" aria-label="Reset all form inputs to defaults">Reset Form</button>
+      </div>
+      <div class="actions-right">
+        <button type="button" id="continue-to-projection" class="btn btn-primary">Continue to Strategies &rarr;</button>
+      </div>
     </div>
   </section>
 
@@ -503,53 +599,54 @@
   <!-- ============ Subsystem load order: 00 -> 01 -> 02 -> 03 -> 05 -> 04 ============ -->
   <!-- date-utils is loaded ahead of 00-data so schwab-strategies can use the
        shared parseLocalDate global instead of defining its own copy. -->
-  <script src="js/01-brooklyn/date-utils.js?v=1777600000042"></script>
-  <script src="js/00-data/custodians.js?v=1777600000042"></script>
-  <script src="js/00-data/schwab-strategies.js?v=1777600000042"></script>
-  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000042"></script>
-  <script src="js/01-brooklyn/time-weight.js?v=1777600000042"></script>
-  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000042"></script>
-  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000042"></script>
+  <script src="js/01-brooklyn/date-utils.js?v=1777600000043"></script>
+  <script src="js/00-data/custodians.js?v=1777600000043"></script>
+  <script src="js/00-data/schwab-strategies.js?v=1777600000043"></script>
+  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000043"></script>
+  <script src="js/01-brooklyn/time-weight.js?v=1777600000043"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000043"></script>
+  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000043"></script>
 
-  <script src="js/02-tax-engine/tax-data.js?v=1777600000042"></script>
-  <script src="js/02-tax-engine/tax-loader.js?v=1777600000042"></script>
-  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000042"></script>
-  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000042"></script>
-  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000042"></script>
-  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000042"></script>
+  <script src="js/02-tax-engine/tax-data.js?v=1777600000043"></script>
+  <script src="js/02-tax-engine/tax-loader.js?v=1777600000043"></script>
+  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000043"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000043"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000043"></script>
+  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000043"></script>
 
-  <script src="js/03-solver/fees.js?v=1777600000042"></script>
-  <script src="js/03-solver/fee-split.js?v=1777600000042"></script>
-  <script src="js/03-solver/brookhaven-fees.js?v=1777600000042"></script>
-  <script src="js/03-solver/single-year-solver.js?v=1777600000042"></script>
-  <script src="js/03-solver/multi-year-solver.js?v=1777600000042"></script>
-  <script src="js/03-solver/structured-sale.js?v=1777600000042"></script>
-  <script src="js/03-solver/decision-engine.js?v=1777600000042"></script>
+  <script src="js/03-solver/fees.js?v=1777600000043"></script>
+  <script src="js/03-solver/fee-split.js?v=1777600000043"></script>
+  <script src="js/03-solver/brookhaven-fees.js?v=1777600000043"></script>
+  <script src="js/03-solver/single-year-solver.js?v=1777600000043"></script>
+  <script src="js/03-solver/multi-year-solver.js?v=1777600000043"></script>
+  <script src="js/03-solver/structured-sale.js?v=1777600000043"></script>
+  <script src="js/03-solver/decision-engine.js?v=1777600000043"></script>
 
-  <script src="js/05-projections/carryforward-tracker.js?v=1777600000042"></script>
-  <script src="js/05-projections/projection-engine.js?v=1777600000042"></script>
+  <script src="js/05-projections/carryforward-tracker.js?v=1777600000043"></script>
+  <script src="js/05-projections/projection-engine.js?v=1777600000043"></script>
 
   <!-- format-helpers loads first inside 04-ui so every renderer can use
        fmtUSD / fmtPct / fmtNum directly without a defensive fallback. -->
-  <script src="js/04-ui/format-helpers.js?v=1777600000042"></script>
-  <script src="js/04-ui/money-format.js?v=1777600000042"></script>
-  <script src="js/04-ui/banner.js?v=1777600000042"></script>
-  <script src="js/04-ui/number-animator.js?v=1777600000042"></script>
-  <script src="js/04-ui/case-storage.js?v=1777600000042"></script>
-  <script src="js/04-ui/pill-toggles.js?v=1777600000042"></script>
-  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000042"></script>
-  <script src="js/04-ui/input-validation.js?v=1777600000042"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1777600000042"></script>
-  <script src="js/04-ui/controls.js?v=1777600000042"></script>
-  <script src="js/04-ui/recommendation-render.js?v=1777600000042"></script>
-  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000042"></script>
-  <script src="js/04-ui/savings-ribbon.js?v=1777600000042"></script>
-  <script src="js/04-ui/bracket-viz-render.js?v=1777600000042"></script>
-  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000042"></script>
-  <script src="js/04-ui/narrative-render.js?v=1777600000042"></script>
-  <script src="js/04-ui/strategy-summary-render.js?v=1777600000042"></script>
+  <script src="js/04-ui/format-helpers.js?v=1777600000043"></script>
+  <script src="js/04-ui/money-format.js?v=1777600000043"></script>
+  <script src="js/04-ui/banner.js?v=1777600000043"></script>
+  <script src="js/04-ui/number-animator.js?v=1777600000043"></script>
+  <script src="js/04-ui/case-storage.js?v=1777600000043"></script>
+  <script src="js/04-ui/pill-toggles.js?v=1777600000043"></script>
+  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000043"></script>
+  <script src="js/04-ui/input-validation.js?v=1777600000043"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1777600000043"></script>
+  <script src="js/04-ui/controls.js?v=1777600000043"></script>
+  <script src="js/04-ui/recommendation-render.js?v=1777600000043"></script>
+  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000043"></script>
+  <script src="js/04-ui/savings-ribbon.js?v=1777600000043"></script>
+  <script src="js/04-ui/bracket-viz-render.js?v=1777600000043"></script>
+  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000043"></script>
+  <script src="js/04-ui/narrative-render.js?v=1777600000043"></script>
+  <script src="js/04-ui/strategy-summary-render.js?v=1777600000043"></script>
+  <script src="js/04-ui/baseline-table.js?v=1777600000043"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1777600000042"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1777600000043"></script>
 </body>
 </html>

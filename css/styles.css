@@ -1858,7 +1858,243 @@ body { font-size: 16px; }
     max-width: 800px;
 }
 
-/* INPUT GRID + FIELDS */
+/* ============== INPUT-SECTION LAYOUT (2-column form, mirrors reference) ============== */
+.inputs-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    gap: 32px;
+    align-items: start;
+    margin-top: 12px;
+}
+@media (max-width: 1100px) {
+    .inputs-layout { grid-template-columns: 1fr; }
+}
+.inputs-stack { display: flex; flex-direction: column; gap: 22px; }
+
+.input-section {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    box-shadow: var(--shadow);
+}
+.section-heading {
+    padding: 16px 24px;
+    background: var(--ink);
+    color: var(--paper);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+}
+.section-heading h2 {
+    font-family: var(--font-display);
+    font-size: 1.15em;
+    font-weight: 500;
+    font-style: italic;
+    letter-spacing: 0.01em;
+    color: var(--paper);
+    line-height: 1.2;
+}
+.section-heading .num {
+    font-family: var(--font-mono);
+    font-size: 0.78em;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    color: var(--bh-blue);
+}
+.section-body {
+    padding: 22px 24px;
+    background: var(--paper);
+}
+.section-body > .help {
+    font-size: 0.95em;
+    color: var(--ink-soft);
+    margin-bottom: 14px;
+    line-height: 1.5;
+}
+
+.input-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 200px;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 14px;
+}
+.input-row:last-child { margin-bottom: 0; }
+.input-row .label {
+    font-family: var(--font-body);
+    font-size: 0.98em;
+    color: var(--ink);
+    font-weight: 500;
+    line-height: 1.3;
+}
+.input-row .label .sub {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.7em;
+    color: var(--muted);
+    font-weight: 500;
+    margin-top: 3px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+.input-row input,
+.input-row select {
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: 9px 12px;
+    font-family: var(--font-mono);
+    font-size: 0.95em;
+    width: 100%;
+    transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+.input-row input:focus,
+.input-row select:focus {
+    outline: none;
+    border-color: var(--ink);
+    box-shadow: 0 0 0 2px rgba(35,31,85,0.08);
+    background: var(--paper-warm);
+}
+.input-row .currency-input {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.input-row .currency-input::before {
+    content: "$";
+    position: absolute;
+    left: 10px;
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    color: var(--muted);
+    pointer-events: none;
+    z-index: 1;
+}
+.input-row .currency-input input {
+    padding-left: 22px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+.input-row .toggle-row-label {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-top: 1px solid var(--rule);
+    margin-top: 6px;
+}
+.input-row .toggle-help {
+    grid-column: 1 / -1;
+    font-size: 0.85em;
+    color: var(--muted);
+    margin-top: -8px;
+    margin-bottom: 6px;
+    line-height: 1.4;
+}
+.input-row .yes-no {
+    width: 200px;
+}
+
+/* BASELINE TAX LIABILITY (right column) */
+.baseline-table-wrapper {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    box-shadow: var(--shadow);
+    position: sticky;
+    top: 16px;
+}
+.baseline-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: 0.95em;
+}
+.baseline-table th {
+    text-align: right;
+    padding: 12px 18px;
+    font-family: var(--font-body);
+    font-size: 0.78em;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+    border-bottom: 1px solid var(--ink);
+    background: var(--paper-warm);
+}
+.baseline-table th:first-child { text-align: left; }
+.baseline-table td {
+    padding: 10px 18px;
+    text-align: right;
+    border-bottom: 1px solid var(--rule);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+}
+.baseline-table td:first-child {
+    text-align: left;
+    font-family: var(--font-body);
+    font-size: 0.95em;
+    color: var(--ink-soft);
+}
+.baseline-table tr.subtotal td {
+    background: var(--paper-warm);
+    font-weight: 600;
+    color: var(--ink);
+    border-top: 1px solid var(--ink);
+    border-bottom: 1px solid var(--ink);
+}
+.baseline-table tr.subtotal td:first-child {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 500;
+}
+.baseline-table tr.indent td:first-child {
+    padding-left: 38px;
+    font-size: 0.9em;
+    color: var(--muted);
+}
+.baseline-table tr.total td {
+    background: var(--ink);
+    color: var(--paper);
+    font-weight: 600;
+    font-size: 1.1em;
+    padding: 14px 18px;
+}
+.baseline-table tr.total td:first-child {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 1.1em;
+    color: var(--paper);
+}
+.baseline-footnotes {
+    padding: 14px 18px 18px;
+    border-top: 1px solid var(--rule);
+    background: var(--paper-warm);
+}
+.baseline-footnotes p {
+    font-size: 0.82em;
+    color: var(--muted);
+    line-height: 1.5;
+    margin-bottom: 4px;
+}
+.baseline-footnotes p:last-child { margin-bottom: 0; }
+
+/* Page-1 actions row at the bottom */
+.page-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 28px;
+    padding-top: 22px;
+    border-top: 1px solid var(--rule);
+    gap: 12px;
+}
+.page-actions .actions-left { display: flex; gap: 10px; }
+.page-actions .actions-right { display: flex; gap: 10px; }
+
+/* INPUT GRID + FIELDS (legacy non-section-style — kept for case controls) */
 .input-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
