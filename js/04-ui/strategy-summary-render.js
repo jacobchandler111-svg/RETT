@@ -188,8 +188,25 @@
     // doesn't need the explanation, just the optimized numbers.
 
     // ============ TOP ROW: Selected Strategy + Supplemental Strategies ============
+    // Lockup label varies by strategy:
+    //   A (Sell Now): no lockup — Brooklyn opens at sale and runs the
+    //     normal projection horizon. Show "Immediate" rather than a
+    //     lockup duration since there's no structured product to wait on.
+    //   B (Seller Finance): the deferral window is the gap from sale
+    //     date to Jan 1 of next year. Use bestRecC if set, else fall
+    //     back to 'Until Jan 1'.
+    //   C (Structured Sale): the dial-up engine pins the duration; use
+    //     it directly so the label matches what was solved.
+    var lockupText;
+    if (entry.type === 'C') {
+      lockupText = dur + ' months lockup';
+    } else if (entry.type === 'B') {
+      lockupText = 'Until Jan 1';
+    } else {
+      lockupText = 'Immediate';
+    }
     var hasSupps = !!(enabledSupplements.length || (solverOut && solverOut.anyInterested));
-    var selectedStrategyHtml = '<div class="input-section">' +
+    var selectedStrategyHtml = '<div class="input-section forward-strategy-card">' +
       '<div class="section-heading">' +
         '<h2>Selected Strategy</h2>' +
         '<span class="num">STRATEGY ' + _stratNum(entry.type) + '</span>' +
@@ -202,15 +219,8 @@
           '</div>' +
         '</div>' +
         '<div class="input-row">' +
-          '<div class="label">Filing<span class="sub">Tax year ' + year1 + ', ' + (currentCfg.state || '—') + '</span></div>' +
-          '<div class="forward-balance">' + _filingLabel(currentCfg.filingStatus) + '</div>' +
-        '</div>' +
-        '<div class="input-row">' +
-          '<div class="label">Brooklyn<span class="sub">Position parameters</span></div>' +
-          '<div class="forward-balance" style="font-size:0.85em;">' +
-            'Horizon ' + horizon + 'y &middot; Leverage ' + (leverage != null ? leverage + '%' : '—') +
-            (entry.type === 'C' ? ' &middot; ' + dur + ' mo' : '') +
-          '</div>' +
+          '<div class="label">Asset Managers<span class="sub">Brooklyn</span></div>' +
+          '<div class="forward-balance" style="font-size:0.95em;">' + lockupText + '</div>' +
         '</div>' +
       '</div>' +
     '</div>';
@@ -243,9 +253,18 @@
     var ropDisplay = (fees > 0 && savings > 0)
       ? _fmtMultiplier(savings / fees) + '<span class="rop-x">&times;</span>'
       : '—';
+    // The hero of Page 5 is now Net Benefit — large, shaded, centered.
+    // No-Planning and With-Planning sit beneath it as small white tiles
+    // showing the walkaway numbers (the "where this came from" context).
+    // The You-Save / Total-Fees row was removed per advisor spec —
+    // those numbers are derivable and weren't paying their visual rent.
     html += '<div class="forward-rop-row">' +
       '<div class="forward-rop-left">' +
-        '<div class="forward-walkaway">' +
+        '<div class="forward-net-hero">' +
+          '<div class="net-hero-label">Net Benefit</div>' +
+          '<div class="net-hero-amt"><span class="currency">$</span>' + Math.round(net).toLocaleString('en-US') + '</div>' +
+        '</div>' +
+        '<div class="forward-walkaway forward-walkaway-compact">' +
           '<div class="walkaway-grid">' +
             '<div class="walkaway-side noplan">' +
               '<div class="walkaway-label">No Planning</div>' +
@@ -257,22 +276,6 @@
               '<div class="walkaway-amt">' + _fmt(walkawayWithPlanning) + '</div>' +
               '<div class="walkaway-tagline">what you walk away with</div>' +
             '</div>' +
-          '</div>' +
-        '</div>' +
-        '<div class="forward-compare">' +
-          '<div class="compare-row">' +
-            '<div class="compare-side savings">' +
-              '<div class="compare-label">You Save</div>' +
-              '<div class="compare-amt"><span class="currency">$</span>' + Math.round(savings).toLocaleString('en-US') + '</div>' +
-            '</div>' +
-            '<div class="compare-side cost">' +
-              '<div class="compare-label">Total Fees</div>' +
-              '<div class="compare-amt"><span class="currency">$</span>' + Math.round(fees).toLocaleString('en-US') + '</div>' +
-            '</div>' +
-          '</div>' +
-          '<div class="compare-net">' +
-            '<div class="net-label">Net Benefit</div>' +
-            '<div class="net-amt"><span class="currency">$</span>' + Math.round(net).toLocaleString('en-US') + '</div>' +
           '</div>' +
         '</div>' +
       '</div>' +
@@ -759,29 +762,52 @@
     var benefitClass = netAdditionalBenefit > 0 ? 'fs-benefit-positive'
                      : (netAdditionalBenefit < 0 ? 'fs-benefit-negative' : '');
 
+    // When the optimizer is already pushed to full Available Capital
+    // for the current sale, there's no headroom to size Brooklyn UP
+    // for the future sale — additionalInvestment and additionalFees
+    // both come out to zero. Hiding those rows in that case so the
+    // advisor doesn't see a confusing "$0 / $0 / X savings" row set.
+    // What we DO show is the future-sale tax savings (the loss
+    // carryforward already in flight will absorb it for free) and
+    // a clear note about the cost/no-cost framing.
+    var hasHeadroom = (additionalInvestment > 0) || (additionalFees > 0);
+
+    var headerHtml = '<div class="fs-head">' +
+      '<h2>' + (hasHeadroom
+            ? 'Another Option: Offset Your Future Sale'
+            : 'Bonus: Your Future Sale Is Already Covered') + '</h2>' +
+      '<p class="fs-desc">' + (hasHeadroom
+            ? 'Increase Brooklyn investment so the loss carryforward also absorbs your planned <strong>' + _fmt(futureLT) + '</strong> long-term gain in ' + saleYear + '. Same strategy, same horizon &mdash; just sized up.'
+            : 'Brooklyn is already fully deployed for your current sale. The excess loss carries forward and absorbs your planned <strong>' + _fmt(futureLT) + '</strong> long-term gain in ' + saleYear + ' at no additional cost.') + '</p>' +
+    '</div>';
+
+    var rowsHtml = '';
+    if (hasHeadroom) {
+      // Cost-of-offset framing: the additional Brooklyn fees ARE the
+      // price paid to also offset the future-sale gain. Surface that
+      // explicitly so the advisor can say "for $X in fees you save
+      // $Y on the next sale."
+      rowsHtml += '<div class="fs-row">' +
+        '<div class="fs-label">Additional Brooklyn investment<span class="fs-sub">on top of the optimizer&rsquo;s pick for the current sale</span></div>' +
+        '<div class="fs-amt">' + _fmt(additionalInvestment) + '</div>' +
+      '</div>';
+      rowsHtml += '<div class="fs-row">' +
+        '<div class="fs-label">Cost to offset the future sale<span class="fs-sub">additional Brooklyn fees over the projection horizon</span></div>' +
+        '<div class="fs-amt fs-cost">' + _fmt(additionalFees) + '</div>' +
+      '</div>';
+    }
+    rowsHtml += '<div class="fs-row">' +
+      '<div class="fs-label">Future-sale tax savings<span class="fs-sub">federal LT + state + NIIT on ' + _fmt(futureLT) + '</span></div>' +
+      '<div class="fs-amt fs-save">' + _fmt(futureSaleTaxSavings) + '</div>' +
+    '</div>';
+    rowsHtml += '<div class="fs-row fs-total">' +
+      '<div class="fs-label">Net additional benefit</div>' +
+      '<div class="fs-amt ' + benefitClass + '">' + _fmt(netAdditionalBenefit) + '</div>' +
+    '</div>';
+
     return '<div class="future-sale-option">' +
-      '<div class="fs-head">' +
-        '<h2>Another Option: Offset Your Future Sale</h2>' +
-        '<p class="fs-desc">Increase Brooklyn investment so the loss carryforward also absorbs your planned <strong>' + _fmt(futureLT) + '</strong> long-term gain in ' + saleYear + '. Same strategy, same horizon &mdash; just sized up.</p>' +
-      '</div>' +
-      '<div class="fs-grid">' +
-        '<div class="fs-row">' +
-          '<div class="fs-label">Additional Brooklyn investment<span class="fs-sub">on top of the optimizer&rsquo;s pick for the current sale</span></div>' +
-          '<div class="fs-amt">' + _fmt(additionalInvestment) + '</div>' +
-        '</div>' +
-        '<div class="fs-row">' +
-          '<div class="fs-label">Additional Brooklyn fees<span class="fs-sub">over the projection horizon</span></div>' +
-          '<div class="fs-amt fs-cost">' + _fmt(additionalFees) + '</div>' +
-        '</div>' +
-        '<div class="fs-row">' +
-          '<div class="fs-label">Future-sale tax savings<span class="fs-sub">federal LT + state + NIIT on ' + _fmt(futureLT) + '</span></div>' +
-          '<div class="fs-amt fs-save">' + _fmt(futureSaleTaxSavings) + '</div>' +
-        '</div>' +
-        '<div class="fs-row fs-total">' +
-          '<div class="fs-label">Net additional benefit</div>' +
-          '<div class="fs-amt ' + benefitClass + '">' + _fmt(netAdditionalBenefit) + '</div>' +
-        '</div>' +
-      '</div>' +
+      headerHtml +
+      '<div class="fs-grid">' + rowsHtml + '</div>' +
     '</div>';
   }
 

@@ -3767,10 +3767,22 @@ body { font-size: 16px; }
     grid-template-columns: 1fr 1fr;
     gap: 28px;
     align-items: stretch;
-    margin-bottom: 28px;
+    /* Bigger gap below this row so the next block (Net Benefit hero
+       or future-sale callout) doesn't crowd the Selected Strategy /
+       Supplemental cards. The boxes are visually heavier now and need
+       breathing room beneath them. */
+    margin-bottom: 44px;
 }
 .forward-top-row > .input-section {
     margin: 0;
+    /* Beefed-up cards: a touch more padding and a softer shadow so
+       they feel like they're sitting ON the page, not embedded in it. */
+    padding: 22px 24px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.forward-strategy-card {
+    /* Solo (no supplemental) layout still needs the same buffer. */
+    margin-bottom: 44px !important;
 }
 @media (max-width: 900px) {
     .forward-top-row { grid-template-columns: 1fr; }
@@ -3892,12 +3904,96 @@ body { font-size: 16px; }
 .forward-rop-left {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: 18px;
     min-width: 0;
 }
 .forward-rop-left .forward-walkaway,
-.forward-rop-left .forward-compare {
+.forward-rop-left .forward-compare,
+.forward-rop-left .forward-net-hero {
     margin: 0;
+}
+
+/* Net Benefit hero — the visual anchor of Page 5. Big shaded card,
+   centered, dwarfs the supporting walkaway tiles below it. The
+   shading uses the same blue-deep tone as the section accents so it
+   reads as part of the BrookHaven palette rather than a colored alert. */
+.forward-net-hero {
+    background: linear-gradient(135deg, var(--bh-blue-deep) 0%, var(--ink) 100%);
+    color: var(--paper);
+    border-radius: 2px;
+    padding: 32px 28px 28px;
+    text-align: center;
+    box-shadow: var(--shadow-lg);
+    position: relative;
+    overflow: hidden;
+}
+.forward-net-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 30% 20%, rgba(65,185,234,0.14) 0%, transparent 55%),
+      radial-gradient(circle at 75% 80%, rgba(255,255,255,0.05) 0%, transparent 60%);
+    pointer-events: none;
+}
+.forward-net-hero > * { position: relative; z-index: 1; }
+.forward-net-hero .net-hero-label {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--bh-blue);
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+.forward-net-hero .net-hero-amt {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 500;
+    font-size: 84px;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: var(--paper);
+    font-variant-numeric: tabular-nums;
+}
+.forward-net-hero .net-hero-amt .currency {
+    font-size: 0.55em;
+    color: var(--bh-blue);
+    margin-right: 4px;
+    vertical-align: 0.15em;
+    letter-spacing: 0;
+}
+
+/* Compact walkaway tiles. The hero takes the focus now; these two
+   small white cards are context — "here's where that net benefit
+   came from." Reduced size so they don't compete with the hero. */
+.forward-walkaway-compact .walkaway-grid {
+    gap: 12px;
+}
+.forward-walkaway-compact .walkaway-side {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: 14px 16px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+.forward-walkaway-compact .walkaway-side.noplan,
+.forward-walkaway-compact .walkaway-side.withplan {
+    /* Override the diagonal-split styling with a flat white tile. */
+    border-right: 1px solid var(--rule) !important;
+    border-bottom: 1px solid var(--rule) !important;
+}
+.forward-walkaway-compact .walkaway-label {
+    font-size: 0.78em;
+    margin-bottom: 4px;
+}
+.forward-walkaway-compact .walkaway-amt {
+    font-size: 1.6em !important;
+    margin-bottom: 2px;
+}
+.forward-walkaway-compact .walkaway-tagline {
+    font-size: 0.7em;
+    color: var(--muted);
 }
 .forward-rop-square {
     background: linear-gradient(135deg, var(--ink) 0%, var(--ink-soft) 100%);

@@ -447,6 +447,12 @@
       s.oilGas.maxInvestment = Math.max(0, Number.isFinite(v) ? v : 0);
       _runOilGasMath();
       _persist();
+      // Page-5 Strategy Summary depends on the supplemental allocator
+      // output (it shows the combined net benefit and the future-sale
+      // option block). Without this refresh, dropping oil & gas
+      // investment to $0 leaves Page 5 still showing the old combined
+      // numbers — the user has to manually navigate away and back.
+      _scheduleP5Refresh();
     } else if (t.id === 'supp-oilgas-pct') {
       var raw = parseFloat(t.value);
       if (!Number.isFinite(raw)) raw = DEFAULTS.oilGas.depreciationPct * 100;
@@ -455,6 +461,7 @@
       s.oilGas.depreciationPct = raw / 100;
       _runOilGasMath();
       _persist();
+      _scheduleP5Refresh();
     } else if (t.id === 'supp-delphi-inv') {
       var dv = (typeof parseUSD === 'function') ? parseUSD(t.value) : Number(t.value);
       s.delphi.investment = Math.max(0, Number.isFinite(dv) ? dv : 0);
@@ -464,6 +471,7 @@
       // re-render whole host but restore focus to the input afterwards.
       _renderHostKeepFocus(t.id);
       _persist();
+      _scheduleP5Refresh();
     }
   }
 
@@ -477,6 +485,7 @@
       _runDelphiMath();
       _renderHostKeepFocus(t.id);
       _persist();
+      _scheduleP5Refresh();
     }
   }
 
