@@ -938,26 +938,80 @@ function bindControls() {
   // typed for accel depr and stays in sync until the user manually
   // edits the field. Not yet read by the engine — the advisor will
   // wire the rules in once finalized.
+  //
+  // Same auto-default extends to the "Amount to keep" field: when
+  // accelerated depreciation > 0, default the keep-amount to the full
+  // recapture amount and flip "investing everything?" to No. Reason:
+  // §1250 recapture is recognized in the year of sale (§453(i)) and
+  // must be paid in cash regardless of any structured-sale deferral —
+  // keeping the recapture amount back from proceeds gives the client
+  // a guaranteed cash buffer for that bill. The advisor can override
+  // for Strategy B/C scenarios where the buyer pushes back on the
+  // payment-on-sale-date arrangement.
   var accelDeprEl = document.getElementById('accelerated-depreciation');
   var paymentGroup = document.getElementById('payment-on-sale-date-group');
   var paymentInput = document.getElementById('payment-on-sale-date');
+  var withholdYesNoEl  = document.getElementById('withhold-yes-no');
+  var withholdAmountEl = document.getElementById('withhold-amount');
   if (accelDeprEl && paymentGroup && paymentInput) {
+    // Guard so our own programmatic dispatch (input/change events fired
+    // from inside syncPayment to keep _recomputeAvailableCapital in sync)
+    // does not flip userEdited and freeze the auto-default.
+    var _autoSyncing = false;
     paymentInput.addEventListener('input', function () {
+      if (_autoSyncing) return;
       paymentInput.dataset.userEdited = 'true';
     });
+    if (withholdYesNoEl) {
+      withholdYesNoEl.addEventListener('change', function () {
+        if (_autoSyncing) return;
+        withholdYesNoEl.dataset.userEdited = 'true';
+      });
+    }
+    if (withholdAmountEl) {
+      withholdAmountEl.addEventListener('input', function () {
+        if (_autoSyncing) return;
+        withholdAmountEl.dataset.userEdited = 'true';
+      });
+    }
     var syncPayment = function () {
       var raw = (typeof parseUSD === 'function') ? parseUSD(accelDeprEl.value) : Number(accelDeprEl.value);
       var amount = Number(raw) || 0;
-      if (amount > 0) {
-        paymentGroup.hidden = false;
-        if (paymentInput.dataset.userEdited !== 'true') {
-          paymentInput.value = (typeof fmtUSD === 'function')
-            ? fmtUSD(amount)
-            : '$' + Math.round(amount).toLocaleString('en-US');
+      var fmt = (typeof fmtUSD === 'function')
+        ? fmtUSD
+        : function (n) { return '$' + Math.round(n).toLocaleString('en-US'); };
+      _autoSyncing = true;
+      try {
+        if (amount > 0) {
+          paymentGroup.hidden = false;
+          if (paymentInput.dataset.userEdited !== 'true') {
+            paymentInput.value = fmt(amount);
+          }
+          // Default "investing everything?" to No (value="yes" =
+          // keep some) and pre-fill the keep amount with the recapture
+          // value, unless the advisor has already touched either field.
+          if (withholdYesNoEl && withholdYesNoEl.dataset.userEdited !== 'true' && withholdYesNoEl.value !== 'yes') {
+            withholdYesNoEl.value = 'yes';
+            withholdYesNoEl.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          if (withholdAmountEl && withholdAmountEl.dataset.userEdited !== 'true') {
+            withholdAmountEl.value = fmt(amount);
+            withholdAmountEl.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        } else {
+          paymentGroup.hidden = true;
+          if (paymentInput.dataset.userEdited !== 'true') paymentInput.value = '';
+          if (withholdAmountEl && withholdAmountEl.dataset.userEdited !== 'true') {
+            withholdAmountEl.value = '';
+            withholdAmountEl.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+          if (withholdYesNoEl && withholdYesNoEl.dataset.userEdited !== 'true' && withholdYesNoEl.value === 'yes') {
+            withholdYesNoEl.value = 'no';
+            withholdYesNoEl.dispatchEvent(new Event('change', { bubbles: true }));
+          }
         }
-      } else {
-        paymentGroup.hidden = true;
-        if (paymentInput.dataset.userEdited !== 'true') paymentInput.value = '';
+      } finally {
+        _autoSyncing = false;
       }
     };
     accelDeprEl.addEventListener('input', syncPayment);
