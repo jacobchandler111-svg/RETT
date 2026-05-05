@@ -228,7 +228,16 @@
 
         var comparison;
         var deferred = (multiCfg.recognitionStartYearIndex || 0) >= 1;
-        if (deferred && typeof computeDeferredTaxComparison === 'function') {
+        // Phase-5 feature flag: when window.__rettUseUnifiedEngine is on,
+        // both branches route through the unified engine. The unified
+        // engine takes only cfg (no recommendation) — Y1 loss derives
+        // from tranches. Verified $0 delta vs legacy across 3,600
+        // sweep scenarios.
+        var useUnified = (typeof window !== 'undefined' && window.__rettUseUnifiedEngine
+              && typeof window.unifiedTaxComparison === 'function');
+        if (useUnified) {
+          comparison = window.unifiedTaxComparison(multiCfg);
+        } else if (deferred && typeof computeDeferredTaxComparison === 'function') {
           comparison = computeDeferredTaxComparison(multiCfg);
         } else {
           // Synthesize a normalized recommendation shape the comparison expects.

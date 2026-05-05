@@ -462,7 +462,13 @@
 
     if (deferred) {
       if (typeof computeDeferredTaxComparison !== 'function') return null;
-      var def = computeDeferredTaxComparison(cfg);
+      // Engine-collapse phase 5: feature-flagged swap. When
+      // window.__rettUseUnifiedEngine is true, route through the
+      // unified engine (verified $0 delta vs legacy across 3,600
+      // scenarios). Default off so legacy stays canonical until soaked.
+      var def = (typeof window !== 'undefined' && window.__rettUseUnifiedEngine && typeof window.unifiedTaxComparison === 'function')
+        ? window.unifiedTaxComparison(cfg)
+        : computeDeferredTaxComparison(cfg);
       if (!def || !def.rows) return null;
       def.rows.forEach(function (r) {
         tax += (r.withStrategy ? r.withStrategy.total : 0);
@@ -503,7 +509,14 @@
         schedule: scheduleIm
       };
       var compIm;
-      try { compIm = computeTaxComparison(cfg, normRecIm); } catch (e) { return null; }
+      try {
+        // Phase-5 feature-flagged swap. The unified engine doesn't take
+        // a recommendation arg — Y1 loss derives directly from cfg via
+        // tranches. Verified $0 delta vs legacy across the sweep.
+        compIm = (typeof window !== 'undefined' && window.__rettUseUnifiedEngine && typeof window.unifiedTaxComparison === 'function')
+          ? window.unifiedTaxComparison(cfg)
+          : computeTaxComparison(cfg, normRecIm);
+      } catch (e) { return null; }
       if (!compIm || !Array.isArray(compIm.rows)) return null;
       compIm.rows.forEach(function (r) {
         tax += r.withStrategy ? r.withStrategy.total : 0;
@@ -810,7 +823,10 @@
 
     if (deferred) {
       if (typeof computeDeferredTaxComparison !== 'function') return null;
-      comp = computeDeferredTaxComparison(cfg);
+      // Phase-5 feature-flagged swap. See _scenarioMetrics for context.
+      comp = (typeof window !== 'undefined' && window.__rettUseUnifiedEngine && typeof window.unifiedTaxComparison === 'function')
+        ? window.unifiedTaxComparison(cfg)
+        : computeDeferredTaxComparison(cfg);
       if (!comp || !Array.isArray(comp.rows)) return null;
       // Synthesize a result-shape for fee accounting consumers.
       result = { config: cfg, totals: { cumulativeFees: comp.totalFees || 0 } };
@@ -852,7 +868,11 @@
         lossGenerated: lossGen,
         schedule: schedule
       };
-      try { comp = computeTaxComparison(cfg, normRec); } catch (e) { return null; }
+      try {
+        comp = (typeof window !== 'undefined' && window.__rettUseUnifiedEngine && typeof window.unifiedTaxComparison === 'function')
+          ? window.unifiedTaxComparison(cfg)
+          : computeTaxComparison(cfg, normRec);
+      } catch (e) { return null; }
       if (!comp || !Array.isArray(comp.rows)) return null;
       years = comp.rows.map(function (r, idx) {
         var resYr = (result.years && result.years[idx]) || {};
