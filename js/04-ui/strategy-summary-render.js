@@ -322,15 +322,16 @@
     // Implementation panel — hidden by default, expand via the small
     // triangle on the trailing dash. Advisor-only audit view: shows
     // the dollar allocation across Brooklyn + each enabled supplemental
-    // so the math can be checked (no double-spending sale proceeds).
-    // Not for client presentation — kept minimal and quiet.
-    html += _renderImplementationPanel(currentCfg);
+    // so the math can be checked (no double-spending sale proceeds),
+    // and the Brooklyn optimizer's recommendation re. dialing back
+    // investment to keep loss carryforward within absorbable gain.
+    html += _renderImplementationPanel(currentCfg, entry.loss || 0);
 
     host.innerHTML = html;
     _bindSupplementalToggleEvents();
   }
 
-  function _renderImplementationPanel(cfg) {
+  function _renderImplementationPanel(cfg, brooklynCumulativeLoss) {
     if (typeof root.runAllocator !== 'function') return '';
     var totalAvailable = (cfg && Number(cfg.availableCapital)) || 0;
     var alloc = root.runAllocator(totalAvailable);
@@ -353,6 +354,52 @@
       warn = '<div class="impl-warn">Over-allocated by ' + _fmt(alloc.overage) +
              ' &mdash; the supplemental investments exceed available capital. Reduce a supplemental on Page 4 or raise Available Capital on Page 1.</div>';
     }
+
+    // Brooklyn optimizer block — recommends a dial-back when cumulative
+    // loss exceeds absorbable gain. Advisory only at this stage; the
+    // engine still uses the user's full Available Capital.
+    var optBlock = '';
+    if (typeof root.runBrooklynOptimizer === 'function') {
+      var opt = root.runBrooklynOptimizer(cfg, brooklynCumulativeLoss);
+      var rowsOpt = '';
+      rowsOpt += '<div class="impl-row"><span class="impl-name">Current LT gain</span>' +
+                 '<span class="impl-amt">' + _fmt(opt.currentLTGain) + '</span></div>';
+      if (opt.futureSaleEnabled) {
+        rowsOpt += '<div class="impl-row"><span class="impl-name">Future LT gain (planned sale)</span>' +
+                   '<span class="impl-amt">' + _fmt(opt.futureLTGain) + '</span></div>';
+      }
+      rowsOpt += '<div class="impl-row impl-row-strong"><span class="impl-name">Total absorbable gain</span>' +
+                 '<span class="impl-amt">' + _fmt(opt.totalAbsorbableGain) + '</span></div>';
+      rowsOpt += '<div class="impl-row"><span class="impl-name">Brooklyn cumulative loss at full investment</span>' +
+                 '<span class="impl-amt">' + _fmt(opt.brooklynLossAtFull) + '</span></div>';
+      var recNote, recAmt;
+      if (opt.dialBack) {
+        recNote = 'Loss exceeds gain by ' + _fmt(opt.excessLossAtFull) +
+                  ' &mdash; the surplus would carry forward against §1211(b)’s $3K/yr ordinary cap. ' +
+                  (opt.futureSaleEnabled
+                    ? 'Even with the planned future sale, the cap binds.'
+                    : 'No planned future sale to absorb it.') +
+                  ' Recommended Brooklyn investment is scaled to absorb gain exactly.';
+        recAmt = _fmt(opt.recommendedInvestment) + ' (of ' + _fmt(opt.availableCapital) + ' available)';
+      } else if (opt.reason === 'no-absorbable-gain') {
+        recNote = 'No absorbable gain in scope (no current sale, no planned future sale). ' +
+                  'Brooklyn loss would only offset $3K/yr of ordinary income. ' +
+                  'Reconsider whether Brooklyn is the right vehicle for this client, or add a planned future sale.';
+        recAmt = '—';
+      } else {
+        recNote = 'Loss is within absorbable gain &mdash; full investment is fine.';
+        recAmt = _fmt(opt.availableCapital) + ' (full)';
+      }
+      rowsOpt += '<div class="impl-row impl-row-strong"><span class="impl-name">Recommended Brooklyn investment</span>' +
+                 '<span class="impl-amt">' + recAmt + '</span></div>';
+      optBlock = '' +
+        '<div class="impl-section-divider"></div>' +
+        '<div class="impl-head">Brooklyn optimizer &mdash; loss vs. absorbable gain</div>' +
+        '<p class="impl-sub">Caps cumulative loss carryforward at the gain it can offset. Future sale (Section&nbsp;07 on Page&nbsp;1) raises the cap.</p>' +
+        rowsOpt +
+        '<p class="impl-recnote">' + recNote + '</p>';
+    }
+
     return '' +
       '<details class="forward-implementation">' +
         '<summary class="forward-implementation-summary" aria-label="Show implementation breakdown">' +
@@ -363,6 +410,7 @@
           '<p class="impl-sub">Advisor audit view. Confirms no dollar is committed to more than one strategy.</p>' +
           rows +
           warn +
+          optBlock +
         '</div>' +
       '</details>';
   }

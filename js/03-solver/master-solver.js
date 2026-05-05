@@ -211,6 +211,80 @@
     };
   }
 
+  // Brooklyn investment optimizer. Goal: maximize net benefit while
+  // keeping cumulative short-term loss carryforward within the gain
+  // the client can actually use.
+  //
+  // Use rule (advisor instruction 2026-05-05):
+  //   - "Carryover loss should not exceed whatever their long-term
+  //      gain is." Hard guardrail — don't ever recommend more Brooklyn
+  //      than (current property gain + future-sale gain if planned).
+  //   - "If the sale is really close to when we would be finishing this
+  //      then you can have it equal the game or the expected game to
+  //      wipe that out." So the cap is an UPPER bound, not an exact
+  //      target — we want full absorption when feasible.
+  //   - When no future sale is planned, generating loss beyond the
+  //      current-year gain is largely wasted (the §1211(b) trickle is
+  //      $3K/yr against ordinary, immaterial for advisory clients).
+  //
+  // Math (linear-loss approximation):
+  //   absorbable = current LT gain + (futureSale.longTermGain if enabled)
+  //   if Brooklyn cumulative loss at full investment > absorbable:
+  //       scale = absorbable / lossAtFull
+  //       recommendedInvestment = availableCapital * scale
+  //   else: no dial-back, full investment is fine.
+  //
+  // Returns the diagnostic the Implementation panel renders. The
+  // engine is NOT auto-rewired by this call — it's an advisory output
+  // until the broader fee + scale-aware engine pass lands. Callers can
+  // apply the recommendation by setting Available Capital to the
+  // returned recommendedInvestment.
+  function runBrooklynOptimizer(cfg, brooklynCumulativeLoss) {
+    var c = cfg || {};
+    var availCap = Math.max(0, Number(c.availableCapital) || 0);
+    var currentLT = Math.max(0,
+      (Number(c.salePrice) || 0) - (Number(c.costBasis) || 0)
+      - (Number(c.acceleratedDepreciation) || 0));
+    var future = (c.futureSale && c.futureSale.enabled) ? c.futureSale : null;
+    var futureLT = future ? Math.max(0, Number(future.longTermGain) || 0) : 0;
+    var absorbable = currentLT + futureLT;
+
+    var lossAtFull = Math.max(0, Number(brooklynCumulativeLoss) || 0);
+    var dialBack = false;
+    var scale = 1;
+    var reason = 'no-action';
+
+    if (lossAtFull > 0 && lossAtFull > absorbable && absorbable > 0) {
+      scale = absorbable / lossAtFull;
+      dialBack = true;
+      reason = future
+        ? 'loss-exceeds-current-and-future-gain'
+        : 'loss-exceeds-current-gain';
+    } else if (lossAtFull > 0 && absorbable === 0) {
+      // No gain to absorb anywhere. Keep at full investment — this is
+      // a deliberate choice the user made (they bought Brooklyn). Flag
+      // as "wasted" so the panel can still surface the warning.
+      dialBack = false;
+      reason = 'no-absorbable-gain';
+    } else if (lossAtFull <= absorbable) {
+      reason = 'loss-within-absorbable-gain';
+    }
+
+    return {
+      availableCapital:        availCap,
+      currentLTGain:           currentLT,
+      futureLTGain:            futureLT,
+      futureSaleEnabled:       !!future,
+      totalAbsorbableGain:     absorbable,
+      brooklynLossAtFull:      lossAtFull,
+      dialBack:                dialBack,
+      recommendedScale:        scale,
+      recommendedInvestment:   Math.round(availCap * scale),
+      excessLossAtFull:        Math.max(0, lossAtFull - absorbable),
+      reason:                  reason
+    };
+  }
+
   // Wipe the Page-5 enabled override for a single supplemental, so the
   // next render falls back to the default-on rule (enabled iff Interest
   // is true). Used to fix two bugs that share the same root cause:
@@ -254,4 +328,5 @@
   root.resetSupplementalEnabledOverride = resetEnabledOverride;
   root.runMasterSolver              = runMasterSolver;
   root.runAllocator                 = runAllocator;
+  root.runBrooklynOptimizer         = runBrooklynOptimizer;
 })(window);
