@@ -908,6 +908,24 @@ function bindControls() {
   if (navStrategies)   navStrategies.addEventListener('click', () => showPage('page-strategies'));
   if (navProjection)   navProjection.addEventListener('click', () => showPage('page-projection'));
   if (navAllocator)    navAllocator.addEventListener('click', () => showPage('page-allocator'));
+
+  // Print Strategy Summary button. The @media print rules in
+  // styles.css hide everything except #page-allocator and reformat
+  // the visible content into a single-page client-facing layout.
+  // The print-header block (logo + client name + state + date) is
+  // populated by renderStrategySummary on each render.
+  var printBtn = document.getElementById('print-summary-btn');
+  if (printBtn) {
+    printBtn.addEventListener('click', function () {
+      // Render once more so the print-header reflects the latest
+      // case-name / state values, then trigger the browser print
+      // dialog. Browsers handle the rest (preview, save as PDF).
+      if (typeof window.renderStrategySummary === 'function') {
+        try { window.renderStrategySummary(); } catch (e) { /* */ }
+      }
+      window.print();
+    });
+  }
   if (navSupplemental) navSupplemental.addEventListener('click', () => showPage('page-supplemental'));
 
   // Page-4 "Continue to Summary" button. The per-strategy math already

@@ -182,6 +182,27 @@
       '<h1>Moving Forward With Brookhaven</h1>' +
     '</div>';
 
+    // Populate the print-only header block (id="print-header") with
+    // the current client name + state + tax year. Hidden on screen
+    // via @media not print; visible at top of every printout.
+    var clientNameEl = document.getElementById('case-name-input');
+    var clientName = clientNameEl ? clientNameEl.value.trim() : '';
+    var stateCode  = (currentCfg && currentCfg.state) || '';
+    var phClient = document.getElementById('print-header-client');
+    var phSub    = document.getElementById('print-header-sub');
+    if (phClient) phClient.textContent = clientName || 'Strategy Summary';
+    if (phSub) {
+      var subParts = [];
+      subParts.push('Tax Year ' + year1);
+      if (stateCode && stateCode !== 'NONE') subParts.push(stateCode);
+      subParts.push(_filingLabel(currentCfg.filingStatus));
+      var today = new Date();
+      var dateStr = today.toLocaleDateString('en-US',
+        { year: 'numeric', month: 'long', day: 'numeric' });
+      subParts.push('Prepared ' + dateStr);
+      phSub.textContent = subParts.join(' · ');
+    }
+
     // The Brooklyn-investment-optimized callout was removed per advisor
     // spec — the rationale lives in the Implementation panel (audit
     // view) for advisors who want it; the client-facing summary
@@ -887,7 +908,14 @@
       '<div class="fs-amt ' + benefitClass + '">' + _fmt(netAdditionalBenefit) + '</div>' +
     '</div>';
 
-    return '<div class="future-sale-option">' +
+    // Tag the wrapper so the print stylesheet can hide the callout
+    // when there's no real future-sale benefit to print: noCoverage
+    // ("can't even cover current sale, can't help future") just adds
+    // visual noise on the printout per advisor spec. The on-screen
+    // version still shows it so the advisor sees the bottleneck.
+    var wrapperClasses = 'future-sale-option';
+    if (noCoverage) wrapperClasses += ' fs-no-coverage no-print';
+    return '<div class="' + wrapperClasses + '">' +
       headerHtml +
       '<div class="fs-grid">' + rowsHtml + '</div>' +
     '</div>';
