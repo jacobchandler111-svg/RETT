@@ -1914,18 +1914,18 @@ body { font-size: 16px; }
 
 .input-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 200px;
+    grid-template-columns: minmax(0, 1fr) 240px;
     align-items: center;
-    gap: 16px;
-    margin-bottom: 14px;
+    gap: 18px;
+    margin-bottom: 16px;
 }
 .input-row:last-child { margin-bottom: 0; }
 .input-row .label {
     font-family: var(--font-body);
-    font-size: 0.98em;
+    font-size: 1.1em;
     color: var(--ink);
-    font-weight: 500;
-    line-height: 1.3;
+    font-weight: 600;
+    line-height: 1.35;
 }
 .input-row .label .sub {
     display: block;
@@ -1943,12 +1943,16 @@ body { font-size: 16px; }
     color: var(--ink);
     border: 1px solid var(--rule);
     border-radius: 2px;
-    padding: 9px 12px;
+    padding: 11px 14px;
     font-family: var(--font-mono);
-    font-size: 0.95em;
+    font-size: 1em;
     width: 100%;
     transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
 }
+/* Native select arrow eats ~20px on the right; reserve space so long
+   labels like "Married Filing Jointly" or "New York" don't crash
+   into it. */
+.input-row select { padding-right: 36px; }
 .input-row input:focus,
 .input-row select:focus {
     outline: none;
