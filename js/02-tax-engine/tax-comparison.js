@@ -1031,9 +1031,18 @@ function computeDeferredTaxComparison(cfg) {
                   i === 0 ? recapture : 0
             );
             if (i !== 0) dnBaseline.shortTermGain = 0;
-            // Recompute investmentIncome to match the do-nothing LT/ST.
+            // Recompute investmentIncome to match the do-nothing LT/ST/recap
+            // (otherwise NIIT base in Y2+ would still reflect the matched-
+            // timing gain, double-counting). Include recapture per §1411 —
+            // batch 1's fix to _baseScenarioForYear adds it to investment-
+            // income; this override needs to match or it silently drops
+            // recapture from the do-nothing NIIT base by ~$114K on a $3M
+            // recapture (cause of the unifiedTaxComparison parallel-run
+            // diff before this line was fixed).
             dnBaseline.investmentIncome =
-                  (dnBaseline.longTermGain || 0) + Math.max(0, dnBaseline.shortTermGain || 0);
+                  (dnBaseline.longTermGain || 0)
+                  + Math.max(0, dnBaseline.shortTermGain || 0)
+                  + (dnBaseline.depreciationRecapture || 0);
             const dnBaselineTax = _yearTaxes(dnBaseline);
 
             const totalLossAvail = stCF + yearLoss;
@@ -1129,6 +1138,359 @@ function computeDeferredTaxComparison(cfg) {
             unrecognizedGain: gainRemaining,
             deferred: true
       };
+}
+
+// ============================================================
+// UNIFIED ENGINE — supersedes computeTaxComparison + computeDeferredTaxComparison
+// ============================================================
+//
+// Both legacy engines walk the same per-year structure:
+//   1. Compute existing-tranche loss + fee at this year's age.
+//   2. Decide how much LT gain to recognize this year.
+//   3. (Deferred only) Carve estimated tax + push reinvest tranche.
+//   4. Apply losses against (this year's gain + recapture-Y1) per §1(h).
+//   5. Carry residual loss forward.
+//   6. Emit row.
+//
+// The differences collapse to three mode-dependent inputs:
+//
+//   • Initial tranches.
+//       immediate: one tranche of cfg.investedCapital at Y1 (the user
+//                  has already deposited the full Available Capital;
+//                  basis vs. proceeds aren't separated because the sale
+//                  closes Y1 and proceeds arrive together).
+//       deferred:  one tranche of basisCash at Y1; gain proceeds arrive
+//                  in recognition years and get reinvested as new
+//                  tranches up to a budget cap.
+//
+//   • Reinvestment budget.
+//       immediate: 0 (no further deposits).
+//       deferred:  availableCapital − basisCash (the "keep proceeds"
+//                  cap, honored across the full horizon).
+//
+//   • Recognition window.
+//       immediate: startIdx=0, maturityIdx=0 (force ALL gain Y1; any
+//                  un-absorbed remainder is just taxed at LTCG rates).
+//       deferred:  startIdx≥1, maturityIdx from structured-sale product
+//                  term (15-month minimum, auto-extend to next Jan 1).
+//
+// Output shape matches computeDeferredTaxComparison verbatim. In
+// immediate mode, doNothingBaseline === baseline (gain timing matches
+// the lump-sum), and the deferred-only fields (taxCarveOut,
+// reinvestedThisYear, investmentThisYear) are present but typically 0.
+//
+// Y1 loss capacity used to come from the recommendation argument
+// (recommendation.lossGenerated) in the legacy immediate path. The
+// unified engine doesn't need it — Y1 loss is just
+// tranches[0].capital × lossRateForTrancheYear(0), which derives from
+// the same data via _buildLossRateByAge.
+//
+function unifiedTaxComparison(cfg) {
+      const isDeferred = (cfg && (cfg.recognitionStartYearIndex || 0) >= 1);
+
+      // Below-min lifecycle check — shared with both legacy engines.
+      // Immediate mode: dashboard renders "no engagement" via the
+      // _noEngagement zero-out at the bottom; deferred returns the
+      // pre-built zero shape. Pick the right one for output parity.
+      const _belowMin = _belowMinForLifecycle(cfg);
+      if (_belowMin && isDeferred) return _zeroDeferredComparison(cfg);
+
+      const horizon = Math.max(1, cfg.horizonYears || cfg.years || 5);
+      const _y0 = (cfg.year1 != null) ? Number(cfg.year1) : (new Date()).getFullYear();
+      const yfImpl = (typeof yearFractionRemaining === 'function')
+            ? yearFractionRemaining((typeof cfgStrategyDate === 'function' ? cfgStrategyDate(cfg) : (cfg.strategyImplementationDate || cfg.implementationDate)))
+            : 1;
+      const ordCap = (cfg.filingStatus === 'mfs' || cfg.filingStatus === 'married_separate') ? 1500 : 3000;
+
+      // Property-side gain split. STG is now an independent income
+      // source (not carved from the sale), so totalLT is just the
+      // long-term portion of the property sale.
+      const totalLT   = Math.max(0,
+            (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0));
+      const recapture = Math.max(0, cfg.acceleratedDepreciation || 0);
+      const totalGainBucket = totalLT;
+
+      // No-action short-circuit (deferred only). Immediate mode has no
+      // analog — even with totalLT=0 and investment=0, the immediate
+      // engine emits horizon rows of zero baseline tax, which the
+      // dashboard renders as "no engagement." Match that behavior.
+      if (isDeferred) {
+            const _hasInvestment = Number(cfg.investment || cfg.investedCapital || 0) > 0;
+            if (totalGainBucket <= 0 && !_hasInvestment) return _zeroDeferredComparison(cfg);
+      }
+
+      // Tranche setup + reinvest budget. The user-visible "Available
+      // Capital" field on Page 1 is cfg.investment; investedCapital
+      // is its rettFlavorEngineCfg-aliased twin.
+      const _availTotal = (cfg.investment != null) ? Math.max(0, Number(cfg.investment))
+                       : (cfg.investedCapital != null ? Math.max(0, Number(cfg.investedCapital)) : 0);
+      const _basisFull  = Math.max(0, cfg.costBasis || 0);
+      const basisCash   = isDeferred ? Math.min(_basisFull, _availTotal) : _availTotal;
+      const tranches = [];
+      if (basisCash > 0) tranches.push({ capital: basisCash, startIdx: 0 });
+      // Reinvest budget = remaining "keep proceeds" room. Immediate
+      // mode always 0 because availableCapital is the sale-day deposit
+      // total — there's no separate proceeds stream to redeploy.
+      let _remainingReinvestCap = isDeferred
+            ? Math.max(0, _availTotal - basisCash)
+            : 0;
+
+      // Recognition window. Immediate forces Y1-only; deferred uses
+      // the structured-sale maturity logic (15-month floor + Jan-1
+      // auto-extend).
+      let startIdx, maturityIdx;
+      if (isDeferred) {
+            const startIdxRaw = Math.max(1, Math.min(horizon - 1,
+                  (cfg.recognitionStartYearIndex != null ? cfg.recognitionStartYearIndex : 1)));
+            const matIdxRaw = _structuredSaleMaturityYearIdx(cfg, horizon);
+            startIdx    = Math.min(startIdxRaw, Math.max(1, matIdxRaw));
+            maturityIdx = Math.max(startIdx, matIdxRaw);
+      } else {
+            startIdx = 0;
+            maturityIdx = 0;
+      }
+
+      // Loss-rate function — shared. Same Schwab combo / proxy decay
+      // helper both engines call.
+      const lossRateForTrancheYear = _buildLossRateByAge(cfg, yfImpl) || function () { return 0; };
+
+      // Fee rate — unified regression first, then combo-direct, then
+      // tier interpolation, then 0. Mirrors the deferred-path's
+      // fallback chain (already established as the source of truth).
+      const combo = (cfg.comboId && typeof getSchwabCombo === 'function')
+            ? getSchwabCombo(cfg.comboId) : null;
+      const feeRate = (function () {
+            var lp, sp;
+            if (combo) { lp = combo.longPct; sp = combo.shortPct; }
+            else if (typeof window.brooklynPctsForLeverage === 'function') {
+                  var p = window.brooklynPctsForLeverage(cfg.tierKey || 'beta1', _defaultLeverage(cfg));
+                  if (p) { lp = p.longPct; sp = p.shortPct; }
+            }
+            if (typeof window.brooklynFeeRateFor === 'function' && lp != null && sp != null) {
+                  return window.brooklynFeeRateFor(lp, sp);
+            }
+            if (combo) return combo.feeRate || 0;
+            if (typeof brooklynInterpolate === 'function') {
+                  var snap = brooklynInterpolate(cfg.tierKey || 'beta1', _defaultLeverage(cfg));
+                  return snap ? (snap.feeRate || 0) : 0;
+            }
+            return 0;
+      })();
+
+      // Per-tranche tax carve-out for "cover taxes from sale" toggle
+      // (deferred only). Rate held constant across the recognition
+      // window — see _estimateGainTaxRate.
+      const _gainTaxRate = (isDeferred && cfg.coverTaxesFromSale) ? _estimateGainTaxRate(cfg) : 0;
+      const _reinvestFrac = 1 - _gainTaxRate;
+
+      // Brookhaven advisory wrap — same schedule for both modes
+      // (anchors on yfImpl). Skipped on the immediate-mode below-min
+      // soft-fail (the legacy immediate path does this via _noEngagement
+      // zero-out below; we add the same gate at output time so we don't
+      // emit fees we'll just zero anyway).
+      const brookhavenSchedule = (typeof brookhavenFeeSchedule === 'function' && !_belowMin)
+            ? brookhavenFeeSchedule(horizon, yfImpl)
+            : null;
+
+      let stCF = 0;
+      let gainRemaining = totalGainBucket;
+      const rows = [];
+      const recognitionSchedule = [];
+
+      for (let i = 0; i < horizon; i++) {
+            const year = _y0 + i;
+
+            // Step 1 — existing tranches' loss + fee at this year's age.
+            // Basis tranche (startIdx=0) gets partial-year fee in Y1.
+            // Gain-reinvest tranches always open Jan 1 of their start
+            // year, so they get full-year fees from that year on.
+            let existingLoss = 0;
+            let existingFee = 0;
+            let existingInvested = 0;
+            tranches.forEach(function (t) {
+                  const trancheAge = i - t.startIdx;
+                  if (trancheAge < 0) return;
+                  existingLoss += t.capital * lossRateForTrancheYear(trancheAge);
+                  const _trancheYf = (t.startIdx === 0 && trancheAge === 0) ? yfImpl : 1;
+                  existingFee += t.capital * feeRate * _trancheYf;
+                  existingInvested += t.capital;
+            });
+
+            // Step 2 — decide gain to recognize this year.
+            // Immediate mode (startIdx=0, maturityIdx=0): force ALL
+            // remaining gain at i=0, then nothing thereafter. Even if
+            // existingLoss < gainRemaining, the unabsorbed portion is
+            // recognized — the immediate path's whole point is "lump
+            // sum at sale; whatever Brooklyn doesn't absorb is taxed."
+            // Deferred mode: greedy up to maxAbsorbable, force remainder
+            // at maturity year.
+            const year1Rate = lossRateForTrancheYear(0);
+            const effYear1Rate = year1Rate * _reinvestFrac;
+            const denom = Math.max(0.001, 1 - effYear1Rate);
+            const _recapDrag = (i === 0) ? recapture : 0;
+            let gainRecThisYear = 0;
+            if (i >= startIdx && i <= maturityIdx && gainRemaining > 0) {
+                  const maxAbsorbable = Math.max(0, (stCF + existingLoss - _recapDrag) / denom);
+                  gainRecThisYear = Math.min(gainRemaining, maxAbsorbable);
+                  if (i === maturityIdx && gainRemaining > gainRecThisYear) {
+                        gainRecThisYear = gainRemaining;
+                  }
+                  gainRemaining -= gainRecThisYear;
+            }
+
+            // Step 3 — carve estimated tax + push reinvest tranche
+            // (deferred only). Immediate mode skips: _gainTaxRate=0
+            // and _remainingReinvestCap=0, so trancheTaxCarve=0 and
+            // reinvested clamps to 0 even before the cap check.
+            const trancheTaxCarve = gainRecThisYear * _gainTaxRate;
+            let reinvested = Math.max(0, gainRecThisYear - trancheTaxCarve);
+            if (_remainingReinvestCap !== null) {
+                  reinvested = Math.min(reinvested, _remainingReinvestCap);
+                  _remainingReinvestCap = Math.max(0, _remainingReinvestCap - reinvested);
+            }
+            if (reinvested > 0) {
+                  tranches.push({ capital: reinvested, startIdx: i });
+            }
+
+            // Step 4 — recompute year totals INCLUDING the new tranche.
+            const newTrancheLoss = reinvested * year1Rate;
+            const newTrancheFee  = reinvested * feeRate;
+            const yearLoss     = existingLoss + newTrancheLoss;
+            const yearFee      = existingFee + newTrancheFee;
+            const yearInvested = existingInvested + reinvested;
+
+            recognitionSchedule.push({ year: year, gainRecognized: gainRecThisYear });
+
+            const _recapThisYear = (i === 0) ? recapture : 0;
+            const baseline   = _baseScenarioForYear(cfg, year, gainRecThisYear, _recapThisYear);
+            const baselineTax = _yearTaxes(baseline);
+
+            // Do-nothing baseline: lump-Y1 LT + recapture, regardless
+            // of recognition timing. In immediate mode this equals
+            // baseline (same gain timing). In deferred mode it differs:
+            // matched-timing baseline taxes the gain as it's recognized
+            // year by year, while do-nothing taxes the full lump in Y1.
+            const dnBaseline = _baseScenarioForYear(
+                  cfg, year,
+                  i === 0 ? totalLT : 0,
+                  i === 0 ? recapture : 0
+            );
+            if (i !== 0) dnBaseline.shortTermGain = 0;
+            // Recompute investmentIncome to match the do-nothing LT/ST
+            // (otherwise NIIT base in Y2+ would still reflect the
+            // matched-timing gain, double-counting). Note: recapture
+            // is in investmentIncome per §1411 (see _baseScenarioForYear).
+            dnBaseline.investmentIncome = (dnBaseline.longTermGain || 0)
+                  + Math.max(0, dnBaseline.shortTermGain || 0)
+                  + (dnBaseline.depreciationRecapture || 0);
+            const dnBaselineTax = _yearTaxes(dnBaseline);
+
+            // Apply Brooklyn losses to the matched-timing baseline.
+            // Carryforward + this year's loss flow into one call so
+            // §1211(b)'s $3K ordinary cap applies once per year.
+            const totalLossAvail = stCF + yearLoss;
+            const withStrat   = _applyLossesWithSTCfCap(baseline, totalLossAvail, ordCap);
+            const withStratTax = _yearTaxes(withStrat);
+
+            stCF = Math.max(0, withStrat._lossUnused || 0);
+
+            const bh = brookhavenSchedule ? brookhavenSchedule.perYear[i] : { setup: 0, quarterly: 0, total: 0 };
+
+            rows.push({
+                  year: year,
+                  gainRecognized: gainRecThisYear,
+                  taxCarveOut: trancheTaxCarve,
+                  reinvestedThisYear: reinvested,
+                  lossGenerated: yearLoss,
+                  lossApplied: withStrat._lossUsed || 0,
+                  stCarryForward: stCF,
+                  investmentThisYear: yearInvested,
+                  fee: yearFee,
+                  brookhavenFee: bh.total,
+                  brookhavenSetupFee: bh.setup,
+                  brookhavenQuarterlyFee: bh.quarterly,
+                  baseline: baselineTax,
+                  doNothingBaseline: dnBaselineTax,
+                  withStrategy: withStratTax,
+                  savings: dnBaselineTax.total - withStratTax.total
+            });
+      }
+
+      // Immediate-mode no-engagement detection (parity with legacy
+      // computeTaxComparison): if no row recognized any gain or applied
+      // any loss, zero out per-row brookhaven so the dashboard renders
+      // "no engagement" cleanly. Doesn't apply to deferred — its no-
+      // engagement case is handled by the early return above.
+      if (!isDeferred) {
+            const _noEngagement = rows.every(function (r) {
+                  return (r.gainRecognized || 0) === 0 && (r.lossApplied || 0) === 0;
+            });
+            if (_noEngagement) {
+                  rows.forEach(function (r) {
+                        r.brookhavenFee = 0;
+                        r.brookhavenSetupFee = 0;
+                        r.brookhavenQuarterlyFee = 0;
+                  });
+            }
+      }
+
+      // Aggregate. totalBaseline uses doNothingBaseline (the honest
+      // "did nothing" comparison); legacy computeTaxComparison
+      // happened to aggregate r.baseline.total but in immediate mode
+      // that's the same value (gain timing = lump-Y1 = do-nothing).
+      let totalBaseline = 0, totalWith = 0, totalFees = 0, totalBrookhaven = 0;
+      rows.forEach(function (r) {
+            const _matched = (r.baseline ? r.baseline.total : 0);
+            const _dn = (r.doNothingBaseline && r.doNothingBaseline.total != null)
+                  ? r.doNothingBaseline.total
+                  : _matched;
+            totalBaseline += _dn;
+            totalWith += r.withStrategy.total;
+            totalFees += (r.fee || 0);
+            totalBrookhaven += (r.brookhavenFee || 0);
+      });
+
+      // Conservation guard (deferred-mode invariant). Immediate mode
+      // forces all gain in Y1 so the invariant always holds trivially.
+      if (isDeferred && typeof console !== 'undefined' && typeof console.warn === 'function') {
+            const _sumRec = recognitionSchedule.reduce(function (s, r) {
+                  return s + (r.gainRecognized || 0);
+            }, 0);
+            const _accountedGain = _sumRec + Math.max(0, gainRemaining);
+            if (Math.abs(_accountedGain - totalGainBucket) > 1) {
+                  console.warn('[RETT engine] unifiedTaxComparison gain conservation broken: ' +
+                        'totalGainBucket=' + totalGainBucket +
+                        ' sumRecognized=' + _sumRec +
+                        ' unrecognized=' + gainRemaining +
+                        ' delta=' + (_accountedGain - totalGainBucket));
+            }
+      }
+
+      const recognitionYears = recognitionSchedule.filter(function (r) {
+            return r.gainRecognized > 0;
+      }).map(function (r) { return r.year; });
+      const durationYears = recognitionYears.length
+            ? (recognitionYears[recognitionYears.length - 1] - recognitionYears[0] + 1)
+            : 0;
+
+      return {
+            rows: rows,
+            totalBaseline: totalBaseline,
+            totalWithStrategy: totalWith,
+            totalSavings: totalBaseline - totalWith,
+            totalFees: totalFees,
+            totalBrookhavenFees: totalBrookhaven,
+            totalAllFees: totalFees + totalBrookhaven,
+            recognitionSchedule: recognitionSchedule,
+            durationYears: durationYears,
+            unrecognizedGain: gainRemaining,
+            deferred: isDeferred
+      };
+}
+
+// Expose to global scope for parallel-run validation harness.
+if (typeof window !== 'undefined') {
+      window.unifiedTaxComparison = unifiedTaxComparison;
 }
 
 function _fmtUSD(n) {
