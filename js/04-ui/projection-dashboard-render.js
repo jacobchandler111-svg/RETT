@@ -1952,15 +1952,11 @@
     '</div>';
   }
 
-  // Build the visualizations object for a card. Each card type gets
-  // a different donut variant so the user can compare A/B/C framings
-  // side-by-side and choose one for the canonical version:
-  //   Sell Now (A)        → variant A (4-slice)
-  //   Seller Finance (B)  → variant B (3-slice with tax+fees combined)
-  //   Structured Sale (C) → variant C (3-slice + fees callout)
+  // Build the visualizations object for a card. All three cards now
+  // use variant B (3-slice: Original income kept · Net benefit · Tax
+  // + fees combined) — picked by the user after the A/B/C side-by-side.
   function _buildVisuals(typeLabel, metrics, cfg, comp) {
-    var variant = (typeLabel === 'B') ? 'B' : (typeLabel === 'C' ? 'C' : 'A');
-    return { donut: _saleOnlyDonutSvg(cfg, metrics, variant) };
+    return { donut: _saleOnlyDonutSvg(cfg, metrics, 'B') };
   }
 
   function _interestedCard(typeLabel, num, name, picked, metrics, lossSum, isRecommended, durationMonths, paymentScheduleHtml, visuals) {
@@ -1976,14 +1972,16 @@
     }
     // Auto-pick line. Pages 2/3 dropped detail rows entirely per user
     // spec — the only context kept under the donut is the engine's
-    // chosen tuple (time horizon + leverage, plus recognition year +
-    // duration for C). Everything else (losses, fees breakdown, net
-    // echo) was noise and is gone.
-    var autoSummary = 'Time horizon: ' + picked.horizon + 'y &middot; Leverage: ' + _fmtLev(picked.shortPct);
+    // chosen tuple. Time horizon is shown in years for A/B (those are
+    // simple single-year strategies) and in MONTHS for C using the
+    // structured-sale duration, which is the actually-meaningful
+    // "time in the strategy" number for that scenario.
+    var autoSummary;
     if (typeLabel === 'C') {
       var pickedDur = picked.durationMonths || durationMonths || 18;
-      autoSummary += ' &middot; Recognition: Year ' + (picked.bestRecC || 2) +
-        ' &middot; Duration: ' + pickedDur + ' mo';
+      autoSummary = 'Time horizon: ' + pickedDur + ' months &middot; Leverage: ' + _fmtLev(picked.shortPct);
+    } else {
+      autoSummary = 'Time horizon: ' + picked.horizon + 'y &middot; Leverage: ' + _fmtLev(picked.shortPct);
     }
 
     // Card visual: only the user's own "chosen" pick gets a ring.

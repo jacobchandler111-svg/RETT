@@ -3456,7 +3456,7 @@ body { font-size: 16px; }
 }
 .roi-hero .roi-multiple {
     font-family: var(--font-display);
-    font-size: 120px;
+    font-size: 144px;
     font-weight: 500;
     line-height: 1;
     color: white;
@@ -3464,7 +3464,7 @@ body { font-size: 16px; }
     font-style: italic;
 }
 .roi-hero .roi-multiple .x {
-    font-size: 60px;
+    font-size: 72px;
     color: var(--bh-blue);
     margin-left: 6px;
     font-style: normal;
@@ -3486,10 +3486,10 @@ body { font-size: 16px; }
 }
 .compare-row {
     display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    grid-template-columns: 1fr 1fr;
     align-items: center;
     padding: 32px 24px;
-    gap: 24px;
+    gap: 32px;
 }
 .compare-side { text-align: center; }
 .compare-side .compare-label {
@@ -3642,15 +3642,14 @@ body { font-size: 16px; }
 
 @media (max-width: 1100px) {
     .forward-layout { grid-template-columns: 1fr; }
-    .roi-hero .roi-multiple { font-size: 80px; }
-    .roi-hero .roi-multiple .x { font-size: 42px; }
+    .roi-hero .roi-multiple { font-size: 96px; }
+    .roi-hero .roi-multiple .x { font-size: 50px; }
 }
 @media (max-width: 640px) {
     .compare-row { grid-template-columns: 1fr; gap: 16px; }
-    .compare-divider { display: none; }
     .roi-hero { padding: 32px 24px; }
-    .roi-hero .roi-multiple { font-size: 64px; }
-    .roi-hero .roi-multiple .x { font-size: 32px; }
+    .roi-hero .roi-multiple { font-size: 72px; }
+    .roi-hero .roi-multiple .x { font-size: 36px; }
     .viz-row { grid-template-columns: 100px 1fr; gap: 12px; }
 }
 .rett-payments-table {

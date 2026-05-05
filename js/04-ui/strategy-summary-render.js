@@ -36,9 +36,9 @@
   }
 
   function _strategyDescriptor(type) {
-    if (type === 'A') return 'Sell now (current year). Brooklyn losses absorb the gain immediately.';
-    if (type === 'B') return 'Negotiate a January-1 close so the gain falls in the next tax year. Full-year-1 Brooklyn loss capacity to absorb it.';
-    if (type === 'C') return 'Structured-sale insurance product defers gain recognition past the closing year.';
+    if (type === 'A') return 'Sell in the current tax year.';
+    if (type === 'B') return 'Negotiate with the buyer to receive payment on January 1st.';
+    if (type === 'C') return 'Use a structured-sale insurance product to defer gain recognition past the closing year.';
     return '';
   }
 
@@ -141,19 +141,9 @@
     var recYr = picked.bestRecC;
     var year1 = (currentCfg && currentCfg.year1) || (new Date()).getFullYear();
 
-    // Bottom-line narrative (tier'd by ROI)
-    var narrative;
-    if (roi >= 5) {
-      narrative = 'An exceptional return: every $1 in fees delivers $' + _fmtMultiplier(roi) + ' in projected tax savings. Brooklyn handles the loss-generating position, Brookhaven handles the planning &mdash; what is left after both is your net benefit.';
-    } else if (roi >= 2) {
-      narrative = 'A solid return: every $1 in fees delivers $' + _fmtMultiplier(roi) + ' in projected tax savings. The fee load is meaningful here &mdash; review the Brooklyn vs Brookhaven split on the left to see where the dollars go.';
-    } else if (roi > 1) {
-      narrative = 'This strategy nets positive after fees, but the margin is thin. The fee load is eating most of the savings &mdash; worth comparing against the other Interested strategies before committing.';
-    } else if (net >= 0) {
-      narrative = 'Fees roughly offset projected savings here. The strategy is not destroying value, but it is not generating much either.';
-    } else {
-      narrative = 'Fees exceed projected tax savings. Net benefit is negative &mdash; this option is not recommended given the current inputs.';
-    }
+    // Bottom-line callout removed per user spec — narrative tiers
+    // were placeholder copy. Will be re-introduced once final phrasing
+    // is decided.
 
     // Engagement note about duration: spell out whether the engine
     // extended past the 18-month minimum so the seller understands
@@ -247,26 +237,30 @@
     // ============ RIGHT COLUMN ============
     html += '<div class="forward-results">';
 
-    // ROI Hero
+    // ROI Hero — relabeled "Return on Planning" (was "Return on Fees")
+    // and the multiplier + × are slightly bigger per user spec.
     html += '<div class="roi-hero">' +
-      '<div class="roi-label">Return on Fees</div>' +
+      '<div class="roi-label">Return on Planning</div>' +
       '<div class="roi-multiple">' + _fmtMultiplier(roi) + '<span class="x">&times;</span></div>' +
-      '<div class="roi-sub">For every $1 paid in fees, $' + _fmtMultiplier(roi) + ' is returned in projected tax savings</div>' +
+      '<div class="roi-sub">For every $1 paid in planning, $' + _fmtMultiplier(roi) + ' is returned in projected tax savings</div>' +
     '</div>';
 
-    // Compare Row + Net
+    // Compare Row + Net. Order is now: You Save → Total Fees → Net
+    // Benefit (footer) so the reading flow is "you save this, you pay
+    // this, you net this" instead of comparing-via-versus. The "vs."
+    // separator is gone — both sides are now part of the same story
+    // about the strategy's outcome.
     html += '<div class="forward-compare">' +
       '<div class="compare-row">' +
-        '<div class="compare-side cost">' +
-          '<div class="compare-label">Total Fees</div>' +
-          '<div class="compare-amt"><span class="currency">$</span>' + Math.round(fees).toLocaleString('en-US') + '</div>' +
-          '<div class="compare-detail">Brooklyn position + Brookhaven planning</div>' +
-        '</div>' +
-        '<div class="compare-divider">vs.</div>' +
         '<div class="compare-side savings">' +
           '<div class="compare-label">You Save</div>' +
           '<div class="compare-amt"><span class="currency">$</span>' + Math.round(savings).toLocaleString('en-US') + '</div>' +
           '<div class="compare-detail">Total projected tax savings vs. doing nothing</div>' +
+        '</div>' +
+        '<div class="compare-side cost">' +
+          '<div class="compare-label">Total Fees</div>' +
+          '<div class="compare-amt"><span class="currency">$</span>' + Math.round(fees).toLocaleString('en-US') + '</div>' +
+          '<div class="compare-detail">Brooklyn position + Brookhaven planning</div>' +
         '</div>' +
       '</div>' +
       '<div class="compare-net">' +
@@ -293,11 +287,8 @@
       '</div>' +
     '</div>';
 
-    // Bottom Callout
-    html += '<div class="forward-callout">' +
-      '<div class="callout-label">Bottom Line</div>' +
-      '<p>' + narrative + '</p>' +
-    '</div>';
+    // Bottom-line callout removed per user spec (placeholder phrasing
+    // didn't add value; will be re-introduced with better copy later).
 
     html += '</div>'; // /forward-results
     html += '</div>'; // /forward-layout
