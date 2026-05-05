@@ -18,7 +18,8 @@
     'w2-wages', 'se-income', 'biz-revenue', 'rental-income',
     'dividend-income', 'retirement-distributions',
     'sale-price', 'cost-basis', 'accelerated-depreciation',
-    'short-term-gain', 'withhold-amount', 'available-capital'
+    'short-term-gain', 'withhold-amount', 'available-capital',
+    'payment-on-sale-date'
   ];
 
   // Fields where negative values are nonsensical. parseUSD permits

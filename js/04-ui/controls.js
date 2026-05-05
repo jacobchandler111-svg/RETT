@@ -879,6 +879,38 @@ function bindControls() {
     });
   }
 
+  // Sale Proceeds: cosmetic "Payment on sale date" row that surfaces
+  // when Accelerated Depreciation > 0. Defaults to whatever the user
+  // typed for accel depr and stays in sync until the user manually
+  // edits the field. Not yet read by the engine — the advisor will
+  // wire the rules in once finalized.
+  var accelDeprEl = document.getElementById('accelerated-depreciation');
+  var paymentGroup = document.getElementById('payment-on-sale-date-group');
+  var paymentInput = document.getElementById('payment-on-sale-date');
+  if (accelDeprEl && paymentGroup && paymentInput) {
+    paymentInput.addEventListener('input', function () {
+      paymentInput.dataset.userEdited = 'true';
+    });
+    var syncPayment = function () {
+      var raw = (typeof parseUSD === 'function') ? parseUSD(accelDeprEl.value) : Number(accelDeprEl.value);
+      var amount = Number(raw) || 0;
+      if (amount > 0) {
+        paymentGroup.hidden = false;
+        if (paymentInput.dataset.userEdited !== 'true') {
+          paymentInput.value = (typeof fmtUSD === 'function')
+            ? fmtUSD(amount)
+            : '$' + Math.round(amount).toLocaleString('en-US');
+        }
+      } else {
+        paymentGroup.hidden = true;
+        if (paymentInput.dataset.userEdited !== 'true') paymentInput.value = '';
+      }
+    };
+    accelDeprEl.addEventListener('input', syncPayment);
+    accelDeprEl.addEventListener('change', syncPayment);
+    syncPayment();
+  }
+
   // Strategy-selection page (between Inputs and Projection): three
   // cards, each with Interested / Not Interested. Currently NOT wired
   // to the engine — purely a presenter aid. The Continue button
