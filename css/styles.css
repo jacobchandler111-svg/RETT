@@ -5646,3 +5646,116 @@ body { font-size: 16px; }
     line-height: 1.45;
     margin: 0;
 }
+
+/* ===========================================================
+   PMQ Questions — minimal Yes/No question rows.
+   Each question is a horizontal row: label + Yes/No buttons.
+   Sub-questions get a left border + indent so the dependency
+   relationship is visually obvious.
+   =========================================================== */
+.pmq-q-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 0 0 18px 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--rule-soft);
+}
+.pmq-q-progress {
+    font-family: var(--font-mono);
+    font-size: 0.78em;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+}
+.pmq-q-reset {
+    font-family: var(--font-body);
+    font-size: 0.82em;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+}
+.pmq-q-reset:hover {
+    border-color: var(--ink);
+    color: var(--ink);
+}
+.pmq-q-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.pmq-q {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 24px;
+    padding: 16px 18px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    transition: border-color 0.15s, background 0.15s;
+}
+.pmq-q:hover {
+    border-color: var(--bh-blue-deep);
+}
+.pmq-q-sub {
+    margin-left: 32px;
+    border-left: 3px solid var(--bh-blue-deep);
+    background: var(--paper-warm);
+}
+.pmq-q-text {
+    flex: 1;
+    min-width: 0;
+}
+.pmq-q-label {
+    font-size: 1.02em;
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 1.3;
+}
+.pmq-q-helper {
+    font-size: 0.85em;
+    color: var(--muted);
+    line-height: 1.4;
+    margin-top: 4px;
+}
+.pmq-q-buttons {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+.pmq-q-btn {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 0.9em;
+    font-weight: 600;
+    padding: 8px 18px;
+    border-radius: 2px;
+    cursor: pointer;
+    min-width: 60px;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.pmq-q-btn:hover {
+    border-color: var(--ink);
+}
+.pmq-q-btn-yes.is-active {
+    background: var(--bh-blue-deep);
+    border-color: var(--bh-blue-deep);
+    color: var(--paper);
+}
+.pmq-q-btn-no.is-active {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--paper);
+}
+@media (max-width: 720px) {
+    .pmq-q { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .pmq-q-sub { margin-left: 16px; }
+}
