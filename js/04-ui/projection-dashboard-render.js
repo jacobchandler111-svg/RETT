@@ -2040,6 +2040,25 @@
     var currentCfg;
     try { currentCfg = collectInputs(); } catch (e) { currentCfg = null; }
     if (!currentCfg) return null;
+    // Dollar rivalry: every dollar committed to an Interested supplemental
+    // (Oil & Gas, Delphi, ...) is unavailable to Brooklyn. Subtract the
+    // allocator's supplemental total from availableCapital so the engine
+    // computes A/B/C with the correct Brooklyn deployment, and the
+    // optimizer's cap math (recommendedInvestment, slider scale) is keyed
+    // off the same reduced base. The implementation panel still shows the
+    // breakdown for advisor audit.
+    if (typeof root.runAllocator === 'function') {
+      var rawCap = Math.max(0, Number(currentCfg.availableCapital) || 0);
+      var alloc = root.runAllocator(rawCap);
+      var brooklynCap = Math.max(0, alloc.brooklynRemaining || 0);
+      if (brooklynCap !== rawCap) {
+        currentCfg = Object.assign({}, currentCfg, {
+          availableCapital: brooklynCap,
+          investedCapital:  brooklynCap,
+          investment:       brooklynCap
+        });
+      }
+    }
     var userDuration = currentCfg.structuredSaleDurationMonths || 18;
 
     function _bestPickedCfgLocal(type) {

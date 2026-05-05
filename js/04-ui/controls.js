@@ -1076,6 +1076,16 @@ function bindControls() {
       if (typeof window.renderInterestedSnapshot === 'function') {
         try { window.renderInterestedSnapshot(); } catch (e) { /* */ }
       }
+      // Page 4 supplementals derive their year-count from the resolved
+      // sale strategy (A=1y, B=2y, C=duration). Re-running the math on
+      // an interest change lets supplemental contributions update before
+      // the user navigates. Page 5 then re-renders off the fresh data.
+      if (typeof window.renderSupplementalPage === 'function') {
+        try { window.renderSupplementalPage(); } catch (e) { /* */ }
+      }
+      if (typeof window.renderStrategySummary === 'function') {
+        try { window.renderStrategySummary(); } catch (e) { /* */ }
+      }
       // Persist to localStorage so the strategy-pick visual state
       // survives a page refresh / browser tab switch / saved-client
       // round-trip. (P1-3.) Skip while applying restored state.
