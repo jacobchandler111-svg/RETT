@@ -512,12 +512,29 @@ function _applyLossesWithSTCfCap(scenario, lossAvailable, capOrdinary) {
       const out = Object.assign({}, scenario);
       let loss = lossAvailable;
 
-      // Step 1: ST gain (none expected in deferred scenarios but kept for safety).
+      // IRC §1(h) loss ordering — capital losses absorb gain buckets
+      // highest-rate first (taxpayer-favorable):
+      //   1) ST gain (ordinary rates, up to 37%)
+      //   2) §1250 unrecaptured gain (capped at 25%)
+      //   3) Regular LT gain (0/15/20%)
+      //   4) Ordinary income (capped at $3K / $1.5K MFS)
+
+      // Step 1: ST gain
       const offsetShort = Math.min(out.shortTermGain || 0, loss);
       out.shortTermGain = (out.shortTermGain || 0) - offsetShort;
       loss -= offsetShort;
 
-      // Step 2: LT gain (the recognized property gain in year R).
+      // Step 2: §1250 unrecaptured gain (recapture). Still a capital gain
+      // for §1211 netting purposes, just rate-capped at 25% downstream.
+      // NIIT base also shrinks since recapture is investment income.
+      if (loss > 0) {
+            const offsetRecap = Math.min(out.depreciationRecapture || 0, loss);
+            out.depreciationRecapture = (out.depreciationRecapture || 0) - offsetRecap;
+            out.investmentIncome = Math.max(0, (out.investmentIncome || 0) - offsetRecap);
+            loss -= offsetRecap;
+      }
+
+      // Step 3: LT gain (the recognized property gain in year R).
       if (loss > 0) {
             const offsetLong = Math.min(out.longTermGain || 0, loss);
             out.longTermGain = (out.longTermGain || 0) - offsetLong;
@@ -525,7 +542,7 @@ function _applyLossesWithSTCfCap(scenario, lossAvailable, capOrdinary) {
             loss -= offsetLong;
       }
 
-      // Step 3: ordinary income, capped at $3,000 (or $1,500 for MFS).
+      // Step 4: ordinary income, capped at $3,000 (or $1,500 for MFS).
       if (loss > 0) {
             const cap = Math.min(out.ordinaryIncome || 0, capOrdinary);
             const offsetOrd = Math.min(cap, loss);
@@ -747,11 +764,12 @@ function computeDeferredTaxComparison(cfg) {
       const totalLT = Math.max(0,
             (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0));
       const recapture = Math.max(0, cfg.acceleratedDepreciation || 0);
-      // For MVP we treat the recapture as part of the deferred LT bucket so
-      // the math reflects a structured sale that defers the entire gain
-      // recognition. (Recapture is technically ordinary-rate income; this
-      // is a known approximation flagged in the UI.)
-      const totalGainBucket = totalLT + recapture;
+      // §453(i): unrecaptured §1250 depreciation recapture is recognized
+      // in the YEAR OF SALE, not deferred over the installment period.
+      // Only the long-term gain bucket is deferrable; recapture hits Y1
+      // alongside the first tranche of LT gain. See line 992 below where
+      // recapture is passed into _baseScenarioForYear for i===0 only.
+      const totalGainBucket = totalLT;
       // basisCash is the cash actually deployed into Brooklyn at sale —
       // capped by Available Capital (cfg.investment) when the user has
       // chosen to "keep" some of the proceeds. Without this cap, the
@@ -947,9 +965,15 @@ function computeDeferredTaxComparison(cfg) {
             const year1Rate = lossRateForTrancheYear(0);
             const effYear1Rate = year1Rate * _reinvestFrac;
             const denom = Math.max(0.001, 1 - effYear1Rate);
+            // §453(i): recapture is recognized in Y1 only and consumes
+            // Brooklyn loss FIRST (per IRC §1(h) — 25% bucket absorbs
+            // before the 20% LT bucket). So the LT-gain absorption
+            // ceiling for Y1 is reduced by the recapture amount.
+            // Y2..N have no recapture flow.
+            const _recapDrag = (i === 0) ? recapture : 0;
             let gainRecThisYear = 0;
             if (i >= startIdx && i <= maturityIdx && gainRemaining > 0) {
-                  const maxAbsorbable = (stCF + existingLoss) / denom;
+                  const maxAbsorbable = Math.max(0, (stCF + existingLoss - _recapDrag) / denom);
                   gainRecThisYear = Math.min(gainRemaining, maxAbsorbable);
                   // Force-recognize remainder at maturity: the product has
                   // matured, no more deferral is legally possible. (Used
@@ -989,7 +1013,14 @@ function computeDeferredTaxComparison(cfg) {
 
             recognitionSchedule.push({ year: year, gainRecognized: gainRecThisYear });
 
-            const baseline = _baseScenarioForYear(cfg, year, gainRecThisYear);
+            // §453(i): recapture is recognized in the year of sale (i===0)
+            // alongside the first LT-gain tranche. The strategy-matched
+            // baseline must include recapture so the with-strategy
+            // comparison correctly reflects ordinary-rate tax on the
+            // recapture slice (capped at 25% via §1250 inside the
+            // federal calc). Years 2..N have no recapture flow.
+            const _recapThisYear = (i === 0) ? recapture : 0;
+            const baseline = _baseScenarioForYear(cfg, year, gainRecThisYear, _recapThisYear);
             const baselineTax = _yearTaxes(baseline);
 
             // "Do nothing" baseline for the bar chart: if the client took
