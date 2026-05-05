@@ -3587,6 +3587,108 @@ body { font-size: 16px; }
     gap: 24px;
 }
 
+/* Page-5 top row — Selected Strategy + Supplemental Strategies sit
+   side-by-side on a 2-col grid. When no supplemental is Interested,
+   Selected Strategy renders directly (no .forward-top-row wrapper). */
+.forward-top-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    align-items: stretch;
+    margin-bottom: 28px;
+}
+.forward-top-row > .input-section {
+    margin: 0;
+}
+@media (max-width: 900px) {
+    .forward-top-row { grid-template-columns: 1fr; }
+}
+
+/* Return on Planning — the two-block walk-away comparison that
+   replaces the prior ROI multiplier hero. Left half is the do-nothing
+   walk-away amount in muted ink; right half is the with-planning
+   amount in green. The big numbers are the headline; the supporting
+   detail under each label keeps the comparison honest. */
+.forward-walkaway {
+    margin: 28px 0;
+}
+.walkaway-head {
+    margin-bottom: 14px;
+}
+.walkaway-head h2 {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 500;
+    font-size: 28px;
+    color: var(--ink);
+    margin: 0 0 4px 0;
+    letter-spacing: -0.01em;
+}
+.walkaway-sub {
+    font-size: 0.95em;
+    color: var(--ink-soft);
+    line-height: 1.5;
+    margin: 0;
+}
+.walkaway-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    margin-top: 14px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    overflow: hidden;
+}
+.walkaway-side {
+    padding: 28px 32px;
+    text-align: center;
+}
+.walkaway-side.noplan {
+    background: var(--paper-warm);
+    border-right: 1px solid var(--rule);
+}
+.walkaway-side.withplan {
+    background: var(--paper);
+}
+.walkaway-label {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+.walkaway-side.withplan .walkaway-label {
+    color: var(--green);
+}
+.walkaway-amt {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 500;
+    font-size: 3em;
+    line-height: 1.05;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    margin-bottom: 8px;
+}
+.walkaway-side.withplan .walkaway-amt {
+    color: var(--green);
+}
+.walkaway-detail {
+    font-family: var(--font-body);
+    font-size: 0.85em;
+    color: var(--ink-soft);
+    line-height: 1.4;
+}
+@media (max-width: 720px) {
+    .walkaway-grid { grid-template-columns: 1fr; }
+    .walkaway-side.noplan { border-right: none; border-bottom: 1px solid var(--rule); }
+    .walkaway-amt { font-size: 2.4em; }
+}
+
 .forward-balance {
     font-family: var(--font-mono);
     font-size: 18px;

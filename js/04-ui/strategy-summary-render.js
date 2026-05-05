@@ -217,13 +217,9 @@
       '</div>';
     }
 
-    html += '<div class="forward-layout">';
-
-    // ============ LEFT COLUMN ============
-    html += '<div class="forward-inputs">';
-
-    // Section: Selected Strategy
-    html += '<div class="input-section">' +
+    // ============ TOP ROW: Selected Strategy + Supplemental Strategies ============
+    var hasSupps = !!(enabledSupplements.length || (solverOut && solverOut.anyInterested));
+    var selectedStrategyHtml = '<div class="input-section">' +
       '<div class="section-heading">' +
         '<h2>Selected Strategy</h2>' +
         '<span class="num">STRATEGY ' + _stratNum(entry.type) + '</span>' +
@@ -249,70 +245,46 @@
       '</div>' +
     '</div>';
 
-    // Section: Supplemental Strategies (left column, sits between
-    // Selected Strategy and Fees Baked In). Only renders when at least
-    // one supplemental was marked Interested on Page 4. Each row is a
-    // single line — toggle, name, signed contribution. Toggling a row
-    // re-runs the master solver and updates the hero numbers above.
-    if (enabledSupplements.length || (solverOut && solverOut.anyInterested)) {
-      html += _renderSupplementalLeftColumn(solverOut);
+    if (hasSupps) {
+      html += '<div class="forward-top-row">' +
+        selectedStrategyHtml +
+        _renderSupplementalLeftColumn(solverOut) +
+      '</div>';
+    } else {
+      html += selectedStrategyHtml;
     }
 
-    // Section: Fees Included
-    html += '<div class="input-section" id="fee-strategies-section">' +
-      '<div class="section-heading">' +
-        '<h2>Fees Baked In</h2>' +
-        '<span class="num">REVIEW</span>' +
+    // ============ Return on Planning — walk-away comparison ============
+    // The big-picture question for the client: "what do I actually walk
+    // away with?" We show two side-by-side numbers — sale proceeds net
+    // of total tax under the do-nothing baseline vs. with the chosen
+    // strategy + any enabled supplementals. The DELTA is the savings
+    // (highlighted below). For multi-year horizons m.doNothing and
+    // m.tax are cumulative; the diff stays conceptually correct
+    // because both sides include the same ordinary baseline.
+    var salePrice = (currentCfg && Number(currentCfg.salePrice)) || 0;
+    var walkawayNoPlanning   = salePrice - (m.doNothing || 0);
+    var walkawayWithPlanning = salePrice - (m.tax || 0) + supplementalBenefit;
+    html += '<div class="forward-walkaway">' +
+      '<div class="walkaway-head">' +
+        '<h2>Return on Planning</h2>' +
+        '<p class="walkaway-sub">What you walk away with from the sale, before vs. after planning.</p>' +
       '</div>' +
-      '<div class="section-body">' +
-        _bullet('Brooklyn fees<span class="strat-savings-line">Borrow + fund + short-side carry over the position' +
-          (opt && opt.dialBack ? ' &mdash; scaled to ' + _fmt(opt.recommendedInvestment) + ' invested' : '') +
-          '</span>', effectiveBrooklynFees) +
-        _bullet('Brookhaven fees<span class="strat-savings-line">Planning engagement + ongoing service (flat schedule)</span>', m.brookhavenFees || 0) +
-        '<div class="fee-summary-row">' +
-          '<div class="fee-summary-label">Total Fees</div>' +
-          '<div class="fee-summary-amt">' + _fmt(fees) + '</div>' +
+      '<div class="walkaway-grid">' +
+        '<div class="walkaway-side noplan">' +
+          '<div class="walkaway-label">No Planning</div>' +
+          '<div class="walkaway-amt">' + _fmt(walkawayNoPlanning) + '</div>' +
+          '<div class="walkaway-detail">Sale proceeds &minus; tax (do nothing)</div>' +
+        '</div>' +
+        '<div class="walkaway-side withplan">' +
+          '<div class="walkaway-label">With Planning</div>' +
+          '<div class="walkaway-amt">' + _fmt(walkawayWithPlanning) + '</div>' +
+          '<div class="walkaway-detail">Sale proceeds &minus; tax (strategy) + supplemental benefit</div>' +
         '</div>' +
       '</div>' +
     '</div>';
 
-    // Section: Engagement Notes
-    html += '<div class="input-section">' +
-      '<div class="section-heading">' +
-        '<h2>Engagement Notes</h2>' +
-        '<span class="num">REFERENCE</span>' +
-      '</div>' +
-      '<div class="section-body" style="font-size:13px;line-height:1.6;color:var(--ink-soft);">' +
-        '<p style="margin-bottom:10px;">' + durNote + '</p>' +
-        '<p style="margin-bottom:10px;"><strong>Horizon:</strong> ' + horizon + ' years. The dollar figures below are <em>cumulative across the full horizon</em> &mdash; not single-year. The Page-1 baseline shows the single-year do-nothing tax; this page shows the multi-year sum so fees and savings are on the same time scale.</p>' +
-        '<p style="margin-bottom:10px;"><strong>Total losses generated (' + horizon + '-yr):</strong> ' +
-          (opt && opt.dialBack
-            ? _fmt(Math.round((entry.loss || 0) * optScale)) + ' (optimizer-scaled; full-capital projection would generate ' + _fmt(entry.loss || 0) + ')'
-            : _fmt(entry.loss || 0)) +
-          '. Brooklyn produces these year-by-year; only the recognition year(s) actually need the offset.</p>' +
-        '<p style="margin-bottom:10px;"><strong>Do-nothing tax baseline (' + horizon + '-yr):</strong> ' + _fmt(m.doNothing || 0) + '. This is what the client would owe with no planning across the full horizon.</p>' +
-        '<p style="margin-bottom:10px;"><strong>Tax with strategy (' + horizon + '-yr):</strong> ' + _fmt(m.tax || 0) + '. Difference is the projected savings shown to the right.</p>' +
-      '</div>' +
-    '</div>';
-
-    html += '</div>'; // /forward-inputs
-
-    // ============ RIGHT COLUMN ============
-    html += '<div class="forward-results">';
-
-    // ROI Hero — relabeled "Return on Planning" (was "Return on Fees")
-    // and the multiplier + × are slightly bigger per user spec.
-    html += '<div class="roi-hero">' +
-      '<div class="roi-label">Return on Planning</div>' +
-      '<div class="roi-multiple">' + _fmtMultiplier(roi) + '<span class="x">&times;</span></div>' +
-      '<div class="roi-sub">For every $1 paid in planning, $' + _fmtMultiplier(roi) + ' is returned in projected tax savings</div>' +
-    '</div>';
-
-    // Compare Row + Net. Order is now: You Save → Total Fees → Net
-    // Benefit (footer) so the reading flow is "you save this, you pay
-    // this, you net this" instead of comparing-via-versus. The "vs."
-    // separator is gone — both sides are now part of the same story
-    // about the strategy's outcome.
+    // ============ You Save / Total Fees / Net Benefit ============
     html += '<div class="forward-compare">' +
       '<div class="compare-row">' +
         '<div class="compare-side savings">' +
@@ -332,29 +304,42 @@
       '</div>' +
     '</div>';
 
-    // Bar Viz
-    html += '<div class="forward-viz">' +
-      '<div class="viz-row">' +
-        '<div class="viz-label">Total Fees</div>' +
-        '<div class="viz-bar-wrap">' +
-          '<div class="viz-bar fee" style="width:' + feePct.toFixed(2) + '%"></div>' +
-          '<span class="viz-amt">' + _fmt(fees) + '</span>' +
-        '</div>' +
+    // ============ Fees Baked In — Brooklyn + Brookhaven breakdown ============
+    html += '<div class="input-section" id="fee-strategies-section">' +
+      '<div class="section-heading">' +
+        '<h2>Fees Baked In</h2>' +
+        '<span class="num">REVIEW</span>' +
       '</div>' +
-      '<div class="viz-row">' +
-        '<div class="viz-label">Tax Savings</div>' +
-        '<div class="viz-bar-wrap">' +
-          '<div class="viz-bar savings" style="width:' + savePct.toFixed(2) + '%"></div>' +
-          '<span class="viz-amt">' + _fmt(savings) + '</span>' +
+      '<div class="section-body">' +
+        _bullet('Brooklyn fees<span class="strat-savings-line">Borrow + fund + short-side carry over the position' +
+          (opt && opt.dialBack ? ' &mdash; scaled to ' + _fmt(opt.recommendedInvestment) + ' invested' : '') +
+          '</span>', effectiveBrooklynFees) +
+        _bullet('Brookhaven fees<span class="strat-savings-line">Planning engagement + ongoing service (flat schedule)</span>', m.brookhavenFees || 0) +
+        '<div class="fee-summary-row">' +
+          '<div class="fee-summary-label">Total Fees</div>' +
+          '<div class="fee-summary-amt">' + _fmt(fees) + '</div>' +
         '</div>' +
       '</div>' +
     '</div>';
 
-    // Bottom-line callout removed per user spec (placeholder phrasing
-    // didn't add value; will be re-introduced with better copy later).
-
-    html += '</div>'; // /forward-results
-    html += '</div>'; // /forward-layout
+    // ============ Engagement Notes (advisor reference) ============
+    html += '<div class="input-section">' +
+      '<div class="section-heading">' +
+        '<h2>Engagement Notes</h2>' +
+        '<span class="num">REFERENCE</span>' +
+      '</div>' +
+      '<div class="section-body" style="font-size:13px;line-height:1.6;color:var(--ink-soft);">' +
+        '<p style="margin-bottom:10px;">' + durNote + '</p>' +
+        '<p style="margin-bottom:10px;"><strong>Horizon:</strong> ' + horizon + ' years. The dollar figures above are <em>cumulative across the full horizon</em> &mdash; not single-year. The Page-1 baseline shows the single-year do-nothing tax; this page shows the multi-year sum so fees and savings are on the same time scale.</p>' +
+        '<p style="margin-bottom:10px;"><strong>Total losses generated (' + horizon + '-yr):</strong> ' +
+          (opt && opt.dialBack
+            ? _fmt(Math.round((entry.loss || 0) * optScale)) + ' (optimizer-scaled; full-capital projection would generate ' + _fmt(entry.loss || 0) + ')'
+            : _fmt(entry.loss || 0)) +
+          '. Brooklyn produces these year-by-year; only the recognition year(s) actually need the offset.</p>' +
+        '<p style="margin-bottom:10px;"><strong>Do-nothing tax baseline (' + horizon + '-yr):</strong> ' + _fmt(m.doNothing || 0) + '. This is what the client would owe with no planning across the full horizon.</p>' +
+        '<p style="margin-bottom:10px;"><strong>Tax with strategy (' + horizon + '-yr):</strong> ' + _fmt(m.tax || 0) + '. Difference is the projected savings.</p>' +
+      '</div>' +
+    '</div>';
 
     // Implementation panel — hidden by default, expand via the small
     // triangle on the trailing dash. Advisor-only audit view: shows
