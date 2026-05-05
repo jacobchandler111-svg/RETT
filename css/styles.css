@@ -1901,21 +1901,83 @@ body { font-size: 16px; }
     font-weight: 600;
 }
 .prior-meeting-body {
-    padding: 14px 18px 16px;
-    background: var(--paper-warm);
-    border: 1px solid var(--rule-soft);
-    border-radius: 2px;
+    /* Legacy class — only retained as a fallback target; the live
+       dock is .pmq-compact-host. */
+    padding: 0;
+    background: transparent;
+    border: none;
 }
-.pmq-page-intro {
-    margin: 4px 0 18px;
-    color: var(--muted);
-    font-size: 0.95em;
-    max-width: 720px;
-}
-.pmq-page-footer {
-    margin-top: 24px;
+
+/* ---- Compact import-square dock ----
+   Two small icon-square <details> elements pinned to the top-right
+   of the Client Inputs page. Collapsed = tiny clickable tile (icon
+   + caption). Open = the dropzone expands inline so the advisor
+   can drag a file in. Sits above the page title, right-aligned. */
+.pmq-compact-host {
     display: flex;
+    flex-direction: row;
+    gap: 8px;
     justify-content: flex-end;
+    margin: 0 0 12px 0;
+}
+.pmq-compact {
+    margin: 0;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    background: var(--paper);
+    transition: border-color 0.15s, box-shadow 0.15s;
+    flex: 0 0 auto;
+}
+.pmq-compact:hover { border-color: var(--ink); }
+.pmq-compact[open] {
+    flex: 1 1 auto;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.pmq-compact-summary {
+    list-style: none;
+    cursor: pointer;
+    width: 64px;
+    height: 64px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    user-select: none;
+    padding: 6px;
+    box-sizing: border-box;
+}
+.pmq-compact-summary::-webkit-details-marker { display: none; }
+.pmq-compact[open] .pmq-compact-summary {
+    width: 100%;
+    height: auto;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--rule-soft);
+    background: var(--paper-warm);
+}
+.pmq-compact-icon { font-size: 1.3em; line-height: 1; }
+.pmq-compact-tag {
+    font-family: var(--font-mono);
+    font-size: 0.6em;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 700;
+    line-height: 1.1;
+    text-align: center;
+}
+.pmq-compact[open] .pmq-compact-tag {
+    font-size: 0.85em;
+    color: var(--ink);
+    text-align: left;
+}
+.pmq-compact-body { padding: 14px 18px 16px; }
+@media (max-width: 720px) {
+    .pmq-compact-host { flex-direction: column; align-items: stretch; }
+    .pmq-compact-summary { width: 100%; flex-direction: row; height: auto; padding: 10px 14px; }
 }
 
 /* ---- Pre-Meeting Questionnaire drop zones ---- */

@@ -5,7 +5,7 @@
 //   - 'projection' : multi-year results table
 //   - 'allocator'  : year-1 allocator suggestions
 
-const PAGE_IDS = ['page-pmq', 'page-inputs', 'page-strategies', 'page-projection', 'page-supplemental', 'page-allocator'];
+const PAGE_IDS = ['page-inputs', 'page-strategies', 'page-projection', 'page-supplemental', 'page-allocator'];
 const PROJECTION_SUBPAGE_IDS = ['subpage-summary', 'subpage-details'];
 
 function showProjectionSubpage(id) {
@@ -870,13 +870,11 @@ function bindControls() {
     });
   });
 
-  const navPmq = document.getElementById('nav-pmq');
   const navInputs = document.getElementById('nav-inputs');
   const navStrategies = document.getElementById('nav-strategies');
   const navProjection = document.getElementById('nav-projection');
   const navAllocator = document.getElementById('nav-allocator');
   const navSupplemental = document.getElementById('nav-supplemental');
-  if (navPmq)          navPmq.addEventListener('click', () => showPage('page-pmq'));
   if (navInputs)       navInputs.addEventListener('click', () => showPage('page-inputs'));
   if (navStrategies)   navStrategies.addEventListener('click', () => showPage('page-strategies'));
   if (navProjection)   navProjection.addEventListener('click', () => showPage('page-projection'));
@@ -924,9 +922,11 @@ function bindControls() {
     syncStrategyMin();
   }
 
-  // Pre-Meeting Questionnaire used to be a collapsible <details> on
-  // Page 1; it's now its own dedicated page (page-pmq) so the +/-
-  // glyph wiring is no longer needed.
+  // Pre-Meeting Questionnaire is now a pair of compact <details>
+  // squares pinned to the top-right of the Client Inputs page —
+  // each opens inline to reveal its dropzone. The native <details>
+  // toggle handles the show/hide so no custom wiring is needed
+  // here.
 
   // Sale Proceeds: cosmetic "Payment on sale date" row that surfaces
   // when Accelerated Depreciation > 0. Defaults to whatever the user
