@@ -194,10 +194,13 @@ function _bindCaseControls() {
         return;
       }
       if (!current) {
-        // Promote the draft to a named case. During typing we require
-        // 2+ chars to avoid mid-keystroke ghost saves; on blur we
-        // accept any non-empty name (the user definitively committed).
-        if (!committed && typed.length < 2) return;
+        // Promote the draft to a named case only when the typed name
+        // is meaningfully long (>= 2 chars). Previously a single
+        // character on blur committed the name, so a stray click after
+        // typing "t" silently created a ghost case "t". The mid-keystroke
+        // guard wasn't enough on its own — a 1-char blur slipped through.
+        // (Bug #10.)
+        if (typed.length < 2) return;
         store.activateCaseName(typed);
         _refreshCaseDropdown(typed);
         _refreshCaseStatus();
@@ -867,6 +870,33 @@ function bindControls() {
   if (navProjection)   navProjection.addEventListener('click', () => showPage('page-projection'));
   if (navAllocator)    navAllocator.addEventListener('click', () => showPage('page-allocator'));
   if (navSupplemental) navSupplemental.addEventListener('click', () => showPage('page-supplemental'));
+
+  // Strategy Implementation Date can't legally precede the Sale /
+  // Closing Date — proceeds don't exist to deploy yet. Mirror the sale
+  // date into the strategy-date input's `min` attribute so the
+  // browser's native date picker rejects earlier values inline. Also
+  // clamp existing strategy-date values forward when the sale date
+  // moves later, so the saved-state restore path doesn't leave an
+  // invalid pair sitting in the form. (Bug #9.)
+  var saleDateEl = document.getElementById('implementation-date');
+  var stratDateEl = document.getElementById('strategy-implementation-date');
+  if (saleDateEl && stratDateEl) {
+    var syncStrategyMin = function () {
+      var v = saleDateEl.value || '';
+      if (v) {
+        stratDateEl.min = v;
+        if (stratDateEl.value && stratDateEl.value < v) {
+          stratDateEl.value = v;
+          stratDateEl.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      } else {
+        stratDateEl.removeAttribute('min');
+      }
+    };
+    saleDateEl.addEventListener('input', syncStrategyMin);
+    saleDateEl.addEventListener('change', syncStrategyMin);
+    syncStrategyMin();
+  }
 
   // Pre-meeting questionnaire glyph swap. The summary line shows "+"
   // when collapsed and "−" when expanded. Listen on the <details>'s

@@ -93,10 +93,16 @@
       } else {
         saleDateValid = true;
         var yr = saleD.getFullYear();
-        if (yr < year1 || yr > year1 + 1) {
+        // The tax-year selector drives which year's brackets the engine
+        // uses. If the sale lands in a different calendar year, the gain
+        // is taxed at the wrong brackets unless the user updates Tax
+        // Year. Warn even on the year1+1 case (seller finance) — that
+        // strategy internally re-pins year1+1 anyway, so the input
+        // values still need to be consistent. (Bug #11.)
+        if (yr !== year1) {
           warnings.push({
             field: 'implementation-date',
-            message: 'Sale / closing date is outside Year 1 (' + year1 + '). Time-weighting may be unexpected.'
+            message: 'Sale / closing date is in ' + yr + ' but Tax Year is ' + year1 + '. The bracket year will follow Tax Year — update one to match.'
           });
         }
         // Sanity bound — out-of-range dates produce nonsense projections

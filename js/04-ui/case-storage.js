@@ -142,10 +142,28 @@
       var el = document.getElementById(id);
       if (!el) return;
       var v = state[id];
+      var strV = (v == null) ? '' : String(v);
       if (el.type === 'checkbox' || el.type === 'radio') {
         el.checked = !!v;
-      } else if (el.value !== String(v == null ? '' : v)) {
-        el.value = (v == null) ? '' : String(v);
+      } else if (el.tagName === 'SELECT') {
+        // <select> needs a selectedIndex sync — setting el.value alone
+        // can leave the visible <option selected> attribute pointing
+        // to the static HTML default (e.g. New York for state-code) so
+        // the displayed label drifts from the underlying value
+        // (Bug #8). Walk the options to find a matching one and pin
+        // selectedIndex explicitly. Fall back to el.value if no match
+        // (e.g. saved value isn't in the dropdown anymore).
+        var matched = false;
+        for (var i = 0; i < el.options.length; i++) {
+          if (el.options[i].value === strV) {
+            el.selectedIndex = i;
+            matched = true;
+            break;
+          }
+        }
+        if (!matched) el.value = strV;
+      } else if (el.value !== strV) {
+        el.value = strV;
       }
       el.dispatchEvent(new Event('change', { bubbles: true }));
       el.dispatchEvent(new Event('input',  { bubbles: true }));
@@ -262,12 +280,15 @@
   function autoSaveCurrent() {
     var name = getCurrentCaseName();
     var snapshot = captureFormState();
-    if (name) {
+    // Defense-in-depth against phantom saves: a 1-char client name is
+    // almost always an accident (mid-typing blur, stray paste). Treat
+    // anything shorter than 2 chars as the draft slot so the named
+    // dropdown doesn't fill with single-letter ghosts. (Bug #10.)
+    if (name && name.trim().length >= 2) {
       var cases = _safeGetJson(CASES_KEY, {}) || {};
       snapshot._savedAt = new Date().toISOString();
       cases[name] = snapshot;
       _safeSetJson(CASES_KEY, cases);
-      // Clear the un-named draft once we're saving under a real name.
       _safeRemove(WORKING_KEY);
       return { mode: 'case', name: name };
     }
