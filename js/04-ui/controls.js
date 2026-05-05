@@ -5,7 +5,7 @@
 //   - 'projection' : multi-year results table
 //   - 'allocator'  : year-1 allocator suggestions
 
-const PAGE_IDS = ['page-inputs', 'page-strategies', 'page-projection', 'page-allocator', 'page-supplemental'];
+const PAGE_IDS = ['page-inputs', 'page-strategies', 'page-projection', 'page-supplemental', 'page-allocator'];
 const PROJECTION_SUBPAGE_IDS = ['subpage-summary', 'subpage-details'];
 
 function showProjectionSubpage(id) {
@@ -868,6 +868,17 @@ function bindControls() {
   if (navAllocator)    navAllocator.addEventListener('click', () => showPage('page-allocator'));
   if (navSupplemental) navSupplemental.addEventListener('click', () => showPage('page-supplemental'));
 
+  // Pre-meeting questionnaire glyph swap. The summary line shows "+"
+  // when collapsed and "−" when expanded. Listen on the <details>'s
+  // toggle event and update the .prior-meeting-glyph text content.
+  var priorMeeting = document.getElementById('prior-meeting-questionnaire');
+  if (priorMeeting) {
+    var glyph = priorMeeting.querySelector('.prior-meeting-glyph');
+    priorMeeting.addEventListener('toggle', function () {
+      if (glyph) glyph.textContent = priorMeeting.open ? '−' : '+';
+    });
+  }
+
   // Strategy-selection page (between Inputs and Projection): three
   // cards, each with Interested / Not Interested. Currently NOT wired
   // to the engine — purely a presenter aid. The Continue button
@@ -917,7 +928,7 @@ function bindControls() {
         typeof window.RETTCaseStorage.saveWorkingState === 'function') {
       try { window.RETTCaseStorage.saveWorkingState(); } catch (e) { /* */ }
     }
-    showPage('page-allocator');
+    showPage('page-supplemental');
   });
   var strategiesBack = document.getElementById('strategies-back');
   if (strategiesBack) strategiesBack.addEventListener('click', function () { showPage('page-inputs'); });

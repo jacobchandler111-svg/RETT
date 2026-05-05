@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=1777600000072">
+  <link rel="stylesheet" href="css/styles.css?v=1777600000073">
 </head>
 <body>
   <a href="#page-inputs" class="skip-link">Skip to main content</a>
@@ -23,13 +23,30 @@
     <button id="nav-inputs" class="nav-tab active" role="tab" aria-selected="true" aria-controls="page-inputs" type="button">1. Client Inputs</button>
     <button id="nav-strategies" class="nav-tab" role="tab" aria-selected="false" aria-controls="page-strategies" type="button">2. Strategies</button>
     <button id="nav-projection" class="nav-tab" role="tab" aria-selected="false" aria-controls="page-projection" type="button">3. Projection</button>
-    <button id="nav-allocator" class="nav-tab" role="tab" aria-selected="false" aria-controls="page-allocator" type="button">4. Strategy Summary</button>
-    <button id="nav-supplemental" class="nav-tab" role="tab" aria-selected="false" aria-controls="page-supplemental" type="button">5. Supplemental Strategies</button>
+    <button id="nav-supplemental" class="nav-tab" role="tab" aria-selected="false" aria-controls="page-supplemental" type="button">4. Supplemental Strategies</button>
+    <button id="nav-allocator" class="nav-tab" role="tab" aria-selected="false" aria-controls="page-allocator" type="button">5. Strategy Summary</button>
   </nav>
 
   <main>
   <!-- ============ PAGE: CLIENT INPUTS ============ -->
   <section id="page-inputs" class="page active" role="tabpanel" aria-labelledby="nav-inputs">
+
+    <!-- Pre-meeting questionnaire — collapsed by default. The advisor or
+         client fills this out before the meeting; the meeting itself
+         doesn't walk through it. Flags here drive what populates on
+         Page 4 (Supplemental Strategies). Intentionally low-key UI: a
+         thin clickable line with a +/- glyph, no prominent header, so
+         it doesn't compete with the actual inputs below. -->
+    <details class="prior-meeting-questionnaire" id="prior-meeting-questionnaire">
+      <summary class="prior-meeting-summary">
+        <span class="prior-meeting-glyph" aria-hidden="true">+</span>
+        <span class="prior-meeting-hint">Pre-meeting questionnaire</span>
+      </summary>
+      <div class="prior-meeting-body" id="prior-meeting-questionnaire-host">
+        <p class="muted" style="margin:0;">Questions will be added here. Flags raised in this section populate Supplemental Strategies on tab&nbsp;4.</p>
+      </div>
+    </details>
+
     <h2>Client Financial Inputs</h2>
     <p class="subtitle">Enter the client&rsquo;s tax situation on the left. The right column shows what they would owe in 2026 if they did nothing &mdash; the baseline this engagement is trying to beat.</p>
 
@@ -618,74 +635,75 @@
        user picked on Page 3 via the "Use This Strategy" button (state
        on window.__rettChosenStrategy). If no pick exists, the
        renderer surfaces a prompt back to Page 3. -->
-  <section id="page-allocator" class="page" role="tabpanel" aria-labelledby="nav-allocator">
-    <div id="strategy-fee-summary-host" aria-live="polite"></div>
-  </section>
-
   <!-- ============ PAGE: SUPPLEMENTAL STRATEGIES ============
-       Placeholder for the next-meeting agenda: strategies beyond the
-       sale-side options modeled on Pages 1-4 (e.g. ordinary-income
-       offsets, charitable structures, retirement-side moves).
-       Empty for now; content lands as the strategy library grows. -->
+       Inserted between Projection (3) and Strategy Summary (5). The
+       sale-structure pick on Page 3 leads INTO supplemental options
+       applicable to this client's broader tax picture; whatever the
+       advisor adds here flows downstream into the Page-5 summary.
+       Content populated by the pre-meeting questionnaire on Page 1. -->
   <section id="page-supplemental" class="page" role="tabpanel" aria-labelledby="nav-supplemental">
     <div class="rett-summary-intro">
       <h2>Supplemental Strategies</h2>
-      <p>Beyond the sale-side options modeled in the prior pages, this section will introduce additional planning strategies for the client's broader tax picture &mdash; ordinary-income offsets, charitable structures, retirement-side moves, and others. Content is added as the strategy library grows.</p>
+      <p>Beyond the sale-side options modeled in the prior pages, this section introduces additional planning strategies for the client's broader tax picture &mdash; ordinary-income offsets, charitable structures, retirement-side moves, and others &mdash; based on the pre-meeting questionnaire flags.</p>
     </div>
     <div id="supplemental-strategies-host" aria-live="polite"></div>
+  </section>
+
+  <section id="page-allocator" class="page" role="tabpanel" aria-labelledby="nav-allocator">
+    <div id="strategy-fee-summary-host" aria-live="polite"></div>
   </section>
   </main>
 
   <!-- ============ Subsystem load order: 00 -> 01 -> 02 -> 03 -> 05 -> 04 ============ -->
   <!-- date-utils is loaded ahead of 00-data so schwab-strategies can use the
        shared parseLocalDate global instead of defining its own copy. -->
-  <script src="js/01-brooklyn/date-utils.js?v=1777600000072"></script>
-  <script src="js/00-data/custodians.js?v=1777600000072"></script>
-  <script src="js/00-data/schwab-strategies.js?v=1777600000072"></script>
-  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000072"></script>
-  <script src="js/01-brooklyn/time-weight.js?v=1777600000072"></script>
-  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000072"></script>
-  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000072"></script>
+  <script src="js/01-brooklyn/date-utils.js?v=1777600000073"></script>
+  <script src="js/00-data/custodians.js?v=1777600000073"></script>
+  <script src="js/00-data/schwab-strategies.js?v=1777600000073"></script>
+  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000073"></script>
+  <script src="js/01-brooklyn/time-weight.js?v=1777600000073"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000073"></script>
+  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000073"></script>
 
-  <script src="js/02-tax-engine/tax-data.js?v=1777600000072"></script>
-  <script src="js/02-tax-engine/tax-loader.js?v=1777600000072"></script>
-  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000072"></script>
-  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000072"></script>
-  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000072"></script>
-  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000072"></script>
+  <script src="js/02-tax-engine/tax-data.js?v=1777600000073"></script>
+  <script src="js/02-tax-engine/tax-loader.js?v=1777600000073"></script>
+  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000073"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000073"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000073"></script>
+  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000073"></script>
 
-  <script src="js/03-solver/fees.js?v=1777600000072"></script>
-  <script src="js/03-solver/fee-split.js?v=1777600000072"></script>
-  <script src="js/03-solver/brookhaven-fees.js?v=1777600000072"></script>
-  <script src="js/03-solver/single-year-solver.js?v=1777600000072"></script>
-  <script src="js/03-solver/multi-year-solver.js?v=1777600000072"></script>
-  <script src="js/03-solver/structured-sale.js?v=1777600000072"></script>
-  <script src="js/03-solver/decision-engine.js?v=1777600000072"></script>
+  <script src="js/03-solver/fees.js?v=1777600000073"></script>
+  <script src="js/03-solver/fee-split.js?v=1777600000073"></script>
+  <script src="js/03-solver/brookhaven-fees.js?v=1777600000073"></script>
+  <script src="js/03-solver/single-year-solver.js?v=1777600000073"></script>
+  <script src="js/03-solver/multi-year-solver.js?v=1777600000073"></script>
+  <script src="js/03-solver/structured-sale.js?v=1777600000073"></script>
+  <script src="js/03-solver/decision-engine.js?v=1777600000073"></script>
 
-  <script src="js/05-projections/carryforward-tracker.js?v=1777600000072"></script>
-  <script src="js/05-projections/projection-engine.js?v=1777600000072"></script>
+  <script src="js/05-projections/carryforward-tracker.js?v=1777600000073"></script>
+  <script src="js/05-projections/projection-engine.js?v=1777600000073"></script>
 
   <!-- format-helpers loads first inside 04-ui so every renderer can use
        fmtUSD / fmtPct / fmtNum directly without a defensive fallback. -->
-  <script src="js/04-ui/format-helpers.js?v=1777600000072"></script>
-  <script src="js/04-ui/money-format.js?v=1777600000072"></script>
-  <script src="js/04-ui/banner.js?v=1777600000072"></script>
-  <script src="js/04-ui/number-animator.js?v=1777600000072"></script>
-  <script src="js/04-ui/case-storage.js?v=1777600000072"></script>
-  <script src="js/04-ui/pill-toggles.js?v=1777600000072"></script>
-  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000072"></script>
-  <script src="js/04-ui/input-validation.js?v=1777600000072"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1777600000072"></script>
-  <script src="js/04-ui/controls.js?v=1777600000072"></script>
-  <script src="js/04-ui/recommendation-render.js?v=1777600000072"></script>
-  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000072"></script>
-  <script src="js/04-ui/savings-ribbon.js?v=1777600000072"></script>
-  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000072"></script>
-  <script src="js/04-ui/narrative-render.js?v=1777600000072"></script>
-  <script src="js/04-ui/strategy-summary-render.js?v=1777600000072"></script>
-  <script src="js/04-ui/baseline-table.js?v=1777600000072"></script>
+  <script src="js/04-ui/format-helpers.js?v=1777600000073"></script>
+  <script src="js/04-ui/money-format.js?v=1777600000073"></script>
+  <script src="js/04-ui/banner.js?v=1777600000073"></script>
+  <script src="js/04-ui/number-animator.js?v=1777600000073"></script>
+  <script src="js/04-ui/case-storage.js?v=1777600000073"></script>
+  <script src="js/04-ui/pill-toggles.js?v=1777600000073"></script>
+  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000073"></script>
+  <script src="js/04-ui/input-validation.js?v=1777600000073"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1777600000073"></script>
+  <script src="js/04-ui/controls.js?v=1777600000073"></script>
+  <script src="js/04-ui/recommendation-render.js?v=1777600000073"></script>
+  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000073"></script>
+  <script src="js/04-ui/savings-ribbon.js?v=1777600000073"></script>
+  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000073"></script>
+  <script src="js/04-ui/narrative-render.js?v=1777600000073"></script>
+  <script src="js/04-ui/strategy-summary-render.js?v=1777600000073"></script>
+  <script src="js/04-ui/baseline-table.js?v=1777600000073"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1777600000072"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1777600000073"></script>
 </body>
 </html>

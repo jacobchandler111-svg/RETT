@@ -1983,7 +1983,7 @@
     var cls = 'rett-interested-card' + (chosen ? ' is-chosen' : '');
     var chooseBtn =
       '<button type="button" class="rett-use-strategy-btn" data-use-strategy="' + typeLabel + '">' +
-        (chosen ? '✓ Selected for Strategy Summary' : 'Use This Strategy &rarr;') +
+        (chosen ? '✓ Selected &mdash; continue to Supplemental' : 'Use This Strategy &rarr;') +
       '</button>';
     var summaryLabel = (typeLabel === 'C') ? 'Show payment schedule' : 'Show details';
     var detailsBody = (typeLabel === 'C')

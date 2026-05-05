@@ -1858,6 +1858,54 @@ body { font-size: 16px; }
     max-width: 800px;
 }
 
+/* Pre-meeting questionnaire — collapsed thin-line accordion above the
+   Client Inputs heading. Intentionally low-key so it doesn't pull
+   attention from the inputs below. */
+.prior-meeting-questionnaire {
+    margin: 0 0 16px 0;
+    border: 1px solid var(--rule-soft);
+    border-radius: 2px;
+    background: var(--paper);
+}
+.prior-meeting-summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--font-mono);
+    font-size: 0.78em;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    user-select: none;
+    transition: background 0.15s, color 0.15s;
+}
+.prior-meeting-summary::-webkit-details-marker { display: none; }
+.prior-meeting-summary:hover {
+    background: var(--paper-warm);
+    color: var(--ink);
+}
+.prior-meeting-glyph {
+    font-family: var(--font-mono);
+    font-size: 1.4em;
+    line-height: 1;
+    width: 18px;
+    text-align: center;
+    color: var(--bh-blue-deep);
+    font-weight: 700;
+    display: inline-block;
+}
+.prior-meeting-hint {
+    font-weight: 600;
+}
+.prior-meeting-body {
+    padding: 14px 18px 16px;
+    border-top: 1px solid var(--rule-soft);
+    background: var(--paper-warm);
+}
+
 /* ============== INPUT-SECTION LAYOUT (2-column form, mirrors reference) ============== */
 .inputs-layout {
     display: grid;
