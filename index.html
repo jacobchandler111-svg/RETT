@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=1777600000137">
+  <link rel="stylesheet" href="css/styles.css?v=1777600000138">
   <!-- html2pdf.js: turns the page-allocator DOM into a downloadable
        PDF on click. Bundled build (includes html2canvas + jsPDF).
        Script loads async/defer-friendly; window.html2pdf is the
@@ -25,12 +25,12 @@
   <div id="app-banner" class="app-banner" role="alert" aria-live="assertive" hidden></div>
 
   <nav class="nav" role="tablist" aria-label="Workflow steps">
-    <button id="nav-pmq" class="nav-tab active" role="tab" aria-selected="true" aria-controls="page-pmq" type="button">1. Pre-Meeting</button>
-    <button id="nav-inputs" class="nav-tab" role="tab" aria-selected="false" aria-controls="page-inputs" type="button">2. Client Inputs</button>
-    <button id="nav-strategies" class="nav-tab" role="tab" aria-selected="false" aria-controls="page-strategies" type="button">3. Strategies</button>
-    <button id="nav-projection" class="nav-tab" role="tab" aria-selected="false" aria-controls="page-projection" type="button">4. Projection</button>
-    <button id="nav-supplemental" class="nav-tab" role="tab" aria-selected="false" aria-controls="page-supplemental" type="button">5. Supplemental Strategies</button>
-    <button id="nav-allocator" class="nav-tab" role="tab" aria-selected="false" aria-controls="page-allocator" type="button">6. Strategy Summary</button>
+    <button id="nav-pmq" class="nav-tab active" role="tab" aria-selected="true" aria-controls="page-pmq" type="button">0. Pre-Meeting</button>
+    <button id="nav-inputs" class="nav-tab" role="tab" aria-selected="false" aria-controls="page-inputs" type="button">1. Client Inputs</button>
+    <button id="nav-strategies" class="nav-tab" role="tab" aria-selected="false" aria-controls="page-strategies" type="button">2. Strategies</button>
+    <button id="nav-projection" class="nav-tab" role="tab" aria-selected="false" aria-controls="page-projection" type="button">3. Projection</button>
+    <button id="nav-supplemental" class="nav-tab" role="tab" aria-selected="false" aria-controls="page-supplemental" type="button">4. Supplemental Strategies</button>
+    <button id="nav-allocator" class="nav-tab" role="tab" aria-selected="false" aria-controls="page-allocator" type="button">5. Strategy Summary</button>
   </nav>
 
   <main>
@@ -41,32 +41,12 @@
        supplemental strategies surface on Page 4. The compact icons
        expand inline when clicked to reveal the dropzone. -->
   <section id="page-pmq" class="page active" role="tabpanel" aria-labelledby="nav-pmq">
+    <!-- Pre-Meeting only carries the CLIENT FORM compact dropzone
+         (questionnaire JSON / future QR-code flow). The TAX DOC
+         (Gemini PDF reader) lives on Client Inputs since that's
+         the page it populates. -->
     <div class="pmq-compact-host" id="prior-meeting-questionnaire-host">
-      <details class="pmq-compact" id="pmq-tax-compact">
-        <summary class="pmq-compact-summary" aria-label="Tax Document Import">
-          <span class="pmq-compact-icon" aria-hidden="true">&#128196;</span>
-          <span class="pmq-compact-tag">TAX DOC</span>
-        </summary>
-        <div class="pmq-compact-body">
-          <div class="pmq-section-head">
-            <span class="pmq-section-title">Tax Document Import</span>
-            <span class="pmq-badge">Gemini API &mdash; Google AI</span>
-          </div>
-          <p class="pmq-desc">Drop the client&rsquo;s W-2 or 1040 PDF. Gemini reads the document and pre-fills the income fields on Client Inputs.</p>
-          <div class="pmq-dropzone" id="pmq-tax-drop">
-            <div class="pmq-drop-icon" aria-hidden="true">&#128196;</div>
-            <span class="pmq-drop-label">Drag &amp; drop W-2 or 1040 PDF</span>
-            <span class="pmq-drop-sub">or <label for="pmq-tax-file" class="pmq-browse-link">browse to select</label> &mdash; PDF or image</span>
-            <input type="file" id="pmq-tax-file" class="pmq-file-input" accept=".pdf,image/jpeg,image/png,image/webp">
-          </div>
-          <div class="pmq-api-key-row">
-            <label for="pmq-gemini-key" class="pmq-key-label">Gemini API key</label>
-            <input type="password" id="pmq-gemini-key" class="pmq-key-input" placeholder="Paste key from ai.google.dev (saved locally)">
-          </div>
-          <div id="pmq-tax-status" class="pmq-status" hidden></div>
-        </div>
-      </details>
-      <details class="pmq-compact" id="pmq-questionnaire-compact">
+      <details class="pmq-compact pmq-compact-side" id="pmq-questionnaire-compact">
         <summary class="pmq-compact-summary" aria-label="Client Questionnaire Import">
           <span class="pmq-compact-icon" aria-hidden="true">&#10003;</span>
           <span class="pmq-compact-tag">CLIENT FORM</span>
@@ -106,6 +86,36 @@
 
   <!-- ============ PAGE: CLIENT INPUTS ============ -->
   <section id="page-inputs" class="page" role="tabpanel" aria-labelledby="nav-inputs">
+
+    <!-- TAX DOC compact icon — top-right of Client Inputs since
+         this is the page its data populates. Click to expand the
+         dropzone to the left of the icon (icon stays in place). -->
+    <div class="pmq-compact-host">
+      <details class="pmq-compact pmq-compact-side" id="pmq-tax-compact">
+        <summary class="pmq-compact-summary" aria-label="Tax Document Import">
+          <span class="pmq-compact-icon" aria-hidden="true">&#128196;</span>
+          <span class="pmq-compact-tag">TAX DOC</span>
+        </summary>
+        <div class="pmq-compact-body">
+          <div class="pmq-section-head">
+            <span class="pmq-section-title">Tax Document Import</span>
+            <span class="pmq-badge">Gemini API &mdash; Google AI</span>
+          </div>
+          <p class="pmq-desc">Drop the client&rsquo;s W-2 or 1040 PDF. Gemini reads the document and pre-fills the income fields below.</p>
+          <div class="pmq-dropzone" id="pmq-tax-drop">
+            <div class="pmq-drop-icon" aria-hidden="true">&#128196;</div>
+            <span class="pmq-drop-label">Drag &amp; drop W-2 or 1040 PDF</span>
+            <span class="pmq-drop-sub">or <label for="pmq-tax-file" class="pmq-browse-link">browse to select</label> &mdash; PDF or image</span>
+            <input type="file" id="pmq-tax-file" class="pmq-file-input" accept=".pdf,image/jpeg,image/png,image/webp">
+          </div>
+          <div class="pmq-api-key-row">
+            <label for="pmq-gemini-key" class="pmq-key-label">Gemini API key</label>
+            <input type="password" id="pmq-gemini-key" class="pmq-key-input" placeholder="Paste key from ai.google.dev (saved locally)">
+          </div>
+          <div id="pmq-tax-status" class="pmq-status" hidden></div>
+        </div>
+      </details>
+    </div>
 
     <h2 class="page-inputs-title">Client Financial Inputs</h2>
 
@@ -763,13 +773,16 @@
       <h2>Supplemental Strategies</h2>
       <button type="button" class="btn btn-primary supp-advance-btn" onclick="document.getElementById('nav-allocator').click()">Advance to Strategy Summary &rarr;</button>
     </header>
-    <div id="supplemental-strategies-host" aria-live="polite"></div>
-
-    <!-- Additional supplemental strategies (placeholders until math
-         lands). Same card style as the existing oilGas/delphi cards
-         so they line up in the 3-col grid. The supplemental-extra-
-         render.js module owns this host. -->
-    <div id="supplemental-extra-host" aria-live="polite"></div>
+    <!-- Both hosts wrapped in a single grid container so the 10
+         cards (2 from supplemental-render + 8 from supplemental-
+         extra-render) flow continuously across rows of 3 instead
+         of breaking into two separate grids. Each host + its inner
+         .supp-strategies-grid use display:contents so their cards
+         become direct children of .supp-all-grid. -->
+    <div class="supp-all-grid">
+      <div id="supplemental-strategies-host" aria-live="polite"></div>
+      <div id="supplemental-extra-host" aria-live="polite"></div>
+    </div>
 
     <div class="page-supplemental-actions">
       <button type="button" id="supplemental-continue" class="btn btn-primary">Continue to Summary &rarr;</button>
@@ -811,67 +824,67 @@
   <!-- ============ Subsystem load order: 00 -> 01 -> 02 -> 03 -> 05 -> 04 ============ -->
   <!-- date-utils is loaded ahead of 00-data so schwab-strategies can use the
        shared parseLocalDate global instead of defining its own copy. -->
-  <script src="js/01-brooklyn/date-utils.js?v=1777600000137"></script>
-  <script src="js/00-data/custodians.js?v=1777600000137"></script>
-  <script src="js/00-data/schwab-strategies.js?v=1777600000137"></script>
-  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000137"></script>
-  <script src="js/01-brooklyn/time-weight.js?v=1777600000137"></script>
-  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000137"></script>
-  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000137"></script>
+  <script src="js/01-brooklyn/date-utils.js?v=1777600000138"></script>
+  <script src="js/00-data/custodians.js?v=1777600000138"></script>
+  <script src="js/00-data/schwab-strategies.js?v=1777600000138"></script>
+  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000138"></script>
+  <script src="js/01-brooklyn/time-weight.js?v=1777600000138"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000138"></script>
+  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000138"></script>
 
-  <script src="js/02-tax-engine/tax-data.js?v=1777600000137"></script>
-  <script src="js/02-tax-engine/tax-loader.js?v=1777600000137"></script>
-  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000137"></script>
-  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000137"></script>
-  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000137"></script>
-  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000137"></script>
+  <script src="js/02-tax-engine/tax-data.js?v=1777600000138"></script>
+  <script src="js/02-tax-engine/tax-loader.js?v=1777600000138"></script>
+  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000138"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000138"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000138"></script>
+  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000138"></script>
 
-  <script src="js/03-solver/fees.js?v=1777600000137"></script>
-  <script src="js/03-solver/fee-split.js?v=1777600000137"></script>
-  <script src="js/03-solver/brookhaven-fees.js?v=1777600000137"></script>
-  <script src="js/03-solver/single-year-solver.js?v=1777600000137"></script>
-  <script src="js/03-solver/multi-year-solver.js?v=1777600000137"></script>
-  <script src="js/03-solver/structured-sale.js?v=1777600000137"></script>
-  <script src="js/03-solver/calc-oil-gas.js?v=1777600000137"></script>
-  <script src="js/03-solver/calc-delphi.js?v=1777600000137"></script>
-  <script src="js/03-solver/decision-engine.js?v=1777600000137"></script>
+  <script src="js/03-solver/fees.js?v=1777600000138"></script>
+  <script src="js/03-solver/fee-split.js?v=1777600000138"></script>
+  <script src="js/03-solver/brookhaven-fees.js?v=1777600000138"></script>
+  <script src="js/03-solver/single-year-solver.js?v=1777600000138"></script>
+  <script src="js/03-solver/multi-year-solver.js?v=1777600000138"></script>
+  <script src="js/03-solver/structured-sale.js?v=1777600000138"></script>
+  <script src="js/03-solver/calc-oil-gas.js?v=1777600000138"></script>
+  <script src="js/03-solver/calc-delphi.js?v=1777600000138"></script>
+  <script src="js/03-solver/decision-engine.js?v=1777600000138"></script>
   <!-- Master solver registry + Page-5 supplemental defaults. master-solver
        declares register*/list*/runMasterSolver; supplemental-defaults uses
        those to register Oil & Gas. Future supplemental strategies append
        to supplemental-defaults — calc-* modules don't reach into this. -->
-  <script src="js/03-solver/master-solver.js?v=1777600000137"></script>
-  <script src="js/03-solver/supplemental-defaults.js?v=1777600000137"></script>
-  <script src="js/03-solver/supplemental-investment-shims.js?v=1777600000137"></script>
+  <script src="js/03-solver/master-solver.js?v=1777600000138"></script>
+  <script src="js/03-solver/supplemental-defaults.js?v=1777600000138"></script>
+  <script src="js/03-solver/supplemental-investment-shims.js?v=1777600000138"></script>
 
-  <script src="js/05-projections/carryforward-tracker.js?v=1777600000137"></script>
-  <script src="js/05-projections/projection-engine.js?v=1777600000137"></script>
+  <script src="js/05-projections/carryforward-tracker.js?v=1777600000138"></script>
+  <script src="js/05-projections/projection-engine.js?v=1777600000138"></script>
 
   <!-- format-helpers loads first inside 04-ui so every renderer can use
        fmtUSD / fmtPct / fmtNum directly without a defensive fallback. -->
-  <script src="js/04-ui/format-helpers.js?v=1777600000137"></script>
-  <script src="js/04-ui/money-format.js?v=1777600000137"></script>
-  <script src="js/04-ui/banner.js?v=1777600000137"></script>
-  <script src="js/04-ui/number-animator.js?v=1777600000137"></script>
-  <script src="js/04-ui/case-storage.js?v=1777600000137"></script>
-  <script src="js/04-ui/pill-toggles.js?v=1777600000137"></script>
-  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000137"></script>
-  <script src="js/04-ui/input-validation.js?v=1777600000137"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1777600000137"></script>
-  <script src="js/04-ui/controls.js?v=1777600000137"></script>
-  <script src="js/04-ui/recommendation-render.js?v=1777600000137"></script>
-  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000137"></script>
-  <script src="js/04-ui/savings-ribbon.js?v=1777600000137"></script>
-  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000137"></script>
-  <script src="js/04-ui/narrative-render.js?v=1777600000137"></script>
-  <script src="js/04-ui/strategy-summary-render.js?v=1777600000137"></script>
-  <script src="js/04-ui/baseline-table.js?v=1777600000137"></script>
-  <script src="js/04-ui/supplemental-render.js?v=1777600000137"></script>
-  <script src="js/04-ui/supplemental-extra-render.js?v=1777600000137"></script>
+  <script src="js/04-ui/format-helpers.js?v=1777600000138"></script>
+  <script src="js/04-ui/money-format.js?v=1777600000138"></script>
+  <script src="js/04-ui/banner.js?v=1777600000138"></script>
+  <script src="js/04-ui/number-animator.js?v=1777600000138"></script>
+  <script src="js/04-ui/case-storage.js?v=1777600000138"></script>
+  <script src="js/04-ui/pill-toggles.js?v=1777600000138"></script>
+  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000138"></script>
+  <script src="js/04-ui/input-validation.js?v=1777600000138"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1777600000138"></script>
+  <script src="js/04-ui/controls.js?v=1777600000138"></script>
+  <script src="js/04-ui/recommendation-render.js?v=1777600000138"></script>
+  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000138"></script>
+  <script src="js/04-ui/savings-ribbon.js?v=1777600000138"></script>
+  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000138"></script>
+  <script src="js/04-ui/narrative-render.js?v=1777600000138"></script>
+  <script src="js/04-ui/strategy-summary-render.js?v=1777600000138"></script>
+  <script src="js/04-ui/baseline-table.js?v=1777600000138"></script>
+  <script src="js/04-ui/supplemental-render.js?v=1777600000138"></script>
+  <script src="js/04-ui/supplemental-extra-render.js?v=1777600000138"></script>
 
-  <script src="js/04-ui/pmq-handler.js?v=1777600000137"></script>
-  <script src="js/04-ui/pmq-questions.js?v=1777600000137"></script>
+  <script src="js/04-ui/pmq-handler.js?v=1777600000138"></script>
+  <script src="js/04-ui/pmq-questions.js?v=1777600000138"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1777600000137"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1777600000138"></script>
 </body>
 </html>

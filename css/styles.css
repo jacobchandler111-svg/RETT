@@ -1946,17 +1946,43 @@ body { font-size: 16px; }
     user-select: none;
     padding: 6px;
     box-sizing: border-box;
+    transition: background 0.15s;
 }
 .pmq-compact-summary::-webkit-details-marker { display: none; }
-.pmq-compact[open] .pmq-compact-summary {
-    width: 100%;
-    height: auto;
-    flex-direction: row;
-    justify-content: flex-start;
-    gap: 10px;
-    padding: 10px 14px;
-    border-bottom: 1px solid var(--rule-soft);
-    background: var(--paper-warm);
+/* When OPEN: the summary stays a 64×64 button, but background flips
+   to indicate it's active. The body floats out as an absolute panel
+   to the LEFT of the button (per advisor spec: "still a button, the
+   dropdown moves to the left of it"). Click again closes; the panel
+   removes, the button stays put. */
+.pmq-compact-side {
+    position: relative;
+}
+.pmq-compact-side[open] .pmq-compact-summary {
+    background: var(--bh-blue-deep);
+    color: var(--paper);
+}
+.pmq-compact-side[open] .pmq-compact-tag {
+    color: var(--paper);
+}
+.pmq-compact-side[open] .pmq-compact-icon {
+    color: var(--paper);
+}
+.pmq-compact-side .pmq-compact-body {
+    /* Hidden when closed (browser default), absolutely positioned
+       to the left of the icon when open. */
+    position: absolute;
+    right: calc(100% + 8px);
+    top: 0;
+    width: 360px;
+    max-width: 90vw;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    z-index: 10;
+    /* Keeps the panel readable across viewports — overflow lets long
+       PDF filenames wrap inside instead of pushing the layout. */
+    overflow: hidden;
 }
 .pmq-compact-icon { font-size: 1.3em; line-height: 1; }
 .pmq-compact-tag {
@@ -5613,8 +5639,27 @@ body { font-size: 16px; }
     border-left: 2px solid var(--rule);
     border-radius: 2px;
 }
-#supplemental-extra-host {
+/* Continuous 3-per-row grid spanning both supplemental hosts.
+   Cards from #supplemental-strategies-host (oilGas + delphi) and
+   #supplemental-extra-host (the 8 placeholder cards) flow into the
+   same grid track via display: contents on both hosts and their
+   inner .supp-strategies-grid wrappers. So 10 cards lay out as
+   3-3-3-1 instead of 2 + 3-3-2. */
+.supp-all-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 22px;
+    align-items: stretch;
     margin-top: 24px;
+}
+.supp-all-grid > #supplemental-strategies-host,
+.supp-all-grid > #supplemental-extra-host { display: contents; }
+.supp-all-grid .supp-strategies-grid { display: contents; }
+@media (max-width: 1000px) {
+    .supp-all-grid { grid-template-columns: 1fr; }
+}
+#supplemental-extra-host {
+    margin-top: 0; /* parent grid handles row gap */
 }
 .pmq-question-host {
     margin: 24px 0;
