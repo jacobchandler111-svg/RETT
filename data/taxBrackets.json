@@ -1518,7 +1518,11 @@
           "single": 0,
           "married_joint": 0
         },
-        "note": "NJ uses personal exemptions"
+        "note": "NJ uses personal exemptions",
+        "stateLtcg": {
+          "disconformLossOffset": true,
+          "_source": "NJSA 54A:5-2 \u2014 NJ Gross Income Tax categorizes income; capital losses offset only capital gains, not ordinary income. Verified 2026-05-05 against NJ Division of Taxation guidance."
+        }
       },
       "NM": {
         "brackets": {
@@ -3356,6 +3360,10 @@
         "standardDeduction": {
           "single": 0,
           "married_joint": 0
+        },
+        "stateLtcg": {
+          "disconformLossOffset": true,
+          "_source": "NJSA 54A:5-2 \u2014 NJ Gross Income Tax categorizes income; capital losses offset only capital gains, not ordinary income. Verified 2026-05-05 against NJ Division of Taxation guidance."
         }
       },
       "NM": {
