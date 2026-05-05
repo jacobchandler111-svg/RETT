@@ -2133,26 +2133,6 @@ body { font-size: 16px; }
 }
 .baseline-footnotes p:last-child { margin-bottom: 0; }
 
-/* Page-1 right column simplified to a single headline number — no
-   breakdown rows, no footnote. The number is the answer; everything
-   else was noise during the meeting. */
-.baseline-total-display {
-    padding: 36px 28px 40px;
-    background: var(--ink);
-    text-align: center;
-}
-.baseline-total-amount {
-    display: block;
-    font-family: var(--font-display);
-    font-style: italic;
-    font-weight: 500;
-    font-size: 4em;
-    color: var(--paper);
-    letter-spacing: -0.02em;
-    line-height: 1.05;
-    font-variant-numeric: tabular-nums;
-}
-
 /* Bigger Client Financial Inputs heading per spec — the page subtitle
    was removed, so the heading itself carries the section weight. */
 .page-inputs-title {
