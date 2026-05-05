@@ -3833,6 +3833,9 @@ body { font-size: 16px; }
        Strategy cards so the two read as distinct blocks rather than a
        single divided container. */
     gap: 40px;
+    /* align-items: stretch ensures both cards fill the same height —
+       when Selected Strategy has fewer rows than Supplemental, its
+       inner body grows to match the taller card's bottom edge. */
     align-items: stretch;
     /* Big buffer below the row — when the cards are in view in the
        middle of the screen, the No-Planning / With-Planning tiles
@@ -3841,14 +3844,62 @@ body { font-size: 16px; }
 }
 .forward-top-row > .input-section {
     margin: 0;
-    /* Beefed-up cards: a touch more padding and a softer shadow so
-       they feel like they're sitting ON the page, not embedded in it. */
-    padding: 22px 24px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    /* Bigger cards per advisor request — more padding, deeper shadow,
+       so the two anchor blocks of the page feel substantial. */
+    padding: 28px 30px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
 }
 .forward-strategy-card {
     /* Solo (no supplemental) layout still needs the same buffer. */
     margin-bottom: 72px !important;
+}
+/* Selected Strategy body grows to fill the available height so the
+   card matches its sibling's bottom edge even with fewer rows. The
+   rows space themselves out evenly so the empty space distributes
+   between Strategy and Asset Manager rather than piling up at the
+   bottom. */
+.forward-strategy-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 18px;
+}
+.forward-strategy-row {
+    /* Bigger row labels + values per advisor spec */
+    font-size: 1.05em;
+}
+.forward-strategy-row .label {
+    font-size: 1.1em;
+    font-weight: 600;
+}
+.forward-strategy-row .label .sub {
+    font-size: 0.78em;
+    font-weight: 400;
+}
+.forward-strategy-name {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 1.7em !important;
+    line-height: 1.1;
+    color: var(--bh-blue-deep);
+}
+.forward-strategy-leverage {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 1.7em !important;
+    line-height: 1.1;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+}
+.forward-top-row > .input-section .section-heading {
+    margin-bottom: 16px;
+}
+.forward-top-row > .input-section .section-heading h2 {
+    font-size: 1.5em;
 }
 @media (max-width: 900px) {
     .forward-top-row { grid-template-columns: 1fr; }
@@ -4012,11 +4063,17 @@ body { font-size: 16px; }
     font-weight: 600;
     margin-bottom: 12px;
 }
+.forward-net-hero {
+    /* A bit more padding so the bigger amount has breathing room */
+    padding: 40px 32px 36px;
+}
 .forward-net-hero .net-hero-amt {
     font-family: var(--font-display);
     font-style: italic;
     font-weight: 500;
-    font-size: 84px;
+    /* Bumped from 84px → 108px per advisor spec; this is now the
+       single largest dollar figure on the page, anchoring the eye. */
+    font-size: 108px;
     line-height: 1;
     letter-spacing: -0.03em;
     color: var(--paper);

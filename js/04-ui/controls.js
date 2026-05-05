@@ -771,7 +771,36 @@ function runFullPipeline() {
     try {
       var cfg = _buildEngineCfg();
       if (cfg) {
-        window.__lastResult = ProjectionEngine.run(cfg);
+        // Two-pass optimizer wiring: run the engine once at the user's
+        // requested investment to learn cumulative Brooklyn loss, then
+        // ask runBrooklynOptimizer whether to dial back. If yes, re-run
+        // at the recommended investment so cumulativeNetSavings,
+        // cumulativeFees, and the Details table all reflect the
+        // dialed-back position. Without this, the projection engine's
+        // totals could disagree with Page-5 hero numbers (which apply
+        // the optimizer at buildInterestedSummary time).
+        //
+        // Skipped when the optimizer module isn't loaded (older saved
+        // flows) or when there's no absorbable gain (no sale data) —
+        // in both cases the user's requested investment wins.
+        var firstPass = ProjectionEngine.run(cfg);
+        var firstLoss = (firstPass && firstPass.years)
+          ? firstPass.years.reduce(function (s, y) { return s + (y.grossLoss || 0); }, 0)
+          : 0;
+        if (typeof window.runBrooklynOptimizer === 'function' && firstLoss > 0) {
+          var opt = window.runBrooklynOptimizer(cfg, firstLoss);
+          if (opt && opt.dialBack && opt.recommendedInvestment >= 0
+              && opt.recommendedInvestment < cfg.investment) {
+            cfg = Object.assign({}, cfg, { investment: opt.recommendedInvestment });
+            window.__lastResult = ProjectionEngine.run(cfg);
+            window.__lastResult._optimizerApplied = opt;
+          } else {
+            window.__lastResult = firstPass;
+            window.__lastResult._optimizerApplied = opt || null;
+          }
+        } else {
+          window.__lastResult = firstPass;
+        }
         if (typeof renderProjectionDashboard === 'function') renderProjectionDashboard();
       }
     } catch (e) { (window.reportFailure || console.warn)('Projection render failed', e); }

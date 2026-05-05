@@ -188,39 +188,34 @@
     // doesn't need the explanation, just the optimized numbers.
 
     // ============ TOP ROW: Selected Strategy + Supplemental Strategies ============
-    // Lockup label varies by strategy:
-    //   A (Sell Now): no lockup — Brooklyn opens at sale and runs the
-    //     normal projection horizon. Show "Immediate" rather than a
-    //     lockup duration since there's no structured product to wait on.
-    //   B (Seller Finance): the deferral window is the gap from sale
-    //     date to Jan 1 of next year. Use bestRecC if set, else fall
-    //     back to 'Until Jan 1'.
-    //   C (Structured Sale): the dial-up engine pins the duration; use
-    //     it directly so the label matches what was solved.
-    var lockupText;
-    if (entry.type === 'C') {
-      lockupText = dur + ' months lockup';
-    } else if (entry.type === 'B') {
-      lockupText = 'Until Jan 1';
-    } else {
-      lockupText = 'Immediate';
-    }
+    // Asset Manager / leverage label — long%/short% pair. The chosen
+    // leverage is the most useful single number to surface (per advisor
+    // spec); lockup duration moved to the strategy descriptor sub-text.
+    //   beta0 (market neutral): long = short
+    //   beta1 (default):        long = 100 + short
+    var shortPct = (picked && Number.isFinite(picked.shortPct))
+      ? picked.shortPct
+      : (Number.isFinite(currentCfg.customShortPct)
+          ? currentCfg.customShortPct
+          : (Number(currentCfg.leverage) || 1) * 100);
+    var longPct = (currentCfg.tierKey === 'beta0') ? shortPct : 100 + shortPct;
+    var leverageLabel = Math.round(longPct) + '/' + Math.round(shortPct);
     var hasSupps = !!(enabledSupplements.length || (solverOut && solverOut.anyInterested));
     var selectedStrategyHtml = '<div class="input-section forward-strategy-card">' +
       '<div class="section-heading">' +
         '<h2>Selected Strategy</h2>' +
         '<span class="num">STRATEGY ' + _stratNum(entry.type) + '</span>' +
       '</div>' +
-      '<div class="section-body">' +
-        '<div class="input-row">' +
+      '<div class="section-body forward-strategy-body">' +
+        '<div class="input-row forward-strategy-row">' +
           '<div class="label">Strategy<span class="sub">' + _strategyDescriptor(entry.type) + '</span></div>' +
-          '<div class="forward-fee-display" style="font-family:var(--font-display);font-style:italic;font-size:1.4em;">' +
+          '<div class="forward-fee-display forward-strategy-name">' +
             _stratName(entry.type) +
           '</div>' +
         '</div>' +
-        '<div class="input-row">' +
-          '<div class="label">Asset Manager</div>' +
-          '<div class="forward-balance" style="font-size:0.95em;">' + lockupText + '</div>' +
+        '<div class="input-row forward-strategy-row">' +
+          '<div class="label">Asset Manager<span class="sub">long &percnt; / short &percnt;</span></div>' +
+          '<div class="forward-balance forward-strategy-leverage">' + leverageLabel + '</div>' +
         '</div>' +
       '</div>' +
     '</div>';
@@ -254,16 +249,12 @@
       ? _fmtMultiplier(savings / fees) + '<span class="rop-x">&times;</span>'
       : '—';
     // The hero of Page 5 is now Net Benefit — large, shaded, centered.
-    // No-Planning and With-Planning sit beneath it as small white tiles
-    // showing the walkaway numbers (the "where this came from" context).
-    // The You-Save / Total-Fees row was removed per advisor spec —
-    // those numbers are derivable and weren't paying their visual rent.
+    // The walkaway tiles (No Planning / With Planning) sit ABOVE the
+    // hero as small white tiles, providing the "before-and-after"
+    // context that primes the client to read the Net Benefit dollar.
+    // The You-Save / Total-Fees row was removed per advisor spec.
     html += '<div class="forward-rop-row">' +
       '<div class="forward-rop-left">' +
-        '<div class="forward-net-hero">' +
-          '<div class="net-hero-label">Net Benefit</div>' +
-          '<div class="net-hero-amt"><span class="currency">$</span>' + Math.round(net).toLocaleString('en-US') + '</div>' +
-        '</div>' +
         '<div class="forward-walkaway forward-walkaway-compact">' +
           '<div class="walkaway-grid">' +
             '<div class="walkaway-side noplan">' +
@@ -278,6 +269,10 @@
             '</div>' +
           '</div>' +
         '</div>' +
+        '<div class="forward-net-hero">' +
+          '<div class="net-hero-label">Net Benefit</div>' +
+          '<div class="net-hero-amt"><span class="currency">$</span>' + Math.round(net).toLocaleString('en-US') + '</div>' +
+        '</div>' +
       '</div>' +
       '<div class="forward-rop-square">' +
         '<div class="rop-label">Return on Planning</div>' +
@@ -286,22 +281,19 @@
       '</div>' +
     '</div>';
 
-    // ============ Future Sale optimization callout ============
-    // The solver already picked the optimal investment for the current
-    // sale. If the client also has a future appreciated-asset sale
-    // coming up (Page 1 Section 07), we can show the advisor what it
-    // would cost to size Brooklyn UP to also offset that future gain.
-    // Replaces the older interactive Brooklyn-investment slider.
-    html += _renderFutureSaleOption(entry, opt, currentCfg);
-
-    // ============ Fees Baked In — Brooklyn + Brookhaven breakdown ============
+    // ============ Fees Baked In — Asset Manager + Brookhaven breakdown ============
+    // This sits BEFORE the Future Sale Option callout per advisor spec.
+    // Logic: walk the client through the existing engagement's fees
+    // first ("here's what you'd spend on the current sale"), then —
+    // if there's a planned future sale — pivot to "if you size up,
+    // here's what additional fees buy you." Tied chronologically.
     html += '<div class="input-section" id="fee-strategies-section">' +
       '<div class="section-heading">' +
         '<h2>Fees Baked In</h2>' +
         '<span class="num">REVIEW</span>' +
       '</div>' +
       '<div class="section-body">' +
-        _bullet('Brooklyn fees<span class="strat-savings-line">Borrow + fund + short-side carry over the position' +
+        _bullet('Asset Manager fees<span class="strat-savings-line">Borrow + fund + short-side carry over the position' +
           (opt && opt.dialBack ? ' &mdash; scaled to ' + _fmt(opt.recommendedInvestment) + ' invested' : '') +
           '</span>', effectiveBrooklynFees) +
         _bullet('Brookhaven fees<span class="strat-savings-line">Planning engagement + ongoing service (flat schedule)</span>', m.brookhavenFees || 0) +
@@ -311,6 +303,12 @@
         '</div>' +
       '</div>' +
     '</div>';
+
+    // ============ Future Sale optimization callout ============
+    // Now AFTER fees-baked-in so it reads as a follow-on: "those were
+    // the fees on the current sale; here's what additional fees would
+    // buy on the future sale." Only renders when futureSale.enabled.
+    html += _renderFutureSaleOption(entry, opt, currentCfg);
 
     // Engagement Notes section removed per advisor spec — the
     // information lives in the Implementation panel (audit) and on
@@ -700,7 +698,7 @@
       if (entry && entry.metrics && entry.metrics._lossAtFull > 0) {
         return '<div class="future-sale-option fs-hint">' +
           '<div class="fs-head"><h2>Another Sale Coming Up?</h2></div>' +
-          '<p class="fs-desc">If the client has another appreciated-asset sale planned, add it on <strong>Page 2 (Client Inputs) &rarr; Section 07 (Future Appreciated Asset Sale)</strong>. We&rsquo;ll then show how additional Brooklyn investment could offset that gain too.</p>' +
+          '<p class="fs-desc">If the client has another appreciated-asset sale planned, add it on <strong>Page 1 (Client Inputs) &rarr; Section 07 (Future Appreciated Asset Sale)</strong>. We&rsquo;ll then show how additional Asset Manager investment could offset that gain too.</p>' +
         '</div>';
       }
       return '';
@@ -822,16 +820,16 @@
     var headerCopy;
     if (noCoverage) {
       headerTitle = 'Future Sale Needs More Capital';
-      headerCopy  = 'Available Capital is fully consumed by the current sale, so there&rsquo;s no leftover Brooklyn loss to carry forward against your planned <strong>' + _fmt(futureLT) + '</strong> long-term gain in ' + saleYear + '. Increasing Available Capital on Page 2 would unlock future-sale offset.';
+      headerCopy  = 'Available Capital is fully consumed by the current sale, so there&rsquo;s no leftover Asset Manager loss to carry forward against your planned <strong>' + _fmt(futureLT) + '</strong> long-term gain in ' + saleYear + '. Increasing Available Capital on Page 1 would unlock future-sale offset.';
     } else if (!hasHeadroom) {
       headerTitle = 'Bonus: Your Future Sale Is Already Covered';
-      headerCopy  = 'Brooklyn is already fully deployed for your current sale. The leftover loss carries forward and absorbs <strong>' + coveragePctLabel + '</strong> of your planned <strong>' + _fmt(futureLT) + '</strong> long-term gain in ' + saleYear + ' at no additional cost.';
+      headerCopy  = 'Asset Manager is already fully deployed for your current sale. The leftover loss carries forward and absorbs <strong>' + coveragePctLabel + '</strong> of your planned <strong>' + _fmt(futureLT) + '</strong> long-term gain in ' + saleYear + ' at no additional cost.';
     } else if (fullCoverage) {
       headerTitle = 'Another Option: Offset Your Future Sale';
-      headerCopy  = 'Increase Brooklyn investment so the loss carryforward also fully absorbs your planned <strong>' + _fmt(futureLT) + '</strong> long-term gain in ' + saleYear + '. Same strategy, same horizon &mdash; just sized up. The fees you pay now buy the future-sale offset shown below.';
+      headerCopy  = 'Increase Asset Manager investment so the loss carryforward also fully absorbs your planned <strong>' + _fmt(futureLT) + '</strong> long-term gain in ' + saleYear + '. Same strategy, same horizon &mdash; just sized up. The fees you pay now buy the future-sale offset shown below.';
     } else {
       headerTitle = 'Another Option: Offset Your Future Sale';
-      headerCopy  = 'Available Capital limits how much Brooklyn can grow. The additional investment below covers <strong>' + coveragePctLabel + '</strong> of your <strong>' + _fmt(futureLT) + '</strong> long-term gain in ' + saleYear + '; the future-sale tax savings are prorated to that coverage.';
+      headerCopy  = 'Available Capital limits how much Asset Manager can grow. The additional investment below covers <strong>' + coveragePctLabel + '</strong> of your <strong>' + _fmt(futureLT) + '</strong> long-term gain in ' + saleYear + '; the future-sale tax savings are prorated to that coverage.';
     }
 
     var headerHtml = '<div class="fs-head">' +
@@ -846,11 +844,11 @@
       // explicitly so the advisor can say "for $X in fees you save
       // $Y on the next sale."
       rowsHtml += '<div class="fs-row">' +
-        '<div class="fs-label">Additional Brooklyn investment<span class="fs-sub">on top of the optimizer&rsquo;s pick for the current sale</span></div>' +
+        '<div class="fs-label">Additional Asset Manager investment<span class="fs-sub">on top of the optimizer&rsquo;s pick for the current sale</span></div>' +
         '<div class="fs-amt">' + _fmt(additionalInvestment) + '</div>' +
       '</div>';
       rowsHtml += '<div class="fs-row">' +
-        '<div class="fs-label">Cost to offset the future sale<span class="fs-sub">additional Brooklyn fees you pay now over the projection horizon</span></div>' +
+        '<div class="fs-label">Cost to offset the future sale<span class="fs-sub">additional Asset Manager fees you pay now over the projection horizon</span></div>' +
         '<div class="fs-amt fs-cost">' + _fmt(additionalFees) + '</div>' +
       '</div>';
     }
@@ -865,7 +863,7 @@
       // the future sale ("every $1 of fees you pay now buys $X in
       // future-sale savings"). Distinct from the page's main ROP.
       rowsHtml += '<div class="fs-row">' +
-        '<div class="fs-label">Return on additional fees<span class="fs-sub">future-sale savings &divide; additional Brooklyn fees</span></div>' +
+        '<div class="fs-label">Return on additional fees<span class="fs-sub">future-sale savings &divide; additional Asset Manager fees</span></div>' +
         '<div class="fs-amt fs-save">' + _fmtMultiplier(feeReturnRatio) + '&times;</div>' +
       '</div>';
     }
