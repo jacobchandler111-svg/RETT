@@ -2140,22 +2140,16 @@
     //   - If the resulting set is empty, show an explicit empty-state
     //     CTA back to Page 2 (P1-2) instead of a blank page.
     var interest = (typeof window !== 'undefined' && window.__rettStrategyInterest) || {};
-    var recommendedType = (recIdx >= 0) ? entries[recIdx].type : null;
     var anyExplicit = ['A','B','C'].some(function (k) { return interest[k] === true || interest[k] === false; });
 
-    var filtered;
-    if (anyExplicit) {
-      filtered = entries.filter(function (e) {
-        // Explicit Interested → include.
-        if (interest[e.type] === true) return true;
-        // Recommended → include UNLESS user explicitly opted out.
-        if (e.type === recommendedType && interest[e.type] !== false) return true;
-        return false;
-      });
-    } else {
-      // Fresh user, no clicks yet — show all so they can compare.
-      filtered = entries.slice();
-    }
+    // Tri-state filter: hide ONLY cards the user explicitly marked
+    // Not Interested (interest === false). Unmarked cards (null)
+    // stay visible — silently hiding them when at least one card was
+    // marked Interested was Bug #7. The recommended-type carve-out
+    // is no longer needed because null already passes through.
+    var filtered = entries.filter(function (e) {
+      return interest[e.type] !== false;
+    });
 
     var hint = anyExplicit
       ? ''
