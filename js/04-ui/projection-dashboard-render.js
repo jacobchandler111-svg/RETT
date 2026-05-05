@@ -912,8 +912,13 @@
     var userDuration = baseCfg.structuredSaleDurationMonths || 18;
     var best = null;
     horizons.forEach(function (hor) {
-      // Scenarios B and C need horizon >= 2 (recognition starts in Y2 or later).
-      if (hor < 2 && (type === 'B' || type === 'C')) return;
+      // Scenario C still needs horizon >= 2 (deferred recognition starts
+      // in Y2 or later). B used to share that constraint when it was a
+      // deferred scenario; after the fix that re-routed B through the
+      // immediate path with year1+1 + Jan-1 implementation date, B is a
+      // single-tranche lump-sum and works fine at horizon=1 — the
+      // optimal horizon for any sale that doesn't span tax years.
+      if (hor < 2 && type === 'C') return;
       pcts.forEach(function (p) {
         var cfgSection = Object.assign({}, baseCfg, {
           horizonYears: hor,
@@ -1033,7 +1038,10 @@
     var horHtml = '<div class="rett-section-pillgroup"><span class="pill-group-label">Horizon</span><div class="pill-track">';
     horizons.forEach(function (h) {
       // Hide 1-year for B/C — recognition needs ≥ 2 years.
-      if (h < 2 && (type === 'B' || type === 'C')) return;
+      // C still requires horizon >= 2 (deferred path needs a recognition
+      // year past Y1). B is now a single-tranche immediate path and
+      // works at horizon=1.
+      if (h < 2 && type === 'C') return;
       var active = h === st.horizon;
       horHtml += '<button type="button" class="pill' + (active ? ' active' : '') +
         '" data-section-pill="horizon" data-section="' + type +

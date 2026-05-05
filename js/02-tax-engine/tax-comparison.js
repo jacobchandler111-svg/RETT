@@ -314,6 +314,31 @@ function computeTaxComparison(cfg, recommendation) {
       // income before further carryforward.
       let _stCfImmediate = 0;
 
+      // Per-year Brooklyn fee for the immediate path. Mirrors the same
+      // single-source-of-truth math ProjectionEngine.run uses (capital
+      // × annual feeRate, with Y1 partial-year-weighted by yfImpl).
+      // Without this, the year-by-year Details table read r.fee as
+      // undefined → showed $0 for every year, contradicting the summary
+      // tile that pulls fees from ProjectionEngine.run.
+      const _immediateFeeFn = (function () {
+            if (!_isImmediateLoop || _immediateCapital <= 0) return null;
+            const _yfImm = (typeof yearFractionRemaining === 'function' && cfg.implementationDate)
+                  ? yearFractionRemaining(cfg.implementationDate) : 1;
+            const _comboImm = (cfg.comboId && typeof getSchwabCombo === 'function')
+                  ? getSchwabCombo(cfg.comboId) : null;
+            let feeRate = 0;
+            if (_comboImm && typeof window.brooklynFeeRateFor === 'function') {
+                  feeRate = window.brooklynFeeRateFor(_comboImm.longPct, _comboImm.shortPct);
+            } else if (_comboImm) {
+                  feeRate = _comboImm.feeRate || 0;
+            } else if (typeof brooklynFee === 'function') {
+                  feeRate = brooklynFee(cfg.tierKey || 'beta1', _defaultLeverage(cfg), 1);
+            }
+            return function (j) {
+                  return _immediateCapital * feeRate * (j === 0 ? _yfImm : 1);
+            };
+      })();
+
       for (let i = 0; i < horizon; i++) {
             const yr = _y0 + i;
             let gainThisYear = 0;
@@ -353,12 +378,14 @@ function computeTaxComparison(cfg, recommendation) {
             }
 
             const bh = brookhavenSchedule ? brookhavenSchedule.perYear[i] : { setup: 0, quarterly: 0, total: 0 };
+            const _yearFee = _immediateFeeFn ? _immediateFeeFn(i) : 0;
             rows.push({
                   year: yr,
                   gainRecognized: gainThisYear,
                   lossApplied: withStrat._lossUsed || 0,
                   lossGenerated: lossThisYear,
                   stCarryForward: _isImmediateLoop ? _stCfImmediate : 0,
+                  fee: _yearFee,
                   brookhavenFee: bh.total,
                   brookhavenSetupFee: bh.setup,
                   brookhavenQuarterlyFee: bh.quarterly,
@@ -384,10 +411,11 @@ function computeTaxComparison(cfg, recommendation) {
                   r.brookhavenQuarterlyFee = 0;
             });
       }
-      let totalBaseline = 0, totalWith = 0, totalBrookhaven = 0;
+      let totalBaseline = 0, totalWith = 0, totalFees = 0, totalBrookhaven = 0;
       rows.forEach(r => {
             totalBaseline += r.baseline.total;
             totalWith += r.withStrategy.total;
+            totalFees += (r.fee || 0);
             totalBrookhaven += (r.brookhavenFee || 0);
       });
       return {
@@ -395,7 +423,9 @@ function computeTaxComparison(cfg, recommendation) {
             totalBaseline: totalBaseline,
             totalWithStrategy: totalWith,
             totalSavings: totalBaseline - totalWith,
-            totalBrookhavenFees: totalBrookhaven
+            totalFees: totalFees,
+            totalBrookhavenFees: totalBrookhaven,
+            totalAllFees: totalFees + totalBrookhaven
       };
 }
 
