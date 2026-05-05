@@ -9,42 +9,12 @@
 //     state:   { '2025': { AL: {...}, ... }, '2026': { AL: {...}, ... } } }
 //
 // =====================================================================
-// IRS BRACKET VERIFICATION — REQUIRED MANUAL AUDIT (P0-9)
-// =====================================================================
-// Cross-checked data/taxBrackets.json against Tax Foundation's 2026
-// inflation-adjusted figures (https://taxfoundation.org/data/all/federal/2026-tax-brackets/)
-// on 2026-05-04. The following discrepancies are SUSPECTED and need
-// IRS Rev. Proc. 2025-32 verbatim verification before patching:
-//
-//   federal.2026.brackets.married_joint  35% bracket cap:
-//     RETT data: 1281200    Tax Foundation: 768700    Δ +$512,500
-//     Note: 2025 RETT data is 751600. A 2% inflation roll → ~$766,632,
-//     which matches Tax Foundation. RETT 2026 value of $1,281,200 is
-//     ~67% above expectation — almost certainly a typo or stale OBBBA
-//     placeholder. Effect: HIGH-INCOME MFJ baselines are UNDER-stated
-//     because the 35→37 boundary is pushed way past correct.
-//
-//   federal.2026.ltcgRates.single   0%→15% boundary:
-//     RETT: 47025    Tax Foundation: 49450    Δ +$2,425
-//   federal.2026.ltcgRates.single   15%→20% boundary:
-//     RETT: 518900   Tax Foundation: 545500   Δ +$26,600
-//   federal.2026.ltcgRates.married_joint  0%→15% boundary:
-//     RETT: 94050    Tax Foundation: 98900    Δ +$4,850
-//   federal.2026.ltcgRates.married_joint  15%→20% boundary:
-//     RETT: 583750   Tax Foundation: 613700   Δ +$29,950
-//   federal.2026.ltcgRates.head_household  0%→15% boundary:
-//     RETT: 63000    Tax Foundation: 66200    Δ +$3,200
-//   federal.2026.ltcgRates.head_household  15%→20% boundary:
-//     RETT: 551350   Tax Foundation: 579600   Δ +$28,250
-//   The MFJ values RETT carries are very close to the 2025 LTCG figures
-//   ($96,700 / $600,050) — looks like 2025 data was copied without the
-//   inflation roll for 2026. Effect: LTCG tax slightly OVER-stated.
-//
-// Verification path (cannot be automated — IRS PDF strips text content):
-//   1. Open https://www.irs.gov/pub/irs-drop/rp-25-32.pdf in a browser
-//   2. Quote §3.01 (ordinary brackets) and §3.03 (LTCG breakpoints)
-//   3. Patch data/taxBrackets.json with verbatim figures
-//   4. Drop this comment block once verified
+// 2026 federal brackets verified verbatim against IRS Rev. Proc. 2025-32
+// (rp-25-32.pdf) on 2026-05-05. Source sections: §4.01 Tax Rate Tables
+// (Tables 1-4) for ordinary brackets, §4.03 Maximum Capital Gains Rate
+// for the 0%/15% LTCG breakpoints, §4.14 Standard Deduction. All four
+// filing-status brackets, all four LTCG schedules, and the standard
+// deductions match the IRS document exactly.
 // =====================================================================
 
 const TAX_DATA = {
