@@ -4179,3 +4179,134 @@ body { font-size: 16px; }
 .supp-results-yearrow .ysaved  { color: #6ee7b7; text-align: right; font-weight: 600; }
 .supp-results-yearrow.head .ydeduct,
 .supp-results-yearrow.head .ysaved { color: rgba(255,255,255,0.55); font-weight: 400; }
+
+/* ============== PAGE 4 — Supplemental strategies (v2)
+   Cards reuse .strategy-pick-card from Page 2 wholesale; the only
+   net-new chrome is the Details disclosure below the buttons. The
+   single-card grid uses a narrower max-width so a lone card on the
+   page reads as a card, not a stretched block. ============== */
+.supp-strategies-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 360px));
+    gap: 24px;
+    justify-content: center;
+    margin-top: 24px;
+}
+.supp-strategies-grid.count-1 {
+    /* A lone card centers, capped at the same width Page 2 uses */
+    grid-template-columns: minmax(0, 360px);
+}
+
+/* Details disclosure — small, low-key, sits below the action buttons */
+.supp-details-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    margin-top: 12px;
+    padding: 8px 10px;
+    background: transparent;
+    border: none;
+    border-top: 1px dashed var(--rule-soft);
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 0.72em;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+}
+.supp-details-toggle:hover {
+    color: var(--ink);
+    background: var(--paper-warm);
+}
+.supp-details-toggle-chev {
+    transition: transform 0.18s ease-out;
+    display: inline-block;
+}
+.supp-details-toggle.is-open .supp-details-toggle-chev {
+    transform: rotate(180deg);
+}
+
+.supp-details-panel {
+    margin-top: 4px;
+    padding: 12px 14px 14px;
+    background: var(--paper-warm);
+    border-top: 1px solid var(--rule-soft);
+}
+.supp-details-grid-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.3fr) 84px;
+    gap: 8px;
+    padding: 0 4px 6px;
+    font-family: var(--font-mono);
+    font-size: 0.66em;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1px solid var(--rule-soft);
+}
+.supp-details-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.3fr) 84px;
+    gap: 8px;
+    align-items: center;
+    padding: 6px 4px;
+    border-bottom: 1px solid var(--rule-soft);
+}
+.supp-details-row:last-child { border-bottom: none; }
+.supp-details-rowlabel {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    color: var(--ink);
+}
+.supp-details-rowsub {
+    color: var(--muted);
+    font-size: 0.92em;
+}
+.supp-details-cell .currency-input input {
+    padding: 6px 9px;
+    font-size: 0.9em;
+}
+.supp-details-cell .currency-input.percent input {
+    padding-right: 22px;
+}
+
+/* Inline live-savings line at the bottom of the Details panel —
+   gives the advisor instant feedback when they tweak inputs without
+   leaving Page 4 to check the Strategy Summary. */
+.supp-details-savings {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--rule);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    column-gap: 12px;
+    align-items: baseline;
+}
+.supp-details-savings .lbl {
+    grid-column: 1;
+    grid-row: 1;
+    font-family: var(--font-mono);
+    font-size: 0.72em;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+.supp-details-savings .amt {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    font-family: var(--font-display);
+    font-size: 1.45em;
+    font-weight: 500;
+    color: var(--bh-blue-deep);
+    align-self: center;
+}
+.supp-details-savings .sub {
+    grid-column: 1;
+    grid-row: 2;
+    font-size: 0.8em;
+    color: var(--muted);
+}
