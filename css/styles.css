@@ -3782,14 +3782,15 @@ body { font-size: 16px; }
    (the level that absorbs gain exactly). Dragging past the marker
    surfaces an "excess loss" callout that segues into future-sale
    planning. Revert / Max buttons snap the slider back. */
-.brooklyn-slider-block {
+/* ---- Page 5: "Another Option — Offset Your Future Sale" callout ---- */
+.future-sale-option {
     margin: 28px 0;
     padding: 22px 24px;
     background: var(--paper);
     border: 1px solid var(--rule);
     border-radius: 2px;
 }
-.brooklyn-slider-head h2 {
+.future-sale-option .fs-head h2 {
     font-family: var(--font-display);
     font-style: italic;
     font-weight: 500;
@@ -3798,138 +3799,82 @@ body { font-size: 16px; }
     margin: 0 0 4px 0;
     letter-spacing: -0.01em;
 }
-.brooklyn-slider-sub {
-    font-size: 0.9em;
+.future-sale-option .fs-desc {
+    font-size: 0.93em;
     color: var(--ink-soft);
-    line-height: 1.45;
+    line-height: 1.5;
     margin: 0 0 18px 0;
+    max-width: 760px;
 }
-.brooklyn-slider-amounts {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 16px;
-    margin-bottom: 16px;
-}
-.brooklyn-slider-amounts > div {
+.future-sale-option .fs-grid {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 12px 14px;
-    background: var(--paper-warm);
-    border: 1px solid var(--rule-soft);
-    border-radius: 2px;
+    gap: 0;
+    border-top: 1px solid var(--rule-soft);
 }
-.brooklyn-slider-amounts .bs-label {
-    font-family: var(--font-mono);
-    font-size: 0.7em;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--muted);
+.future-sale-option .fs-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--rule-soft);
+}
+.future-sale-option .fs-row.fs-total {
+    margin-top: 4px;
+    padding-top: 18px;
+    padding-bottom: 4px;
+    border-bottom: none;
+    border-top: 2px solid var(--ink);
+}
+.future-sale-option .fs-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    color: var(--ink);
     font-weight: 600;
+    font-size: 0.95em;
+    line-height: 1.35;
 }
-.brooklyn-slider-amounts .bs-amt {
+.future-sale-option .fs-label .fs-sub {
+    font-family: var(--font-mono);
+    font-size: 0.72em;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    text-transform: none;
+    font-weight: 400;
+}
+.future-sale-option .fs-row.fs-total .fs-label {
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.85em;
+    font-weight: 700;
+}
+.future-sale-option .fs-amt {
     font-family: var(--font-display);
     font-style: italic;
     font-weight: 500;
-    font-size: 1.4em;
+    font-size: 1.5em;
     color: var(--ink);
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.01em;
+    white-space: nowrap;
 }
-.brooklyn-slider-amounts .bs-amt.is-warn {
-    color: #c0392b;
+.future-sale-option .fs-amt.fs-cost { color: #b3411f; }
+.future-sale-option .fs-amt.fs-save { color: var(--green, #1e7d4a); }
+.future-sale-option .fs-row.fs-total .fs-amt {
+    font-size: 2em;
 }
-.brooklyn-slider-track-wrap {
-    position: relative;
-    padding: 12px 0 18px;
-}
-.brooklyn-slider {
-    width: 100%;
-    -webkit-appearance: none;
-    appearance: none;
-    height: 6px;
-    background: var(--rule);
-    border-radius: 3px;
-    outline: none;
-    margin: 0;
-    cursor: pointer;
-}
-.brooklyn-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: var(--bh-blue-deep);
-    border: 3px solid var(--paper);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-    cursor: grab;
-    transition: transform 0.1s;
-}
-.brooklyn-slider::-webkit-slider-thumb:active { transform: scale(1.1); cursor: grabbing; }
-.brooklyn-slider::-moz-range-thumb {
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: var(--bh-blue-deep);
-    border: 3px solid var(--paper);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-    cursor: grab;
-}
-.brooklyn-slider-marker {
-    position: absolute;
-    top: 4px;
-    width: 2px;
-    height: 22px;
-    background: var(--green);
-    transform: translateX(-1px);
-    pointer-events: none;
-}
-.brooklyn-slider-marker::after {
-    content: "";
-    position: absolute;
-    bottom: -8px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 0;
-    height: 0;
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
-    border-top: 6px solid var(--green);
-}
-.brooklyn-slider-actions {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    margin-top: 12px;
-}
-.bs-btn {
-    background: var(--paper);
-    border: 1px solid var(--rule);
-    color: var(--ink);
-    font-family: var(--font-body);
-    font-size: 0.85em;
-    font-weight: 600;
-    padding: 8px 14px;
-    border-radius: 2px;
-    cursor: pointer;
-    transition: border-color 0.15s, color 0.15s;
-}
-.bs-btn:hover {
-    border-color: var(--ink);
-    color: var(--ink);
-}
-.bs-excess {
-    margin: 14px 0 0;
-    padding: 10px 14px;
+.future-sale-option .fs-amt.fs-benefit-positive { color: var(--green, #1e7d4a); }
+.future-sale-option .fs-amt.fs-benefit-negative { color: #b3411f; }
+.future-sale-option.fs-hint {
     background: var(--paper-warm);
-    border-left: 3px solid #c0392b;
-    font-size: 0.88em;
-    line-height: 1.5;
-    color: var(--ink);
+    border-style: dashed;
 }
+.future-sale-option.fs-hint .fs-desc { margin-bottom: 0; }
 @media (max-width: 720px) {
-    .brooklyn-slider-amounts { grid-template-columns: 1fr; }
+    .future-sale-option .fs-row { flex-direction: column; align-items: flex-start; gap: 6px; }
 }
 
 /* Return on Planning row — 2-col grid:

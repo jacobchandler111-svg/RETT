@@ -283,15 +283,13 @@
       '</div>' +
     '</div>';
 
-    // ============ Brooklyn investment slider ============
-    // Lets the advisor manually override the optimizer's recommended
-    // dial-back. The slider's max is the full Available Capital from
-    // Page 1; a marker on the track shows the optimizer cap (loss =
-    // absorbable gain). Dragging past the marker generates excess
-    // loss carryforward — surfaces a callout suggesting future-sale
-    // planning when that happens. Revert + Max buttons snap the
-    // slider back to the recommended position or push to full.
-    html += _renderBrooklynSlider(entry, opt, currentCfg);
+    // ============ Future Sale optimization callout ============
+    // The solver already picked the optimal investment for the current
+    // sale. If the client also has a future appreciated-asset sale
+    // coming up (Page 1 Section 07), we can show the advisor what it
+    // would cost to size Brooklyn UP to also offset that future gain.
+    // Replaces the older interactive Brooklyn-investment slider.
+    html += _renderFutureSaleOption(entry, opt, currentCfg);
 
     // ============ Fees Baked In — Brooklyn + Brookhaven breakdown ============
     html += '<div class="input-section" id="fee-strategies-section">' +
@@ -654,87 +652,136 @@
         renderStrategySummary();
       });
     });
-    // Brooklyn investment slider — drag to override the optimizer's
-    // recommendation. Stores the override on
-    // window.__rettBrooklynInvestmentOverride which buildInterestedSummary
-    // reads on the next render. Cleared on form reset by clearForm.
-    var slider = document.getElementById('brooklyn-investment-slider');
-    if (slider) {
-      slider.addEventListener('input', function () {
-        var v = Number(slider.value);
-        root.__rettBrooklynInvestmentOverride = Number.isFinite(v) ? v : null;
-        renderStrategySummary();
-      });
-    }
-    host.querySelectorAll('[data-bs-action]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var act = btn.getAttribute('data-bs-action');
-        if (act === 'revert') {
-          root.__rettBrooklynInvestmentOverride = null;
-        } else if (act === 'max') {
-          var cfg = (typeof root.collectInputs === 'function') ? root.collectInputs() : {};
-          root.__rettBrooklynInvestmentOverride = Number(cfg.availableCapital) || 0;
-        }
-        renderStrategySummary();
-      });
-    });
+    // Future-sale option block has no interactive controls — it's a
+    // read-only comparison the advisor uses to recommend "yes, also
+    // size Brooklyn up to offset the future sale". Any rewiring of
+    // Available Capital happens by the advisor on Page 2.
   }
 
   // -----------------------------------------------------------------
-  // Brooklyn investment slider. Lets the advisor override the
-  // optimizer cap manually; pushes past the cap surface excess loss.
-  // The recommended position renders as a notch on the track so the
-  // advisor knows where "absorbs gain exactly" lives.
+  // Future-Sale Optimization callout. The solver already picked the
+  // best Brooklyn investment for the CURRENT sale's gain. If the
+  // client has another property sale planned (Page 1 Section 07), the
+  // advisor can choose to size Brooklyn UP so the additional loss
+  // carries forward and offsets THAT future gain too.
+  //
+  // Math (linear-scaling — the regression's loss / fee curves are
+  // close enough to linear in the operating range):
+  //   lossPerDollar = entry.metrics._lossAtFull / availableCapital
+  //   feePerDollar  = entry.metrics._brooklynFeesAtFull / availableCapital
+  //   investToCoverCurrent = currentLTGain / lossPerDollar
+  //   investToCoverBoth    = (currentLTGain + futureLTGain) / lossPerDollar
+  //                        = opt.recommendedInvestment (when dialBack)
+  //   additionalInvestment = investToCoverBoth - investToCoverCurrent
+  //   additionalFees       = additionalInvestment * feePerDollar
+  //                          (Brookhaven flat fees don't scale with
+  //                           investment — no incremental Brookhaven)
+  //   futureSaleTaxSavings = federal LT + state + NIIT on futureLTGain
+  //                          (the carryforward fully absorbs futureLTGain
+  //                           by construction)
+  //
+  // Rendered ONLY when:
+  //   - cfg.futureSale.enabled
+  //   - futureLTGain > 0
+  //   - opt.dialBack (otherwise the optimizer is already at availCap and
+  //     there's no headroom to grow Brooklyn into)
+  //
+  // No interactive controls — the advisor either accepts the
+  // recommendation (already applied via the optimizer dial-back) or
+  // raises Available Capital on Page 2 to honor the larger investment.
   // -----------------------------------------------------------------
-  function _renderBrooklynSlider(entry, opt, cfg) {
-    var availCap = (cfg && Number(cfg.availableCapital)) || 0;
-    if (availCap <= 0) return '';
-    var lossAtFull = (entry && entry.metrics && entry.metrics._lossAtFull) || 0;
-    if (lossAtFull <= 0) return '';
-    var absorbable = (opt && Number(opt.totalAbsorbableGain)) || 0;
-    var recommended = (opt && opt.dialBack)
-      ? Math.min(availCap, opt.recommendedInvestment)
-      : availCap;
-    var override = root.__rettBrooklynInvestmentOverride;
-    var current = (typeof override === 'number' && override >= 0)
-      ? Math.max(0, Math.min(availCap, override))
-      : recommended;
-    var step = Math.max(1000, Math.round(availCap / 200));
-    var recPct = availCap > 0 ? (recommended / availCap) * 100 : 100;
-    var scale = availCap > 0 ? current / availCap : 1;
-    var lossAtCurrent = lossAtFull * scale;
-    var excessLoss = Math.max(0, lossAtCurrent - absorbable);
-    var futureSaleEnabled = !!(opt && opt.futureSaleEnabled);
-
-    var excessNote = '';
-    if (excessLoss > 0) {
-      excessNote = '<p class="bs-excess">' +
-        '<strong>Excess loss carryforward: ' + _fmt(excessLoss) + '.</strong> ' +
-        (futureSaleEnabled
-          ? 'Your planned future sale is already factored into the cap; this surplus would only offset $3K/yr of ordinary income unless another sale is added.'
-          : 'No planned future sale to absorb it &mdash; carries against ordinary income at $3K/yr only. Add a future sale on Page&nbsp;1 Section&nbsp;07 if there is more property coming.') +
-        '</p>';
+  function _renderFutureSaleOption(entry, opt, cfg) {
+    if (!cfg || !cfg.futureSale || !cfg.futureSale.enabled) {
+      // Friendly hint when no future sale is configured — encourages
+      // the advisor to use Section 07 if another sale is on the horizon.
+      if (entry && entry.metrics && entry.metrics._lossAtFull > 0) {
+        return '<div class="future-sale-option fs-hint">' +
+          '<div class="fs-head"><h2>Another Sale Coming Up?</h2></div>' +
+          '<p class="fs-desc">If the client has another appreciated-asset sale planned, add it on <strong>Page 2 (Client Inputs) &rarr; Section 07 (Future Appreciated Asset Sale)</strong>. We&rsquo;ll then show how additional Brooklyn investment could offset that gain too.</p>' +
+        '</div>';
+      }
+      return '';
     }
 
-    return '<div class="brooklyn-slider-block">' +
-      '<div class="brooklyn-slider-head">' +
-        '<h2>Brooklyn Investment</h2>' +
-        '<p class="brooklyn-slider-sub">Drag to override the optimizer. The marker shows the level that absorbs ' + _fmt(absorbable) + ' of gain exactly.</p>' +
+    var futureLT = Math.max(0, Number(cfg.futureSale.longTermGain) || 0);
+    if (futureLT <= 0) return '';
+
+    var availCap = Math.max(0, Number(cfg.availableCapital) || 0);
+    var lossAtFull = (entry && entry.metrics && entry.metrics._lossAtFull) || 0;
+    var feesAtFull = (entry && entry.metrics && entry.metrics._brooklynFeesAtFull) || 0;
+    if (availCap <= 0 || lossAtFull <= 0) return '';
+
+    var lossPerDollar = lossAtFull / availCap;
+    var feePerDollar  = feesAtFull / availCap;
+    if (lossPerDollar <= 0) return '';
+
+    var currentLT = Math.max(0,
+      (Number(cfg.salePrice) || 0) - (Number(cfg.costBasis) || 0)
+      - (Number(cfg.acceleratedDepreciation) || 0));
+
+    var investToCoverCurrent = Math.min(availCap, currentLT / lossPerDollar);
+    var investToCoverBoth    = Math.min(availCap, (currentLT + futureLT) / lossPerDollar);
+    var additionalInvestment = Math.max(0, investToCoverBoth - investToCoverCurrent);
+    var additionalFees       = additionalInvestment * feePerDollar;
+
+    // Estimate future-sale tax savings — assume the carryforward fully
+    // absorbs the future LT gain. Run federal + state on a clean
+    // scenario where the only income is futureLTGain. NIIT auto-applies
+    // when investmentIncome >= MAGI threshold. Falls back gracefully if
+    // the tax calc isn't loaded (host renders zero rather than error).
+    var saleYear;
+    if (cfg.futureSale.saleDate) {
+      var d = new Date(cfg.futureSale.saleDate);
+      saleYear = isNaN(d.getTime()) ? ((cfg.year1 || 2026) + 3) : d.getFullYear();
+    } else {
+      saleYear = (cfg.year1 || 2026) + 3;
+    }
+    var status = cfg.filingStatus || 'mfj';
+    var state  = cfg.state || 'NONE';
+    var fedSavings = 0, stateSavings = 0;
+    try {
+      if (typeof root.computeFederalTax === 'function') {
+        fedSavings = root.computeFederalTax(0, saleYear, status, {
+          longTermGain: futureLT,
+          investmentIncome: futureLT,
+          wages: 0
+        }) || 0;
+      }
+      if (typeof root.computeStateTax === 'function') {
+        stateSavings = root.computeStateTax(futureLT, saleYear, state, status, {
+          longTermGain: futureLT
+        }) || 0;
+      }
+    } catch (e) { /* fall through to zero */ }
+    var futureSaleTaxSavings = Math.max(0, fedSavings + stateSavings);
+    var netAdditionalBenefit = futureSaleTaxSavings - additionalFees;
+
+    var benefitClass = netAdditionalBenefit > 0 ? 'fs-benefit-positive'
+                     : (netAdditionalBenefit < 0 ? 'fs-benefit-negative' : '');
+
+    return '<div class="future-sale-option">' +
+      '<div class="fs-head">' +
+        '<h2>Another Option: Offset Your Future Sale</h2>' +
+        '<p class="fs-desc">Increase Brooklyn investment so the loss carryforward also absorbs your planned <strong>' + _fmt(futureLT) + '</strong> long-term gain in ' + saleYear + '. Same strategy, same horizon &mdash; just sized up.</p>' +
       '</div>' +
-      '<div class="brooklyn-slider-amounts">' +
-        '<div><span class="bs-label">Investment</span><span class="bs-amt">' + _fmt(current) + '</span></div>' +
-        '<div><span class="bs-label">Loss generated</span><span class="bs-amt">' + _fmt(lossAtCurrent) + '</span></div>' +
-        '<div><span class="bs-label">Excess</span><span class="bs-amt' + (excessLoss > 0 ? ' is-warn' : '') + '">' + _fmt(excessLoss) + '</span></div>' +
+      '<div class="fs-grid">' +
+        '<div class="fs-row">' +
+          '<div class="fs-label">Additional Brooklyn investment<span class="fs-sub">on top of the optimizer&rsquo;s pick for the current sale</span></div>' +
+          '<div class="fs-amt">' + _fmt(additionalInvestment) + '</div>' +
+        '</div>' +
+        '<div class="fs-row">' +
+          '<div class="fs-label">Additional Brooklyn fees<span class="fs-sub">over the projection horizon</span></div>' +
+          '<div class="fs-amt fs-cost">' + _fmt(additionalFees) + '</div>' +
+        '</div>' +
+        '<div class="fs-row">' +
+          '<div class="fs-label">Future-sale tax savings<span class="fs-sub">federal LT + state + NIIT on ' + _fmt(futureLT) + '</span></div>' +
+          '<div class="fs-amt fs-save">' + _fmt(futureSaleTaxSavings) + '</div>' +
+        '</div>' +
+        '<div class="fs-row fs-total">' +
+          '<div class="fs-label">Net additional benefit</div>' +
+          '<div class="fs-amt ' + benefitClass + '">' + _fmt(netAdditionalBenefit) + '</div>' +
+        '</div>' +
       '</div>' +
-      '<div class="brooklyn-slider-track-wrap">' +
-        '<input type="range" min="0" max="' + Math.round(availCap) + '" step="' + step + '" value="' + Math.round(current) + '" id="brooklyn-investment-slider" class="brooklyn-slider">' +
-        '<div class="brooklyn-slider-marker" style="left:' + recPct.toFixed(2) + '%" aria-hidden="true" title="Optimizer cap (' + _fmt(recommended) + ')"></div>' +
-      '</div>' +
-      '<div class="brooklyn-slider-actions">' +
-        '<button type="button" class="bs-btn" data-bs-action="revert">&larr; Revert to optimizer</button>' +
-        '<button type="button" class="bs-btn" data-bs-action="max">Max (full capital) &rarr;</button>' +
-      '</div>' +
-      excessNote +
     '</div>';
   }
 
