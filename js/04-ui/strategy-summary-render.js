@@ -583,9 +583,20 @@
       var rowsOpt = '';
       rowsOpt += '<div class="impl-row"><span class="impl-name">Current LT gain</span>' +
                  '<span class="impl-amt">' + _fmt(opt.currentLTGain) + '</span></div>';
+      // §1250 recapture line — surfaced separately so the advisor can
+      // see WHY total-absorbable-gain might exceed sale LT gain alone.
+      // Brooklyn ST losses absorb recapture per IRC §1(h) ordering.
+      if (opt.currentRecapture && opt.currentRecapture > 0) {
+        rowsOpt += '<div class="impl-row"><span class="impl-name">Current §1250 recapture</span>' +
+                   '<span class="impl-amt">' + _fmt(opt.currentRecapture) + '</span></div>';
+      }
       if (opt.futureSaleEnabled) {
         rowsOpt += '<div class="impl-row"><span class="impl-name">Future LT gain (planned sale)</span>' +
                    '<span class="impl-amt">' + _fmt(opt.futureLTGain) + '</span></div>';
+        if (opt.futureRecapture && opt.futureRecapture > 0) {
+          rowsOpt += '<div class="impl-row"><span class="impl-name">Future §1250 recapture</span>' +
+                     '<span class="impl-amt">' + _fmt(opt.futureRecapture) + '</span></div>';
+        }
       }
       rowsOpt += '<div class="impl-row impl-row-strong"><span class="impl-name">Total absorbable gain</span>' +
                  '<span class="impl-amt">' + _fmt(opt.totalAbsorbableGain) + '</span></div>';
@@ -755,26 +766,35 @@
     var currentLT = Math.max(0,
       (Number(cfg.salePrice) || 0) - (Number(cfg.costBasis) || 0)
       - (Number(cfg.acceleratedDepreciation) || 0));
+    // Recapture is also Brooklyn-loss-absorbable per IRC §1(h)
+    // (ST losses → recapture → LT gain → ordinary cap order). Treat
+    // currentLT + currentRecap as the current-sale absorbable load
+    // so investToCoverCurrent doesn't under-count and the additional-
+    // investment row stays consistent with the optimizer's view.
+    var currentRecap = Math.max(0,
+      Number(cfg.acceleratedDepreciation) || 0);
+    var currentAbsorb = currentLT + currentRecap;
 
     // Investment levels:
-    //   investToCoverCurrent — Brooklyn level needed to absorb just the
-    //     current sale's LT gain (capped at availableCapital).
+    //   investToCoverCurrent — Brooklyn level needed to absorb the
+    //     current sale's LT gain + recapture (capped at availCap).
     //   investToCoverBoth    — Brooklyn level needed to absorb both
-    //     current + future LT gain (capped at availableCapital).
+    //     current and future absorbable gain (capped at availCap).
     //   additionalInvestment — the gap. If availCap is binding, this
     //     may not be enough to fully cover futureLT.
-    var investToCoverCurrent = Math.min(availCap, currentLT / lossPerDollar);
-    var investToCoverBoth    = Math.min(availCap, (currentLT + futureLT) / lossPerDollar);
+    var investToCoverCurrent = Math.min(availCap, currentAbsorb / lossPerDollar);
+    var investToCoverBoth    = Math.min(availCap, (currentAbsorb + futureLT) / lossPerDollar);
     var additionalInvestment = Math.max(0, investToCoverBoth - investToCoverCurrent);
     var additionalFees       = additionalInvestment * feePerDollar;
 
     // Coverage of the FUTURE sale. The total Brooklyn loss at the
-    // both-coverage investment level absorbs current first, anything
-    // left over absorbs future. If availableCapital is the binding
-    // constraint, that leftover may be less than futureLT — in which
-    // case the future-sale tax savings prorate to the actual coverage.
+    // both-coverage investment level absorbs the current sale's LT +
+    // recapture first; anything left over absorbs future LT. If
+    // availableCapital is the binding constraint, that leftover may
+    // be less than futureLT — in which case the future-sale tax
+    // savings prorate to the actual coverage.
     var totalLossAtBoth = investToCoverBoth * lossPerDollar;
-    var futureLTAbsorbed = Math.max(0, Math.min(futureLT, totalLossAtBoth - currentLT));
+    var futureLTAbsorbed = Math.max(0, Math.min(futureLT, totalLossAtBoth - currentAbsorb));
     var coverageFraction = (futureLT > 0) ? (futureLTAbsorbed / futureLT) : 0;
 
     // Compute the FULL tax that would be owed on the future LT gain

@@ -245,9 +245,20 @@
     var currentLT = Math.max(0,
       (Number(c.salePrice) || 0) - (Number(c.costBasis) || 0)
       - (Number(c.acceleratedDepreciation) || 0));
+    // §1250 unrecaptured-depreciation recapture is ALSO absorbable by
+    // Brooklyn's short-term losses per IRC §1(h)'s 25%-bucket rule
+    // (see _applyLossesToScenario / _applyLossesWithSTCfCap, where ST
+    // losses absorb recapture before regular LT gain). Without this
+    // line, the optimizer dialed Brooklyn back too aggressively for
+    // any client with accelerated depreciation — leaving recapture
+    // exposed to the §1250 25% cap rate when extra Brooklyn loss
+    // could have shielded it.
+    var currentRecap = Math.max(0, Number(c.acceleratedDepreciation) || 0);
     var future = (c.futureSale && c.futureSale.enabled) ? c.futureSale : null;
     var futureLT = future ? Math.max(0, Number(future.longTermGain) || 0) : 0;
-    var absorbable = currentLT + futureLT;
+    var futureRecap = future
+      ? Math.max(0, Number(future.acceleratedDepreciation) || 0) : 0;
+    var absorbable = currentLT + currentRecap + futureLT + futureRecap;
 
     var lossAtFull = Math.max(0, Number(brooklynCumulativeLoss) || 0);
     var dialBack = false;
@@ -273,7 +284,9 @@
     return {
       availableCapital:        availCap,
       currentLTGain:           currentLT,
+      currentRecapture:        currentRecap,
       futureLTGain:            futureLT,
+      futureRecapture:         futureRecap,
       futureSaleEnabled:       !!future,
       totalAbsorbableGain:     absorbable,
       brooklynLossAtFull:      lossAtFull,
