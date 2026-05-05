@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=1777600000099">
+  <link rel="stylesheet" href="css/styles.css?v=1777600000100">
 </head>
 <body>
   <a href="#page-inputs" class="skip-link">Skip to main content</a>
@@ -754,65 +754,65 @@
   <!-- ============ Subsystem load order: 00 -> 01 -> 02 -> 03 -> 05 -> 04 ============ -->
   <!-- date-utils is loaded ahead of 00-data so schwab-strategies can use the
        shared parseLocalDate global instead of defining its own copy. -->
-  <script src="js/01-brooklyn/date-utils.js?v=1777600000099"></script>
-  <script src="js/00-data/custodians.js?v=1777600000099"></script>
-  <script src="js/00-data/schwab-strategies.js?v=1777600000099"></script>
-  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000099"></script>
-  <script src="js/01-brooklyn/time-weight.js?v=1777600000099"></script>
-  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000099"></script>
-  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000099"></script>
+  <script src="js/01-brooklyn/date-utils.js?v=1777600000100"></script>
+  <script src="js/00-data/custodians.js?v=1777600000100"></script>
+  <script src="js/00-data/schwab-strategies.js?v=1777600000100"></script>
+  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000100"></script>
+  <script src="js/01-brooklyn/time-weight.js?v=1777600000100"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000100"></script>
+  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000100"></script>
 
-  <script src="js/02-tax-engine/tax-data.js?v=1777600000099"></script>
-  <script src="js/02-tax-engine/tax-loader.js?v=1777600000099"></script>
-  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000099"></script>
-  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000099"></script>
-  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000099"></script>
-  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000099"></script>
+  <script src="js/02-tax-engine/tax-data.js?v=1777600000100"></script>
+  <script src="js/02-tax-engine/tax-loader.js?v=1777600000100"></script>
+  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000100"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000100"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000100"></script>
+  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000100"></script>
 
-  <script src="js/03-solver/fees.js?v=1777600000099"></script>
-  <script src="js/03-solver/fee-split.js?v=1777600000099"></script>
-  <script src="js/03-solver/brookhaven-fees.js?v=1777600000099"></script>
-  <script src="js/03-solver/single-year-solver.js?v=1777600000099"></script>
-  <script src="js/03-solver/multi-year-solver.js?v=1777600000099"></script>
-  <script src="js/03-solver/structured-sale.js?v=1777600000099"></script>
-  <script src="js/03-solver/calc-oil-gas.js?v=1777600000099"></script>
-  <script src="js/03-solver/calc-delphi.js?v=1777600000099"></script>
-  <script src="js/03-solver/decision-engine.js?v=1777600000099"></script>
+  <script src="js/03-solver/fees.js?v=1777600000100"></script>
+  <script src="js/03-solver/fee-split.js?v=1777600000100"></script>
+  <script src="js/03-solver/brookhaven-fees.js?v=1777600000100"></script>
+  <script src="js/03-solver/single-year-solver.js?v=1777600000100"></script>
+  <script src="js/03-solver/multi-year-solver.js?v=1777600000100"></script>
+  <script src="js/03-solver/structured-sale.js?v=1777600000100"></script>
+  <script src="js/03-solver/calc-oil-gas.js?v=1777600000100"></script>
+  <script src="js/03-solver/calc-delphi.js?v=1777600000100"></script>
+  <script src="js/03-solver/decision-engine.js?v=1777600000100"></script>
   <!-- Master solver registry + Page-5 supplemental defaults. master-solver
        declares register*/list*/runMasterSolver; supplemental-defaults uses
        those to register Oil & Gas. Future supplemental strategies append
        to supplemental-defaults — calc-* modules don't reach into this. -->
-  <script src="js/03-solver/master-solver.js?v=1777600000099"></script>
-  <script src="js/03-solver/supplemental-defaults.js?v=1777600000099"></script>
-  <script src="js/03-solver/supplemental-investment-shims.js?v=1777600000099"></script>
+  <script src="js/03-solver/master-solver.js?v=1777600000100"></script>
+  <script src="js/03-solver/supplemental-defaults.js?v=1777600000100"></script>
+  <script src="js/03-solver/supplemental-investment-shims.js?v=1777600000100"></script>
 
-  <script src="js/05-projections/carryforward-tracker.js?v=1777600000099"></script>
-  <script src="js/05-projections/projection-engine.js?v=1777600000099"></script>
+  <script src="js/05-projections/carryforward-tracker.js?v=1777600000100"></script>
+  <script src="js/05-projections/projection-engine.js?v=1777600000100"></script>
 
   <!-- format-helpers loads first inside 04-ui so every renderer can use
        fmtUSD / fmtPct / fmtNum directly without a defensive fallback. -->
-  <script src="js/04-ui/format-helpers.js?v=1777600000099"></script>
-  <script src="js/04-ui/money-format.js?v=1777600000099"></script>
-  <script src="js/04-ui/banner.js?v=1777600000099"></script>
-  <script src="js/04-ui/number-animator.js?v=1777600000099"></script>
-  <script src="js/04-ui/case-storage.js?v=1777600000099"></script>
-  <script src="js/04-ui/pill-toggles.js?v=1777600000099"></script>
-  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000099"></script>
-  <script src="js/04-ui/input-validation.js?v=1777600000099"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1777600000099"></script>
-  <script src="js/04-ui/controls.js?v=1777600000099"></script>
-  <script src="js/04-ui/recommendation-render.js?v=1777600000099"></script>
-  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000099"></script>
-  <script src="js/04-ui/savings-ribbon.js?v=1777600000099"></script>
-  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000099"></script>
-  <script src="js/04-ui/narrative-render.js?v=1777600000099"></script>
-  <script src="js/04-ui/strategy-summary-render.js?v=1777600000099"></script>
-  <script src="js/04-ui/baseline-table.js?v=1777600000099"></script>
-  <script src="js/04-ui/supplemental-render.js?v=1777600000099"></script>
+  <script src="js/04-ui/format-helpers.js?v=1777600000100"></script>
+  <script src="js/04-ui/money-format.js?v=1777600000100"></script>
+  <script src="js/04-ui/banner.js?v=1777600000100"></script>
+  <script src="js/04-ui/number-animator.js?v=1777600000100"></script>
+  <script src="js/04-ui/case-storage.js?v=1777600000100"></script>
+  <script src="js/04-ui/pill-toggles.js?v=1777600000100"></script>
+  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000100"></script>
+  <script src="js/04-ui/input-validation.js?v=1777600000100"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1777600000100"></script>
+  <script src="js/04-ui/controls.js?v=1777600000100"></script>
+  <script src="js/04-ui/recommendation-render.js?v=1777600000100"></script>
+  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000100"></script>
+  <script src="js/04-ui/savings-ribbon.js?v=1777600000100"></script>
+  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000100"></script>
+  <script src="js/04-ui/narrative-render.js?v=1777600000100"></script>
+  <script src="js/04-ui/strategy-summary-render.js?v=1777600000100"></script>
+  <script src="js/04-ui/baseline-table.js?v=1777600000100"></script>
+  <script src="js/04-ui/supplemental-render.js?v=1777600000100"></script>
 
-  <script src="js/04-ui/pmq-handler.js?v=1777600000099"></script>
+  <script src="js/04-ui/pmq-handler.js?v=1777600000100"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1777600000099"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1777600000100"></script>
 </body>
 </html>

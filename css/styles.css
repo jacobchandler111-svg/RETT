@@ -3830,6 +3830,13 @@ body { font-size: 16px; }
     font-variant-numeric: tabular-nums;
     margin-bottom: 14px;
 }
+.forward-rop-square .rop-amt .rop-x {
+    font-size: 0.5em;
+    color: var(--bh-blue);
+    margin-left: 6px;
+    vertical-align: baseline;
+    letter-spacing: 0;
+}
 .forward-rop-square .rop-sub {
     font-family: var(--font-mono);
     font-size: 11px;
@@ -4340,10 +4347,266 @@ body { font-size: 16px; }
    the tiny triangle on a trailing dash. Advisor audit view, NOT for
    client presentation. Shows the dollar allocation across Brooklyn +
    each enabled supplemental so the math can be checked. */
+/* ---- Print button (screen only) ---- */
+.forward-print-bar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid var(--rule-soft);
+}
+.btn-print {
+    font-family: var(--font-body);
+    font-size: 13.5px;
+    font-weight: 600;
+    padding: 9px 20px;
+    background: var(--bh-trusted);
+    color: #fff;
+    border: none;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background 0.15s, box-shadow 0.15s;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.btn-print:hover {
+    background: var(--bh-trusted-soft);
+    box-shadow: 0 2px 8px rgba(35,31,85,0.18);
+}
+.forward-print-hint {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+/* ---- Print view (hidden on screen, shown only when printing) ---- */
+.print-view { display: none; }
+
 .forward-implementation {
     margin-top: 28px;
     padding-top: 16px;
     border-top: 1px solid var(--rule-soft);
+}
+
+/* ================================================================
+   @media print — hides all screen UI, shows only .print-view
+   ================================================================ */
+@media print {
+    /* Show only the print view */
+    body * { visibility: hidden; }
+    .print-view,
+    .print-view * { visibility: visible; }
+    .print-view {
+        display: block !important;
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+    }
+
+    @page {
+        margin: 0.65in 0.75in;
+        size: letter portrait;
+    }
+
+    /* ---------- Print layout ---------- */
+    .print-view {
+        font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+        font-size: 9.5pt;
+        color: #111;
+        background: #fff;
+        line-height: 1.5;
+    }
+    .print-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin-bottom: 6pt;
+    }
+    .print-header-brand {
+        font-family: 'Fraunces', Georgia, serif;
+        font-size: 18pt;
+        font-weight: 500;
+        font-style: italic;
+        color: #231F55;
+        letter-spacing: -0.02em;
+    }
+    .print-header-meta {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 1pt;
+    }
+    .print-client-name {
+        font-size: 11pt;
+        font-weight: 700;
+        color: #231F55;
+    }
+    .print-date {
+        font-size: 8pt;
+        color: #666;
+    }
+    .print-rule {
+        border-top: 2px solid #231F55;
+        margin-bottom: 10pt;
+    }
+    .print-title-block {
+        margin-bottom: 12pt;
+    }
+    .print-title {
+        font-family: 'Fraunces', Georgia, serif;
+        font-size: 20pt;
+        font-weight: 500;
+        font-style: italic;
+        color: #231F55;
+        margin: 0 0 2pt;
+    }
+    .print-strategy-tag {
+        font-size: 8pt;
+        color: #555;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    /* Hero boxes */
+    .print-hero-row {
+        display: flex;
+        gap: 8pt;
+        margin-bottom: 14pt;
+    }
+    .print-hero-box {
+        flex: 1;
+        border: 1px solid #c8d4e0;
+        border-radius: 5pt;
+        padding: 8pt 10pt;
+        background: #f8fafc;
+    }
+    .print-hero-net {
+        background: #eef8f2;
+        border-color: #a8d4bc;
+    }
+    .print-hero-fees {
+        background: #fdf6f0;
+        border-color: #d4c0a8;
+    }
+    .print-hero-label {
+        font-size: 7pt;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #555;
+        margin-bottom: 2pt;
+    }
+    .print-hero-value {
+        font-size: 16pt;
+        font-weight: 700;
+        color: #111;
+        line-height: 1.1;
+    }
+    .print-hero-sub {
+        font-size: 7pt;
+        color: #666;
+        margin-top: 2pt;
+    }
+
+    /* Body columns */
+    .print-body {
+        display: flex;
+        gap: 18pt;
+    }
+    .print-col {
+        flex: 1;
+        min-width: 0;
+    }
+
+    /* Sections */
+    .print-section {
+        margin-bottom: 10pt;
+    }
+    .print-section-head {
+        font-size: 7pt;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #231F55;
+        font-weight: 700;
+        border-bottom: 1px solid #c8d4e0;
+        padding-bottom: 2pt;
+        margin-bottom: 5pt;
+    }
+
+    /* Tables */
+    .print-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 8.5pt;
+    }
+    .print-table th {
+        text-align: left;
+        font-weight: 600;
+        padding: 2pt 4pt;
+        border-bottom: 1px solid #c8d4e0;
+        font-size: 7.5pt;
+        color: #333;
+    }
+    .print-table td {
+        padding: 2.5pt 4pt;
+        color: #111;
+        vertical-align: top;
+        border-bottom: 1px solid #e8eef4;
+    }
+    .print-table tr:last-child td { border-bottom: none; }
+    .print-num { text-align: right; white-space: nowrap; }
+    .print-r   { text-align: right; }
+    .print-green { color: #1e5c38; }
+    .print-total-row td { border-top: 1.5px solid #c8d4e0 !important; padding-top: 4pt; }
+    .print-note { font-size: 7pt; color: #666; }
+
+    /* Optimizer note */
+    .print-optimizer-note {
+        font-size: 7.5pt;
+        color: #1e4d30;
+        background: #eef8f2;
+        border: 1px solid #b2d9c2;
+        border-radius: 4pt;
+        padding: 5pt 7pt;
+        margin-top: 6pt;
+        line-height: 1.5;
+    }
+
+    /* ROI */
+    .print-roi-display {
+        display: flex;
+        align-items: baseline;
+        gap: 8pt;
+        padding: 4pt 0;
+    }
+    .print-roi-num {
+        font-family: 'Fraunces', Georgia, serif;
+        font-size: 28pt;
+        font-weight: 500;
+        color: #231F55;
+        line-height: 1;
+    }
+    .print-roi-label {
+        font-size: 8pt;
+        color: #444;
+        max-width: 160pt;
+        line-height: 1.4;
+    }
+
+    /* Footer */
+    .print-footer {
+        margin-top: 14pt;
+        padding-top: 6pt;
+        border-top: 1px solid #c8d4e0;
+        font-size: 7pt;
+        color: #888;
+        line-height: 1.5;
+    }
+
+    /* Page break control */
+    .print-hero-row { page-break-inside: avoid; }
+    .print-section   { page-break-inside: avoid; }
 }
 .forward-implementation-summary {
     list-style: none;

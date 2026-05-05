@@ -26,7 +26,6 @@
   function _fmtMultiplier(ratio) {
     if (!isFinite(ratio) || ratio <= 0) return '—';
     if (ratio >= 100) return Math.round(ratio).toLocaleString('en-US');
-    if (ratio >= 10)  return ratio.toFixed(0);
     return ratio.toFixed(1);
   }
 
@@ -247,9 +246,8 @@
     var salePrice = (currentCfg && Number(currentCfg.salePrice)) || 0;
     var walkawayNoPlanning   = salePrice - (m.doNothing || 0);
     var walkawayWithPlanning = salePrice - (m.tax || 0) + supplementalBenefit;
-    var ropPct = (fees > 0) ? (savings / fees) * 100 : 0;
-    var ropPctDisplay = (ropPct > 0)
-      ? Math.round(ropPct).toLocaleString('en-US') + '%'
+    var ropDisplay = (fees > 0 && savings > 0)
+      ? _fmtMultiplier(savings / fees) + '<span class="rop-x">&times;</span>'
       : '—';
     html += '<div class="forward-rop-row">' +
       '<div class="forward-rop-left">' +
@@ -287,8 +285,8 @@
       '</div>' +
       '<div class="forward-rop-square">' +
         '<div class="rop-label">Return on Planning</div>' +
-        '<div class="rop-amt">' + ropPctDisplay + '</div>' +
-        '<div class="rop-sub">savings vs. total fees</div>' +
+        '<div class="rop-amt">' + ropDisplay + '</div>' +
+        '<div class="rop-sub">every dollar in fees saves you this</div>' +
       '</div>' +
     '</div>';
 
@@ -323,8 +321,195 @@
     // investment to keep loss carryforward within absorbable gain.
     html += _renderImplementationPanel(currentCfg, entry.loss || 0, opt);
 
+    // Print button — screen-only; triggers window.print()
+    html += '<div class="forward-print-bar">' +
+      '<button type="button" class="btn-print" onclick="window.print()">' +
+        '&#128438;&nbsp; Print / Save as PDF' +
+      '</button>' +
+      '<span class="forward-print-hint">Opens your browser\'s print dialog. Choose &ldquo;Save as PDF&rdquo; to generate a client-ready document.</span>' +
+    '</div>';
+
+    // Print view — hidden on screen, visible only when printing.
+    html += _renderPrintView({
+      cfg:            currentCfg,
+      entry:          entry,
+      m:              m,
+      opt:            opt,
+      optScale:       optScale,
+      effectiveBkFees: effectiveBrooklynFees,
+      fees:           fees,
+      savings:        savings,
+      net:            net,
+      roi:            roi,
+      horizon:        horizon,
+      leverage:       leverage,
+      dur:            dur,
+      recYr:          recYr,
+      year1:          year1,
+      supplements:    enabledSupplements,
+      supplementalBenefit: supplementalBenefit
+    });
+
     host.innerHTML = html;
     _bindSupplementalToggleEvents();
+  }
+
+  function _renderPrintView(d) {
+    var cfg      = d.cfg || {};
+    var m        = d.m || {};
+    var entry    = d.entry || {};
+    var opt      = d.opt;
+    var fees     = d.fees || 0;
+    var savings  = d.savings || 0;
+    var net      = d.net || 0;
+    var roi      = d.roi || 0;
+    var year1    = d.year1 || (new Date()).getFullYear();
+
+    var clientName = (typeof root.__rettCaseName !== 'undefined' && root.__rettCaseName)
+      ? root.__rettCaseName
+      : ((document.getElementById('case-name-input') || {}).value || '');
+    var today = new Date();
+    var dateStr = (today.getMonth()+1) + '/' + today.getDate() + '/' + today.getFullYear();
+
+    var stratLabel  = d.entry.type === 'A' ? 'Sell Now'
+      : d.entry.type === 'B' ? 'Seller Finance'
+      : 'Structured Sale';
+    var stratNum = d.entry.type === 'A' ? '01' : d.entry.type === 'B' ? '02' : '03';
+
+    // Tax comparison row
+    var doNothing = m.doNothing || 0;
+    var taxWith   = m.tax || 0;
+    var saving    = Math.max(0, doNothing - taxWith);
+
+    // Header
+    var h = '<div class="print-view">';
+    h += '<div class="print-header">' +
+      '<div class="print-header-brand">Brookhaven</div>' +
+      '<div class="print-header-meta">' +
+        (clientName ? '<span class="print-client-name">' + clientName + '</span>' : '') +
+        '<span class="print-date">Prepared ' + dateStr + '</span>' +
+      '</div>' +
+    '</div>';
+    h += '<div class="print-rule"></div>';
+
+    // Title block
+    h += '<div class="print-title-block">' +
+      '<h1 class="print-title">Moving Forward With Brookhaven</h1>' +
+      '<div class="print-strategy-tag">Strategy ' + stratNum + ' &mdash; ' + stratLabel +
+        ' &middot; ' + _filingLabel(cfg.filingStatus) + ' &middot; ' + (cfg.state || '') +
+      '</div>' +
+    '</div>';
+
+    // Hero 3-box row
+    h += '<div class="print-hero-row">' +
+      '<div class="print-hero-box">' +
+        '<div class="print-hero-label">You Save</div>' +
+        '<div class="print-hero-value">' + _fmt(savings) + '</div>' +
+        '<div class="print-hero-sub">Total projected tax savings vs. doing nothing</div>' +
+      '</div>' +
+      '<div class="print-hero-box print-hero-fees">' +
+        '<div class="print-hero-label">Total Fees</div>' +
+        '<div class="print-hero-value">' + _fmt(fees) + '</div>' +
+        '<div class="print-hero-sub">Brooklyn position + Brookhaven planning</div>' +
+      '</div>' +
+      '<div class="print-hero-box print-hero-net">' +
+        '<div class="print-hero-label">Net Benefit</div>' +
+        '<div class="print-hero-value">' + _fmt(net) + '</div>' +
+        '<div class="print-hero-sub">' + _fmtMultiplier(roi) + '&times; return on every $1 in fees</div>' +
+      '</div>' +
+    '</div>';
+
+    // Two-column body
+    h += '<div class="print-body">';
+
+    // LEFT: Tax comparison + fee breakdown
+    h += '<div class="print-col">';
+
+    h += '<div class="print-section">' +
+      '<div class="print-section-head">Tax Comparison &mdash; ' + d.horizon + '-Year Horizon</div>' +
+      '<table class="print-table">' +
+        '<thead><tr><th>Scenario</th><th class="print-num">Tax Owed</th><th class="print-num">Difference</th></tr></thead>' +
+        '<tbody>' +
+          '<tr><td>Without planning (do nothing)</td><td class="print-num">' + _fmt(doNothing) + '</td><td class="print-num">—</td></tr>' +
+          '<tr><td>With ' + stratLabel + ' strategy</td><td class="print-num">' + _fmt(taxWith) + '</td><td class="print-num print-green">&#x2212;' + _fmt(saving) + '</td></tr>' +
+          (d.supplements.length ? '<tr><td>Supplemental strategies benefit</td><td class="print-num print-green">+' + _fmt(d.supplementalBenefit) + '</td><td class="print-num print-green">+' + _fmt(d.supplementalBenefit) + '</td></tr>' : '') +
+        '</tbody>' +
+      '</table>' +
+    '</div>';
+
+    h += '<div class="print-section">' +
+      '<div class="print-section-head">Fees Included</div>' +
+      '<table class="print-table">' +
+        '<tbody>' +
+          '<tr><td>Brooklyn position management' +
+            (opt && opt.dialBack ? ' <span class="print-note">(investment scaled to ' + _fmt(opt.recommendedInvestment) + ')</span>' : '') +
+          '</td><td class="print-num">' + _fmt(d.effectiveBkFees) + '</td></tr>' +
+          '<tr><td>Brookhaven planning &amp; advisory</td><td class="print-num">' + _fmt(m.brookhavenFees || 0) + '</td></tr>' +
+          '<tr class="print-total-row"><td><strong>Total fees</strong></td><td class="print-num"><strong>' + _fmt(fees) + '</strong></td></tr>' +
+        '</tbody>' +
+      '</table>' +
+    '</div>';
+
+    if (opt && opt.dialBack) {
+      h += '<div class="print-optimizer-note">' +
+        '<strong>Investment optimized:</strong> At full capital (' + _fmt(opt.availableCapital) + '), Brooklyn would generate ' +
+        _fmt(opt.brooklynLossAtFull) + ' in losses against ' + _fmt(opt.totalAbsorbableGain) + ' of absorbable gain. ' +
+        'Investment scaled to ' + _fmt(opt.recommendedInvestment) + ' — same tax savings, ' + _fmt(opt.excessLossAtFull) + ' less in wasted carryforward.' +
+      '</div>';
+    }
+
+    h += '</div>'; // /print-col left
+
+    // RIGHT: Strategy details
+    h += '<div class="print-col">';
+
+    h += '<div class="print-section">' +
+      '<div class="print-section-head">Selected Strategy</div>' +
+      '<table class="print-table">' +
+        '<tbody>' +
+          '<tr><td>Strategy</td><td class="print-r"><strong>' + stratLabel + '</strong></td></tr>' +
+          '<tr><td>Tax year</td><td class="print-r">' + year1 + '</td></tr>' +
+          '<tr><td>Filing status</td><td class="print-r">' + _filingLabel(cfg.filingStatus) + '</td></tr>' +
+          '<tr><td>State</td><td class="print-r">' + (cfg.state || '—') + '</td></tr>' +
+          '<tr><td>Closing / implementation</td><td class="print-r">' + (cfg.implementationDate || '—') + '</td></tr>' +
+          '<tr><td>Brooklyn horizon</td><td class="print-r">' + d.horizon + ' years</td></tr>' +
+          '<tr><td>Brooklyn leverage</td><td class="print-r">' + d.leverage + '% short</td></tr>' +
+          (entry.type === 'C'
+            ? '<tr><td>Structured sale term</td><td class="print-r">' + d.dur + ' months</td></tr>' +
+              '<tr><td>Gain recognition starts</td><td class="print-r">Year ' + (d.recYr||2) + ' (' + (year1+(d.recYr||2)-1) + ')</td></tr>'
+            : '') +
+        '</tbody>' +
+      '</table>' +
+    '</div>';
+
+    if (d.supplements && d.supplements.length) {
+      h += '<div class="print-section">' +
+        '<div class="print-section-head">Supplemental Strategies</div>' +
+        '<table class="print-table"><tbody>';
+      d.supplements.forEach(function (s) {
+        h += '<tr><td>' + s.name + '</td><td class="print-num print-green">+' + _fmt(s.netBenefit) + '</td></tr>';
+      });
+      h += '</tbody></table></div>';
+    }
+
+    h += '<div class="print-section">' +
+      '<div class="print-section-head">Return on Planning</div>' +
+      '<div class="print-roi-display">' +
+        '<span class="print-roi-num">' + _fmtMultiplier(roi) + '&times;</span>' +
+        '<span class="print-roi-label">For every $1 in fees, $' + _fmtMultiplier(roi) + ' returned in tax savings</span>' +
+      '</div>' +
+    '</div>';
+
+    h += '</div>'; // /print-col right
+    h += '</div>'; // /print-body
+
+    h += '<div class="print-footer">' +
+      'This document was prepared by Brookhaven for discussion purposes only and does not constitute tax or legal advice. ' +
+      'Results are projections based on current tax law and the inputs provided; actual outcomes may vary.' +
+    '</div>';
+
+    h += '</div>'; // /print-view
+    return h;
   }
 
   function _renderImplementationPanel(cfg, brooklynCumulativeLoss, precomputedOpt) {
