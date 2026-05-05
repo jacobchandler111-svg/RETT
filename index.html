@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=1777600000068">
+  <link rel="stylesheet" href="css/styles.css?v=1777600000069">
 </head>
 <body>
   <a href="#page-inputs" class="skip-link">Skip to main content</a>
@@ -371,18 +371,22 @@
         <h3 class="strategy-pick-name">Sell Now</h3>
         <p class="strategy-pick-tagline">Close the sale in the current tax year and deploy Brooklyn immediately to absorb the long-term capital gain.</p>
 
-        <div class="strategy-pick-tradeoffs">
-          <div class="tradeoff tradeoff-good">
-            <span class="tradeoff-label">Cash</span>
-            <span class="tradeoff-value">Received in full at close</span>
-          </div>
-          <div class="tradeoff tradeoff-good">
-            <span class="tradeoff-label">Lockup</span>
-            <span class="tradeoff-value">None</span>
-          </div>
-          <div class="tradeoff tradeoff-good">
-            <span class="tradeoff-label">Default Risk</span>
-            <span class="tradeoff-value">None &mdash; buyer pays at sale</span>
+        <div class="strategy-keyaspect">
+          <div class="strategy-keyaspect-label">Cash In Hand</div>
+          <p class="strategy-keyaspect-body">Receive the full sale proceeds at close. Less runway to layer in planning, but the cash is yours immediately and there&rsquo;s no buyer risk left on the table.</p>
+        </div>
+
+        <div class="strategy-lockup-graphic" data-lockup-style="cash">
+          <span class="strategy-lockup-icon" aria-hidden="true">
+            <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+              <path d="M8 30 L8 22 Q8 18 12 18 L20 18 L24 14 L36 14 Q40 14 40 18 L40 30 Z"/>
+              <path d="M8 30 Q12 36 20 36 L36 36 Q40 36 40 30"/>
+              <text x="24" y="28" text-anchor="middle" font-family="Georgia, serif" font-size="14" font-weight="700" stroke="none" fill="currentColor">$</text>
+            </svg>
+          </span>
+          <div class="strategy-lockup-text">
+            <span class="strategy-lockup-value">No Lockup</span>
+            <span class="strategy-lockup-sub">Cash available at close</span>
           </div>
         </div>
 
@@ -400,18 +404,25 @@
         <h3 class="strategy-pick-name">Seller Finance</h3>
         <p class="strategy-pick-tagline">Negotiate a closing date later in the year (typically Jan 1 of next year). Brooklyn opens on a fresh tax year with a full year of losses to deploy against the sale.</p>
 
-        <div class="strategy-pick-tradeoffs">
-          <div class="tradeoff tradeoff-mixed">
-            <span class="tradeoff-label">Cash</span>
-            <span class="tradeoff-value">Paid by buyer at the agreed closing date</span>
-          </div>
-          <div class="tradeoff tradeoff-good">
-            <span class="tradeoff-label">Lockup</span>
-            <span class="tradeoff-value">Only the months until closing</span>
-          </div>
-          <div class="tradeoff tradeoff-warn">
-            <span class="tradeoff-label">Default Risk</span>
-            <span class="tradeoff-value">Buyer could fall through before closing</span>
+        <div class="strategy-keyaspect">
+          <div class="strategy-keyaspect-label">More Time To Plan</div>
+          <p class="strategy-keyaspect-body">Negotiate with the buyer to receive payment on January 1. The extra runway gives us more room to implement strategies &mdash; with the trade-off of buyer-side default risk between now and close.</p>
+        </div>
+
+        <div class="strategy-lockup-graphic" data-lockup-style="window">
+          <span class="strategy-lockup-icon" aria-hidden="true">
+            <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+              <rect x="8" y="11" width="32" height="30" rx="3"/>
+              <path d="M8 19 L40 19"/>
+              <path d="M16 7 L16 14"/>
+              <path d="M32 7 L32 14"/>
+              <circle cx="24" cy="29" r="6.5"/>
+              <path d="M24 25.5 L24 29 L27 31"/>
+            </svg>
+          </span>
+          <div class="strategy-lockup-text">
+            <span class="strategy-lockup-value" data-lockup-display="B">Closing Window</span>
+            <span class="strategy-lockup-sub">Months until Jan&nbsp;1 close</span>
           </div>
         </div>
 
@@ -429,18 +440,23 @@
         <h3 class="strategy-pick-name">Structured Sale</h3>
         <p class="strategy-pick-tagline">Insurance-product wrapper that defers the gain across multiple tax years. Brooklyn absorbs each year&rsquo;s recognized chunk as it&rsquo;s released. Best when multi-year deferral materially improves the net.</p>
 
-        <div class="strategy-pick-tradeoffs">
-          <div class="tradeoff tradeoff-mixed">
-            <span class="tradeoff-label">Cash</span>
-            <span class="tradeoff-value">Basis at sale, gain over years</span>
-          </div>
-          <div class="tradeoff">
-            <span class="tradeoff-label">Lockup</span>
-            <span class="tradeoff-value">18 month minimum lockup</span>
-          </div>
-          <div class="tradeoff">
-            <span class="tradeoff-label">Default Risk</span>
-            <span class="tradeoff-value">Insurance carrier guarantees payouts</span>
+        <div class="strategy-keyaspect">
+          <div class="strategy-keyaspect-label">Maximum Tax Reduction</div>
+          <p class="strategy-keyaspect-body">Spread the recognized gain across multiple tax years. The longer recognition window pulls liability down the furthest of the three options &mdash; in exchange for a longer lockup.</p>
+        </div>
+
+        <div class="strategy-lockup-graphic" data-lockup-style="lock">
+          <span class="strategy-lockup-icon" aria-hidden="true">
+            <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+              <rect x="10" y="22" width="28" height="20" rx="2.5"/>
+              <path d="M16 22 L16 16 Q16 8 24 8 Q32 8 32 16 L32 22"/>
+              <circle cx="24" cy="31" r="2.5"/>
+              <path d="M24 33.5 L24 37"/>
+            </svg>
+          </span>
+          <div class="strategy-lockup-text">
+            <span class="strategy-lockup-value" data-lockup-display="C">18 Month Lockup</span>
+            <span class="strategy-lockup-sub">Engine-picked recognition term</span>
           </div>
         </div>
 
@@ -626,53 +642,53 @@
   <!-- ============ Subsystem load order: 00 -> 01 -> 02 -> 03 -> 05 -> 04 ============ -->
   <!-- date-utils is loaded ahead of 00-data so schwab-strategies can use the
        shared parseLocalDate global instead of defining its own copy. -->
-  <script src="js/01-brooklyn/date-utils.js?v=1777600000068"></script>
-  <script src="js/00-data/custodians.js?v=1777600000068"></script>
-  <script src="js/00-data/schwab-strategies.js?v=1777600000068"></script>
-  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000068"></script>
-  <script src="js/01-brooklyn/time-weight.js?v=1777600000068"></script>
-  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000068"></script>
-  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000068"></script>
+  <script src="js/01-brooklyn/date-utils.js?v=1777600000069"></script>
+  <script src="js/00-data/custodians.js?v=1777600000069"></script>
+  <script src="js/00-data/schwab-strategies.js?v=1777600000069"></script>
+  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000069"></script>
+  <script src="js/01-brooklyn/time-weight.js?v=1777600000069"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000069"></script>
+  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000069"></script>
 
-  <script src="js/02-tax-engine/tax-data.js?v=1777600000068"></script>
-  <script src="js/02-tax-engine/tax-loader.js?v=1777600000068"></script>
-  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000068"></script>
-  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000068"></script>
-  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000068"></script>
-  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000068"></script>
+  <script src="js/02-tax-engine/tax-data.js?v=1777600000069"></script>
+  <script src="js/02-tax-engine/tax-loader.js?v=1777600000069"></script>
+  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000069"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000069"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000069"></script>
+  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000069"></script>
 
-  <script src="js/03-solver/fees.js?v=1777600000068"></script>
-  <script src="js/03-solver/fee-split.js?v=1777600000068"></script>
-  <script src="js/03-solver/brookhaven-fees.js?v=1777600000068"></script>
-  <script src="js/03-solver/single-year-solver.js?v=1777600000068"></script>
-  <script src="js/03-solver/multi-year-solver.js?v=1777600000068"></script>
-  <script src="js/03-solver/structured-sale.js?v=1777600000068"></script>
-  <script src="js/03-solver/decision-engine.js?v=1777600000068"></script>
+  <script src="js/03-solver/fees.js?v=1777600000069"></script>
+  <script src="js/03-solver/fee-split.js?v=1777600000069"></script>
+  <script src="js/03-solver/brookhaven-fees.js?v=1777600000069"></script>
+  <script src="js/03-solver/single-year-solver.js?v=1777600000069"></script>
+  <script src="js/03-solver/multi-year-solver.js?v=1777600000069"></script>
+  <script src="js/03-solver/structured-sale.js?v=1777600000069"></script>
+  <script src="js/03-solver/decision-engine.js?v=1777600000069"></script>
 
-  <script src="js/05-projections/carryforward-tracker.js?v=1777600000068"></script>
-  <script src="js/05-projections/projection-engine.js?v=1777600000068"></script>
+  <script src="js/05-projections/carryforward-tracker.js?v=1777600000069"></script>
+  <script src="js/05-projections/projection-engine.js?v=1777600000069"></script>
 
   <!-- format-helpers loads first inside 04-ui so every renderer can use
        fmtUSD / fmtPct / fmtNum directly without a defensive fallback. -->
-  <script src="js/04-ui/format-helpers.js?v=1777600000068"></script>
-  <script src="js/04-ui/money-format.js?v=1777600000068"></script>
-  <script src="js/04-ui/banner.js?v=1777600000068"></script>
-  <script src="js/04-ui/number-animator.js?v=1777600000068"></script>
-  <script src="js/04-ui/case-storage.js?v=1777600000068"></script>
-  <script src="js/04-ui/pill-toggles.js?v=1777600000068"></script>
-  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000068"></script>
-  <script src="js/04-ui/input-validation.js?v=1777600000068"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1777600000068"></script>
-  <script src="js/04-ui/controls.js?v=1777600000068"></script>
-  <script src="js/04-ui/recommendation-render.js?v=1777600000068"></script>
-  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000068"></script>
-  <script src="js/04-ui/savings-ribbon.js?v=1777600000068"></script>
-  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000068"></script>
-  <script src="js/04-ui/narrative-render.js?v=1777600000068"></script>
-  <script src="js/04-ui/strategy-summary-render.js?v=1777600000068"></script>
-  <script src="js/04-ui/baseline-table.js?v=1777600000068"></script>
+  <script src="js/04-ui/format-helpers.js?v=1777600000069"></script>
+  <script src="js/04-ui/money-format.js?v=1777600000069"></script>
+  <script src="js/04-ui/banner.js?v=1777600000069"></script>
+  <script src="js/04-ui/number-animator.js?v=1777600000069"></script>
+  <script src="js/04-ui/case-storage.js?v=1777600000069"></script>
+  <script src="js/04-ui/pill-toggles.js?v=1777600000069"></script>
+  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000069"></script>
+  <script src="js/04-ui/input-validation.js?v=1777600000069"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1777600000069"></script>
+  <script src="js/04-ui/controls.js?v=1777600000069"></script>
+  <script src="js/04-ui/recommendation-render.js?v=1777600000069"></script>
+  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000069"></script>
+  <script src="js/04-ui/savings-ribbon.js?v=1777600000069"></script>
+  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000069"></script>
+  <script src="js/04-ui/narrative-render.js?v=1777600000069"></script>
+  <script src="js/04-ui/strategy-summary-render.js?v=1777600000069"></script>
+  <script src="js/04-ui/baseline-table.js?v=1777600000069"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1777600000068"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1777600000069"></script>
 </body>
 </html>

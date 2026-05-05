@@ -399,6 +399,52 @@ function _refreshStrategyPickCards() {
       btn.classList.toggle('is-' + action, isOn);
     });
   });
+  _refreshStrategyLockupDisplays();
+}
+
+// Populate the per-card lockup graphic value for B (months between
+// the configured sale date and Jan 1 of the next year) and C (the
+// engine-picked structured-sale duration). A is static "No Lockup".
+function _refreshStrategyLockupDisplays() {
+  var cfg = null;
+  try { cfg = (typeof collectInputs === 'function') ? collectInputs() : null; } catch (e) { cfg = null; }
+
+  var bEl = document.querySelector('[data-lockup-display="B"]');
+  if (bEl) {
+    var months = _monthsUntilNextJan1(cfg && cfg.implementationDate);
+    bEl.textContent = (months != null) ? (months + ' Month Window') : 'Closing Window';
+  }
+
+  var cEl = document.querySelector('[data-lockup-display="C"]');
+  if (cEl) {
+    var pickedMonths = null;
+    try {
+      if (typeof buildInterestedSummary === 'function') {
+        var summary = buildInterestedSummary();
+        if (summary && summary.entries) {
+          var entryC = summary.entries.filter(function (e) { return e.type === 'C'; })[0];
+          if (entryC && entryC.picked && entryC.picked.durationMonths) {
+            pickedMonths = entryC.picked.durationMonths;
+          }
+        }
+      }
+    } catch (e) { pickedMonths = null; }
+    if (!pickedMonths && cfg && cfg.structuredSaleDurationMonths) {
+      pickedMonths = cfg.structuredSaleDurationMonths;
+    }
+    cEl.textContent = (pickedMonths ? pickedMonths : 18) + ' Month Lockup';
+  }
+}
+
+function _monthsUntilNextJan1(isoDate) {
+  if (!isoDate) return null;
+  var d = (typeof window !== 'undefined' && typeof window.parseLocalDate === 'function')
+    ? window.parseLocalDate(isoDate)
+    : new Date(isoDate);
+  if (!d || isNaN(d.getTime())) return null;
+  var target = new Date(d.getFullYear() + 1, 0, 1);
+  var ms = target - d;
+  return Math.max(1, Math.min(12, Math.ceil(ms / (1000 * 60 * 60 * 24 * 30.4375))));
 }
 
 function _debounce(fn, ms) {

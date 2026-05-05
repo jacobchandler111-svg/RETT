@@ -1931,48 +1931,48 @@
              '</div>';
     }).join('');
 
-    return '<div class="rett-donut-wrap">' +
+    // Per-card spec: the donut sits centered inside Show Details with
+    // NO legend rows — the only label kept is the % center text. The
+    // user removed the dollar list (Original income kept / Net benefit /
+    // Tax + fees) so the chart reads as a single visual rather than a
+    // breakdown table. legendRows / feesCallout are still computed above
+    // so the function can be reused if a legend variant is needed later.
+    void legendRows; void feesCallout;
+    return '<div class="rett-donut-wrap rett-donut-wrap-centered">' +
       '<svg class="rett-donut" viewBox="0 0 220 220" role="img" aria-label="Sale tax breakdown">' +
         slices +
         '<text x="110" y="120" text-anchor="middle" class="rett-donut-center-pct">' + pctKept + '</text>' +
       '</svg>' +
-      '<div class="rett-donut-legend-wrap">' +
-        '<div class="rett-donut-legend">' + legendRows + '</div>' +
-        feesCallout +
-      '</div>' +
     '</div>';
   }
 
-  // Build the visualizations object for a card. All three cards now
-  // use variant B (3-slice: Original income kept · Net benefit · Tax
-  // + fees combined) — picked by the user after the A/B/C side-by-side.
+  // Build the visualizations object for a card. A and B show a centered
+  // donut inside Show Details; C drops the donut entirely so the
+  // accordion content is just the Payment Schedule (cash-arrival timing
+  // is the actual question for Structured Sale).
   function _buildVisuals(typeLabel, metrics, cfg, comp) {
+    if (typeLabel === 'C') return { donut: '' };
     return { donut: _saleOnlyDonutSvg(cfg, metrics, 'B') };
   }
 
-  function _interestedCard(typeLabel, num, name, picked, metrics, lossSum, isRecommended, durationMonths, paymentScheduleHtml, visuals) {
-    // Format leverage as a multiplier ("0.45×", "1.0×", "2.25×")
-    // instead of "45%" — matches how the user verbally describes
-    // strategies (1.0× / 1.65×) and reads cleaner next to "Time
-    // horizon" in the auto-pick line. Trailing-zero kept for whole
-    // numbers (1.0× not 1×) so the format is uniform.
-    function _fmtLev(pct) {
-      var x = (pct || 0) / 100;
-      if (Math.abs(x - Math.round(x)) < 0.005) return x.toFixed(1) + '×';
-      return x.toFixed(2) + '×';
-    }
-    // Auto-pick line. Pages 2/3 dropped detail rows entirely per user
-    // spec — the only context kept under the donut is the engine's
-    // chosen tuple. Time horizon is shown in years for A/B (those are
-    // simple single-year strategies) and in MONTHS for C using the
-    // structured-sale duration, which is the actually-meaningful
-    // "time in the strategy" number for that scenario.
-    var autoSummary;
-    if (typeLabel === 'C') {
-      var pickedDur = picked.durationMonths || durationMonths || 18;
-      autoSummary = 'Time horizon: ' + pickedDur + ' months &middot; Leverage: ' + _fmtLev(picked.shortPct);
+  function _interestedCard(typeLabel, num, name, picked, metrics, lossSum, isRecommended, durationMonths, paymentScheduleHtml, visuals, currentCfg) {
+    // Lockup line replaces the old "Time horizon · Leverage" auto-pick
+    // summary. Strategy choice is now described by how long the seller's
+    // proceeds are tied up:
+    //   A — None (cash hits at close)
+    //   B — months from the proposed sale date to Jan 1 of the next year
+    //   C — engine-picked structured-sale duration in months
+    // Leverage is intentionally NOT surfaced here — it's discussed in
+    // the meeting, not auto-displayed on the card.
+    var lockupValue;
+    if (typeLabel === 'A') {
+      lockupValue = 'None';
+    } else if (typeLabel === 'B') {
+      var bMonths = _bMonthsUntilJan1(currentCfg);
+      lockupValue = (bMonths != null ? bMonths : '—') + ' months';
     } else {
-      autoSummary = 'Time horizon: ' + picked.horizon + 'y &middot; Leverage: ' + _fmtLev(picked.shortPct);
+      var pickedDur = (picked && picked.durationMonths) || durationMonths || 18;
+      lockupValue = pickedDur + ' months';
     }
 
     // Card visual: only the user's own "chosen" pick gets a ring.
@@ -1985,28 +1985,42 @@
       '<button type="button" class="rett-use-strategy-btn" data-use-strategy="' + typeLabel + '">' +
         (chosen ? '✓ Selected for Strategy Summary' : 'Use This Strategy &rarr;') +
       '</button>';
+    var summaryLabel = (typeLabel === 'C') ? 'Show payment schedule' : 'Show details';
+    var detailsBody = (typeLabel === 'C')
+      ? (paymentScheduleHtml || '')
+      : ((visuals && visuals.donut) ? visuals.donut : '');
     return '<div class="' + cls + '" data-type="' + typeLabel + '">' +
       '<div class="rett-interested-header">' +
-        '<span class="rett-interested-num">STRATEGY ' + num + '</span>' +
+        '<span class="rett-interested-num">STRATEGY <span class="rett-interested-num-big">' + num + '</span></span>' +
       '</div>' +
       '<div class="rett-interested-name">' + name + '</div>' +
       '<div class="rett-interested-net-label">Net Benefit</div>' +
       '<div class="rett-interested-net-value">' + _fmt(metrics.net) + '</div>' +
+      '<div class="rett-interested-lockup">' +
+        '<span class="rett-interested-lockup-label">Lockup</span>' +
+        '<span class="rett-interested-lockup-value">' + lockupValue + '</span>' +
+      '</div>' +
       '<details class="rett-interested-details">' +
-        '<summary>Show details</summary>' +
-        // Donut chart + auto-pick line are the only things in the
-        // accordion now. Detail rows (losses / fees breakdown / net
-        // benefit echo) were stripped per user spec — the donut
-        // already shows the sale story and the headline net benefit
-        // number is right above the accordion. Structured Sale (C)
-        // additionally keeps its payment schedule since cash-arrival
-        // timing is the whole point of that strategy.
-        ((visuals && visuals.donut) ? visuals.donut : '') +
-        '<div class="rett-interested-autopick">' + autoSummary + '</div>' +
-        (paymentScheduleHtml || '') +
+        '<summary>' + summaryLabel + '</summary>' +
+        detailsBody +
       '</details>' +
       chooseBtn +
     '</div>';
+  }
+
+  // Months from the configured sale (implementation) date to Jan 1 of
+  // the next calendar year. Returned as an integer in [1, 12]; null if
+  // the date can't be parsed. Mirrors the helper in controls.js so the
+  // Page-3 Lockup line and the Page-2 Closing Window value agree.
+  function _bMonthsUntilJan1(cfg) {
+    if (!cfg || !cfg.implementationDate) return null;
+    var d = (typeof window !== 'undefined' && typeof window.parseLocalDate === 'function')
+      ? window.parseLocalDate(cfg.implementationDate)
+      : new Date(cfg.implementationDate);
+    if (!d || isNaN(d.getTime())) return null;
+    var target = new Date(d.getFullYear() + 1, 0, 1);
+    var ms = target - d;
+    return Math.max(1, Math.min(12, Math.ceil(ms / (1000 * 60 * 60 * 24 * 30.4375))));
   }
 
   // Build the per-scenario summary data shared by Page 3 (Interested
@@ -2160,7 +2174,7 @@
     var grid = '<div class="rett-interested-grid count-' + filtered.length + '">';
     filtered.forEach(function (e, i) {
       var isRec = (entries.indexOf(e) === recIdx);
-      grid += _interestedCard(e.type, e.num, e.name, e.picked, e.metrics, e.loss, isRec, userDuration, e.payments, e.visuals);
+      grid += _interestedCard(e.type, e.num, e.name, e.picked, e.metrics, e.loss, isRec, userDuration, e.payments, e.visuals, summary.currentCfg);
     });
     grid += '</div>';
 
