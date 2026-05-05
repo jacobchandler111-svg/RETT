@@ -3907,311 +3907,35 @@ body { font-size: 16px; }
     font-weight: 400;
 }
 
-/* ============== PAGE 4 — SUPPLEMENTAL STRATEGIES ============== */
-.supp-card {
-    background: var(--paper);
-    border: 1px solid var(--rule);
-    box-shadow: var(--shadow);
-    margin-bottom: 22px;
-}
-.supp-card-heading {
-    /* Inherits .section-heading; just allow the longer label to breathe */
-}
-.supp-card-body {
-    padding: 22px 24px;
-}
-.supp-toggle-row {
-    margin-bottom: 16px;
-    padding-bottom: 14px;
-    border-bottom: 1px solid var(--rule-soft);
-}
-.supp-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    cursor: pointer;
-    font-family: var(--font-mono);
-    font-size: 0.85em;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--ink-soft);
-    user-select: none;
-}
-.supp-toggle input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    accent-color: var(--bh-blue-deep);
-    cursor: pointer;
-}
-.supp-card-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-    gap: 28px;
-    align-items: start;
-}
-@media (max-width: 1100px) {
-    .supp-card-grid { grid-template-columns: 1fr; }
-}
-.supp-card-inputs .input-row { margin-bottom: 14px; }
-.currency-input.percent {
-    position: relative;
-}
-.currency-input.percent .pct-suffix {
-    position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--muted);
-    font-family: var(--font-mono);
-    font-size: 0.95em;
-    pointer-events: none;
-}
-.currency-input.percent input {
-    padding-right: 28px;
-}
-.supp-divert-hint {
-    font-size: 0.86em;
-    color: var(--muted);
-    margin: 6px 0 16px;
-    padding: 10px 12px;
-    background: var(--paper-warm);
-    border-left: 3px solid var(--rule);
-    line-height: 1.5;
-}
-.supp-detail {
-    margin-top: 14px;
-    padding: 14px 16px;
-    background: var(--paper-warm);
-    border: 1px solid var(--rule-soft);
-}
-.supp-detail h4 {
-    margin: 0 0 8px;
-    font-family: var(--font-mono);
-    font-size: 0.78em;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--bh-blue-deep);
-}
-.supp-detail p {
-    margin: 0 0 8px;
-    font-size: 0.92em;
-    line-height: 1.55;
-    color: var(--ink);
-}
-.supp-detail p:last-child { margin-bottom: 0; }
-.supp-detail .citation {
-    font-family: var(--font-mono);
-    font-size: 0.88em;
-    color: var(--bh-blue-deep);
-    background: rgba(35,31,85,0.05);
-    padding: 1px 4px;
-}
-.supp-caveat {
-    color: var(--muted);
-    border-top: 1px dashed var(--rule-soft);
-    padding-top: 8px;
-    margin-top: 10px !important;
-}
 
-.supp-card-results {
-    /* Sticks to the right column on wide screens */
-}
-.supp-results-card {
-    background: var(--ink);
-    color: var(--paper);
-    padding: 22px 22px 18px;
-    border-radius: 2px;
-    transition: opacity 0.2s;
-}
-.supp-results-card.is-dimmed { opacity: 0.45; }
-.supp-results-heading {
-    font-family: var(--font-mono);
-    font-size: 0.78em;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--bh-blue);
-    margin-bottom: 16px;
-}
-.supp-results-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-bottom: 12px;
-}
-.supp-results-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    font-family: var(--font-mono);
-    font-size: 0.95em;
-}
-.supp-results-row.sub { padding-left: 10px; opacity: 0.85; font-size: 0.9em; }
-.supp-results-row .lbl { color: rgba(255,255,255,0.78); }
-.supp-results-row .amt { font-weight: 600; }
-.supp-results-row .amt.pos { color: #6ee7b7; }
-.supp-results-row .amt.neg { color: #fca5a5; }
-.supp-nol-banner {
-    margin: 10px 0 14px;
-    padding: 10px 12px;
-    background: rgba(252,165,165,0.12);
-    border-left: 3px solid #fca5a5;
-    color: rgba(255,255,255,0.92);
-    font-size: 0.85em;
-    line-height: 1.5;
-}
-.supp-results-total {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    margin-top: 14px;
-    padding-top: 14px;
-    border-top: 1px solid rgba(255,255,255,0.18);
-}
-.supp-results-total .lbl {
-    font-family: var(--font-mono);
-    font-size: 0.8em;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: rgba(255,255,255,0.7);
-}
-.supp-results-total .amt.big {
-    font-family: var(--font-display);
-    font-size: 2em;
-    font-weight: 500;
-    color: #6ee7b7;
-}
-.supp-results-baselines {
-    margin-top: 14px;
-    padding-top: 12px;
-    border-top: 1px dashed rgba(255,255,255,0.2);
-    font-family: var(--font-mono);
-    font-size: 0.82em;
-    color: rgba(255,255,255,0.65);
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-.supp-results-baselines strong { color: rgba(255,255,255,0.95); font-weight: 600; }
-
-/* ---- Multi-year Oil & Gas: year rows + per-year results ---- */
-.supp-year-header {
-    margin-bottom: 14px;
-    padding: 10px 14px;
-    background: var(--paper-warm);
-    border: 1px solid var(--rule-soft);
-    display: flex;
-    align-items: center;
-}
-.supp-year-header-label {
-    font-family: var(--font-mono);
-    font-size: 0.7em;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--muted);
-}
-.supp-year-header-value {
-    font-family: var(--font-display);
-    font-size: 1.05em;
-    color: var(--ink);
-    margin-top: 2px;
-}
-.supp-year-grid-head {
-    display: grid;
-    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) 92px;
-    gap: 10px;
-    padding: 4px 8px 6px;
-    font-family: var(--font-mono);
-    font-size: 0.7em;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--muted);
-    border-bottom: 1px solid var(--rule-soft);
-}
-.supp-year-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) 92px;
-    gap: 10px;
-    align-items: center;
-    padding: 8px 8px;
-    border-bottom: 1px solid var(--rule-soft);
-}
-.supp-year-row:last-child { border-bottom: none; }
-.supp-year-label {
-    font-family: var(--font-mono);
-    font-size: 0.88em;
-    color: var(--ink);
-}
-.supp-year-caption {
-    color: var(--muted);
-    font-size: 0.92em;
-}
-.supp-year-input input,
-.supp-year-pct input {
-    padding: 8px 10px;
-    font-size: 0.95em;
-}
-.supp-year-pct .currency-input.percent input {
-    padding-right: 22px;
-}
-
-.supp-results-yeartable {
-    margin-bottom: 12px;
-    padding-bottom: 8px;
-    border-bottom: 1px dashed rgba(255,255,255,0.18);
-}
-.supp-results-yearrow {
-    display: grid;
-    grid-template-columns: 70px 1fr 1fr;
-    gap: 8px;
-    font-family: var(--font-mono);
-    font-size: 0.88em;
-    padding: 4px 0;
-    color: rgba(255,255,255,0.85);
-}
-.supp-results-yearrow.head {
-    color: rgba(255,255,255,0.55);
-    font-size: 0.7em;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    border-bottom: 1px solid rgba(255,255,255,0.12);
-    padding-bottom: 6px;
-    margin-bottom: 4px;
-}
-.supp-results-yearrow .ydeduct { color: #fca5a5; text-align: right; }
-.supp-results-yearrow .ysaved  { color: #6ee7b7; text-align: right; font-weight: 600; }
-.supp-results-yearrow.head .ydeduct,
-.supp-results-yearrow.head .ysaved { color: rgba(255,255,255,0.55); font-weight: 400; }
-
-/* ============== PAGE 4 — Supplemental strategies (v2)
-   Cards reuse .strategy-pick-card from Page 2 wholesale; the only
-   net-new chrome is the Details disclosure below the buttons. The
-   single-card grid uses a narrower max-width so a lone card on the
-   page reads as a card, not a stretched block. ============== */
+/* ============== PAGE 4 — Supplemental strategies (v3)
+   Cards reuse .strategy-pick-card from Page 2 wholesale. Grid uses
+   the same 3-up template as Page 2 so a lone card occupies one
+   column (1/3 width) and additional supplemental strategies fill
+   in 3-per-row as we add them. The only net-new chrome is the small
+   chevron arrow under the Interested button that toggles a Details
+   panel with two simple knobs (Max Investment + Depreciation %). ============== */
 .supp-strategies-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 360px));
-    gap: 24px;
-    justify-content: center;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 22px;
+    align-items: start;
     margin-top: 24px;
 }
-.supp-strategies-grid.count-1 {
-    /* A lone card centers, capped at the same width Page 2 uses */
-    grid-template-columns: minmax(0, 360px);
+@media (max-width: 1000px) {
+    .supp-strategies-grid { grid-template-columns: 1fr; }
 }
 
-/* Details disclosure — small, low-key, sits below the action buttons */
-.supp-details-toggle {
-    display: flex;
+/* Small chevron + "Details" label that appears under the Interested
+   button. Closed state = arrow only; open state adds the word. */
+.supp-details-arrow {
+    display: inline-flex;
     align-items: center;
-    justify-content: center;
     gap: 6px;
-    width: 100%;
-    margin-top: 12px;
-    padding: 8px 10px;
+    margin: 12px 0 0;
+    padding: 4px 6px;
     background: transparent;
     border: none;
-    border-top: 1px dashed var(--rule-soft);
     color: var(--muted);
     font-family: var(--font-mono);
     font-size: 0.72em;
@@ -4219,46 +3943,42 @@ body { font-size: 16px; }
     text-transform: uppercase;
     cursor: pointer;
     transition: color 0.15s, background 0.15s;
+    align-self: flex-start;
 }
-.supp-details-toggle:hover {
+.supp-details-arrow:hover {
     color: var(--ink);
     background: var(--paper-warm);
 }
-.supp-details-toggle-chev {
-    transition: transform 0.18s ease-out;
+.supp-details-arrow-chev {
     display: inline-block;
+    transform: rotate(-90deg); /* points right when closed */
+    transition: transform 0.18s ease-out;
+    font-size: 0.95em;
+    line-height: 1;
 }
-.supp-details-toggle.is-open .supp-details-toggle-chev {
-    transform: rotate(180deg);
+.supp-details-arrow.is-open .supp-details-arrow-chev {
+    transform: rotate(0deg); /* points down when open */
 }
+.supp-details-arrow-label { display: none; }
+.supp-details-arrow.is-open .supp-details-arrow-label { display: inline; }
 
+/* Details panel content — 2 simple rows: label + input */
 .supp-details-panel {
     margin-top: 4px;
-    padding: 12px 14px 14px;
+    padding: 10px 12px 12px;
     background: var(--paper-warm);
     border-top: 1px solid var(--rule-soft);
 }
-.supp-details-grid-head {
-    display: grid;
-    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.3fr) 84px;
-    gap: 8px;
-    padding: 0 4px 6px;
-    font-family: var(--font-mono);
-    font-size: 0.66em;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--muted);
-    border-bottom: 1px solid var(--rule-soft);
-}
 .supp-details-row {
     display: grid;
-    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.3fr) 84px;
-    gap: 8px;
+    grid-template-columns: minmax(0, 1.2fr) 140px;
+    gap: 12px;
     align-items: center;
-    padding: 6px 4px;
-    border-bottom: 1px solid var(--rule-soft);
+    padding: 6px 0;
 }
-.supp-details-row:last-child { border-bottom: none; }
+.supp-details-row + .supp-details-row {
+    border-top: 1px solid var(--rule-soft);
+}
 .supp-details-rowlabel {
     font-family: var(--font-mono);
     font-size: 0.85em;
@@ -4266,50 +3986,28 @@ body { font-size: 16px; }
 }
 .supp-details-rowsub {
     color: var(--muted);
-    font-size: 0.92em;
+    font-size: 0.86em;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-left: 4px;
 }
 .supp-details-cell .currency-input input {
-    padding: 6px 9px;
-    font-size: 0.9em;
+    padding: 7px 10px;
+    font-size: 0.92em;
 }
 .supp-details-cell .currency-input.percent input {
     padding-right: 22px;
 }
-
-/* Inline live-savings line at the bottom of the Details panel —
-   gives the advisor instant feedback when they tweak inputs without
-   leaving Page 4 to check the Strategy Summary. */
-.supp-details-savings {
-    margin-top: 12px;
-    padding-top: 10px;
-    border-top: 1px dashed var(--rule);
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: auto auto;
-    column-gap: 12px;
-    align-items: baseline;
+.currency-input.percent {
+    position: relative;
 }
-.supp-details-savings .lbl {
-    grid-column: 1;
-    grid-row: 1;
+.currency-input.percent .pct-suffix {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
     font-family: var(--font-mono);
-    font-size: 0.72em;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--muted);
-}
-.supp-details-savings .amt {
-    grid-column: 2;
-    grid-row: 1 / span 2;
-    font-family: var(--font-display);
-    font-size: 1.45em;
-    font-weight: 500;
-    color: var(--bh-blue-deep);
-    align-self: center;
-}
-.supp-details-savings .sub {
-    grid-column: 1;
-    grid-row: 2;
-    font-size: 0.8em;
-    color: var(--muted);
+    font-size: 0.9em;
+    pointer-events: none;
 }
