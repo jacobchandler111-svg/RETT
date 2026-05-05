@@ -1660,7 +1660,90 @@
     return '<li ' + pad + '><span>' + label + '</span><strong>' + _fmt(value) + '</strong></li>';
   }
 
-  function _interestedCard(typeLabel, num, name, picked, metrics, lossSum, isRecommended, durationMonths) {
+  // Format a YYYY-MM-DD string as "Mon DD, YYYY". Falls back to Jan 1 of
+  // a known year, then to a literal en-dash.
+  function _fmtClosingDate(dateStr, fallbackYear) {
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    if (dateStr && typeof window !== 'undefined' && typeof window.parseLocalDate === 'function') {
+      var d = window.parseLocalDate(dateStr);
+      if (d && !isNaN(d.getTime())) {
+        return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+      }
+    }
+    return fallbackYear ? ('Jan 1, ' + fallbackYear) : '—';
+  }
+
+  // Build the cash-flow table the seller cares about: when does the
+  // structured-sale buyer actually deliver money? At closing they pay
+  // the basis cash up front; gain installments hit in the recognition
+  // year(s) the engine resolved (typically Year +recIdx+1 under the
+  // 18-month MEP window). Reads the recognitionSchedule directly so
+  // multi-year recognition (rec=3, rec=4) renders correctly without
+  // re-deriving the calendar math here.
+  function _buildPaymentScheduleHtml(cfg, comp, durationMonths) {
+    if (!cfg || !comp) return '';
+    var year1 = cfg.year1 || (new Date()).getFullYear();
+    var basisCash = Math.max(0, Number(cfg.costBasis) || 0);
+    var sched = (comp.recognitionSchedule && comp.recognitionSchedule.length)
+      ? comp.recognitionSchedule.slice()
+      : [];
+    if (!sched.length) return '';
+
+    // Build a year -> {gain, isClosing} map so we can merge the closing
+    // basis-cash line into Y1 instead of showing two rows for the same
+    // year (cleaner for sellers — one cash deposit, one date).
+    var byYear = {};
+    sched.forEach(function (r) {
+      var y = r.year || year1;
+      if (!byYear[y]) byYear[y] = { year: y, gain: 0, isClosing: false };
+      byYear[y].gain += (r.gainRecognized || 0);
+    });
+    if (!byYear[year1]) byYear[year1] = { year: year1, gain: 0, isClosing: false };
+    byYear[year1].isClosing = true;
+
+    var years = Object.keys(byYear).map(function (k) { return byYear[k]; })
+      .sort(function (a, b) { return a.year - b.year; });
+
+    var rows = '';
+    var totalCash = 0;
+    years.forEach(function (yr) {
+      var cash = (yr.isClosing ? basisCash : 0) + yr.gain;
+      // Suppress zero-cash rows so the table only shows years where the
+      // seller actually receives money. Zero rows are honest engine
+      // output (the recognitionSchedule pads to horizon) but they add
+      // noise to a table built specifically to answer "when does cash
+      // arrive?".
+      if (cash <= 0) return;
+      var dateLabel = yr.isClosing ? _fmtClosingDate(cfg.implementationDate, yr.year) : ('Jan 1, ' + yr.year);
+      totalCash += cash;
+      var note = yr.isClosing && yr.gain === 0
+        ? 'Basis cash at closing'
+        : yr.isClosing
+          ? 'Basis at closing + gain installment'
+          : 'Gain installment';
+      rows += '<tr>' +
+        '<td>' + yr.year + '</td>' +
+        '<td>' + dateLabel + '</td>' +
+        '<td>' + _fmt(cash) + '</td>' +
+        '<td class="muted">' + note + '</td>' +
+      '</tr>';
+    });
+    rows += '<tr class="rett-payments-total">' +
+      '<td colspan="2">Total payments received</td>' +
+      '<td>' + _fmt(totalCash) + '</td>' +
+      '<td class="muted">Sum of all installments</td>' +
+    '</tr>';
+
+    return '<div class="rett-interested-payments">' +
+      '<h4>Payment Schedule <span class="muted">(' + (durationMonths || 18) + '-month structured sale)</span></h4>' +
+      '<table class="rett-payments-table">' +
+        '<thead><tr><th>Year</th><th>Date</th><th>Cash Received</th><th>Notes</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+      '</table>' +
+    '</div>';
+  }
+
+  function _interestedCard(typeLabel, num, name, picked, metrics, lossSum, isRecommended, durationMonths, paymentScheduleHtml) {
     var badge = isRecommended
       ? '<span class="rett-interested-rec-tag">Recommended</span>'
       : '';
@@ -1692,6 +1775,7 @@
         '<summary>Show details</summary>' +
         '<ul class="rett-interested-detail-list">' + detailItems + '</ul>' +
         '<div class="rett-interested-autopick">Auto-picked: ' + autoSummary + '</div>' +
+        (paymentScheduleHtml || '') +
       '</details>' +
     '</div>';
   }
@@ -1747,11 +1831,21 @@
     var pickedC = _bestPickedCfgLocal('C');
     var mC = _scenarioMetrics(pickedC.cfg);
     var lossC = mC ? _scenarioLossSum(pickedC.cfg) : 0;
+    // Pull the recognitionSchedule once so the payment-schedule
+    // sub-table inside C's Show Details panel can show real installment
+    // dates + amounts the seller will actually receive.
+    var paymentsC = '';
+    if (mC) {
+      var dataC = _scenarioFullData(pickedC.cfg);
+      if (dataC && dataC.comp) {
+        paymentsC = _buildPaymentScheduleHtml(pickedC.cfg, dataC.comp, userDuration);
+      }
+    }
 
     var entries = [];
-    if (mA) entries.push({ type: 'A', num: '01', name: 'Sell Now', picked: pickedA.picked, metrics: mA, loss: lossA });
-    if (mB) entries.push({ type: 'B', num: '02', name: 'Seller Finance', picked: pickedB.picked, metrics: mB, loss: lossB });
-    if (mC) entries.push({ type: 'C', num: '03', name: 'Structured Sale', picked: pickedC.picked, metrics: mC, loss: lossC });
+    if (mA) entries.push({ type: 'A', num: '01', name: 'Sell Now', picked: pickedA.picked, metrics: mA, loss: lossA, payments: '' });
+    if (mB) entries.push({ type: 'B', num: '02', name: 'Seller Finance', picked: pickedB.picked, metrics: mB, loss: lossB, payments: '' });
+    if (mC) entries.push({ type: 'C', num: '03', name: 'Structured Sale', picked: pickedC.picked, metrics: mC, loss: lossC, payments: paymentsC });
 
     if (!entries.length) {
       host.innerHTML = '';
@@ -1779,7 +1873,7 @@
     filtered.forEach(function (e, i) {
       // Recommended badge follows the original entry index, not the filter index.
       var isRec = (entries.indexOf(e) === recIdx);
-      grid += _interestedCard(e.type, e.num, e.name, e.picked, e.metrics, e.loss, isRec, userDuration);
+      grid += _interestedCard(e.type, e.num, e.name, e.picked, e.metrics, e.loss, isRec, userDuration, e.payments);
     });
     grid += '</div>';
 
