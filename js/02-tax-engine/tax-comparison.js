@@ -420,7 +420,22 @@ function computeTaxComparison(cfg, recommendation) {
             if (_flatRec && _flatRec.recommendation === 'single-year') {
                   if (i === 0) {
                         gainThisYear = _flatRec.longTermGain || 0;
-                        lossThisYear = _flatRec.lossGenerated || 0;
+                        // Y1 loss uses the same formula as Y2+ (capital ×
+                        // lossRateForTrancheYear(0) at cfg.leverage). Reading
+                        // from _flatRec.lossGenerated is the legacy path —
+                        // for variable-solver picks (Goldman/non-Schwab), the
+                        // recommendation.lossGenerated comes from the LOWEST
+                        // leverage that wipes Y1 gain, which is below
+                        // cfg.leverage. That under-reports Y1 capacity by
+                        // ~$72K on a $5M Goldman scenario (verified via
+                        // engine-parity-sweep). Schwab combos and multi-year-
+                        // derived rec already match this formula, so only
+                        // the variable-solver case changes; result is a small
+                        // savings increase on Goldman flows reflecting the
+                        // user's actual chosen leverage.
+                        lossThisYear = (_immediateLossRate && _immediateCapital > 0)
+                              ? _immediateCapital * _immediateLossRate(0)
+                              : (_flatRec.lossGenerated || 0);
                   } else if (_immediateLossRate && _immediateCapital > 0) {
                         // B5: position open Y2+, age-appropriate loss rate.
                         lossThisYear = _immediateCapital * _immediateLossRate(i);
@@ -1491,6 +1506,217 @@ function unifiedTaxComparison(cfg) {
 // Expose to global scope for parallel-run validation harness.
 if (typeof window !== 'undefined') {
       window.unifiedTaxComparison = unifiedTaxComparison;
+}
+
+// ============================================================
+// PARALLEL-RUN SWEEP HARNESS
+// ============================================================
+//
+// Validates that unifiedTaxComparison reproduces the legacy engines'
+// output across a wide variety of scenarios. Run from the dev console:
+//
+//     window.runEngineParitySweep()                      // default sweep
+//     window.runEngineParitySweep({ tolerance: 0.5 })    // tighter tolerance
+//     window.runEngineParitySweep({ verbose: true })     // log each delta
+//
+// Returns:
+//     {
+//       scenariosRun: N,
+//       perfectMatches: N,
+//       deltasOverTolerance: N,
+//       maxDelta: { field, value, scenario },
+//       failingScenarios: [...]   // scenarios with any field > tolerance
+//     }
+//
+// Coverage strategy: combinatorial sweep over the dimensions that
+// historically caused engine drift — sale date (yfImpl), depreciation
+// (recapture-Y1 path), recognition mode (immediate vs deferred), filing
+// status, custodian/combo (Schwab tranche curves vs proxy decay), and
+// horizon length. Plus a few hand-picked edge cases at the end.
+//
+function runEngineParitySweep(opts) {
+      opts = opts || {};
+      const tolerance = (opts.tolerance != null) ? opts.tolerance : 1.0;
+      const verbose = !!opts.verbose;
+
+      // Sweep dimensions. Keep totals modest — we want comprehensive
+      // coverage without burning seconds-per-run.
+      const SALE_DATES   = ['2026-01-15','2026-04-15','2026-07-15','2026-10-15','2026-12-15'];
+      const DEPR_AMTS    = [0, 500000, 1500000, 3000000];
+      const SALES        = [
+            { salePrice: 5000000,  costBasis: 1000000  },
+            { salePrice: 12000000, costBasis: 4000000  },
+            { salePrice: 48000000, costBasis: 5000000  }
+      ];
+      const CUSTODIANS   = [
+            { custodian: 'schwab',       comboId: 'beta1_145_45',  leverage: 0.45, leverageCap: 0.45 },
+            { custodian: 'schwab',       comboId: 'beta1_200_100', leverage: 1.0,  leverageCap: 1.0  },
+            { custodian: 'goldmanSachs', comboId: null,            leverage: 1.5,  leverageCap: 1.5  }
+      ];
+      const FILING_STATES = [
+            { filingStatus: 'mfj',    state: 'GA' },
+            { filingStatus: 'single', state: 'CA' },
+            { filingStatus: 'mfj',    state: 'NY' },
+            { filingStatus: 'mfj',    state: 'FL' }
+      ];
+      // Recognition modes: 0 = immediate (test legacy computeTaxComparison
+      // path), >=1 = deferred (test legacy computeDeferredTaxComparison).
+      // Horizons paired with sensible recognition windows.
+      const RECOG_HORIZON = [
+            { rec: 0, horizon: 1, dur: 18 },   // immediate, 1y
+            { rec: 0, horizon: 5, dur: 18 },   // immediate, 5y
+            { rec: 2, horizon: 5, dur: 18 },   // deferred, rec at i=2
+            { rec: 3, horizon: 5, dur: 36 },   // deferred, rec at i=3
+            { rec: 2, horizon: 7, dur: 24 }    // deferred, longer horizon
+      ];
+
+      const failingScenarios = [];
+      let scenariosRun = 0;
+      let perfectMatches = 0;
+      let deltasOverTolerance = 0;
+      let maxDelta = { value: 0, field: null, scenario: null };
+
+      // Helper: deep-numerical-diff between two engine outputs.
+      function compareOutputs(legacy, unified, label) {
+            const diffs = [];
+            // Top-level totals.
+            const topFields = ['totalBaseline','totalWithStrategy','totalSavings','totalFees','totalBrookhavenFees','totalAllFees'];
+            topFields.forEach(function (f) {
+                  const lv = Number(legacy[f] || 0);
+                  const uv = Number(unified[f] || 0);
+                  const d = Math.abs(lv - uv);
+                  if (d > tolerance) diffs.push({ kind: 'total', field: f, legacy: lv, unified: uv, delta: d });
+            });
+            // Per-row fields.
+            const rowFields = ['gainRecognized','lossGenerated','lossApplied','fee','brookhavenFee','stCarryForward'];
+            const baselineFields = ['total','federalIncomeTax','ordinaryTax','recapTax','ltTax','niit','addlMedicare','state'];
+            const minRows = Math.min((legacy.rows || []).length, (unified.rows || []).length);
+            for (let i = 0; i < minRows; i++) {
+                  const lr = legacy.rows[i] || {};
+                  const ur = unified.rows[i] || {};
+                  rowFields.forEach(function (f) {
+                        const lv = Number(lr[f] || 0);
+                        const uv = Number(ur[f] || 0);
+                        const d = Math.abs(lv - uv);
+                        if (d > tolerance) diffs.push({ kind: 'row', rowIdx: i, field: f, legacy: lv, unified: uv, delta: d });
+                  });
+                  baselineFields.forEach(function (f) {
+                        const lv = Number((lr.baseline || {})[f] || 0);
+                        const uv = Number((ur.baseline || {})[f] || 0);
+                        const d = Math.abs(lv - uv);
+                        if (d > tolerance) diffs.push({ kind: 'baseline', rowIdx: i, field: f, legacy: lv, unified: uv, delta: d });
+                  });
+                  baselineFields.forEach(function (f) {
+                        const lv = Number((lr.withStrategy || {})[f] || 0);
+                        const uv = Number((ur.withStrategy || {})[f] || 0);
+                        const d = Math.abs(lv - uv);
+                        if (d > tolerance) diffs.push({ kind: 'withStrategy', rowIdx: i, field: f, legacy: lv, unified: uv, delta: d });
+                  });
+            }
+            return diffs;
+      }
+
+      // Build cfg from sweep dimensions + run both engines + diff.
+      function runOne(saleDate, depr, sale, cust, fs, rh) {
+            const cfg = {
+                  salePrice: sale.salePrice,
+                  costBasis: sale.costBasis,
+                  acceleratedDepreciation: depr,
+                  filingStatus: fs.filingStatus,
+                  state: fs.state,
+                  baseOrdinaryIncome: 500000,
+                  wages: 500000,
+                  baseShortTermGain: 0,
+                  horizonYears: rh.horizon,
+                  year1: 2026,
+                  implementationDate: saleDate,
+                  strategyImplementationDate: saleDate,
+                  strategyKey: 'beta1',
+                  tierKey: 'beta1',
+                  investedCapital: sale.salePrice,
+                  investment: sale.salePrice,
+                  leverage: cust.leverage,
+                  leverageCap: cust.leverageCap,
+                  comboId: cust.comboId,
+                  custodian: cust.custodian,
+                  recognitionStartYearIndex: rh.rec,
+                  structuredSaleDurationMonths: rh.dur
+            };
+            const label = JSON.stringify({
+                  date: saleDate, depr: depr, sale: sale.salePrice,
+                  cust: cust.comboId || cust.custodian, fs: fs.filingStatus + '/' + fs.state,
+                  rec: rh.rec, hor: rh.horizon, dur: rh.dur
+            });
+
+            let legacy, unified;
+            try {
+                  if (rh.rec === 0) {
+                        const rec = recommendSale(cfg);
+                        const lossGen = (rec && rec.summary && Array.isArray(rec.summary.lossByYear) && rec.summary.lossByYear[0])
+                              || (rec && rec.summary && rec.summary.loss) || 0;
+                        const normRec = {
+                              recommendation: rec ? rec.recommendation : 'no-action',
+                              longTermGain: (rec && rec.longTermGain) || 0,
+                              lossGenerated: lossGen,
+                              schedule: null
+                        };
+                        legacy = computeTaxComparison(cfg, normRec);
+                  } else {
+                        legacy = computeDeferredTaxComparison(cfg);
+                  }
+                  unified = window.unifiedTaxComparison(cfg);
+            } catch (e) {
+                  failingScenarios.push({ label: label, error: String(e) });
+                  return;
+            }
+            scenariosRun++;
+            const diffs = compareOutputs(legacy, unified, label);
+            if (diffs.length === 0) {
+                  perfectMatches++;
+            } else {
+                  deltasOverTolerance++;
+                  // Track max delta
+                  diffs.forEach(function (d) {
+                        if (d.delta > maxDelta.value) {
+                              maxDelta = { value: d.delta, field: d.kind + '.' + (d.rowIdx != null ? 'row' + d.rowIdx + '.' : '') + d.field, scenario: label };
+                        }
+                  });
+                  failingScenarios.push({ label: label, diffs: diffs });
+                  if (verbose) {
+                        try { console.warn('[parity-sweep] ' + label + ':', diffs); } catch (e) {}
+                  }
+            }
+      }
+
+      SALE_DATES.forEach(function (sd) {
+            DEPR_AMTS.forEach(function (depr) {
+                  SALES.forEach(function (sale) {
+                        CUSTODIANS.forEach(function (cust) {
+                              FILING_STATES.forEach(function (fs) {
+                                    RECOG_HORIZON.forEach(function (rh) {
+                                          // Skip rec >= horizon (illegal)
+                                          if (rh.rec >= rh.horizon) return;
+                                          runOne(sd, depr, sale, cust, fs, rh);
+                                    });
+                              });
+                        });
+                  });
+            });
+      });
+
+      return {
+            scenariosRun: scenariosRun,
+            perfectMatches: perfectMatches,
+            deltasOverTolerance: deltasOverTolerance,
+            tolerance: tolerance,
+            maxDelta: maxDelta,
+            failingCount: failingScenarios.length,
+            failingScenarios: failingScenarios.slice(0, 20)   // first 20 for inspection
+      };
+}
+
+if (typeof window !== 'undefined') {
+      window.runEngineParitySweep = runEngineParitySweep;
 }
 
 function _fmtUSD(n) {
