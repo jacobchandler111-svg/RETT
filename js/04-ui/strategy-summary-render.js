@@ -293,7 +293,82 @@
     html += '</div>'; // /forward-results
     html += '</div>'; // /forward-layout
 
+    // ============ SUPPLEMENTAL STRATEGIES ============
+    // Layered on top of the chosen sale-side strategy. The master
+    // solver walks the registry, reads each strategy's published
+    // result, and returns a combined view. Toggling a card off
+    // re-runs the solver and updates the combined-net-benefit footer.
+    html += _renderSupplementalSection(net);
+
     host.innerHTML = html;
+    _bindSupplementalToggleEvents();
+  }
+
+  // -----------------------------------------------------------------
+  // Supplemental section render. Returns '' when no supplemental
+  // strategies have been marked Interested on Page 4 — the section
+  // doesn't appear at all in that case so the layout stays clean for
+  // the simple "primary only" client.
+  // -----------------------------------------------------------------
+  function _renderSupplementalSection(primaryNet) {
+    if (typeof root.runMasterSolver !== 'function') return '';
+    var combined = root.runMasterSolver(primaryNet);
+    if (!combined || !combined.anyInterested) return '';
+
+    var rows = combined.supplementals.map(function (s) {
+      var sign = s.netBenefit >= 0 ? '+' : '';
+      var amt  = sign + _fmt(s.netBenefit);
+      var unavailable = (!s.available)
+        ? '<span class="supp-row-pending" title="Configure on Page 4 to populate">awaiting input</span>'
+        : '';
+      return '' +
+        '<div class="supp-row" data-supp-row="' + s.id + '">' +
+          '<label class="supp-row-toggle">' +
+            '<input type="checkbox" data-supp-toggle="' + s.id + '"' +
+              (s.enabled ? ' checked' : '') +
+              (!s.available ? ' disabled' : '') + '>' +
+            '<span class="supp-row-switch" aria-hidden="true"></span>' +
+          '</label>' +
+          '<div class="supp-row-info">' +
+            '<div class="supp-row-name">' + s.name + '</div>' +
+            (s.descriptor ? '<div class="supp-row-desc">' + s.descriptor + '</div>' : '') +
+            unavailable +
+          '</div>' +
+          '<div class="supp-row-amt' + (s.enabled && s.available ? '' : ' is-off') + '">' + amt + '</div>' +
+        '</div>';
+    }).join('');
+
+    var combinedAmt = Math.round(combined.totalCombinedNetBenefit);
+
+    return '' +
+      '<div class="forward-supplemental">' +
+        '<div class="forward-supplemental-head">' +
+          '<h2>Supplemental Strategies</h2>' +
+          '<p class="forward-supplemental-sub">Toggle to add or remove. The combined net benefit updates as strategies layer in.</p>' +
+        '</div>' +
+        '<div class="forward-supplemental-rows">' + rows + '</div>' +
+        '<div class="forward-supplemental-total">' +
+          '<div class="net-label">Combined Net Benefit</div>' +
+          '<div class="net-amt"><span class="currency">$</span>' + combinedAmt.toLocaleString('en-US') + '</div>' +
+        '</div>' +
+      '</div>';
+  }
+
+  function _bindSupplementalToggleEvents() {
+    var host = document.getElementById('strategy-fee-summary-host');
+    if (!host) return;
+    var toggles = host.querySelectorAll('[data-supp-toggle]');
+    toggles.forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        var id = cb.getAttribute('data-supp-toggle');
+        if (typeof root.setSupplementalEnabled === 'function') {
+          root.setSupplementalEnabled(id, cb.checked);
+        }
+        // Re-render the section in place — full Page-5 re-render is
+        // overkill since toggles only affect the supplemental block.
+        renderStrategySummary();
+      });
+    });
   }
 
   root.renderStrategySummary = renderStrategySummary;
