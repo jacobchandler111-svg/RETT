@@ -75,15 +75,9 @@
     if (hint) hint.hidden = true;
   }
 
-  function _showAutoHint(group) {
-    var hint = document.getElementById(group + '-auto-hint');
-    if (hint) hint.hidden = false;
-  }
-
-  // Show the "Revert to optimized" button only when the user has
-  // overridden the auto-pick. Hide it when the engine's pick is in
-  // place. Other modules (variable-leverage-ui) flip the flag and
-  // call this so the button reflects current state.
+  // _refreshRevertVisibility is a no-op since #revert-to-optimized
+  // doesn't exist in the current HTML — kept as the export so callers
+  // (variable-leverage-ui) don't blow up. Cheap, safe.
   function _refreshRevertVisibility() {
     var btn = document.getElementById('revert-to-optimized');
     if (!btn) return;
@@ -121,73 +115,6 @@
     sel.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
-  // Evaluate one cfg through the same comparison path the dashboard uses
-  // and return the all-in net (savings - Brooklyn fees - Brookhaven fees).
-  // Used by both runAutoPick (full search) and the recognition-only
-  // optimizer below.
-  //
-  // KNOWN DISCONTINUITY (Issue #32 in 5-4-26 debugging doc): rec=1
-  // routes to the immediate-recognition engine (ProjectionEngine.run +
-  // recommendSale + computeTaxComparison) while rec=2/3/4 route to
-  // computeDeferredTaxComparison. Those engines disagree on fee model
-  // (Issue #3, partially mitigated), tranche curve (Issue #26, fixed),
-  // and below-min behavior. Toggling rec=1 ⇄ rec=2 can therefore
-  // produce a non-monotonic savings curve that's an engine artifact
-  // rather than a real economic effect. Long-term fix: unify so
-  // immediate is just deferred-with-startIdx=0.
-  function _netForCfg(cfg) {
-    var totalSave = 0, cumFees = 0, brookhavenFees = 0;
-    if ((cfg.recognitionStartYearIndex || 0) >= 1 &&
-        typeof root.computeDeferredTaxComparison === 'function') {
-      try {
-        var defComp = root.computeDeferredTaxComparison(cfg);
-        if (defComp && defComp.rows && defComp.rows.length) {
-          totalSave = defComp.totalSavings || 0;
-          cumFees = defComp.totalFees || 0;
-          brookhavenFees = defComp.totalBrookhavenFees || 0;
-        }
-      } catch (e) { return null; }
-    } else {
-      // Immediate-recognition path: projection-engine fees + comparison savings.
-      if (typeof ProjectionEngine === 'undefined' || !ProjectionEngine.run) return null;
-      var projResult;
-      try { projResult = ProjectionEngine.run(cfg); } catch (e) { return null; }
-      if (!projResult || !projResult.years) return null;
-      projResult.years.forEach(function (y) { cumFees += (y.fee || 0); });
-      if (projResult.totals && projResult.totals.cumulativeFees != null) {
-        cumFees = projResult.totals.cumulativeFees;
-      }
-      if (typeof root.recommendSale === 'function' && typeof root.computeTaxComparison === 'function') {
-        try {
-          var recCfg = Object.assign({}, cfg);
-          delete recCfg.custodian;
-          if (typeof recCfg.leverageCap === 'number' && recCfg.leverageCap > 3) {
-            recCfg.leverageCap = 2.25;
-          }
-          var rec = root.recommendSale(recCfg);
-          var normRec = _normalizeRec(rec, cfg);
-          var comp = root.computeTaxComparison(cfg, normRec);
-          if (comp && Array.isArray(comp.rows)) {
-            if (comp.totalSavings != null) totalSave = comp.totalSavings;
-            else comp.rows.forEach(function (r) { totalSave += (r.savings || 0); });
-            brookhavenFees = comp.totalBrookhavenFees || 0;
-          }
-        } catch (e) { /* fall back below */ }
-      }
-      if (!totalSave) {
-        projResult.years.forEach(function (y) {
-          var no = y.taxNoBrooklyn || 0;
-          var w  = (y.taxWithBrooklyn != null) ? y.taxWithBrooklyn : no;
-          totalSave += (no - w);
-        });
-      }
-      if (!brookhavenFees && typeof brookhavenFeeSchedule === 'function') {
-        var horSched = brookhavenFeeSchedule(cfg.horizonYears || 5, 1);
-        brookhavenFees = horSched.total;
-      }
-    }
-    return totalSave - cumFees - brookhavenFees;
-  }
 
   // Recognition-only optimizer. Holds the user's chosen leverage and
   // horizon fixed and finds the recognition year that maximizes net
@@ -218,268 +145,6 @@
       return pinned;
     }
     return null;
-  }
-
-  // Build the normalized recommendation shape that computeTaxComparison
-  // expects. KEEP IN SYNC with the inline normRec block in
-  // recommendation-render.js's runRecommendation — both implementations
-  // exist because the optimizer (this file) and the page-render path
-  // produce differently shaped intermediate results. TODO: extract to
-  // a shared module (Issue #30 in the 5-4-26 debugging doc); covered
-  // here is rec.summary-shaped input, while recommendation-render
-  // handles result.stage2-shaped input.
-  function _normalizeRec(rec, cfg) {
-    if (!rec) return null;
-    var lossGen = (rec.summary && rec.summary.loss) ||
-                  (rec.stage1 && rec.stage1.loss) || 0;
-    var schedule = null;
-    if (rec.summary && Array.isArray(rec.summary.schedule)) {
-      schedule = rec.summary.schedule;
-    } else if (rec.summary && Array.isArray(rec.summary.gainByYear)) {
-      schedule = rec.summary.gainByYear.map(function (g, i) {
-        var loss = (rec.summary.lossByYear && rec.summary.lossByYear[i]) || 0;
-        return { gainTaken: g, lossGenerated: loss };
-      });
-    }
-    // longTermGain: prefer the engine's recommendation field; if not
-    // present, derive from cfg property-sale fields explicitly.
-    // (Historical note: an earlier form
-    //   `rec.longTermGain || cfg.salePrice ? Math.max(...) : 0`
-    // had an operator-precedence bug. Now derived in two steps.)
-    var derivedLT = (cfg.salePrice || 0) > 0
-      ? Math.max(0, (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0))
-      : 0;
-    return {
-      recommendation: rec.recommendation,
-      longTermGain: rec.longTermGain || derivedLT,
-      lossGenerated: lossGen,
-      schedule: schedule
-    };
-  }
-
-  // Run the recommendation + comparison + projection pipeline for every
-  // (leverage, horizon, recognition) combination. Pick the combo with the
-  // highest NET benefit (comparison savings minus Brooklyn fees). For
-  // deferred recognition (recognition year > 1) we use the deferred
-  // comparison function which respects loss carryforward across years
-  // and tranches.
-  //
-  // Tie-breaker: when two combos produce the same net (within $1k), prefer
-  // the one with the SHORTEST gain-recognition duration. Matches the
-  // user's stated preference for shorter structured-sale lockups.
-  // Generate the candidate short% values to test.
-  //
-  // Schwab: variable leverage isn't permitted on Beta 1, so we
-  //   evaluate ONLY the published combo short percentages (currently
-  //   {45, 100}). This makes the auto-pick respect Schwab's product
-  //   rules instead of fabricating mid-range positions.
-  //
-  // Goldman / no custodian: we sweep every 1% across [0, custodian-max]
-  //   so the auto-pick lands on the EXACT global max rather than a
-  //   5%-step approximation. Iteration cost: ~225 short × 3 horizons
-  //   × up-to-4 recognition = ~2700 evaluations on Page-2 entry; the
-  //   recognition-only search that fires on every subsequent recompute
-  //   stays cheap (≤ 4 evaluations).
-  function _candidateShortPcts(stratKey, custodianId) {
-    if (custodianId === 'schwab' && typeof root.listSchwabCombos === 'function') {
-      var combos = root.listSchwabCombos().filter(function (c) { return c.strategyKey === stratKey; });
-      if (combos.length) {
-        // Just the discrete combo points — no continuous sweep.
-        return combos.map(function (c) { return c.shortPct || 0; });
-      }
-      return [];
-    }
-    var maxShort = 225;
-    var tier = (root.BROOKLYN_STRATEGIES || {})[stratKey];
-    if (tier && Array.isArray(tier.dataPoints)) {
-      maxShort = Math.max.apply(null, tier.dataPoints.map(function (p) { return p.shortPct || 0; }));
-    }
-    // Coarse sweep at 5% steps. The auto-pick driver runs a second
-    // 1%-step refinement around the coarse winner so the global max
-    // is preserved without paying for ~225 evaluations on every
-    // input change. On Page-2 entry this drops total evaluations
-    // from ~225 to ~46+22=68 short% candidates.
-    var coarse = 5;
-    var out = [];
-    for (var s = 0; s <= maxShort; s += coarse) out.push(s);
-    if (out[out.length - 1] !== maxShort) out.push(maxShort);
-    return out;
-  }
-
-  // Build a refined candidate list around a coarse winner: ±5 short%
-  // in 1% steps, clamped to [0, maxShort]. Returns just the new
-  // short% values (without the coarse winner itself, which has
-  // already been scored).
-  function _refineShortPcts(centerSp, stratKey, custodianId) {
-    if (custodianId === 'schwab') return []; // Schwab is preset-only.
-    var maxShort = 225;
-    var tier = (root.BROOKLYN_STRATEGIES || {})[stratKey];
-    if (tier && Array.isArray(tier.dataPoints)) {
-      maxShort = Math.max.apply(null, tier.dataPoints.map(function (p) { return p.shortPct || 0; }));
-    }
-    var lo = Math.max(0, centerSp - 5);
-    var hi = Math.min(maxShort, centerSp + 5);
-    var out = [];
-    for (var s = lo; s <= hi; s++) {
-      if (s !== centerSp) out.push(s);
-    }
-    return out;
-  }
-
-  function runAutoPick() {
-    if (typeof collectInputs !== 'function') return null;
-    if (typeof ProjectionEngine === 'undefined' || !ProjectionEngine.run) return null;
-    var horOpts = _readHorizonOptions();
-    if (!horOpts.length) return null;
-
-    // Snapshot the user's currently entered state — we override across
-    // iterations and restore if no improvement is found.
-    var horSel = document.getElementById('projection-years');
-    var recSel = document.getElementById('recognition-start-select');
-    var customSp = document.getElementById('custom-short-pct');
-    var useVar = document.getElementById('use-variable-leverage');
-    var prevHor = horSel ? horSel.value : '';
-    var prevRec = recSel ? recSel.value : '1';
-    var prevSp  = customSp ? customSp.value : '';
-    var prevVar = useVar ? useVar.checked : false;
-
-    // Make sure variable leverage is on for the search; we revert at
-    // the end if no improvement.
-    if (useVar) useVar.checked = true;
-
-    var stratKey = (document.getElementById('strategy-select') || {}).value || 'beta1';
-    var custId   = (document.getElementById('custodian-select') || {}).value || '';
-    var shortPcts = _candidateShortPcts(stratKey, custId);
-
-    var best = null;
-    function _runSweep(spList) {
-      spList.forEach(function (sp) {
-        horOpts.forEach(function (hor) {
-          var horizonNum = parseInt(hor.value, 10) || 5;
-          var maxRec = Math.min(horizonNum, 4);
-          for (var rStart = 1; rStart <= maxRec; rStart++) {
-            if (customSp) customSp.value = String(sp);
-            if (horSel) horSel.value = hor.value;
-            if (recSel) recSel.value = String(rStart);
-            var cfg;
-            try { cfg = collectInputs(); } catch (e) { continue; }
-            var spSale = parseUSD((document.getElementById('sale-price') || {}).value) || 0;
-            var cb = parseUSD((document.getElementById('cost-basis') || {}).value) || 0;
-            var ad = parseUSD((document.getElementById('accelerated-depreciation') || {}).value) || 0;
-            if (spSale) cfg.salePrice = spSale;
-            if (cb) cfg.costBasis = cb;
-            if (ad) cfg.acceleratedDepreciation = ad;
-            rettFlavorEngineCfg(cfg);
-            cfg.recognitionStartYearIndex = rStart - 1;
-
-            var totalSave = 0;
-            var cumFees = 0;
-            var brookhavenFees = 0;
-            var duration = 0;
-            if (rStart > 1 && typeof root.computeDeferredTaxComparison === 'function') {
-              try {
-                var defComp = root.computeDeferredTaxComparison(cfg);
-                if (defComp && defComp.rows && defComp.rows.length) {
-                  totalSave = defComp.totalSavings || 0;
-                  cumFees = defComp.totalFees || 0;
-                  brookhavenFees = defComp.totalBrookhavenFees || 0;
-                  duration = defComp.durationYears || 0;
-                }
-              } catch (e) { continue; }
-            } else {
-              var projResult;
-              try { projResult = ProjectionEngine.run(cfg); } catch (e) { continue; }
-              if (!projResult || !projResult.years || !projResult.years.length) continue;
-              projResult.years.forEach(function (y) { cumFees += (y.fee || 0); });
-              if (projResult.totals && projResult.totals.cumulativeFees != null) {
-                cumFees = projResult.totals.cumulativeFees;
-              }
-              if (typeof root.recommendSale === 'function' &&
-                  typeof root.computeTaxComparison === 'function') {
-                try {
-                  var recCfg = Object.assign({}, cfg);
-                  delete recCfg.custodian;
-                  if (typeof recCfg.leverageCap === 'number' && recCfg.leverageCap > 3) {
-                    recCfg.leverageCap = 2.25;
-                  }
-                  var rec = root.recommendSale(recCfg);
-                  var normRec = _normalizeRec(rec, cfg);
-                  var comp = root.computeTaxComparison(cfg, normRec);
-                  if (comp && Array.isArray(comp.rows)) {
-                    if (comp.totalSavings != null) totalSave = comp.totalSavings;
-                    else comp.rows.forEach(function (r) { totalSave += (r.savings || 0); });
-                    brookhavenFees = comp.totalBrookhavenFees || 0;
-                  }
-                } catch (e) { /* fall back below */ }
-              }
-              if (!totalSave) {
-                projResult.years.forEach(function (y) {
-                  var no = y.taxNoBrooklyn || 0;
-                  var w  = (y.taxWithBrooklyn != null) ? y.taxWithBrooklyn : no;
-                  totalSave += (no - w);
-                });
-              }
-              if (!brookhavenFees && typeof brookhavenFeeSchedule === 'function') {
-                var horSched = brookhavenFeeSchedule(cfg.horizonYears || 5, 1);
-                brookhavenFees = horSched.total;
-              }
-              duration = 1;
-            }
-
-            var net = totalSave - cumFees - brookhavenFees;
-            var levNumeric = sp / 100;
-            var better = false;
-            if (!best) better = true;
-            else if (net > best.net) better = true;
-            else if (Math.abs(net - best.net) < 0.005) {
-              if (duration < best.duration) better = true;
-              else if (duration === best.duration && levNumeric < best.leverage) better = true;
-            }
-            if (better) {
-              best = {
-                shortPct: sp, hor: hor.value, rec: String(rStart),
-                net: net, save: totalSave, fees: cumFees,
-                duration: duration, leverage: levNumeric
-              };
-            }
-          }
-        });
-      });
-    }
-    // Coarse pass: 5%-step sweep across the strategy's range.
-    _runSweep(shortPcts);
-    // Refine ±5 around the coarse winner in 1% steps so we recover
-    // the global max without paying ~225 evaluations on every input
-    // change. Schwab is preset-only (no continuous range), so refine
-    // is a no-op there.
-    if (best) {
-      var refined = _refineShortPcts(best.shortPct, stratKey, custId);
-      if (refined && refined.length) _runSweep(refined);
-    }
-
-    // Restore previous selection or apply the best one.
-    if (best) {
-      if (customSp) customSp.value = String(best.shortPct);
-      _setSelect('projection-years', best.hor);
-      _setSelect('recognition-start-select', best.rec);
-      // Position the visible slider on the best short% so the user
-      // sees where the auto-pick landed.
-      if (typeof root.setLeverageSliderShort === 'function') {
-        try { root.setLeverageSliderShort(best.shortPct); } catch (e) { /* */ }
-      }
-      _showAutoHint('leverage');
-      _showAutoHint('horizon');
-      _showAutoHint('recognition');
-      root.__lastAutoPick = best;
-    } else {
-      // Restore (no improvement found).
-      if (customSp) customSp.value = prevSp;
-      if (horSel) horSel.value = prevHor;
-      if (recSel) recSel.value = prevRec;
-      if (useVar) useVar.checked = prevVar;
-    }
-    _refreshRevertVisibility();
-    return best;
   }
 
   // Run auto-pick only when the user hasn't manually overridden a pill.
@@ -519,24 +184,6 @@
     }
   }
 
-  // Wire the "Revert to optimized" button: re-enable auto-pick, run
-  // the full leverage/horizon/recognition search, then re-render.
-  function _onRevertClick() {
-    root.__rettAutoPickEnabled = true;
-    // Clear any scenario-comparison overrides (set by clicking a row)
-    // so the auto-pick can roam freely and pick the optimal combo.
-    delete root.__rettScenarioMaxRec;
-    delete root.__rettScenarioPinnedRec;
-    // Also clear per-section overrides — global "Revert to optimized"
-    // means EVERY section re-auto-picks on the next render.
-    delete root.__rettSectionState;
-    try { runAutoPick(); } catch (e) { if (typeof window !== "undefined" && typeof window.reportFailure === "function") window.reportFailure("non-fatal in pill-toggles.js", e); else if (typeof console !== "undefined") console.warn(e); }
-    if (typeof root.runFullPipeline === 'function') {
-      try { root.runFullPipeline(); } catch (err) { /* */ }
-    }
-    _refreshRevertVisibility();
-  }
-
   function _attach() {
     document.addEventListener('click', _onPillClick);
     var levSel = document.getElementById('leverage-cap-select');
@@ -547,8 +194,6 @@
     if (horSel) horSel.addEventListener('change', function () {
       syncPillSelection();
     });
-    var revertBtn = document.getElementById('revert-to-optimized');
-    if (revertBtn) revertBtn.addEventListener('click', _onRevertClick);
     _refreshRevertVisibility();
   }
 
@@ -560,9 +205,7 @@
 
   root.buildPillToggles    = buildPillToggles;
   root.syncPillSelection   = syncPillSelection;
-  root.runAutoPick         = runAutoPick;
   root.maybeAutoPick       = maybeAutoPick;
   root.searchBestRecognitionForCurrent = searchBestRecognitionForCurrent;
   root.refreshRevertVisibility = _refreshRevertVisibility;
-  root.__lastAutoPick      = null;
 })(window);

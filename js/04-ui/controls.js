@@ -336,7 +336,7 @@ function resetAllInputs(skipConfirm) {
 
   // Clear any rendered output panels.
   ['recommendation-panel', 'projection-summary-host',
-   'projection-details-host', 'bracket-viz-host', 'narrative-host',
+   'projection-details-host', 'narrative-host',
    'tax-comparison-host', 'allocator-output',
    'cashflow-schedule-host', 'interested-cards-host'].forEach(function (id) {
     const el = document.getElementById(id);

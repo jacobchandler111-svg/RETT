@@ -1651,18 +1651,6 @@
     if (typeof root.renderNarrative === 'function') {
       try { root.renderNarrative(); } catch (e) { if (typeof window !== "undefined" && typeof window.reportFailure === "function") window.reportFailure("non-fatal in projection-dashboard-render.js", e); else if (typeof console !== "undefined") console.warn(e); }
     }
-    // Federal-bracket position visualization is intentionally NOT
-    // rendered while Brooklyn is the only strategy in the projector.
-    // Brooklyn shifts capital-gain treatment, not ordinary-income
-    // brackets (the $3K/yr ordinary offset is too small to draw).
-    // The renderer + script tag stay loaded so that when
-    // ordinary-income strategies (oil & gas, etc.) come online, this
-    // call can be re-enabled and the chart will be the multi-year
-    // "where they would have been vs where the strategy puts them"
-    // view the user described.
-    // if (typeof root.renderBracketViz === 'function') {
-    //   try { root.renderBracketViz(); } catch (e) { if (typeof window !== "undefined" && typeof window.reportFailure === "function") window.reportFailure("non-fatal in projection-dashboard-render.js", e); else if (typeof console !== "undefined") console.warn(e); }
-    // }
     // Refresh the year-by-year cashflow schedule (Brooklyn investment +
     // structured-sale balance) below the Multi-Year Snapshot.
     if (typeof root.renderCashflowSchedule === 'function') {
