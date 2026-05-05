@@ -1,46 +1,47 @@
 // FILE: js/03-solver/fee-split.js
-// Decomposes the Brooklyn fee into a published "management" line and a
-// "financing" (stock-borrow) line, matching the disclosure convention
-// used by Cache Long/Short (which is sub-advised by Brooklyn).
+// Brooklyn fee rates for the two active Schwab Beta-1 combos come
+// directly from Brooklyn's published advisor rate card (PDF: "Loss
+// Projections - 10 year beta 1"). The three components are:
 //
-// Linear regressions calibrated to Cache's published Beta-1 schedule:
+//   Brooklyn Management Fee  — charged by Brooklyn directly
+//   Custodian Margin Spread  — Schwab stock-borrow/financing cost;
+//                              modeled at the LOW end of the published
+//                              range (Charles Schwab)
+//   Custodian Commissions    — $0 for Schwab (removed per advisor spec)
 //
-//   Tier      mgmt    financing
-//   130/30    0.50%   0.28%
-//   145/45    0.60%   0.475%
-//   175/75    0.75%   0.71%
-//   200/100   1.00%   0.95%
+//   Combo    Mgmt    Spread   Commissions  Total
+//   145/45   0.32%   0.36%    0%           0.68%
+//   200/100  0.51%   0.80%    0%           1.31%
 //
-// Fits (units = % of invested capital, where GN and shortPct are in
-// percentage points, e.g. 200 long / 100 short -> GN = 300, shortPct = 100):
+// Source: Brooklyn "Loss Projections - 10 year beta 1" rate card.
 //
-//   management(GN)         ≈ -0.071% + 0.00357% × GN   (R² ≈ 0.998)
-//   financing(shortPct)    ≈  0.000% + 0.00957% × shortPct  (R² ≈ 0.999)
+// For non-Schwab paths (variable leverage, other tiers) we fall back to
+// a linear regression fit to Cache's published Beta-1 schedule. Cache is
+// a sub-advised product that layers additional fees on top of Brooklyn's
+// direct rate, so the regression MUST NOT be used for Schwab combos.
 //
-// Source: https://usecache.com/product/long-short
-// White paper:
-//   https://bkln-landing-prd-assets.s3.us-east-1.amazonaws.com/
-//     BKLN+and+Cache+White+Paper+-+Peanut+Butter+and+Jelly+-+Q1+2025.pdf
-//
-// Per-tier deltas: Cache only publishes Beta 1 (S&P 500). The other
-// Brooklyn tiers (Beta 0, Beta 0.5, Advisor Managed) lack public
-// schedules, so we keep the legacy interpolated feeRate from
-// brooklyn-data.js as the *total* and split it proportionally
-// using the Cache mgmt:financing ratio at the same GN. This
-// produces a defensible split until the user supplies tier-specific
-// rate cards.
+//   management(GN)      ≈ -0.071% + 0.00357% × GN   (R² ≈ 0.998)
+//   financing(shortPct) ≈  0.000% + 0.00957% × shortPct  (R² ≈ 0.999)
 
 (function (root) {
   'use strict';
 
-  // Beta-1 calibration constants (Cache).
-  var MGMT_INTERCEPT = -0.00071;   // -0.071%
-  var MGMT_SLOPE     =  0.0000357; // per 1% gross notional
-  var FIN_SLOPE      =  0.0000957; // per 1% short
+  // Direct Brooklyn advisor rates for the two active Schwab combos.
+  // Keyed by "longPct_shortPct" (integer strings).
+  var SCHWAB_BETA1_FEES = {
+    '145_45':  { managementRate: 0.0032, spreadRate: 0.0036, totalRate: 0.0068 },
+    '200_100': { managementRate: 0.0051, spreadRate: 0.0080, totalRate: 0.0131 }
+  };
 
-  // For tiers other than Beta 1 we don't have public data. Compute the
-  // mgmt:financing ratio at the same GN/short from the Beta-1 formulas
-  // and apply that ratio to the legacy total feeRate.
+  function _schwabKey(longPct, shortPct) {
+    return Math.round(Number(longPct) || 0) + '_' + Math.round(Number(shortPct) || 0);
+  }
+
+  // Beta-1 regression constants (Cache published schedule — fallback only).
+  var MGMT_INTERCEPT = -0.00071;
+  var MGMT_SLOPE     =  0.0000357;
+  var FIN_SLOPE      =  0.0000957;
+
   function feeSplit(longPct, shortPct, totalRate) {
     var lp = Number(longPct) || 0;
     var sp = Number(shortPct) || 0;
@@ -79,20 +80,24 @@
     };
   }
 
-  // Convenience: take a long%/short% and return the split rate triple
-  // for the variable-strategy path. Pure Cache calibration.
+  // Returns the management + spread split for a given long/short pair.
+  // Schwab Beta-1 combos use the direct Brooklyn advisor rate card.
+  // All other paths fall back to the Cache regression.
   function variableFeeSplit(longPct, shortPct) {
+    var key = _schwabKey(longPct, shortPct);
+    if (SCHWAB_BETA1_FEES[key]) {
+      var tbl = SCHWAB_BETA1_FEES[key];
+      return {
+        managementRate: tbl.managementRate,
+        financingRate:  tbl.spreadRate,
+        totalRate:      tbl.totalRate
+      };
+    }
     return feeSplit(longPct, shortPct, null);
   }
 
-  // The single unified fee-rate function used everywhere in the engine.
-  // Replaces both the Schwab combo's published feeRate (e.g. 2.03% for
-  // 200/100) and brooklyn-data's feeRate field. Per the user's call,
-  // the regression — fit to Cache's published mgmt + financing schedule —
-  // is more accurate than either source for forward-looking modeling.
-  //
-  // Returns the total annual fee rate as a decimal (e.g. 0.01957 for
-  // 1.957%). Use feeRateFor(longPct, shortPct).
+  // Total annual fee rate as a decimal. Schwab combo lookup takes
+  // priority over the Cache regression fallback.
   function feeRateFor(longPct, shortPct) {
     return variableFeeSplit(longPct, shortPct).totalRate;
   }
@@ -186,10 +191,11 @@
   root.brooklynLossRateFor         = lossRateFor;
   root.brooklynLossRateForLeverage = lossRateForLeverage;
   root.BROOKLYN_LOSS_REGRESSION    = LOSS_REGRESSION;
+  root.BROOKLYN_SCHWAB_BETA1_FEES     = SCHWAB_BETA1_FEES;
   root.BROOKLYN_FEE_SPLIT_CALIBRATION = {
     mgmtIntercept: MGMT_INTERCEPT,
     mgmtSlope:     MGMT_SLOPE,
     finSlope:      FIN_SLOPE,
-    source: 'Cache Long/Short published Beta-1 schedule (Q1 2025)'
+    source: 'Cache Long/Short published Beta-1 schedule (Q1 2025) — fallback only; Schwab combos use BROOKLYN_SCHWAB_BETA1_FEES'
   };
 })(window);
