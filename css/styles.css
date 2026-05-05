@@ -1906,6 +1906,166 @@ body { font-size: 16px; }
     background: var(--paper-warm);
 }
 
+/* ---- Pre-Meeting Questionnaire drop zones ---- */
+.pmq-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+@media (max-width: 860px) {
+    .pmq-grid { grid-template-columns: 1fr; }
+}
+.pmq-section {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 14px 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.pmq-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.pmq-section-title {
+    font-family: var(--font-mono);
+    font-size: 0.72em;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink);
+    font-weight: 600;
+}
+.pmq-badge {
+    font-family: var(--font-mono);
+    font-size: 0.68em;
+    letter-spacing: 0.05em;
+    background: #e8f4fd;
+    color: #2d6fa8;
+    border: 1px solid #b8d9f2;
+    border-radius: 4px;
+    padding: 2px 7px;
+}
+.pmq-desc {
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.55;
+    margin: 0;
+}
+.pmq-dropzone {
+    border: 1.5px dashed var(--rule);
+    border-radius: 8px;
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    background: var(--paper-cool);
+    text-align: center;
+    position: relative;
+}
+.pmq-dropzone:hover,
+.pmq-dropzone.pmq-drop-active {
+    border-color: var(--bh-blue-deep);
+    background: #edf6fd;
+}
+.pmq-dropzone.pmq-drop-loading {
+    border-color: var(--bh-blue);
+    background: #f0f9ff;
+    pointer-events: none;
+    opacity: 0.8;
+}
+.pmq-dropzone.pmq-drop-done {
+    border-color: var(--green);
+    background: #f0f8f4;
+}
+.pmq-dropzone.pmq-drop-error {
+    border-color: var(--red);
+    background: #fdf3f3;
+}
+.pmq-drop-icon {
+    font-size: 22px;
+    line-height: 1;
+    margin-bottom: 2px;
+}
+.pmq-drop-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+}
+.pmq-drop-sub {
+    font-size: 12px;
+    color: var(--muted);
+}
+.pmq-browse-link {
+    color: var(--bh-blue-deep);
+    cursor: pointer;
+    text-decoration: underline;
+}
+.pmq-file-input {
+    position: absolute;
+    width: 0;
+    height: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+.pmq-api-key-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.pmq-key-label {
+    font-size: 11.5px;
+    color: var(--muted);
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+}
+.pmq-key-input {
+    flex: 1;
+    font-size: 12px;
+    padding: 5px 9px;
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    min-width: 0;
+}
+.pmq-key-input:focus {
+    outline: none;
+    border-color: var(--bh-blue-deep);
+    box-shadow: 0 0 0 2px rgba(65,185,234,0.15);
+}
+.pmq-download-btn {
+    font-family: var(--font-mono);
+    font-size: 0.68em;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    background: var(--bh-trusted);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.pmq-download-btn:hover { background: var(--bh-trusted-soft); }
+.pmq-status {
+    font-size: 12.5px;
+    border-radius: 5px;
+    padding: 7px 10px;
+    line-height: 1.5;
+}
+.pmq-status-info    { background: #eef6fd; color: #2d6fa8; border: 1px solid #c2ddf5; }
+.pmq-status-success { background: #eef8f2; color: #1e5c38; border: 1px solid #b2d9c2; }
+.pmq-status-error   { background: #fdf3f3; color: #8b2222; border: 1px solid #f0c0c0; }
+
 /* ============== INPUT-SECTION LAYOUT (2-column form, mirrors reference) ============== */
 .inputs-layout {
     display: grid;
