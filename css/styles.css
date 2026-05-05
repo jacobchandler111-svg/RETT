@@ -3199,15 +3199,22 @@ body { font-size: 16px; }
     max-width: 220px;
     height: auto;
 }
-.rett-donut .rett-donut-savings { fill: var(--green); }
-.rett-donut .rett-donut-fees    { fill: var(--bh-blue-deep); opacity: 0.85; }
-.rett-donut .rett-donut-owed    { fill: var(--ink); opacity: 0.78; }
+/* Slice 1 — what the client KEPT (would have kept doing nothing).
+   Uses a soft neutral-blue so the eye reads it as the "default" /
+   already-yours portion of the income pie. */
+.rett-donut .rett-donut-kept    { fill: var(--bh-powder); opacity: 0.55; }
+/* Slice 2 — net benefit CLAWED BACK by the strategy. Bright green so
+   it pops as "this is the part the strategy gave you." */
+.rett-donut .rett-donut-benefit { fill: var(--green); }
+/* Slice 3 — tax still owed under the strategy. Dark ink so it's
+   visually the "loss" portion. */
+.rett-donut .rett-donut-owed    { fill: var(--ink); opacity: 0.82; }
 .rett-donut-center-pct {
     font-family: var(--font-display);
     font-style: italic;
     font-weight: 500;
     font-size: 30px;
-    fill: var(--green);
+    fill: var(--ink);
     letter-spacing: -0.02em;
 }
 .rett-donut-center-sub {
@@ -3248,19 +3255,22 @@ body { font-size: 16px; }
     border-radius: 2px;
     flex-shrink: 0;
 }
-.rett-donut-swatch.sw-savings { background: var(--green); }
-.rett-donut-swatch.sw-fees    { background: var(--bh-blue-deep); opacity: 0.85; }
-.rett-donut-swatch.sw-owed    { background: var(--ink); opacity: 0.78; }
+.rett-donut-swatch.sw-kept    { background: var(--bh-powder); opacity: 0.55; }
+.rett-donut-swatch.sw-benefit { background: var(--green); }
+.rett-donut-swatch.sw-owed    { background: var(--ink); opacity: 0.82; }
 
-/* Payment-timeline visual for the Structured-Sale card. */
-.rett-payviz-wrap {
+/* Tax-bill comparison bar for Sell Now / Seller Finance cards. Two
+   horizontal bars sharing the same scale — top is "doing nothing,"
+   bottom is "with strategy" (tax + fees + saved-sliver in green) so
+   the visual delta IS the savings. */
+.rett-cmpbar-wrap {
     margin-top: 10px;
     padding: 12px 14px 14px;
     border: 1px solid var(--rule);
     border-radius: 2px;
     background: var(--paper-warm);
 }
-.rett-payviz-title {
+.rett-cmpbar-title {
     font-family: var(--font-mono);
     font-size: 0.7em;
     letter-spacing: 0.18em;
@@ -3269,52 +3279,51 @@ body { font-size: 16px; }
     font-weight: 600;
     margin-bottom: 8px;
 }
-.rett-payviz {
+.rett-cmpbar {
     width: 100%;
     height: auto;
     display: block;
 }
-.rett-payviz-bar {
-    fill: var(--bh-blue-deep);
-}
-.rett-payviz-bar.is-closing {
-    fill: var(--ink);
-}
-.rett-payviz-year {
+.rett-cmpbar-donothing { fill: var(--ink);          }
+.rett-cmpbar-tax       { fill: var(--ink); opacity: 0.75; }
+.rett-cmpbar-fees      { fill: var(--bh-blue-deep); opacity: 0.85; }
+.rett-cmpbar-saved     { fill: var(--green); }
+.rett-cmpbar-label {
     font-family: var(--font-mono);
     font-size: 11px;
     fill: var(--ink);
     font-weight: 600;
 }
-.rett-payviz-amt {
+.rett-cmpbar-amt {
     font-family: var(--font-mono);
     font-size: 11px;
     fill: var(--ink-soft);
     font-weight: 600;
 }
-.rett-payviz-legend {
-    margin-top: 6px;
+.rett-cmpbar-legend {
+    margin-top: 8px;
     display: flex;
-    gap: 16px;
+    flex-wrap: wrap;
+    gap: 14px;
     font-family: var(--font-body);
     font-size: 0.78em;
     color: var(--ink-soft);
 }
-.rett-payviz-leg-item {
+.rett-cmpbar-leg-item {
     display: inline-flex;
     align-items: center;
     gap: 6px;
 }
-.rett-payviz-swatch {
+.rett-cmpbar-swatch {
     width: 12px;
     height: 12px;
     border-radius: 2px;
-    background: var(--bh-blue-deep);
     display: inline-block;
 }
-.rett-payviz-swatch.is-closing {
-    background: var(--ink);
-}
+.rett-cmpbar-swatch.sw-donothing { background: var(--ink); }
+.rett-cmpbar-swatch.sw-tax       { background: var(--ink); opacity: 0.75; }
+.rett-cmpbar-swatch.sw-fees      { background: var(--bh-blue-deep); opacity: 0.85; }
+.rett-cmpbar-swatch.sw-saved     { background: var(--green); }
 
 /* ============================================================
    Page 4 — Strategy Summary (BrookHaven Moving-Forward layout)

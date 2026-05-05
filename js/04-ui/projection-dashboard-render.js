@@ -1774,27 +1774,39 @@
   }
 
   // -------------------------------------------------------------------
-  // Visuals: SVG donut (tax-saved-vs-tax-still-owed) for A / B / C, and
-  // SVG horizontal-bar timeline (when does cash arrive?) for C.
+  // Visuals: SVG donut + horizontal-bar payment timeline.
+  //
+  // Donut framing — pie of GROSS INCOME (not just tax):
+  //   - Big slice: "Income you kept" (gross income minus the do-nothing
+  //     tax the client would have owed without any planning)
+  //   - Tax slice (the rest of the pie): split into TWO sub-slices:
+  //       - Green sliver: "Net benefit" — the dollars the strategy
+  //         clawed BACK from the tax slice and into the client's pocket
+  //         (savings minus fees)
+  //       - Dark slice:   "Taxes you still owe" after the strategy
+  //   Center label compares post-strategy take-home to do-nothing.
   // Inline SVG, no chart-lib dependency, zero external requests.
   // -------------------------------------------------------------------
-  function _donutSvg(doNothing, savings, fees) {
-    if (!isFinite(doNothing) || doNothing <= 0) return '';
-    // Slice 1: net benefit (savings - fees, the dollars that actually
-    // end up in the client's pocket). Slice 2: tax still owed under
-    // the strategy. Together they should equal doNothing-baseline minus
-    // fees, but we render them against doNothing so the pie shows the
-    // ORIGINAL tax bill the client is starting from.
-    var net = Math.max(0, savings - fees);
-    var stillOwed = Math.max(0, doNothing - savings);
-    var total = doNothing;
-    if (total <= 0 || net + stillOwed === 0) return '';
-    // Compute slice angles. Start at 12 o'clock (-90°) and sweep
-    // clockwise so the green "savings" wedge reads top-to-right —
-    // most-natural visual for "this part is yours".
-    var savingsAngle = (net / total) * Math.PI * 2;
-    var feeAngle    = (fees / total) * Math.PI * 2;
-    var owedAngle   = Math.max(0, Math.PI * 2 - savingsAngle - feeAngle);
+  function _donutSvg(grossIncome, doNothingTax, savings, fees) {
+    if (!isFinite(grossIncome) || grossIncome <= 0) return '';
+    if (!isFinite(doNothingTax) || doNothingTax < 0) doNothingTax = 0;
+    var netBenefit = Math.max(0, savings - fees);
+    // Cap netBenefit at doNothingTax — you can't claw back more tax
+    // than was owed. Excess shouldn't happen mathematically but the
+    // guard keeps the visual honest if metrics drift.
+    netBenefit = Math.min(netBenefit, doNothingTax);
+    var taxStillOwed = Math.max(0, doNothingTax - netBenefit);
+    var keptOriginal = Math.max(0, grossIncome - doNothingTax);
+    // Total: kept + (clawed-back via strategy = netBenefit) + (still owed) = grossIncome
+    if (keptOriginal + netBenefit + taxStillOwed <= 0) return '';
+
+    // Compute slice sweeps. Start at 12 o'clock (-90°) and sweep
+    // clockwise: kept (largest) → net-benefit sliver (green, sits at
+    // the boundary) → tax still owed (closes the circle).
+    var twoPi = Math.PI * 2;
+    var keptSweep = (keptOriginal / grossIncome) * twoPi;
+    var benSweep  = (netBenefit  / grossIncome) * twoPi;
+    var owedSweep = Math.max(0, twoPi - keptSweep - benSweep);
 
     var cx = 110, cy = 110, r = 88, rInner = 56;
     function _slice(startA, sweepA, fillCss) {
@@ -1818,28 +1830,51 @@
     }
     var startA = -Math.PI / 2;
     var slices = '';
-    slices += _slice(startA,                                      savingsAngle, 'rett-donut-savings');
-    slices += _slice(startA + savingsAngle,                       feeAngle,     'rett-donut-fees');
-    slices += _slice(startA + savingsAngle + feeAngle,            owedAngle,    'rett-donut-owed');
+    slices += _slice(startA,                                  keptSweep, 'rett-donut-kept');
+    slices += _slice(startA + keptSweep,                      benSweep,  'rett-donut-benefit');
+    slices += _slice(startA + keptSweep + benSweep,           owedSweep, 'rett-donut-owed');
 
-    var pctSaved = ((net / total) * 100).toFixed(1) + '%';
+    // Two key percentages:
+    //   keptWithStrategy = (grossIncome - taxStillOwed - fees) / grossIncome
+    //   keptDoNothing    = (grossIncome - doNothingTax) / grossIncome
+    var keptWithStrategy = Math.max(0, grossIncome - taxStillOwed - fees);
+    var pctKept    = ((keptWithStrategy / grossIncome) * 100).toFixed(1) + '%';
+    var pctDoNoth  = ((keptOriginal     / grossIncome) * 100).toFixed(1) + '%';
+
     var legend =
       '<div class="rett-donut-legend">' +
-        '<div class="rett-donut-leg-row"><span class="rett-donut-swatch sw-savings"></span><span class="rett-donut-leg-label">Net to you</span><strong>' + _fmt(net) + '</strong></div>' +
-        (fees > 0 ? '<div class="rett-donut-leg-row"><span class="rett-donut-swatch sw-fees"></span><span class="rett-donut-leg-label">Fees</span><strong>' + _fmt(fees) + '</strong></div>' : '') +
-        '<div class="rett-donut-leg-row"><span class="rett-donut-swatch sw-owed"></span><span class="rett-donut-leg-label">Tax still owed</span><strong>' + _fmt(stillOwed) + '</strong></div>' +
+        '<div class="rett-donut-leg-row"><span class="rett-donut-swatch sw-kept"></span><span class="rett-donut-leg-label">Income kept (do nothing)</span><strong>' + _fmt(keptOriginal) + '</strong></div>' +
+        '<div class="rett-donut-leg-row"><span class="rett-donut-swatch sw-benefit"></span><span class="rett-donut-leg-label">Net benefit clawed back</span><strong>' + _fmt(netBenefit) + '</strong></div>' +
+        '<div class="rett-donut-leg-row"><span class="rett-donut-swatch sw-owed"></span><span class="rett-donut-leg-label">Tax still owed</span><strong>' + _fmt(taxStillOwed) + '</strong></div>' +
       '</div>';
 
     return '<div class="rett-donut-wrap">' +
-      '<svg class="rett-donut" viewBox="0 0 220 220" role="img" aria-label="Savings vs tax still owed">' +
+      '<svg class="rett-donut" viewBox="0 0 220 220" role="img" aria-label="Income kept vs taxes vs net benefit">' +
         slices +
-        // Center text: percent of original tax bill the client keeps
-        '<text x="110" y="103" text-anchor="middle" class="rett-donut-center-pct">' + pctSaved + '</text>' +
-        '<text x="110" y="125" text-anchor="middle" class="rett-donut-center-sub">saved vs.</text>' +
-        '<text x="110" y="142" text-anchor="middle" class="rett-donut-center-sub">doing nothing</text>' +
+        '<text x="110" y="103" text-anchor="middle" class="rett-donut-center-pct">' + pctKept + '</text>' +
+        '<text x="110" y="125" text-anchor="middle" class="rett-donut-center-sub">income kept</text>' +
+        '<text x="110" y="142" text-anchor="middle" class="rett-donut-center-sub">vs ' + pctDoNoth + ' doing nothing</text>' +
       '</svg>' +
       legend +
     '</div>';
+  }
+
+  // Compute total gross income for the projection horizon — used as the
+  // donut's whole-pie denominator. Ordinary income recurs every year;
+  // sale-gain components hit once. We use cumulative across horizon so
+  // it lines up with the existing cumulative tax / fees figures.
+  function _grossIncomeForCfg(cfg) {
+    if (!cfg) return 0;
+    var horizon = cfg.horizonYears || cfg.years || 5;
+    var ord = Math.max(0, Number(cfg.baseOrdinaryIncome) || 0);
+    var stGain = Math.max(0, Number(cfg.baseShortTermGain) || 0);
+    var sale = Math.max(0, Number(cfg.salePrice) || 0);
+    var basis = Math.max(0, Number(cfg.costBasis) || 0);
+    var depr = Math.max(0, Number(cfg.acceleratedDepreciation) || 0);
+    var ltGain = Math.max(0, sale - basis - depr - stGain);
+    // Recapture (depreciation) is taxable as ordinary in the recognition
+    // year — counts as part of gross income once.
+    return ord * horizon + stGain + ltGain + depr;
   }
 
   function _paymentTimelineSvg(rows) {
@@ -1882,50 +1917,90 @@
     '</div>';
   }
 
-  // Build the visualizations object (donut + optional timeline) for a
-  // given metrics + payment-schedule pair. Returns { donut, timeline }
-  // strings (timeline only populated for type C with a real schedule).
+  // Horizontal "without strategy vs with strategy" comparison bar.
+  // Two stacked bars sharing a common scale so the visual difference =
+  // the savings. Bottom bar shows tax + fees actually paid; top bar
+  // shows what the client would have owed doing nothing. Used on A and
+  // B cards (single-year strategies where a year-by-year timeline
+  // doesn't add value).
+  function _comparisonBarSvg(doNothingTax, taxWithStrategy, fees) {
+    if (!isFinite(doNothingTax) || doNothingTax <= 0) return '';
+    var withFees = Math.max(0, taxWithStrategy + fees);
+    var maxBar = Math.max(doNothingTax, withFees, 1);
+    // Layout
+    var pad      = 12;
+    var labelW   = 130;
+    var amtW     = 140;
+    var barW     = 320;
+    var rowH     = 38;
+    var svgW     = labelW + barW + amtW + pad * 2;
+    var svgH     = rowH * 2 + pad * 2 + 24;
+    var doNothingPct = (doNothingTax / maxBar) * barW;
+    var withPct      = (withFees     / maxBar) * barW;
+    var taxPortion   = (withPct > 0)
+      ? (Math.max(0, taxWithStrategy) / withFees) * withPct
+      : 0;
+    var feePortion   = withPct - taxPortion;
+    var savings = Math.max(0, doNothingTax - taxWithStrategy);
+    // Net benefit shown as the visible delta between bars
+    var deltaPct = (savings / maxBar) * barW;
+    var bars = '';
+    var y1 = pad;
+    var y2 = pad + rowH + 4;
+    // Bar 1: Doing nothing (full tax bill)
+    bars += '<text x="' + (pad + labelW - 8) + '" y="' + (y1 + 22) + '" class="rett-cmpbar-label" text-anchor="end">Doing nothing</text>';
+    bars += '<rect x="' + (pad + labelW) + '" y="' + (y1 + 4) + '" width="' + doNothingPct.toFixed(1) + '" height="22" rx="2" class="rett-cmpbar-donothing"></rect>';
+    bars += '<text x="' + (pad + labelW + doNothingPct + 8) + '" y="' + (y1 + 22) + '" class="rett-cmpbar-amt">' + _fmt(doNothingTax) + '</text>';
+    // Bar 2: With strategy — stacked: tax (dark) + fees (mid) + saved sliver (green)
+    bars += '<text x="' + (pad + labelW - 8) + '" y="' + (y2 + 22) + '" class="rett-cmpbar-label" text-anchor="end">With strategy</text>';
+    if (taxPortion > 0) {
+      bars += '<rect x="' + (pad + labelW) + '" y="' + (y2 + 4) + '" width="' + taxPortion.toFixed(1) + '" height="22" rx="2" class="rett-cmpbar-tax"></rect>';
+    }
+    if (feePortion > 0) {
+      bars += '<rect x="' + (pad + labelW + taxPortion) + '" y="' + (y2 + 4) + '" width="' + feePortion.toFixed(1) + '" height="22" class="rett-cmpbar-fees"></rect>';
+    }
+    // Savings sliver appended (visually shows the delta between the two bars)
+    if (deltaPct > 0) {
+      bars += '<rect x="' + (pad + labelW + withPct) + '" y="' + (y2 + 4) + '" width="' + deltaPct.toFixed(1) + '" height="22" rx="2" class="rett-cmpbar-saved"></rect>';
+    }
+    bars += '<text x="' + (pad + labelW + barW + 8) + '" y="' + (y2 + 22) + '" class="rett-cmpbar-amt">' + _fmt(withFees) + '</text>';
+    // Footer legend
+    var legend =
+      '<div class="rett-cmpbar-legend">' +
+        '<span class="rett-cmpbar-leg-item"><span class="rett-cmpbar-swatch sw-donothing"></span>Tax (do nothing)</span>' +
+        '<span class="rett-cmpbar-leg-item"><span class="rett-cmpbar-swatch sw-tax"></span>Tax with strategy</span>' +
+        '<span class="rett-cmpbar-leg-item"><span class="rett-cmpbar-swatch sw-fees"></span>Fees</span>' +
+        '<span class="rett-cmpbar-leg-item"><span class="rett-cmpbar-swatch sw-saved"></span>You save</span>' +
+      '</div>';
+    return '<div class="rett-cmpbar-wrap">' +
+      '<div class="rett-cmpbar-title">Tax bill comparison</div>' +
+      '<svg class="rett-cmpbar" viewBox="0 0 ' + svgW + ' ' + svgH + '" role="img" aria-label="Tax with strategy vs without">' +
+        bars +
+      '</svg>' +
+      legend +
+    '</div>';
+  }
+
+  // Build the visualizations object for a card.
+  //   - Every card gets the donut.
+  //   - Sell Now (A) and Seller Finance (B) get a comparison bar chart
+  //     (single-year strategies — a payment timeline isn't useful).
+  //   - Structured Sale (C) gets just the donut. The donut already
+  //     conveys the kept-vs-clawed-back story; an extra bar would
+  //     duplicate without adding insight.
   function _buildVisuals(typeLabel, metrics, cfg, comp) {
-    var donut = _donutSvg(metrics.doNothing || 0,
+    var grossIncome = _grossIncomeForCfg(cfg);
+    var donut = _donutSvg(grossIncome,
+                          metrics.doNothing || 0,
                           Math.max(0, (metrics.doNothing || 0) - (metrics.tax || 0)),
                           metrics.fees || 0);
-    var timeline = '';
-    if (typeLabel === 'C' && cfg && comp) {
-      var year1 = cfg.year1 || (new Date()).getFullYear();
-      var basisCash = Math.max(0, Number(cfg.costBasis) || 0);
-      var sched = (comp.recognitionSchedule && comp.recognitionSchedule.length)
-        ? comp.recognitionSchedule.slice() : [];
-      if (sched.length) {
-        var byYear = {};
-        sched.forEach(function (r) {
-          var y = r.year || year1;
-          if (!byYear[y]) byYear[y] = { year: y, gain: 0, isClosing: false };
-          byYear[y].gain += (r.gainRecognized || 0);
-        });
-        if (!byYear[year1]) byYear[year1] = { year: year1, gain: 0, isClosing: false };
-        byYear[year1].isClosing = true;
-        var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        var closingDate = null;
-        if (cfg.implementationDate && typeof window !== 'undefined' && typeof window.parseLocalDate === 'function') {
-          var d = window.parseLocalDate(cfg.implementationDate);
-          if (d && !isNaN(d.getTime())) closingDate = months[d.getMonth()] + ' ' + d.getDate();
-        }
-        var rowsArr = Object.keys(byYear).map(function (k) { return byYear[k]; })
-          .sort(function (a, b) { return a.year - b.year; })
-          .map(function (yr) {
-            var cash = (yr.isClosing ? basisCash : 0) + yr.gain;
-            return {
-              year: yr.year,
-              cash: cash,
-              isClosing: yr.isClosing,
-              dateShort: yr.isClosing ? (closingDate || ('Jan 1')) : 'Jan 1'
-            };
-          })
-          .filter(function (r) { return r.cash > 0; });
-        timeline = _paymentTimelineSvg(rowsArr);
-      }
+    var compareBar = '';
+    if (typeLabel === 'A' || typeLabel === 'B') {
+      compareBar = _comparisonBarSvg(metrics.doNothing || 0,
+                                     metrics.tax || 0,
+                                     metrics.fees || 0);
     }
-    return { donut: donut, timeline: timeline };
+    return { donut: donut, compareBar: compareBar };
   }
 
   function _interestedCard(typeLabel, num, name, picked, metrics, lossSum, isRecommended, durationMonths, paymentScheduleHtml, visuals) {
@@ -1973,10 +2048,10 @@
       '<div class="rett-interested-net-label">Net Benefit</div>' +
       '<div class="rett-interested-net-value">' + _fmt(metrics.net) + '</div>' +
       // Visuals always-visible above Show Details. Donut goes on every
-      // card; payment timeline only on C (where there's a multi-year
-      // schedule worth visualizing).
+      // card; comparison bar lives on A/B only (single-year strategies
+      // where a tax-bill comparison adds insight).
       ((visuals && visuals.donut) ? visuals.donut : '') +
-      ((visuals && visuals.timeline) ? visuals.timeline : '') +
+      ((visuals && visuals.compareBar) ? visuals.compareBar : '') +
       '<details class="rett-interested-details">' +
         '<summary>Show details</summary>' +
         '<ul class="rett-interested-detail-list">' + detailItems + '</ul>' +
@@ -2032,13 +2107,17 @@
     var lossA = mA ? _scenarioLossSum(pickedA.cfg) : 0;
     var visualsA = mA ? _buildVisuals('A', mA, pickedA.cfg, null) : null;
 
-    var pickedB = null, mB = null, lossB = 0, visualsB = null;
-    if (saleMonth0 >= 8) {
-      pickedB = _bestPickedCfgLocal('B');
-      mB = _scenarioMetrics(pickedB.cfg);
-      lossB = mB ? _scenarioLossSum(pickedB.cfg) : 0;
-      visualsB = mB ? _buildVisuals('B', mB, pickedB.cfg, null) : null;
-    }
+    // Compute B (Seller Finance / Delay-Close-to-Jan-1) for ALL sale
+    // dates. Previously B was suppressed when the sale closed before
+    // September on the theory that delaying a close by 6+ months is
+    // usually impractical — but suppressing the card meant clicking
+    // "Interested" on B did nothing for those scenarios, which the user
+    // saw as a bug. Now we always compute and render B; the math will
+    // show whether it helps or hurts, and the user can decide.
+    var pickedB = _bestPickedCfgLocal('B');
+    var mB = _scenarioMetrics(pickedB.cfg);
+    var lossB = mB ? _scenarioLossSum(pickedB.cfg) : 0;
+    var visualsB = mB ? _buildVisuals('B', mB, pickedB.cfg, null) : null;
 
     var pickedC = _bestPickedCfgLocal('C');
     var mC = _scenarioMetrics(pickedC.cfg);
