@@ -3844,8 +3844,13 @@ body { font-size: 16px; }
     /* Aggressive buffer below the row — per advisor spec, when the
        cards are in view in the middle of the screen, that should be
        the ONLY thing the eye lands on. Net Benefit / ROP / walkaway
-       sit a comfortable scroll distance below. Bumped 72px → 140px. */
+       sit a comfortable scroll distance below. */
     margin-bottom: 140px;
+    /* Top margin nudges the cards down off the viewport's top edge
+       so they're framed comfortably (rather than pinned right under
+       the page nav). Per advisor spec: "move them just slightly down
+       south... move them down just a tab more." */
+    margin-top: 36px;
 }
 .forward-top-row > .input-section {
     margin: 0;
@@ -3853,17 +3858,22 @@ body { font-size: 16px; }
        so the two anchor blocks of the page feel substantial. */
     padding: 32px 34px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-    /* Slightly taller minimum height so the cards feel like proper
-       blocks rather than thin headers, even when the Supplemental
-       column has only one row. */
-    min-height: 280px;
     display: flex;
     flex-direction: column;
+    box-sizing: border-box;
+    /* Equal-height enforcement: height: 100% makes the card fill its
+       grid cell, and the grid's align-items: stretch sizes the cells
+       to match the tallest. Without this, Selected Strategy would
+       collapse to its own content height (~340px) while Supplemental
+       grew to fit its rows (~480px). */
+    height: 100%;
+    min-height: 320px;
 }
 .forward-strategy-card {
     /* Solo (no supplemental) layout still needs the same buffer. */
     margin-bottom: 140px !important;
-    min-height: 280px;
+    margin-top: 36px;
+    min-height: 320px;
 }
 /* Selected Strategy body grows to fill the available height so the
    card matches its sibling's bottom edge even with fewer rows. The

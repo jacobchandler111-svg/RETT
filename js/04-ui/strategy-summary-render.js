@@ -240,14 +240,29 @@
     // With-planning tax = do-nothing tax minus the savings we actually
     // captured at the current Brooklyn investment level. Reading m.tax
     // directly would always show the full-investment tax even when the
-    // slider has dialed Brooklyn back below the absorbable cap, breaking
-    // the walkaway↔you-save reconciliation.
+    // optimizer has dialed Brooklyn back below the absorbable cap,
+    // breaking the walkaway↔you-save reconciliation.
     var withPlanningTax = Math.max(0, (m.doNothing || 0) - primarySavings);
+    // Walk-away = sale proceeds − tax − fees (+ supplemental net, which
+    // is already post-its-own-fees). Subtracting fees on the With-Planning
+    // side makes the walkaway numbers TRULY comparable: the delta between
+    // No Planning and With Planning equals the Net Benefit shown below
+    // (savings − fees + supplementalBenefit). Without fees in the
+    // walkaway, the delta over-stated the take-home benefit by the
+    // fee amount.
     var walkawayNoPlanning   = salePrice - (m.doNothing || 0);
-    var walkawayWithPlanning = salePrice - withPlanningTax + supplementalBenefit;
-    var ropDisplay = (fees > 0 && savings > 0)
-      ? _fmtMultiplier(savings / fees) + '<span class="rop-x">&times;</span>'
+    var walkawayWithPlanning = salePrice - withPlanningTax - fees + supplementalBenefit;
+    var ropMultiplierValue = (fees > 0 && savings > 0) ? (savings / fees) : 0;
+    var ropDisplay = (ropMultiplierValue > 0)
+      ? _fmtMultiplier(ropMultiplierValue) + '<span class="rop-x">&times;</span>'
       : '—';
+    // Inline the multiplier into the sub-copy so it reads as a complete
+    // sentence — "every dollar you spend gets you 13.4× back" rather
+    // than the abstract "this much back" which forced the reader to
+    // glance up at the big number to fill in the blank.
+    var ropSubText = (ropMultiplierValue > 0)
+      ? 'every dollar you spend gets you ' + _fmtMultiplier(ropMultiplierValue) + '&times; back'
+      : 'every dollar you spend gets you this much back';
     // The hero of Page 5 is now Net Benefit — large, shaded, centered.
     // The walkaway tiles (No Planning / With Planning) sit ABOVE the
     // hero as small white tiles, providing the "before-and-after"
@@ -277,7 +292,7 @@
       '<div class="forward-rop-square">' +
         '<div class="rop-label">Return on Planning</div>' +
         '<div class="rop-amt">' + ropDisplay + '</div>' +
-        '<div class="rop-sub">every dollar you spend gets you this much back</div>' +
+        '<div class="rop-sub">' + ropSubText + '</div>' +
       '</div>' +
     '</div>';
 
