@@ -249,7 +249,7 @@
         '<h3 class="strategy-pick-name">Delphi Fund</h3>' +
         '<div class="strategy-keyaspect">' +
           '<div class="strategy-keyaspect-label">Character Conversion</div>' +
-          '<p class="strategy-keyaspect-body">A K-1 fund recharacterizes ordinary income as long-term capital gain via offsetting ordinary expense and LT gain allocations.</p>' +
+          '<p class="strategy-keyaspect-body">A hedge-fund strategy that offsets ordinary income.</p>' +
         '</div>' +
         '<div class="strategy-lockup-graphic" data-lockup-style="exchange">' +
           '<span class="strategy-lockup-icon" aria-hidden="true">' + _delphiIconSVG() + '</span>' +
@@ -313,6 +313,17 @@
     _bindEvents();
   }
 
+  // Persist current state to localStorage via case-storage. Skipped
+  // when the harness is mid-restore (a save during restore would
+  // overwrite freshly-restored state with whatever the form was
+  // showing one tick earlier).
+  function _persist() {
+    if (root.__rettApplyingState) return;
+    if (root.RETTCaseStorage && typeof root.RETTCaseStorage.saveWorkingState === 'function') {
+      try { root.RETTCaseStorage.saveWorkingState(); } catch (e) { /* */ }
+    }
+  }
+
   function _bindEvents() {
     var host = document.getElementById('supplemental-strategies-host');
     if (!host) return;
@@ -333,6 +344,7 @@
         iState[target] = (iState[target] === newVal) ? null : newVal;
         _renderHost();
         _runAllMath();
+        _persist();
         return;
       }
 
@@ -344,6 +356,7 @@
         if (s) {
           s.detailsOpen = !s.detailsOpen;
           _renderHost();
+          _persist();
         }
         return;
       }
@@ -363,6 +376,7 @@
       var v = (typeof parseUSD === 'function') ? parseUSD(t.value) : Number(t.value);
       s.oilGas.maxInvestment = Math.max(0, Number.isFinite(v) ? v : 0);
       _runOilGasMath();
+      _persist();
     } else if (t.id === 'supp-oilgas-pct') {
       var raw = parseFloat(t.value);
       if (!Number.isFinite(raw)) raw = DEFAULTS.oilGas.depreciationPct * 100;
@@ -370,6 +384,7 @@
       if (raw > 100) raw = 100;
       s.oilGas.depreciationPct = raw / 100;
       _runOilGasMath();
+      _persist();
     } else if (t.id === 'supp-delphi-inv') {
       var dv = (typeof parseUSD === 'function') ? parseUSD(t.value) : Number(t.value);
       s.delphi.investment = Math.max(0, Number.isFinite(dv) ? dv : 0);
@@ -378,6 +393,7 @@
       // and the lockup sub label without losing input focus. Easiest:
       // re-render whole host but restore focus to the input afterwards.
       _renderHostKeepFocus(t.id);
+      _persist();
     }
   }
 
@@ -390,6 +406,7 @@
       _state().delphi.classKey = val;
       _runDelphiMath();
       _renderHostKeepFocus(t.id);
+      _persist();
     }
   }
 

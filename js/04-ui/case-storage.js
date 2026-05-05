@@ -88,7 +88,11 @@
   // from. The migrate-on-load step in applyFormState reads the
   // _schemaVersion field and runs the appropriate transforms before
   // dispatching events. (P3-2.)
-  var SCHEMA_VERSION = 2;
+  // v3 adds Page-4 supplemental interest + per-strategy config so the
+  // advisor's "Interested" picks (Oil & Gas, Delphi) and any details
+  // overrides (max investment, IDC%, Delphi class, etc.) survive a
+  // hard refresh / saved-case round-trip.
+  var SCHEMA_VERSION = 3;
 
   function captureFormState() {
     var state = { _schemaVersion: SCHEMA_VERSION };
@@ -107,6 +111,31 @@
       ? Object.assign({}, root.__rettStrategyInterest)
       : { A: null, B: null, C: null };
     state._chosenStrategy = root.__rettChosenStrategy || null;
+
+    // Page-4 supplemental state (v3+). Captured in two halves:
+    //   _supplementalInterest = { oilGas, delphi, ... }   — the lego pin
+    //   _supplementalConfig   = { oilGas: {...}, delphi: {...} }
+    //                                                      — Details panel overrides
+    state._supplementalInterest =
+      (root.__rettSupplementalInterest && typeof root.__rettSupplementalInterest === 'object')
+        ? Object.assign({}, root.__rettSupplementalInterest)
+        : { oilGas: null, delphi: null };
+    var sup = root.__rettSupplemental;
+    state._supplementalConfig = (sup && typeof sup === 'object')
+      ? {
+          oilGas: sup.oilGas ? {
+            maxInvestment:   sup.oilGas.maxInvestment,
+            depreciationPct: sup.oilGas.depreciationPct,
+            detailsOpen:     !!sup.oilGas.detailsOpen
+          } : null,
+          delphi: sup.delphi ? {
+            classKey:    sup.delphi.classKey,
+            investment:  sup.delphi.investment,
+            detailsOpen: !!sup.delphi.detailsOpen
+          } : null
+        }
+      : null;
+
     return state;
   }
 
@@ -190,6 +219,44 @@
     } else if (state._chosenStrategy === null) {
       root.__rettChosenStrategy = null;
     }
+
+    // Page-4 supplemental restore (v3+). Old saved cases without these
+    // keys silently keep the in-memory defaults (all null / module
+    // defaults). Coerce to canonical shapes so a malformed payload
+    // can't trip downstream `=== true` checks.
+    if (state._supplementalInterest && typeof state._supplementalInterest === 'object') {
+      if (!root.__rettSupplementalInterest) root.__rettSupplementalInterest = {};
+      var si = state._supplementalInterest;
+      var supKeys = ['oilGas', 'delphi'];
+      supKeys.forEach(function (k) {
+        var v = si[k];
+        root.__rettSupplementalInterest[k] = (v === true || v === false) ? v : null;
+      });
+    }
+    if (state._supplementalConfig && typeof state._supplementalConfig === 'object') {
+      if (!root.__rettSupplemental) root.__rettSupplemental = {};
+      var sc = state._supplementalConfig;
+      if (sc.oilGas && typeof sc.oilGas === 'object') {
+        if (!root.__rettSupplemental.oilGas) root.__rettSupplemental.oilGas = {};
+        var og = sc.oilGas;
+        if (Number.isFinite(og.maxInvestment))   root.__rettSupplemental.oilGas.maxInvestment   = og.maxInvestment;
+        if (Number.isFinite(og.depreciationPct)) root.__rettSupplemental.oilGas.depreciationPct = og.depreciationPct;
+        if (typeof og.detailsOpen === 'boolean') root.__rettSupplemental.oilGas.detailsOpen     = og.detailsOpen;
+      }
+      if (sc.delphi && typeof sc.delphi === 'object') {
+        if (!root.__rettSupplemental.delphi) root.__rettSupplemental.delphi = {};
+        var dl = sc.delphi;
+        if (dl.classKey === 'classA' || dl.classKey === 'classB') root.__rettSupplemental.delphi.classKey = dl.classKey;
+        if (Number.isFinite(dl.investment))      root.__rettSupplemental.delphi.investment   = dl.investment;
+        if (typeof dl.detailsOpen === 'boolean') root.__rettSupplemental.delphi.detailsOpen  = dl.detailsOpen;
+      }
+    }
+    // Repaint Page 4 so the restored interest + config show up
+    // immediately. Safe no-op if the supp module hasn't loaded yet.
+    if (typeof root.renderSupplementalPage === 'function') {
+      try { root.renderSupplementalPage(); } catch (e) { /* */ }
+    }
+
     root.__rettApplyingState = false;
   }
 
