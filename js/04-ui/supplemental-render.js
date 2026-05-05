@@ -234,7 +234,7 @@
         '</button>' +
         '<div class="supp-details-panel" id="supp-details-oilGas"' + (st.detailsOpen ? '' : ' hidden') + '>' +
           '<div class="supp-details-row">' +
-            '<div class="supp-details-rowlabel">Max Investment <span class="supp-details-rowsub">overall</span></div>' +
+            '<div class="supp-details-rowlabel">Max Investment</div>' +
             '<div class="supp-details-cell"><div class="currency-input"><input type="text" id="supp-oilgas-max" inputmode="numeric" autocomplete="off" value="' + maxInvDisplay + '"></div></div>' +
           '</div>' +
           '<div class="supp-details-row">' +
@@ -318,7 +318,7 @@
             '<div class="supp-details-cell"><select id="supp-delphi-class" class="supp-select">' + classOptions + '</select></div>' +
           '</div>' +
           '<div class="supp-details-row">' +
-            '<div class="supp-details-rowlabel">Investment <span class="supp-details-rowsub">overall</span></div>' +
+            '<div class="supp-details-rowlabel">Investment</div>' +
             '<div class="supp-details-cell"><div class="currency-input"><input type="text" id="supp-delphi-inv" inputmode="numeric" autocomplete="off" value="' + invDisplay + '"></div></div>' +
           '</div>' +
           minWarning +

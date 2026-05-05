@@ -3125,6 +3125,17 @@ body { font-size: 16px; }
     margin-bottom: 0;
     text-align: center;
 }
+/* Page 4 supplemental cards: "Oil & Gas Working Interest" wraps to two
+   lines while "Delphi Fund" is one line; without a min-height the
+   keyaspect + lockup rows below shift up on the shorter card and
+   labels stop aligning across the row. Reserve two lines of name
+   height with vertical centering so short names land mid-block. */
+.supp-strategy-card .strategy-pick-name {
+    min-height: 2.3em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 .strategy-pick-tagline {
     font-family: var(--font-body);
     font-size: 1.05em;
@@ -3239,7 +3250,15 @@ body { font-size: 16px; }
 .strategy-lockup-text {
     display: flex;
     flex-direction: column;
+    justify-content: center;
     gap: 2px;
+    /* Reserve space for two lines of value text (font-size 1.6em,
+       line-height 1.05 ≈ 1.68em per line). Single-line labels like
+       "Rate Arbitrage" then center within the same vertical space
+       that two-line labels like "Ordinary Income Deduction" occupy,
+       so the lockup row aligns horizontally across cards regardless
+       of how each label wraps. */
+    min-height: 3.4em;
 }
 .strategy-lockup-value {
     font-family: var(--font-display);
@@ -5174,10 +5193,22 @@ body { font-size: 16px; }
 }
 .supp-details-row {
     display: grid;
-    grid-template-columns: minmax(0, 1.2fr) 140px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 160px);
     gap: 12px;
     align-items: center;
     padding: 6px 0;
+}
+.supp-details-cell {
+    min-width: 0;
+}
+.supp-details-cell .currency-input {
+    display: block;
+    width: 100%;
+}
+.supp-details-cell .currency-input input,
+.supp-details-cell .supp-select {
+    width: 100%;
+    box-sizing: border-box;
 }
 .supp-details-row + .supp-details-row {
     border-top: 1px solid var(--rule-soft);
