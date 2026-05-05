@@ -877,6 +877,20 @@ function bindControls() {
   if (navAllocator)    navAllocator.addEventListener('click', () => showPage('page-allocator'));
   if (navSupplemental) navSupplemental.addEventListener('click', () => showPage('page-supplemental'));
 
+  // Page-4 "Continue to Summary" button. The per-strategy math already
+  // runs continuously on every input change (supplemental-render.js
+  // listens to the Page-1 baseline + its own Details inputs), so the
+  // explicit re-run here is defensive belt-and-suspenders. showPage
+  // ('page-allocator') then triggers renderStrategySummary which reads
+  // the freshest lastResult off each registered supplemental.
+  var navContinueSupp = document.getElementById('supplemental-continue');
+  if (navContinueSupp) navContinueSupp.addEventListener('click', function () {
+    if (typeof window.renderSupplementalPage === 'function') {
+      try { window.renderSupplementalPage(); } catch (e) { /* */ }
+    }
+    showPage('page-allocator');
+  });
+
   // Strategy Implementation Date can't legally precede the Sale /
   // Closing Date — proceeds don't exist to deploy yet. Mirror the sale
   // date into the strategy-date input's `min` attribute so the

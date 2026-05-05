@@ -4213,3 +4213,25 @@ body { font-size: 16px; }
     font-size: 0.78em;
     line-height: 1.45;
 }
+
+/* ---- Page 4 header + actions row ---- */
+.page-supplemental-header {
+    margin: 8px 0 4px;
+}
+.page-supplemental-header h2 {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 2.2em;
+    font-weight: 600;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+    margin: 0;
+    text-align: left;
+}
+.page-supplemental-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid var(--rule-soft);
+}
