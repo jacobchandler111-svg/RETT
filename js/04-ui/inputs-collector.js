@@ -82,7 +82,7 @@ function collectInputs() {
                 // of truth). Hidden #invested-capital is a legacy
                 // fallback only — stops stale saved-state values from
                 // overriding the user's current Available Capital edit.
-                investment:          parseUSD(_val('available-capital')) || parseUSD(_val('invested-capital')),
+                investment:          (_val('available-capital') !== '' ? parseUSD(_val('available-capital')) : null) ?? parseUSD(_val('invested-capital')),
                 tierKey:             _val('strategy-select') || 'beta1',
                 // leverage default; the Schwab-combo and variable-leverage
                 // blocks below override this with the actual selection.

@@ -203,7 +203,7 @@
         '<div class="input-row">' +
           '<div class="label">Brooklyn<span class="sub">Position parameters</span></div>' +
           '<div class="forward-balance" style="font-size:0.85em;">' +
-            'Horizon ' + horizon + 'y &middot; Leverage ' + leverage + '%' +
+            'Horizon ' + horizon + 'y &middot; Leverage ' + (leverage != null ? leverage + '%' : '—') +
             (entry.type === 'C' ? ' &middot; ' + dur + ' mo' : '') +
           '</div>' +
         '</div>' +
@@ -271,6 +271,16 @@
         '<div class="rop-sub">every dollar in fees saves you this</div>' +
       '</div>' +
     '</div>';
+
+    // ============ Brooklyn investment slider ============
+    // Lets the advisor manually override the optimizer's recommended
+    // dial-back. The slider's max is the full Available Capital from
+    // Page 1; a marker on the track shows the optimizer cap (loss =
+    // absorbable gain). Dragging past the marker generates excess
+    // loss carryforward — surfaces a callout suggesting future-sale
+    // planning when that happens. Revert + Max buttons snap the
+    // slider back to the recommended position or push to full.
+    html += _renderBrooklynSlider(entry, opt, currentCfg);
 
     // ============ Fees Baked In — Brooklyn + Brookhaven breakdown ============
     html += '<div class="input-section" id="fee-strategies-section">' +
@@ -633,6 +643,88 @@
         renderStrategySummary();
       });
     });
+    // Brooklyn investment slider — drag to override the optimizer's
+    // recommendation. Stores the override on
+    // window.__rettBrooklynInvestmentOverride which buildInterestedSummary
+    // reads on the next render. Cleared on form reset by clearForm.
+    var slider = document.getElementById('brooklyn-investment-slider');
+    if (slider) {
+      slider.addEventListener('input', function () {
+        var v = Number(slider.value);
+        root.__rettBrooklynInvestmentOverride = Number.isFinite(v) ? v : null;
+        renderStrategySummary();
+      });
+    }
+    host.querySelectorAll('[data-bs-action]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var act = btn.getAttribute('data-bs-action');
+        if (act === 'revert') {
+          root.__rettBrooklynInvestmentOverride = null;
+        } else if (act === 'max') {
+          var cfg = (typeof root.collectInputs === 'function') ? root.collectInputs() : {};
+          root.__rettBrooklynInvestmentOverride = Number(cfg.availableCapital) || 0;
+        }
+        renderStrategySummary();
+      });
+    });
+  }
+
+  // -----------------------------------------------------------------
+  // Brooklyn investment slider. Lets the advisor override the
+  // optimizer cap manually; pushes past the cap surface excess loss.
+  // The recommended position renders as a notch on the track so the
+  // advisor knows where "absorbs gain exactly" lives.
+  // -----------------------------------------------------------------
+  function _renderBrooklynSlider(entry, opt, cfg) {
+    var availCap = (cfg && Number(cfg.availableCapital)) || 0;
+    if (availCap <= 0) return '';
+    var lossAtFull = (entry && entry.metrics && entry.metrics._lossAtFull) || 0;
+    if (lossAtFull <= 0) return '';
+    var absorbable = (opt && Number(opt.totalAbsorbableGain)) || 0;
+    var recommended = (opt && opt.dialBack)
+      ? Math.min(availCap, opt.recommendedInvestment)
+      : availCap;
+    var override = root.__rettBrooklynInvestmentOverride;
+    var current = (typeof override === 'number' && override >= 0)
+      ? Math.max(0, Math.min(availCap, override))
+      : recommended;
+    var step = Math.max(1000, Math.round(availCap / 200));
+    var recPct = availCap > 0 ? (recommended / availCap) * 100 : 100;
+    var scale = availCap > 0 ? current / availCap : 1;
+    var lossAtCurrent = lossAtFull * scale;
+    var excessLoss = Math.max(0, lossAtCurrent - absorbable);
+    var futureSaleEnabled = !!(opt && opt.futureSaleEnabled);
+
+    var excessNote = '';
+    if (excessLoss > 0) {
+      excessNote = '<p class="bs-excess">' +
+        '<strong>Excess loss carryforward: ' + _fmt(excessLoss) + '.</strong> ' +
+        (futureSaleEnabled
+          ? 'Your planned future sale is already factored into the cap; this surplus would only offset $3K/yr of ordinary income unless another sale is added.'
+          : 'No planned future sale to absorb it &mdash; carries against ordinary income at $3K/yr only. Add a future sale on Page&nbsp;1 Section&nbsp;07 if there is more property coming.') +
+        '</p>';
+    }
+
+    return '<div class="brooklyn-slider-block">' +
+      '<div class="brooklyn-slider-head">' +
+        '<h2>Brooklyn Investment</h2>' +
+        '<p class="brooklyn-slider-sub">Drag to override the optimizer. The marker shows the level that absorbs ' + _fmt(absorbable) + ' of gain exactly.</p>' +
+      '</div>' +
+      '<div class="brooklyn-slider-amounts">' +
+        '<div><span class="bs-label">Investment</span><span class="bs-amt">' + _fmt(current) + '</span></div>' +
+        '<div><span class="bs-label">Loss generated</span><span class="bs-amt">' + _fmt(lossAtCurrent) + '</span></div>' +
+        '<div><span class="bs-label">Excess</span><span class="bs-amt' + (excessLoss > 0 ? ' is-warn' : '') + '">' + _fmt(excessLoss) + '</span></div>' +
+      '</div>' +
+      '<div class="brooklyn-slider-track-wrap">' +
+        '<input type="range" min="0" max="' + Math.round(availCap) + '" step="' + step + '" value="' + Math.round(current) + '" id="brooklyn-investment-slider" class="brooklyn-slider">' +
+        '<div class="brooklyn-slider-marker" style="left:' + recPct.toFixed(2) + '%" aria-hidden="true" title="Optimizer cap (' + _fmt(recommended) + ')"></div>' +
+      '</div>' +
+      '<div class="brooklyn-slider-actions">' +
+        '<button type="button" class="bs-btn" data-bs-action="revert">&larr; Revert to optimizer</button>' +
+        '<button type="button" class="bs-btn" data-bs-action="max">Max (full capital) &rarr;</button>' +
+      '</div>' +
+      excessNote +
+    '</div>';
   }
 
   root.renderStrategySummary = renderStrategySummary;

@@ -169,16 +169,24 @@ const ProjectionEngine = {
                         // intermediate variable used to live here but was
                         // dead code with an operator-precedence bug
                         // (the `>` was binding before the `+`).
+                        // §1250 recapture applies only in the year gain is recognized
+                        // (Y1 for immediate-path, Y1 of first tranche for deferred).
+                        // The projection engine uses Y1 only (i===0) since structured-sale
+                        // multi-tranche gain is handled in tax-comparison.js instead.
+                        const _recap = (i === 0) ? Math.max(0, cfg.acceleratedDepreciation || 0) : 0;
+
                             const fedWith = computeFederalTax(
                                                 Math.max(0, ordinary - applied.ordinaryOffset) + Math.max(0, applied.netST),
                                                 year, cfg.filingStatus,
                                 { longTermGain: Math.max(0, applied.netLT),
+                                  depreciationRecapture: _recap,
                                   wages: cfg.wages != null ? cfg.wages : 0 }
                                             );
                             const stateWith = computeStateTax(
                                                 Math.max(0, ordinary - applied.ordinaryOffset)
                                                   + Math.max(0, applied.netST)
-                                                  + Math.max(0, applied.netLT),
+                                                  + Math.max(0, applied.netLT)
+                                                  + _recap,
                                                 year, cfg.state, cfg.filingStatus
                                             );
 
@@ -187,10 +195,11 @@ const ProjectionEngine = {
                                             ordinary + Math.max(0, shortGain),
                                             year, cfg.filingStatus,
                             { longTermGain: Math.max(0, longGain),
+                              depreciationRecapture: _recap,
                               wages: cfg.wages != null ? cfg.wages : 0 }
                                         );
                             const stateNo = computeStateTax(
-                                                ordinary + Math.max(0, shortGain) + Math.max(0, longGain),
+                                                ordinary + Math.max(0, shortGain) + Math.max(0, longGain) + _recap,
                                                 year, cfg.state, cfg.filingStatus
                                             );
 

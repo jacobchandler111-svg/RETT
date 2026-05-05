@@ -358,6 +358,10 @@ function resetAllInputs(skipConfirm) {
   if (typeof window.resetSupplementalEnabledOverride === 'function') {
     try { window.resetSupplementalEnabledOverride(); } catch (e) { /* */ }
   }
+  // Clear the Brooklyn investment slider override as well so the new
+  // client's Strategy Summary starts at the optimizer's recommendation,
+  // not whatever the prior client had dialed.
+  window.__rettBrooklynInvestmentOverride = null;
   if (typeof _refreshStrategyPickCards === 'function') {
     try { _refreshStrategyPickCards(); } catch (e) { /* */ }
   }
@@ -1095,12 +1099,13 @@ function bindControls() {
       if (typeof computeFederalTax === 'function') {
         fed = computeFederalTax(ord + Math.max(0, stShort), year, status, {
           longTermGain: ltGain,
+          depreciationRecapture: deprVal,
           investmentIncome: ltGain + Math.max(0, stShort),
           wages: wages
         }) || 0;
       }
       if (typeof computeStateTax === 'function') {
-        st = computeStateTax(ord + Math.max(0, stShort) + ltGain, year, state, status, {
+        st = computeStateTax(ord + Math.max(0, stShort) + ltGain + deprVal, year, state, status, {
           longTermGain: ltGain
         }) || 0;
       }

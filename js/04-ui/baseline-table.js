@@ -142,7 +142,7 @@
     _showRow('bt-loss-off', lossOff > 0);
     _showRow('bt-loss-cfy', lossCFY > 0);
 
-    _set('bt-taxable', _fmt(Math.max(0, ord + Math.max(0, ltGain) + stGain - lossOff)));
+    _set('bt-taxable', _fmt(Math.max(0, ord + recap + Math.max(0, ltGain) + stGain - lossOff)));
     _set('bt-fed',     _fmt(fedTotal));
     _set('bt-amt',     _fmt(amt));
     _showRow('bt-amt',  amt > 0);
