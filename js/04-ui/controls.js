@@ -5,7 +5,7 @@
 //   - 'projection' : multi-year results table
 //   - 'allocator'  : year-1 allocator suggestions
 
-const PAGE_IDS = ['page-inputs', 'page-projection', 'page-allocator'];
+const PAGE_IDS = ['page-inputs', 'page-strategies', 'page-projection', 'page-allocator'];
 const PROJECTION_SUBPAGE_IDS = ['subpage-summary', 'subpage-details'];
 
 function showProjectionSubpage(id) {
@@ -336,6 +336,34 @@ function resetAllInputs(skipConfirm) {
   showPage('page-inputs');
 }
 
+// Refresh the visual state of the three Strategy-Selection cards
+// (Sell Now / Seller Finance / Structured). Reads:
+//   - window.__rettRecommendedScenario  ('A' | 'B' | 'C') — set by the
+//     scenario comparison engine; drives the "Recommended" border + tag.
+//   - window.__rettStrategyInterest     ({ A, B, C: true|false|null }) —
+//     the user's per-card Interested / Not Interested earmarks.
+// Pure DOM update; safe to call any time, idempotent.
+function _refreshStrategyPickCards() {
+  var rec = (typeof window !== 'undefined') ? window.__rettRecommendedScenario : null;
+  var interest = (typeof window !== 'undefined') ? (window.__rettStrategyInterest || {}) : {};
+  ['A', 'B', 'C'].forEach(function (key) {
+    var card = document.getElementById('strategy-pick-' + key);
+    if (!card) return;
+    card.classList.toggle('is-recommended', rec === key);
+    card.classList.toggle('is-interested', interest[key] === true);
+    card.classList.toggle('is-not-interested', interest[key] === false);
+    var tag = document.getElementById('strategy-pick-' + key + '-rec-tag');
+    if (tag) tag.hidden = (rec !== key);
+    // Mark the active button.
+    card.querySelectorAll('.strategy-pick-btn').forEach(function (btn) {
+      var action = btn.getAttribute('data-pick-action');
+      var isOn = (action === 'interested' && interest[key] === true)
+              || (action === 'not-interested' && interest[key] === false);
+      btn.classList.toggle('is-' + action, isOn);
+    });
+  });
+}
+
 function _debounce(fn, ms) {
   let t;
   return function () {
@@ -364,6 +392,20 @@ function showPage(id) {
     try {
       if (typeof renderStrategySummary === 'function') renderStrategySummary();
     } catch(e) { (window.reportFailure || console.warn)('Strategy Summary render failed', e); }
+  }
+
+  if (id === 'page-strategies') {
+    // Run the recommendation pipeline silently so the recommended-card
+    // border and any future per-card preview numbers are populated by
+    // the time the page paints. Same engine that drives Page-Projection;
+    // it just renders into the already-existing __rettRecommendedData
+    // global. The Strategy-Selection page reads that to mark the winner.
+    try {
+      if (typeof runFullPipeline === 'function') runFullPipeline();
+    } catch (e) { (window.reportFailure || console.warn)('Strategy preview render failed', e); }
+    if (typeof _refreshStrategyPickCards === 'function') {
+      try { _refreshStrategyPickCards(); } catch (e) { /* */ }
+    }
   }
 
   if (id === 'page-projection') {
@@ -711,11 +753,36 @@ function bindControls() {
   });
 
   const navInputs = document.getElementById('nav-inputs');
+  const navStrategies = document.getElementById('nav-strategies');
   const navProjection = document.getElementById('nav-projection');
   const navAllocator = document.getElementById('nav-allocator');
   if (navInputs)     navInputs.addEventListener('click', () => showPage('page-inputs'));
+  if (navStrategies) navStrategies.addEventListener('click', () => showPage('page-strategies'));
   if (navProjection) navProjection.addEventListener('click', () => showPage('page-projection'));
   if (navAllocator)  navAllocator.addEventListener('click', () => showPage('page-allocator'));
+
+  // Strategy-selection page (between Inputs and Projection): three
+  // cards, each with Interested / Not Interested. Currently NOT wired
+  // to the engine — purely a presenter aid. The Continue button
+  // advances to the existing Projection pipeline; Back returns to
+  // Inputs. Interested/Not Interested toggle visual state on the
+  // card and write to window.__rettStrategyInterest for future
+  // engine integration.
+  window.__rettStrategyInterest = window.__rettStrategyInterest || { A: null, B: null, C: null };
+  document.querySelectorAll('.strategy-pick-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var target = btn.getAttribute('data-pick-target');
+      var action = btn.getAttribute('data-pick-action');
+      var newVal = action === 'interested' ? true : false;
+      var current = window.__rettStrategyInterest[target];
+      window.__rettStrategyInterest[target] = (current === newVal) ? null : newVal;
+      _refreshStrategyPickCards();
+    });
+  });
+  var strategiesBack = document.getElementById('strategies-back');
+  if (strategiesBack) strategiesBack.addEventListener('click', function () { showPage('page-inputs'); });
+  var strategiesContinue = document.getElementById('strategies-continue');
+  if (strategiesContinue) strategiesContinue.addEventListener('click', function () { showPage('page-projection'); });
 
   // Sub-tabs on Page 2 (Summary | Details).
   const subnavSummary = document.getElementById('subnav-summary');
@@ -863,10 +930,12 @@ function bindControls() {
     // means showPage('page-projection') → maybeAutoPick will run a
     // fresh search before runFullPipeline.
     window.__rettAutoPickEnabled = true;
-    // showPage('page-projection') triggers runFullPipeline() internally,
-    // so the recommendation engine + dashboard render run automatically
-    // on arrival.
-    showPage('page-projection');
+    // Route through the new Strategy Selection page so the user can
+    // mark each option Interested / Not Interested before the engine
+    // runs. The Projection engine still runs silently in the
+    // background when they continue from Strategies, so the
+    // recommended-card border can appear immediately on arrival.
+    showPage('page-strategies');
   });
 
   const resetBtn = document.getElementById('reset-form');

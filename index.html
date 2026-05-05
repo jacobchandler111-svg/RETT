@@ -4,7 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RETT - Brooklyn Multi-Year Projector</title>
-  <link rel="stylesheet" href="css/styles.css?v=1777600000038">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css?v=1777600000040">
 </head>
 <body>
   <a href="#page-inputs" class="skip-link">Skip to main content</a>
@@ -18,8 +21,9 @@
 
   <nav class="nav" role="tablist" aria-label="Workflow steps">
     <button id="nav-inputs" class="nav-tab active" role="tab" aria-selected="true" aria-controls="page-inputs" type="button">1. Client Inputs</button>
-    <button id="nav-projection" class="nav-tab" role="tab" aria-selected="false" aria-controls="page-projection" type="button">2. Projection</button>
-    <button id="nav-allocator" class="nav-tab" role="tab" aria-selected="false" aria-controls="page-allocator" type="button">3. Strategy Summary</button>
+    <button id="nav-strategies" class="nav-tab" role="tab" aria-selected="false" aria-controls="page-strategies" type="button">2. Strategies</button>
+    <button id="nav-projection" class="nav-tab" role="tab" aria-selected="false" aria-controls="page-projection" type="button">3. Projection</button>
+    <button id="nav-allocator" class="nav-tab" role="tab" aria-selected="false" aria-controls="page-allocator" type="button">4. Strategy Summary</button>
   </nav>
 
   <main>
@@ -234,8 +238,86 @@
     </div>
 
     <div class="actions">
-      <button type="button" id="continue-to-projection" class="btn btn-primary">Continue to Projection &rarr;</button>
+      <button type="button" id="continue-to-projection" class="btn btn-primary">Continue to Strategies &rarr;</button>
       <button type="button" id="reset-form" class="btn btn-secondary" aria-label="Reset all form inputs to defaults">Reset Form</button>
+    </div>
+  </section>
+
+  <!-- ============ PAGE: STRATEGY SELECTION ============ -->
+  <!-- Sits between Inputs and Projection. Three planning options the
+       advisor walks the client through; each gets an Interested /
+       Not Interested earmark that will eventually drive which scenario(s)
+       run in the Projection step. The card highlighted with a dark
+       border is the recommended (highest net) option — a presenter
+       cue, NOT auto-locked-in. -->
+  <section id="page-strategies" class="page" role="tabpanel" aria-labelledby="nav-strategies">
+    <div class="strategy-pick-page-header">
+      <h2>Strategy Selection</h2>
+      <p>Three planning options for the same client situation. Mark each as Interested or Not Interested as you walk through them — the recommended option has a darker border and a "Recommended" badge.</p>
+    </div>
+
+    <div id="strategy-pick-list">
+      <!-- Card 1: Sell Now -->
+      <div class="strategy-pick-card" data-strategy="A" id="strategy-pick-A">
+        <div class="strategy-pick-num">
+          STRATEGY
+          <span class="num-big">01</span>
+        </div>
+        <div class="strategy-pick-body">
+          <div class="name">
+            Sell Now (Year 1)
+            <span class="strategy-pick-recommended-tag" id="strategy-pick-A-rec-tag" hidden>Recommended</span>
+          </div>
+          <div class="desc">Close in the current tax year. Brooklyn is deployed at sale, generating short-term losses that absorb the long-term capital gain immediately.</div>
+        </div>
+        <div class="strategy-pick-buttons">
+          <button type="button" class="strategy-pick-btn" data-pick-action="interested" data-pick-target="A">&#10003; Interested</button>
+          <button type="button" class="strategy-pick-btn" data-pick-action="not-interested" data-pick-target="A">Not Interested</button>
+        </div>
+      </div>
+
+      <!-- Card 2: Seller Finance / Delay Close -->
+      <div class="strategy-pick-card" data-strategy="B" id="strategy-pick-B">
+        <div class="strategy-pick-num">
+          STRATEGY
+          <span class="num-big">02</span>
+        </div>
+        <div class="strategy-pick-body">
+          <div class="name">
+            Seller Finance (Jan 1 next year)
+            <span class="strategy-pick-recommended-tag" id="strategy-pick-B-rec-tag" hidden>Recommended</span>
+          </div>
+          <div class="desc">Negotiate the sale to close on January 1 of next year. No insurance product — the buyer signs a contract that simply closes later. Brooklyn engages with a full Y1 of losses on the new tax year.</div>
+        </div>
+        <div class="strategy-pick-buttons">
+          <button type="button" class="strategy-pick-btn" data-pick-action="interested" data-pick-target="B">&#10003; Interested</button>
+          <button type="button" class="strategy-pick-btn" data-pick-action="not-interested" data-pick-target="B">Not Interested</button>
+        </div>
+      </div>
+
+      <!-- Card 3: Structured Sale -->
+      <div class="strategy-pick-card" data-strategy="C" id="strategy-pick-C">
+        <div class="strategy-pick-num">
+          STRATEGY
+          <span class="num-big">03</span>
+        </div>
+        <div class="strategy-pick-body">
+          <div class="name">
+            Structured Sale
+            <span class="strategy-pick-recommended-tag" id="strategy-pick-C-rec-tag" hidden>Recommended</span>
+          </div>
+          <div class="desc">Insurance-product wrapper that defers the gain across multiple tax years. Brooklyn losses absorb each year's recognized chunk; basis cash is paid at sale and reinvested. Best fit for large gains where multi-year deferral materially improves net.</div>
+        </div>
+        <div class="strategy-pick-buttons">
+          <button type="button" class="strategy-pick-btn" data-pick-action="interested" data-pick-target="C">&#10003; Interested</button>
+          <button type="button" class="strategy-pick-btn" data-pick-action="not-interested" data-pick-target="C">Not Interested</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="strategy-pick-actions">
+      <button type="button" id="strategies-back" class="btn btn-secondary">&larr; Back to Inputs</button>
+      <button type="button" id="strategies-continue" class="btn btn-primary">Continue to Projection &rarr;</button>
     </div>
   </section>
 
@@ -386,53 +468,53 @@
   <!-- ============ Subsystem load order: 00 -> 01 -> 02 -> 03 -> 05 -> 04 ============ -->
   <!-- date-utils is loaded ahead of 00-data so schwab-strategies can use the
        shared parseLocalDate global instead of defining its own copy. -->
-  <script src="js/01-brooklyn/date-utils.js?v=1777600000038"></script>
-  <script src="js/00-data/custodians.js?v=1777600000038"></script>
-  <script src="js/00-data/schwab-strategies.js?v=1777600000038"></script>
-  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000038"></script>
-  <script src="js/01-brooklyn/time-weight.js?v=1777600000038"></script>
-  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000038"></script>
-  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000038"></script>
+  <script src="js/01-brooklyn/date-utils.js?v=1777600000040"></script>
+  <script src="js/00-data/custodians.js?v=1777600000040"></script>
+  <script src="js/00-data/schwab-strategies.js?v=1777600000040"></script>
+  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000040"></script>
+  <script src="js/01-brooklyn/time-weight.js?v=1777600000040"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000040"></script>
+  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000040"></script>
 
-  <script src="js/02-tax-engine/tax-data.js?v=1777600000038"></script>
-  <script src="js/02-tax-engine/tax-loader.js?v=1777600000038"></script>
-  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000038"></script>
-  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000038"></script>
-  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000038"></script>
-  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000038"></script>
+  <script src="js/02-tax-engine/tax-data.js?v=1777600000040"></script>
+  <script src="js/02-tax-engine/tax-loader.js?v=1777600000040"></script>
+  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000040"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000040"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000040"></script>
+  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000040"></script>
 
-  <script src="js/03-solver/fees.js?v=1777600000038"></script>
-  <script src="js/03-solver/fee-split.js?v=1777600000038"></script>
-  <script src="js/03-solver/brookhaven-fees.js?v=1777600000038"></script>
-  <script src="js/03-solver/single-year-solver.js?v=1777600000038"></script>
-  <script src="js/03-solver/multi-year-solver.js?v=1777600000038"></script>
-  <script src="js/03-solver/structured-sale.js?v=1777600000038"></script>
-  <script src="js/03-solver/decision-engine.js?v=1777600000038"></script>
+  <script src="js/03-solver/fees.js?v=1777600000040"></script>
+  <script src="js/03-solver/fee-split.js?v=1777600000040"></script>
+  <script src="js/03-solver/brookhaven-fees.js?v=1777600000040"></script>
+  <script src="js/03-solver/single-year-solver.js?v=1777600000040"></script>
+  <script src="js/03-solver/multi-year-solver.js?v=1777600000040"></script>
+  <script src="js/03-solver/structured-sale.js?v=1777600000040"></script>
+  <script src="js/03-solver/decision-engine.js?v=1777600000040"></script>
 
-  <script src="js/05-projections/carryforward-tracker.js?v=1777600000038"></script>
-  <script src="js/05-projections/projection-engine.js?v=1777600000038"></script>
+  <script src="js/05-projections/carryforward-tracker.js?v=1777600000040"></script>
+  <script src="js/05-projections/projection-engine.js?v=1777600000040"></script>
 
   <!-- format-helpers loads first inside 04-ui so every renderer can use
        fmtUSD / fmtPct / fmtNum directly without a defensive fallback. -->
-  <script src="js/04-ui/format-helpers.js?v=1777600000038"></script>
-  <script src="js/04-ui/money-format.js?v=1777600000038"></script>
-  <script src="js/04-ui/banner.js?v=1777600000038"></script>
-  <script src="js/04-ui/number-animator.js?v=1777600000038"></script>
-  <script src="js/04-ui/case-storage.js?v=1777600000038"></script>
-  <script src="js/04-ui/pill-toggles.js?v=1777600000038"></script>
-  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000038"></script>
-  <script src="js/04-ui/input-validation.js?v=1777600000038"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1777600000038"></script>
-  <script src="js/04-ui/controls.js?v=1777600000038"></script>
-  <script src="js/04-ui/recommendation-render.js?v=1777600000038"></script>
-  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000038"></script>
-  <script src="js/04-ui/savings-ribbon.js?v=1777600000038"></script>
-  <script src="js/04-ui/bracket-viz-render.js?v=1777600000038"></script>
-  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000038"></script>
-  <script src="js/04-ui/narrative-render.js?v=1777600000038"></script>
-  <script src="js/04-ui/strategy-summary-render.js?v=1777600000038"></script>
+  <script src="js/04-ui/format-helpers.js?v=1777600000040"></script>
+  <script src="js/04-ui/money-format.js?v=1777600000040"></script>
+  <script src="js/04-ui/banner.js?v=1777600000040"></script>
+  <script src="js/04-ui/number-animator.js?v=1777600000040"></script>
+  <script src="js/04-ui/case-storage.js?v=1777600000040"></script>
+  <script src="js/04-ui/pill-toggles.js?v=1777600000040"></script>
+  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000040"></script>
+  <script src="js/04-ui/input-validation.js?v=1777600000040"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1777600000040"></script>
+  <script src="js/04-ui/controls.js?v=1777600000040"></script>
+  <script src="js/04-ui/recommendation-render.js?v=1777600000040"></script>
+  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000040"></script>
+  <script src="js/04-ui/savings-ribbon.js?v=1777600000040"></script>
+  <script src="js/04-ui/bracket-viz-render.js?v=1777600000040"></script>
+  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000040"></script>
+  <script src="js/04-ui/narrative-render.js?v=1777600000040"></script>
+  <script src="js/04-ui/strategy-summary-render.js?v=1777600000040"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1777600000038"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1777600000040"></script>
 </body>
 </html>
