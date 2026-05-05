@@ -722,16 +722,32 @@
       (Number(cfg.salePrice) || 0) - (Number(cfg.costBasis) || 0)
       - (Number(cfg.acceleratedDepreciation) || 0));
 
+    // Investment levels:
+    //   investToCoverCurrent — Brooklyn level needed to absorb just the
+    //     current sale's LT gain (capped at availableCapital).
+    //   investToCoverBoth    — Brooklyn level needed to absorb both
+    //     current + future LT gain (capped at availableCapital).
+    //   additionalInvestment — the gap. If availCap is binding, this
+    //     may not be enough to fully cover futureLT.
     var investToCoverCurrent = Math.min(availCap, currentLT / lossPerDollar);
     var investToCoverBoth    = Math.min(availCap, (currentLT + futureLT) / lossPerDollar);
     var additionalInvestment = Math.max(0, investToCoverBoth - investToCoverCurrent);
     var additionalFees       = additionalInvestment * feePerDollar;
 
-    // Estimate future-sale tax savings — assume the carryforward fully
-    // absorbs the future LT gain. Run federal + state on a clean
-    // scenario where the only income is futureLTGain. NIIT auto-applies
-    // when investmentIncome >= MAGI threshold. Falls back gracefully if
-    // the tax calc isn't loaded (host renders zero rather than error).
+    // Coverage of the FUTURE sale. The total Brooklyn loss at the
+    // both-coverage investment level absorbs current first, anything
+    // left over absorbs future. If availableCapital is the binding
+    // constraint, that leftover may be less than futureLT — in which
+    // case the future-sale tax savings prorate to the actual coverage.
+    var totalLossAtBoth = investToCoverBoth * lossPerDollar;
+    var futureLTAbsorbed = Math.max(0, Math.min(futureLT, totalLossAtBoth - currentLT));
+    var coverageFraction = (futureLT > 0) ? (futureLTAbsorbed / futureLT) : 0;
+
+    // Compute the FULL tax that would be owed on the future LT gain
+    // if no carryforward existed — federal + state + NIIT. Then prorate
+    // by the coverage fraction so the displayed savings reflect what
+    // the additional investment ACTUALLY buys (not aspirational full
+    // absorption).
     var saleYear;
     if (cfg.futureSale.saleDate) {
       var d = new Date(cfg.futureSale.saleDate);
@@ -756,8 +772,18 @@
         }) || 0;
       }
     } catch (e) { /* fall through to zero */ }
-    var futureSaleTaxSavings = Math.max(0, fedSavings + stateSavings);
+    var fullFutureTax = Math.max(0, fedSavings + stateSavings);
+    // Prorate by coverage. If the additional investment fully covers
+    // futureLT, this equals fullFutureTax. If it covers half, it's
+    // half the savings.
+    var futureSaleTaxSavings = fullFutureTax * coverageFraction;
     var netAdditionalBenefit = futureSaleTaxSavings - additionalFees;
+    // Return on the ADDITIONAL fees specifically — the multiplier the
+    // advisor uses to frame "every $1 in fees buys $X in future-sale
+    // savings." Different from the page's main ROP (which is for the
+    // current sale).
+    var feeReturnRatio = (additionalFees > 0)
+      ? (futureSaleTaxSavings / additionalFees) : 0;
 
     var benefitClass = netAdditionalBenefit > 0 ? 'fs-benefit-positive'
                      : (netAdditionalBenefit < 0 ? 'fs-benefit-negative' : '');
@@ -772,13 +798,45 @@
     // a clear note about the cost/no-cost framing.
     var hasHeadroom = (additionalInvestment > 0) || (additionalFees > 0);
 
+    // Coverage messaging branches. Three meaningful cases:
+    //
+    //   coverageFraction === 0 — Brooklyn (at any investment level the
+    //     advisor can fund) can't generate carryforward beyond what
+    //     the current sale needs. No future-sale absorption available.
+    //     Surface a "Available Capital is the bottleneck" framing so
+    //     the advisor knows to suggest funding more.
+    //
+    //   coverageFraction > 0 && !hasHeadroom — the optimizer is already
+    //     at availableCapital for the current sale, and the leftover
+    //     loss naturally carries forward to absorb some/all of future.
+    //     "Bonus" framing — at no additional cost.
+    //
+    //   coverageFraction > 0 && hasHeadroom — there's room to scale
+    //     Brooklyn up. Could be full (100%) or partial coverage; the
+    //     prorated-savings line shows the effective benefit either way.
+    var fullCoverage   = (coverageFraction >= 0.999);
+    var noCoverage     = (coverageFraction <= 0);
+    var coveragePctLabel = Math.round(coverageFraction * 100) + '%';
+
+    var headerTitle;
+    var headerCopy;
+    if (noCoverage) {
+      headerTitle = 'Future Sale Needs More Capital';
+      headerCopy  = 'Available Capital is fully consumed by the current sale, so there&rsquo;s no leftover Brooklyn loss to carry forward against your planned <strong>' + _fmt(futureLT) + '</strong> long-term gain in ' + saleYear + '. Increasing Available Capital on Page 2 would unlock future-sale offset.';
+    } else if (!hasHeadroom) {
+      headerTitle = 'Bonus: Your Future Sale Is Already Covered';
+      headerCopy  = 'Brooklyn is already fully deployed for your current sale. The leftover loss carries forward and absorbs <strong>' + coveragePctLabel + '</strong> of your planned <strong>' + _fmt(futureLT) + '</strong> long-term gain in ' + saleYear + ' at no additional cost.';
+    } else if (fullCoverage) {
+      headerTitle = 'Another Option: Offset Your Future Sale';
+      headerCopy  = 'Increase Brooklyn investment so the loss carryforward also fully absorbs your planned <strong>' + _fmt(futureLT) + '</strong> long-term gain in ' + saleYear + '. Same strategy, same horizon &mdash; just sized up. The fees you pay now buy the future-sale offset shown below.';
+    } else {
+      headerTitle = 'Another Option: Offset Your Future Sale';
+      headerCopy  = 'Available Capital limits how much Brooklyn can grow. The additional investment below covers <strong>' + coveragePctLabel + '</strong> of your <strong>' + _fmt(futureLT) + '</strong> long-term gain in ' + saleYear + '; the future-sale tax savings are prorated to that coverage.';
+    }
+
     var headerHtml = '<div class="fs-head">' +
-      '<h2>' + (hasHeadroom
-            ? 'Another Option: Offset Your Future Sale'
-            : 'Bonus: Your Future Sale Is Already Covered') + '</h2>' +
-      '<p class="fs-desc">' + (hasHeadroom
-            ? 'Increase Brooklyn investment so the loss carryforward also absorbs your planned <strong>' + _fmt(futureLT) + '</strong> long-term gain in ' + saleYear + '. Same strategy, same horizon &mdash; just sized up.'
-            : 'Brooklyn is already fully deployed for your current sale. The excess loss carries forward and absorbs your planned <strong>' + _fmt(futureLT) + '</strong> long-term gain in ' + saleYear + ' at no additional cost.') + '</p>' +
+      '<h2>' + headerTitle + '</h2>' +
+      '<p class="fs-desc">' + headerCopy + '</p>' +
     '</div>';
 
     var rowsHtml = '';
@@ -792,14 +850,25 @@
         '<div class="fs-amt">' + _fmt(additionalInvestment) + '</div>' +
       '</div>';
       rowsHtml += '<div class="fs-row">' +
-        '<div class="fs-label">Cost to offset the future sale<span class="fs-sub">additional Brooklyn fees over the projection horizon</span></div>' +
+        '<div class="fs-label">Cost to offset the future sale<span class="fs-sub">additional Brooklyn fees you pay now over the projection horizon</span></div>' +
         '<div class="fs-amt fs-cost">' + _fmt(additionalFees) + '</div>' +
       '</div>';
     }
     rowsHtml += '<div class="fs-row">' +
-      '<div class="fs-label">Future-sale tax savings<span class="fs-sub">federal LT + state + NIIT on ' + _fmt(futureLT) + '</span></div>' +
+      '<div class="fs-label">Future-sale tax savings<span class="fs-sub">' + (fullCoverage
+            ? 'federal LT + state + NIIT on ' + _fmt(futureLT)
+            : coveragePctLabel + ' coverage of ' + _fmt(futureLT) + ' &mdash; ' + _fmt(fullFutureTax) + ' full tax prorated') + '</span></div>' +
       '<div class="fs-amt fs-save">' + _fmt(futureSaleTaxSavings) + '</div>' +
     '</div>';
+    if (hasHeadroom && additionalFees > 0 && feeReturnRatio > 0) {
+      // Fee-return multiplier — frames the additional spend as ROI on
+      // the future sale ("every $1 of fees you pay now buys $X in
+      // future-sale savings"). Distinct from the page's main ROP.
+      rowsHtml += '<div class="fs-row">' +
+        '<div class="fs-label">Return on additional fees<span class="fs-sub">future-sale savings &divide; additional Brooklyn fees</span></div>' +
+        '<div class="fs-amt fs-save">' + _fmtMultiplier(feeReturnRatio) + '&times;</div>' +
+      '</div>';
+    }
     rowsHtml += '<div class="fs-row fs-total">' +
       '<div class="fs-label">Net additional benefit</div>' +
       '<div class="fs-amt ' + benefitClass + '">' + _fmt(netAdditionalBenefit) + '</div>' +
