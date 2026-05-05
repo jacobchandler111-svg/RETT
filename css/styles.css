@@ -5709,21 +5709,14 @@ body { font-size: 16px; }
    Sub-questions get a left border + indent so the dependency
    relationship is visually obvious.
    =========================================================== */
-.pmq-q-header {
+/* Header / progress legacy classes intentionally left in place
+   in case other code references them. The renderer no longer
+   produces a header row — the question list starts immediately
+   under the page title and a footer row holds the Reset button. */
+.pmq-q-footer-row {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin: 0 0 18px 0;
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--rule-soft);
-}
-.pmq-q-progress {
-    font-family: var(--font-mono);
-    font-size: 0.78em;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--muted);
-    font-weight: 600;
+    justify-content: flex-end;
+    margin-top: 14px;
 }
 .pmq-q-reset {
     font-family: var(--font-body);

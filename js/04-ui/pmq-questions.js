@@ -171,11 +171,13 @@
     var yesActive = (ans === true)  ? ' is-active' : '';
     var noActive  = (ans === false) ? ' is-active' : '';
     var subClass  = q.showIf ? ' pmq-q-sub' : '';
+    // Helper subtext intentionally omitted per advisor spec — labels
+    // stand on their own. The `helper` field on each spec is kept for
+    // future reference / tooltip-style use.
     return '' +
       '<div class="pmq-q' + subClass + '" data-pmq-q="' + q.id + '">' +
         '<div class="pmq-q-text">' +
           '<div class="pmq-q-label">' + q.label + '</div>' +
-          (q.helper ? '<div class="pmq-q-helper">' + q.helper + '</div>' : '') +
         '</div>' +
         '<div class="pmq-q-buttons">' +
           '<button type="button" class="pmq-q-btn pmq-q-btn-yes' + yesActive + '" data-pmq-action="yes" data-pmq-target="' + q.id + '">Yes</button>' +
@@ -188,23 +190,16 @@
     var host = document.getElementById('pmq-question-host');
     if (!host) return;
     var answers = _answers();
-    // Count of answered top-level questions for the progress hint.
-    var topLevel = PMQ_QUESTIONS.filter(function (q) { return !q.showIf; });
-    var topAnswered = topLevel.filter(function (q) {
-      return answers[q.id] === true || answers[q.id] === false;
-    }).length;
-
     var qHtml = PMQ_QUESTIONS.map(function (q) {
       return _renderQuestion(q, answers);
     }).join('');
-
+    // No header row, no progress count, no helper text — just the
+    // questions and a tucked-in Reset link at the very end.
     host.innerHTML = '' +
-      '<div class="pmq-q-header">' +
-        '<span class="pmq-q-progress">' + topAnswered + ' of ' + topLevel.length + ' answered</span>' +
+      '<div class="pmq-q-list">' + qHtml + '</div>' +
+      '<div class="pmq-q-footer-row">' +
         '<button type="button" class="pmq-q-reset" id="pmq-q-reset-btn">Reset answers</button>' +
-      '</div>' +
-      '<div class="pmq-q-list">' + qHtml + '</div>';
-
+      '</div>';
     _bindEvents();
   }
 
