@@ -3515,6 +3515,28 @@ body { font-size: 16px; }
     margin-bottom: 32px;
     max-width: 760px;
 }
+.optimizer-callout {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    background: #eef8f0;
+    border: 1.5px solid #b2dfc2;
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 24px;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: #1e4d30;
+}
+.optimizer-callout-icon {
+    font-size: 10px;
+    color: #2d8659;
+    margin-top: 4px;
+    flex-shrink: 0;
+}
+.optimizer-callout-body strong {
+    color: #1e4d30;
+}
 .forward-intro h1 {
     font-family: var(--font-display);
     font-size: 32px;

@@ -126,9 +126,23 @@
     }
 
     var m = entry.metrics;
-    var fees = m.fees || 0;
+
+    // Run Brooklyn optimizer: compute whether the investment should be
+    // scaled back to avoid generating more loss carryforward than the
+    // client can absorb. Brooklyn fees scale linearly with investment;
+    // Brookhaven is a fixed schedule and doesn't change. Tax savings stay
+    // constant — the scaled investment still generates exactly enough loss
+    // to absorb all available gain, so the net benefit goes UP when we
+    // dial back (same savings, lower fees).
+    var opt = (typeof root.runBrooklynOptimizer === 'function')
+      ? root.runBrooklynOptimizer(currentCfg, entry.loss || 0)
+      : null;
+    var optScale = (opt && opt.dialBack) ? opt.recommendedScale : 1;
+
+    var effectiveBrooklynFees = (m.brooklynFees || 0) * optScale;
+    var fees = effectiveBrooklynFees + (m.brookhavenFees || 0);
     var primarySavings = Math.max(0, (m.doNothing || 0) - (m.tax || 0));
-    var primaryNet = m.net || 0;
+    var primaryNet = primarySavings - fees;
     // Pull supplementals through the master solver so the hero numbers
     // (Net Benefit, You Save, ROI) reflect everything the client opted
     // in to. Each enabled supplemental's netBenefit is post-its-own-fees,
@@ -186,6 +200,23 @@
       '<p>The setup pays for itself many times over in tax savings. Below is the full breakdown of <em>' + _stratName(entry.type) + '</em> &mdash; what you pay (Brooklyn position fees + Brookhaven planning fees) and what it returns.</p>' +
     '</div>';
 
+    // Optimizer callout — only shown when a dial-back improves the plan.
+    if (opt && opt.dialBack) {
+      var feeDelta = (m.brooklynFees || 0) - effectiveBrooklynFees;
+      html += '<div class="optimizer-callout">' +
+        '<div class="optimizer-callout-icon">&#9654;</div>' +
+        '<div class="optimizer-callout-body">' +
+          '<strong>Brooklyn investment optimized.</strong> ' +
+          'At full capital (' + _fmt(opt.availableCapital) + '), Brooklyn would generate ' +
+          _fmt(opt.brooklynLossAtFull) + ' in cumulative losses &mdash; ' + _fmt(opt.excessLossAtFull) +
+          ' more than the ' + _fmt(opt.totalAbsorbableGain) + ' of absorbable gain' +
+          (opt.futureSaleEnabled ? ' (current + planned future sale).' : '.') +
+          ' Excess loss carries forward at only $3K/yr against ordinary income. ' +
+          'Recommended investment: <strong>' + _fmt(opt.recommendedInvestment) + '</strong> — generates exactly enough loss to absorb all available gain, saving <strong>' + _fmt(feeDelta) + '</strong> in Brooklyn fees with no reduction in tax savings.' +
+        '</div>' +
+      '</div>';
+    }
+
     html += '<div class="forward-layout">';
 
     // ============ LEFT COLUMN ============
@@ -234,7 +265,9 @@
         '<span class="num">REVIEW</span>' +
       '</div>' +
       '<div class="section-body">' +
-        _bullet('Brooklyn fees<span class="strat-savings-line">Borrow + fund + short-side carry over the position</span>', m.brooklynFees || 0) +
+        _bullet('Brooklyn fees<span class="strat-savings-line">Borrow + fund + short-side carry over the position' +
+          (opt && opt.dialBack ? ' &mdash; scaled to ' + _fmt(opt.recommendedInvestment) + ' invested' : '') +
+          '</span>', effectiveBrooklynFees) +
         _bullet('Brookhaven fees<span class="strat-savings-line">Planning engagement + ongoing service (flat schedule)</span>', m.brookhavenFees || 0) +
         '<div class="fee-summary-row">' +
           '<div class="fee-summary-label">Total Fees</div>' +
@@ -252,7 +285,11 @@
       '<div class="section-body" style="font-size:13px;line-height:1.6;color:var(--ink-soft);">' +
         '<p style="margin-bottom:10px;">' + durNote + '</p>' +
         '<p style="margin-bottom:10px;"><strong>Horizon:</strong> ' + horizon + ' years. The dollar figures below are <em>cumulative across the full horizon</em> &mdash; not single-year. The Page-1 baseline shows the single-year do-nothing tax; this page shows the multi-year sum so fees and savings are on the same time scale.</p>' +
-        '<p style="margin-bottom:10px;"><strong>Total losses generated (' + horizon + '-yr):</strong> ' + _fmt(entry.loss || 0) + '. Brooklyn produces these year-by-year; only the recognition year(s) actually need the offset.</p>' +
+        '<p style="margin-bottom:10px;"><strong>Total losses generated (' + horizon + '-yr):</strong> ' +
+          (opt && opt.dialBack
+            ? _fmt(Math.round((entry.loss || 0) * optScale)) + ' (optimizer-scaled; full-capital projection would generate ' + _fmt(entry.loss || 0) + ')'
+            : _fmt(entry.loss || 0)) +
+          '. Brooklyn produces these year-by-year; only the recognition year(s) actually need the offset.</p>' +
         '<p style="margin-bottom:10px;"><strong>Do-nothing tax baseline (' + horizon + '-yr):</strong> ' + _fmt(m.doNothing || 0) + '. This is what the client would owe with no planning across the full horizon.</p>' +
         '<p style="margin-bottom:10px;"><strong>Tax with strategy (' + horizon + '-yr):</strong> ' + _fmt(m.tax || 0) + '. Difference is the projected savings shown to the right.</p>' +
       '</div>' +
@@ -325,13 +362,13 @@
     // so the math can be checked (no double-spending sale proceeds),
     // and the Brooklyn optimizer's recommendation re. dialing back
     // investment to keep loss carryforward within absorbable gain.
-    html += _renderImplementationPanel(currentCfg, entry.loss || 0);
+    html += _renderImplementationPanel(currentCfg, entry.loss || 0, opt);
 
     host.innerHTML = html;
     _bindSupplementalToggleEvents();
   }
 
-  function _renderImplementationPanel(cfg, brooklynCumulativeLoss) {
+  function _renderImplementationPanel(cfg, brooklynCumulativeLoss, precomputedOpt) {
     if (typeof root.runAllocator !== 'function') return '';
     var totalAvailable = (cfg && Number(cfg.availableCapital)) || 0;
     var alloc = root.runAllocator(totalAvailable);
@@ -355,12 +392,12 @@
              ' &mdash; the supplemental investments exceed available capital. Reduce a supplemental on Page 4 or raise Available Capital on Page 1.</div>';
     }
 
-    // Brooklyn optimizer block — recommends a dial-back when cumulative
-    // loss exceeds absorbable gain. Advisory only at this stage; the
-    // engine still uses the user's full Available Capital.
+    // Brooklyn optimizer block — shows the loss-vs-absorbable-gain
+    // diagnostic. The main hero numbers already reflect the optimizer's
+    // recommended scale; this section shows the detailed math.
     var optBlock = '';
-    if (typeof root.runBrooklynOptimizer === 'function') {
-      var opt = root.runBrooklynOptimizer(cfg, brooklynCumulativeLoss);
+    if (precomputedOpt || typeof root.runBrooklynOptimizer === 'function') {
+      var opt = precomputedOpt || root.runBrooklynOptimizer(cfg, brooklynCumulativeLoss);
       var rowsOpt = '';
       rowsOpt += '<div class="impl-row"><span class="impl-name">Current LT gain</span>' +
                  '<span class="impl-amt">' + _fmt(opt.currentLTGain) + '</span></div>';
@@ -395,7 +432,7 @@
       optBlock = '' +
         '<div class="impl-section-divider"></div>' +
         '<div class="impl-head">Brooklyn optimizer &mdash; loss vs. absorbable gain</div>' +
-        '<p class="impl-sub">Caps cumulative loss carryforward at the gain it can offset. Future sale (Section&nbsp;07 on Page&nbsp;1) raises the cap.</p>' +
+        '<p class="impl-sub">Brooklyn fees and hero numbers above already reflect the recommended scale. Future sale (Section&nbsp;07 on Page&nbsp;1) raises the absorbable-gain cap.</p>' +
         rowsOpt +
         '<p class="impl-recnote">' + recNote + '</p>';
     }
