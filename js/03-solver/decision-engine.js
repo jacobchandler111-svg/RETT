@@ -110,13 +110,24 @@
       };
     }
 
+    // Stage 1 short-circuit: when the user explicitly pinned a manual
+    // shortPct OR selected a specific Schwab combo, the source-priority
+    // ranking will pick that one regardless of what the preset/variable
+    // solvers find. Skipping the unused solvers saves ~226 brooklynInterpolate
+    // calls per scenario × 4 scenarios in the auto-pick sweep.
+    var hasManual = manualShort != null;
+    var hasComboId = !!cfg.comboId;
+    var skipPreset   = hasManual || hasComboId;
+    var skipVariable = hasManual || hasComboId;
+
     // Stage 1a: preset ladder
-    var stage1 = root.solveSingleYearPreset({
-      strategyKey: strategyKey,
-      gainToOffset: gainToOffset,
-      investedCapital: investedCapital,
-      yearFraction: yf
-    });
+    var stage1 = skipPreset ? { ok: false, skipped: true }
+      : root.solveSingleYearPreset({
+          strategyKey: strategyKey,
+          gainToOffset: gainToOffset,
+          investedCapital: investedCapital,
+          yearFraction: yf
+        });
     if (stage1.ok && stage1.leverage > leverageCap) {
       stage1 = Object.assign({}, stage1, { ok: false, capped: true });
     }
@@ -161,7 +172,7 @@
 
     // Stage 1b: variable-leverage refinement
     var stage1Variable = null;
-    if (useVariableLeverage && typeof root.solveSingleYearVariable === 'function') {
+    if (!skipVariable && useVariableLeverage && typeof root.solveSingleYearVariable === 'function') {
       stage1Variable = root.solveSingleYearVariable({
         strategyKey: strategyKey,
         gainToOffset: gainToOffset,

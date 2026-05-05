@@ -298,6 +298,9 @@
           if (_d && !isNaN(_d.getTime())) return _d.getFullYear();
         }
       }
+      try {
+        console.warn('[RETT structured-sale] cfg.year1 missing AND cfg.implementationDate not parseable; falling back to current calendar year. Payout schedule and recognition labeling may be off by a year — set cfg.year1 explicitly to silence.');
+      } catch (e) { /* */ }
       return new Date().getFullYear();
     })();
     var earliestSlot = _earliestPayoutIndex(cfg && cfg.implementationDate, year1);
@@ -337,8 +340,14 @@
       // is also offset dollar-for-dollar by Y1 Brooklyn losses.
       var lossPerYear = c.gainByYear.slice();
       // Y1 also needs to absorb recapture (ordinary income) -- raise Y1
-      // loss to cover recapture too, capped at Y1 capacity.
-      lossPerYear[0] = Math.min(_num(capByYear[0], 0), (lossPerYear[0] || 0) + recapture);
+      // loss to cover recapture too, capped at Y1 capacity. Track the
+      // shortfall: when recapture exceeds Y1 capacity (mid-year sale +
+      // big depreciation), the surplus can't be sheltered and surfaces
+      // as a returned diagnostic so the advisor sees what's left taxed.
+      var _y1WantedLoss = (lossPerYear[0] || 0) + recapture;
+      var _y1Cap = _num(capByYear[0], 0);
+      lossPerYear[0] = Math.min(_y1Cap, _y1WantedLoss);
+      c.unoffsetRecapture = Math.max(0, _y1WantedLoss - _y1Cap);
 
       for (var p = 0; p < investmentPolicies.length; p++) {
         var policy = investmentPolicies[p];
@@ -355,6 +364,11 @@
             feeRate = root.brooklynFeeRateFor(pcts.longPct, pcts.shortPct);
           }
         }
+        if (!feeRate) {
+          try {
+            console.warn('[RETT structured-sale] feeRate fallback to 0 — stage2.feeRate missing AND brooklynFeeRateFor unavailable. Combined cost will under-report fees.');
+          } catch (e) { /* */ }
+        }
         var feeByYear = invByYear.map(function (v) { return v * feeRate; });
         var totalFees = feeByYear.reduce(function (a, b) { return a + b; }, 0);
 
@@ -370,6 +384,7 @@
           feeByYear: feeByYear,
           totalFees: totalFees,
           leftoverGain: c.leftover,
+          unoffsetRecapture: c.unoffsetRecapture || 0,
           totalWithStrategy: s.totalWithStrategy,
           totalBaseline: s.totalBaseline,
           totalSavings: s.totalSavings,
@@ -440,7 +455,11 @@
     var noDeferGain = _zeros(horizon); noDeferGain[0] = ltcg;
     var _noDeferTotalGain = ltcg + recapture;
     var noDeferLoss = _zeros(horizon);
-    noDeferLoss[0] = Math.min(_num(capByYear[0], 0), _noDeferTotalGain);
+    var _ndCap = _num(capByYear[0], 0);
+    noDeferLoss[0] = Math.min(_ndCap, _noDeferTotalGain);
+    var _ndUnoffsetRecap = Math.max(0, _noDeferTotalGain - _ndCap) > 0
+      ? Math.min(recapture, _noDeferTotalGain - _ndCap)
+      : 0;
     var noDeferInv = _zeros(horizon); noDeferInv[0] = totalCapital;
     // Use the unified fee-split regression (matches the rest of the engine).
     var noDeferFeeRate = _num(stage2.feeRate, 0);
@@ -468,6 +487,7 @@
         feeByYear: noDeferInv.map(function (v) { return v * noDeferFeeRate; }),
         totalFees: noDeferFees,
         leftoverGain: 0,
+        unoffsetRecapture: _ndUnoffsetRecap,
         totalWithStrategy: noDeferScore.totalWithStrategy,
         totalBaseline: noDeferScore.totalBaseline,
         totalSavings: noDeferScore.totalSavings,
@@ -488,6 +508,7 @@
         feeByYear: noDeferInv.map(function (v) { return v * noDeferFeeRate; }),
         totalFees: noDeferFees,
         leftoverGain: 0,
+        unoffsetRecapture: _ndUnoffsetRecap,
         totalWithStrategy: noDeferScore.totalWithStrategy,
         totalBaseline: noDeferScore.totalBaseline,
         totalSavings: noDeferScore.totalSavings,
@@ -525,6 +546,7 @@
         combinedCost: chosen.combinedCost + shortfallTax,
         ltcgScheduled: ltcg,
         recaptureY1: recapture,
+        unoffsetRecapture: chosen.unoffsetRecapture || 0,
         shortfallGain: shortfallGain,
         shortfallTax: shortfallTax,
         earliestPayoutYearIndex: earliestSlot,

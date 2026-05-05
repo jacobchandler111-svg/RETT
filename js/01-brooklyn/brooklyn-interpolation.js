@@ -10,13 +10,15 @@
 // it is clamped to the nearest preset (no extrapolation).
 //
 // Returns an object with the interpolated longPct, shortPct, lossRate,
-// feeRate, and the binding minInvestment (the higher of the two surrounding
+// and the binding minInvestment (the higher of the two surrounding
 // presets, since you cannot enter a tier you do not qualify for).
+// Fee rate is NOT returned — fee-split.js owns that. Callers compute it
+// via brooklynFeeRateFor(longPct, shortPct).
 
 /**
  * @param {string} tierKey - 'beta1' | 'beta05' | 'beta0' | 'advisorManaged'
  * @param {number} leverage - Selected leverage tier (e.g. 0, 0.30, 1.00, 2.25).
- * @returns {{longPct:number, shortPct:number, lossRate:number, feeRate:number, minInvestment:number, label:string}}
+ * @returns {{longPct:number, shortPct:number, lossRate:number, minInvestment:number, label:string}}
  */
 function brooklynInterpolate(tierKey, leverage) {
     const tier = BROOKLYN_STRATEGIES[tierKey];
@@ -44,7 +46,6 @@ function brooklynInterpolate(tierKey, leverage) {
         longPct:       lo.longPct       + t * (hi.longPct       - lo.longPct),
         shortPct:      lo.shortPct      + t * (hi.shortPct      - lo.shortPct),
         lossRate:      lo.lossRate      + t * (hi.lossRate      - lo.lossRate),
-        feeRate:       lo.feeRate       + t * (hi.feeRate       - lo.feeRate),
         minInvestment: Math.max(lo.minInvestment, hi.minInvestment),
         label:         lo.label + ' to ' + hi.label
   };
@@ -55,7 +56,6 @@ function _copy(p) {
           longPct: p.longPct,
           shortPct: p.shortPct,
           lossRate: p.lossRate,
-          feeRate: p.feeRate,
           minInvestment: p.minInvestment,
           label: p.label
     };

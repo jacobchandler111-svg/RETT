@@ -31,6 +31,50 @@ function _proxyDecayCurve() {
       }
       return _SCHWAB_BETA1_200_100_LOSS_BY_YEAR;
 }
+
+// Builds a year-indexed loss-rate function for a Brooklyn position.
+// Used by both the immediate path (single Y1 tranche) and the deferred
+// path (each tranche calls it with its own age). Same blending math
+// either way:
+//   Schwab combo:    j=0 → lossByYear[0]*yf
+//                    j≥1 → (1−yf)*lossByYear[j−1] + yf*lossByYear[j]
+//   Non-Schwab:      year1Rate × proxyShape(j) with the same blend
+// yf is year-fraction-remaining of the strategy implementation date.
+// Returns a (j) → number function, or null if cfg can't produce a rate.
+function _buildLossRateByAge(cfg, yf) {
+      var combo = (cfg && cfg.comboId && typeof getSchwabCombo === 'function')
+            ? getSchwabCombo(cfg.comboId) : null;
+      if (combo && Array.isArray(combo.lossByYear)) {
+            var arr = combo.lossByYear;
+            return function (j) {
+                  if (j <= 0) return (arr[0] || 0) * yf;
+                  var prev = arr[j - 1] || 0;
+                  var curr = arr[j] || 0;
+                  return (1 - yf) * prev + yf * curr;
+            };
+      }
+      var lev = _defaultLeverage(cfg);
+      var year1Rate = 0;
+      if (typeof window !== 'undefined' && typeof window.brooklynLossRateForLeverage === 'function') {
+            year1Rate = window.brooklynLossRateForLeverage(cfg.tierKey || 'beta1', lev);
+      } else if (typeof brooklynInterpolate === 'function') {
+            var snap = brooklynInterpolate(cfg.tierKey || 'beta1', lev);
+            year1Rate = snap ? (snap.lossRate || 0) : 0;
+      }
+      if (year1Rate <= 0) return null;
+      var ref = _proxyDecayCurve();
+      var refY1 = ref[0] || 1;
+      function shape(idx) {
+            var k = Math.min(ref.length - 1, Math.max(0, idx | 0));
+            return ref[k] / refY1;
+      }
+      return function (j) {
+            if (j <= 0) return year1Rate * shape(0) * yf;
+            var prev = year1Rate * shape(j - 1);
+            var curr = year1Rate * shape(j);
+            return (1 - yf) * prev + yf * curr;
+      };
+}
 //
 // Per-year scenario shape used by computeFederalTaxBreakdown / computeStateTax:
 //   { year, status, state, ordinaryIncome, shortTermGain, longTermGain,
@@ -95,11 +139,17 @@ function _baseScenarioForYear(cfg, yr, gainTakenThisYear, recaptureThisYear) {
             shortTermGain: shortOverride,
             longTermGain: ltAmt,
             qualifiedDividend: 0,
-            // NIIT base = LT gain + ST gain + passive ordinary
-            // (rental / non-qualified div / interest). Previously
-            // ordinary investment income was missing here, understating
-            // NIIT for real-estate-heavy clients.
-            investmentIncome: ltAmt + Math.max(0, shortOverride) + _scaledInvOrd,
+            // NIIT base = LT gain + ST gain + §1250 unrecaptured gain +
+            // passive ordinary (rental / non-qualified div / interest).
+            // Per §1411, depreciation recapture from a property sale IS
+            // net investment income (it's gain from disposition of
+            // property held in a passive activity / investment), so it
+            // belongs in the NIIT base. Previously omitted, which
+            // under-reported NIIT on recapture-heavy scenarios. Loss
+            // netting in _applyLossesToScenario / _applyLossesWithSTCfCap
+            // now subtracts offset amounts from this same base, keeping
+            // ledger consistent.
+            investmentIncome: ltAmt + Math.max(0, shortOverride) + _recap + _scaledInvOrd,
             // Additional-Medicare wage base. cfg.wages (W-2 + SE only)
             // when supplied — scaled by the same inflation factor as
             // baseOrdinaryIncome so wages grow alongside brackets.
@@ -329,44 +379,9 @@ function computeTaxComparison(cfg, recommendation) {
             _flatRec && _flatRec.recommendation === 'single-year';
       const _immediateCapital = _isImmediateLoop
             ? Math.max(0, cfg.investedCapital || cfg.investment || 0) : 0;
-      const _immediateLossRate = (function () {
-            if (!_isImmediateLoop || _immediateCapital <= 0) return null;
-            // Reuse the same Schwab combo / non-Schwab proxy curve the
-            // deferred path uses (with B8's mid-year-start interpolation).
-            const _yfImm = (typeof yearFractionRemaining === 'function')
-                  ? yearFractionRemaining((typeof cfgStrategyDate === 'function' ? cfgStrategyDate(cfg) : (cfg.strategyImplementationDate || cfg.implementationDate))) : 1;
-            const _comboImm = (cfg.comboId && typeof getSchwabCombo === 'function')
-                  ? getSchwabCombo(cfg.comboId) : null;
-            if (_comboImm && Array.isArray(_comboImm.lossByYear)) {
-                  var arrI = _comboImm.lossByYear;
-                  return function (j) {
-                        if (j <= 0) return (arrI[0] || 0) * _yfImm;
-                        var prev = arrI[j - 1] || 0;
-                        var curr = arrI[j] || 0;
-                        return (1 - _yfImm) * prev + _yfImm * curr;
-                  };
-            }
-            var lev = _defaultLeverage(cfg);
-            var year1Rate = 0;
-            if (typeof window.brooklynLossRateForLeverage === 'function') {
-                  year1Rate = window.brooklynLossRateForLeverage(cfg.tierKey || 'beta1', lev);
-            } else if (typeof brooklynInterpolate === 'function') {
-                  var snap = brooklynInterpolate(cfg.tierKey || 'beta1', lev);
-                  year1Rate = snap ? (snap.lossRate || 0) : 0;
-            }
-            var _refImm = _proxyDecayCurve();
-            var _refY1Imm = _refImm[0] || 1;
-            return function (j) {
-                  function shape(idx) {
-                        var k = Math.min(_refImm.length - 1, Math.max(0, idx | 0));
-                        return _refImm[k] / _refY1Imm;
-                  }
-                  if (j <= 0) return year1Rate * shape(0) * _yfImm;
-                  var prev = year1Rate * shape(j - 1);
-                  var curr = year1Rate * shape(j);
-                  return (1 - _yfImm) * prev + _yfImm * curr;
-            };
-      })();
+      const _immediateLossRate = (!_isImmediateLoop || _immediateCapital <= 0)
+            ? null
+            : _buildLossRateByAge(cfg, yfImpl);
       // STCL carryforward across years for the immediate path. Y1's
       // unused loss past the recommendation's lossGenerated rolls into
       // Y2's available offset, which then offsets up to $3K of ordinary
@@ -381,8 +396,7 @@ function computeTaxComparison(cfg, recommendation) {
       // tile that pulls fees from ProjectionEngine.run.
       const _immediateFeeFn = (function () {
             if (!_isImmediateLoop || _immediateCapital <= 0) return null;
-            const _yfImm = (typeof yearFractionRemaining === 'function')
-                  ? yearFractionRemaining((typeof cfgStrategyDate === 'function' ? cfgStrategyDate(cfg) : (cfg.strategyImplementationDate || cfg.implementationDate))) : 1;
+            const _yfImm = yfImpl;
             const _comboImm = (cfg.comboId && typeof getSchwabCombo === 'function')
                   ? getSchwabCombo(cfg.comboId) : null;
             let feeRate = 0;
@@ -750,6 +764,14 @@ function computeDeferredTaxComparison(cfg) {
       const _hasInvestment = Number(cfg && cfg.investment || cfg && cfg.investedCapital || 0) > 0;
       if ((_ltGainNG + _recapNG) <= 0 && !_hasInvestment) return _zeroDeferredComparison(cfg);
       const horizon = Math.max(1, cfg.horizonYears || cfg.years || 5);
+      // Year-fraction-remaining for the strategy implementation date.
+      // Computed once and reused for tranche loss interpolation, fee
+      // proration, and the Brookhaven schedule below — three call sites
+      // that all read the same date and would otherwise re-derive
+      // independently.
+      const yfImpl = (typeof yearFractionRemaining === 'function')
+            ? yearFractionRemaining((typeof cfgStrategyDate === 'function' ? cfgStrategyDate(cfg) : (cfg.strategyImplementationDate || cfg.implementationDate)))
+            : 1;
       const startIdxRaw = Math.max(1, Math.min(horizon - 1,
             (cfg.recognitionStartYearIndex != null ? cfg.recognitionStartYearIndex : 1)));
       // Structured-sale maturity caps the recognition window. After this
@@ -836,52 +858,12 @@ function computeDeferredTaxComparison(cfg) {
       // matches the prior behavior. For yf=0.5 (mid-year sale) Y2 is
       // 50% year-1-rate + 50% year-2-rate; without this fix Y2 used the
       // raw year-2 rate even though the position had only aged 1.5 years.
-      const _yfTranche = (typeof yearFractionRemaining === 'function')
-            ? yearFractionRemaining((typeof cfgStrategyDate === 'function' ? cfgStrategyDate(cfg) : (cfg.strategyImplementationDate || cfg.implementationDate)))
-            : 1;
-      const lossRateForTrancheYear = (function () {
-            // Schwab combos carry a year-by-year tranche curve — keep it.
-            if (combo && Array.isArray(combo.lossByYear)) {
-                  var arrS = combo.lossByYear;
-                  return function (j) {
-                        if (j <= 0) return (arrS[0] || 0) * _yfTranche;
-                        var prev = arrS[j - 1] || 0;
-                        var curr = arrS[j] || 0;
-                        return (1 - _yfTranche) * prev + _yfTranche * curr;
-                  };
-            }
-            // Non-Schwab path: start from the per-tier regression (Y1
-            // rate) then taper Y2+ using the Schwab Beta 1 200/100
-            // decay shape as a proxy. Brooklyn's published rate cards
-            // don't break out year-by-year for non-Schwab custodians;
-            // assuming a flat rate forever overstates losses past Y1
-            // because real positions taper as gains crystallize and
-            // the position rebalances.
-            var lev = _defaultLeverage(cfg);
-            var year1Rate = 0;
-            if (typeof window.brooklynLossRateForLeverage === 'function') {
-                  year1Rate = window.brooklynLossRateForLeverage(cfg.tierKey || 'beta1', lev);
-            } else if (typeof brooklynInterpolate === 'function') {
-                  var snap = brooklynInterpolate(cfg.tierKey || 'beta1', lev);
-                  year1Rate = snap ? (snap.lossRate || 0) : 0;
-            }
-            // Canonical decay shape proxy (Schwab Beta 1 200/100 curve).
-            var _schwabRef = _proxyDecayCurve();
-            var _refY1 = _schwabRef[0] || 1;
-            return function (j) {
-                  // Decay shape derived from Schwab Beta 1 200/100 ratios,
-                  // applied to this tier's year-1 regression rate. Same
-                  // mid-year-start interpolation as the Schwab branch.
-                  function _shape(idx) {
-                        var k = Math.min(_schwabRef.length - 1, Math.max(0, idx | 0));
-                        return _schwabRef[k] / _refY1;
-                  }
-                  if (j <= 0) return year1Rate * _shape(0) * _yfTranche;
-                  var prev = year1Rate * _shape(j - 1);
-                  var curr = year1Rate * _shape(j);
-                  return (1 - _yfTranche) * prev + _yfTranche * curr;
-            };
-      })();
+      // Tranche loss rate by age. Schwab combos carry a year-by-year
+      // curve; non-Schwab uses the per-tier Y1 regression with a Schwab
+      // Beta 1 200/100 decay shape proxy. Both paths use the same
+      // mid-year-start interpolation. See _buildLossRateByAge at the
+      // top of this module — the immediate path uses the same helper.
+      const lossRateForTrancheYear = _buildLossRateByAge(cfg, yfImpl) || function () { return 0; };
 
       // Per-tranche tax carve-out for "cover taxes from sale" toggle.
       // Each year's recognized gain spawns a new Brooklyn tranche; when
@@ -924,11 +906,8 @@ function computeDeferredTaxComparison(cfg) {
       // Brookhaven advisory wrap fees: $45K setup (Year 1) + $2K/qtr
       // for 8 quarters, with Year-1 quarterly fees pro-rated by entry
       // date (anchors on STRATEGY implementation date — engagement starts
-      // when the position opens, not when the sale closes). Falls back
-      // to the sale date for older saved cases.
-      const yfImpl = (typeof yearFractionRemaining === 'function')
-            ? yearFractionRemaining((typeof cfgStrategyDate === 'function' ? cfgStrategyDate(cfg) : (cfg.strategyImplementationDate || cfg.implementationDate)))
-            : 1;
+      // when the position opens, not when the sale closes). Reuses outer
+      // yfImpl computed at function entry.
       const brookhavenSchedule = (typeof brookhavenFeeSchedule === 'function')
             ? brookhavenFeeSchedule(horizon, yfImpl)
             : null;
@@ -960,7 +939,7 @@ function computeDeferredTaxComparison(cfg) {
                   // Partial-year fee only for the basis tranche's first
                   // year (startIdx=0, trancheAge=0). Everything else is
                   // a full year of operation.
-                  const _trancheYf = (t.startIdx === 0 && trancheAge === 0) ? _yfTranche : 1;
+                  const _trancheYf = (t.startIdx === 0 && trancheAge === 0) ? yfImpl : 1;
                   existingFee += t.capital * feeRate * _trancheYf;
                   existingInvested += t.capital;
             });
@@ -1088,21 +1067,19 @@ function computeDeferredTaxComparison(cfg) {
 
       // totalBaseline aggregates the do-nothing baseline (lump-Y1, the
       // honest "what would the client owe if they sold today and did
-      // nothing" comparison) when each row exposes it. The matched-
-      // timing baseline is preserved as totalBaselineMatched for any
-      // downstream consumer that wants the apples-to-apples Brooklyn-
-      // alone view. Without this, the dashboard KPI / strategy row
-      // and the savings ribbon disagree by a few thousand dollars on
-      // deferred scenarios because the ribbon historically used
-      // baseline (matched-timing) while the row used doNothingBaseline.
-      let totalBaseline = 0, totalBaselineMatched = 0, totalWith = 0, totalFees = 0, totalBrookhaven = 0;
+      // nothing" comparison) when each row exposes it. Falls back to the
+      // matched-timing baseline if doNothingBaseline isn't populated on
+      // a row (defensive). The matched-timing total used to be returned
+      // separately as totalBaselineMatched but no consumer reads it —
+      // the dashboard KPI / strategy row / savings ribbon all agree on
+      // doNothingBaseline now.
+      let totalBaseline = 0, totalWith = 0, totalFees = 0, totalBrookhaven = 0;
       rows.forEach(function (r) {
             const _matched = (r.baseline ? r.baseline.total : 0);
             const _dn = (r.doNothingBaseline && r.doNothingBaseline.total != null)
                   ? r.doNothingBaseline.total
                   : _matched;
             totalBaseline += _dn;
-            totalBaselineMatched += _matched;
             totalWith += r.withStrategy.total;
             totalFees += r.fee;
             totalBrookhaven += (r.brookhavenFee || 0);
@@ -1142,10 +1119,8 @@ function computeDeferredTaxComparison(cfg) {
       return {
             rows: rows,
             totalBaseline: totalBaseline,
-            totalBaselineMatched: totalBaselineMatched,
             totalWithStrategy: totalWith,
             totalSavings: totalBaseline - totalWith,
-            totalSavingsMatched: totalBaselineMatched - totalWith,
             totalFees: totalFees,
             totalBrookhavenFees: totalBrookhaven,
             totalAllFees: totalFees + totalBrookhaven,
