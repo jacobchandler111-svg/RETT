@@ -219,7 +219,7 @@
           '</div>' +
         '</div>' +
         '<div class="input-row">' +
-          '<div class="label">Asset Managers<span class="sub">Brooklyn</span></div>' +
+          '<div class="label">Asset Manager</div>' +
           '<div class="forward-balance" style="font-size:0.95em;">' + lockupText + '</div>' +
         '</div>' +
       '</div>' +
@@ -282,7 +282,7 @@
       '<div class="forward-rop-square">' +
         '<div class="rop-label">Return on Planning</div>' +
         '<div class="rop-amt">' + ropDisplay + '</div>' +
-        '<div class="rop-sub">every dollar in fees saves you this</div>' +
+        '<div class="rop-sub">every dollar you spend gets you this much back</div>' +
       '</div>' +
     '</div>';
 
