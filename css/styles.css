@@ -3764,6 +3764,162 @@ body { font-size: 16px; }
     .forward-top-row { grid-template-columns: 1fr; }
 }
 
+/* Brooklyn investment slider — sits between the Return-on-Planning
+   row and the Fees Baked In breakdown on Page 5. The slider's max is
+   Available Capital from Page 1; the marker shows the optimizer cap
+   (the level that absorbs gain exactly). Dragging past the marker
+   surfaces an "excess loss" callout that segues into future-sale
+   planning. Revert / Max buttons snap the slider back. */
+.brooklyn-slider-block {
+    margin: 28px 0;
+    padding: 22px 24px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+}
+.brooklyn-slider-head h2 {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 500;
+    font-size: 24px;
+    color: var(--ink);
+    margin: 0 0 4px 0;
+    letter-spacing: -0.01em;
+}
+.brooklyn-slider-sub {
+    font-size: 0.9em;
+    color: var(--ink-soft);
+    line-height: 1.45;
+    margin: 0 0 18px 0;
+}
+.brooklyn-slider-amounts {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+.brooklyn-slider-amounts > div {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 14px;
+    background: var(--paper-warm);
+    border: 1px solid var(--rule-soft);
+    border-radius: 2px;
+}
+.brooklyn-slider-amounts .bs-label {
+    font-family: var(--font-mono);
+    font-size: 0.7em;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+}
+.brooklyn-slider-amounts .bs-amt {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 500;
+    font-size: 1.4em;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+}
+.brooklyn-slider-amounts .bs-amt.is-warn {
+    color: #c0392b;
+}
+.brooklyn-slider-track-wrap {
+    position: relative;
+    padding: 12px 0 18px;
+}
+.brooklyn-slider {
+    width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    background: var(--rule);
+    border-radius: 3px;
+    outline: none;
+    margin: 0;
+    cursor: pointer;
+}
+.brooklyn-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--bh-blue-deep);
+    border: 3px solid var(--paper);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    cursor: grab;
+    transition: transform 0.1s;
+}
+.brooklyn-slider::-webkit-slider-thumb:active { transform: scale(1.1); cursor: grabbing; }
+.brooklyn-slider::-moz-range-thumb {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--bh-blue-deep);
+    border: 3px solid var(--paper);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    cursor: grab;
+}
+.brooklyn-slider-marker {
+    position: absolute;
+    top: 4px;
+    width: 2px;
+    height: 22px;
+    background: var(--green);
+    transform: translateX(-1px);
+    pointer-events: none;
+}
+.brooklyn-slider-marker::after {
+    content: "";
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid var(--green);
+}
+.brooklyn-slider-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 12px;
+}
+.bs-btn {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 0.85em;
+    font-weight: 600;
+    padding: 8px 14px;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+}
+.bs-btn:hover {
+    border-color: var(--ink);
+    color: var(--ink);
+}
+.bs-excess {
+    margin: 14px 0 0;
+    padding: 10px 14px;
+    background: var(--paper-warm);
+    border-left: 3px solid #c0392b;
+    font-size: 0.88em;
+    line-height: 1.5;
+    color: var(--ink);
+}
+@media (max-width: 720px) {
+    .brooklyn-slider-amounts { grid-template-columns: 1fr; }
+}
+
 /* Return on Planning row — 2-col grid:
      LEFT: walkaway block stacked over the You Save / Fees / Net tile
      RIGHT: a big square showing the savings/fees ratio as a percent

@@ -2119,23 +2119,58 @@
     // values are preserved on metrics._brooklynFeesAtFull and
     // metrics._lossAtFull for the reference-line UI on the cards.
     if (typeof root.runBrooklynOptimizer === 'function') {
+      var availCap = (currentCfg && Number(currentCfg.availableCapital)) || 0;
+      var override = root.__rettBrooklynInvestmentOverride;
+      var hasOverride = (typeof override === 'number' && override >= 0);
       entries.forEach(function (e) {
         var opt = root.runBrooklynOptimizer(currentCfg, e.loss || 0);
-        var scale = (opt && opt.dialBack) ? opt.recommendedScale : 1;
+        // Scale resolution: user's slider override > optimizer cap > full.
+        // Override is clamped to [0, 1] of available capital — past 100%
+        // doesn't make engineering sense (can't invest more than you have).
+        var scale;
+        if (hasOverride && availCap > 0) {
+          scale = Math.max(0, Math.min(1, override / availCap));
+        } else {
+          scale = (opt && opt.dialBack) ? opt.recommendedScale : 1;
+        }
         e._opt = opt;
         e._optScale = scale;
-        // Always preserve the full-investment baseline so the card
-        // can render "if invested heavier, up to $X loss could be
-        // generated" without re-running the engine.
+        // Always preserve the full-investment baseline so the slider /
+        // reference-line UI can render "loss at full / loss at this
+        // dial-back" without re-running the engine.
         e.metrics._brooklynFeesAtFull = (e.metrics.brooklynFees || 0);
         e.metrics._lossAtFull         = e.loss || 0;
+        // Always persist `savings` on metrics so downstream renderers
+        // (Page-5 hero) read a single source of truth that reflects the
+        // active scale. At full investment this equals doNothing − tax;
+        // at a dial-back below absorbable, savings drop proportionally
+        // with the unabsorbed gain.
+        var fullSavings = Math.max(0, (e.metrics.doNothing || 0) - (e.metrics.tax || 0));
+        e.metrics._savingsAtFull = fullSavings;
         if (scale < 1) {
           var effectiveBF = (e.metrics.brooklynFees || 0) * scale;
           var newFees = effectiveBF + (e.metrics.brookhavenFees || 0);
-          var sav = Math.max(0, (e.metrics.doNothing || 0) - (e.metrics.tax || 0));
+          var sav = fullSavings;
+          // Linear absorption approximation: when the dialed-back loss
+          // is below absorbable gain, the gain isn't fully offset and
+          // savings drop proportionally. When dialed-back loss is at or
+          // above absorbable, full savings are preserved (slider above
+          // the optimizer cap just generates excess loss, no extra
+          // savings — that's the user-facing "excess" callout's job).
+          var absorbable = (opt && opt.totalAbsorbableGain) || 0;
+          var lossAtScale = (e.loss || 0) * scale;
+          if (absorbable > 0 && lossAtScale < absorbable) {
+            var ratio = lossAtScale / absorbable;
+            sav = sav * Math.max(0, Math.min(1, ratio));
+          }
           e.metrics.brooklynFees = effectiveBF;
           e.metrics.fees         = newFees;
+          e.metrics.savings      = sav;
           e.metrics.net          = sav - newFees;
+        } else {
+          // Scale = 1 (full or override at full): keep the engine's
+          // computed values but make `savings` explicit on metrics.
+          e.metrics.savings = fullSavings;
         }
       });
     }

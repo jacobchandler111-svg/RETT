@@ -126,17 +126,22 @@
 
     var m = entry.metrics;
 
-    // entry.metrics already has the Brooklyn-optimizer dial-back
-    // applied at buildInterestedSummary() time — so brooklynFees,
-    // fees and net here are the OPTIMIZED values. The full-investment
-    // baseline is preserved on m._brooklynFeesAtFull and m._lossAtFull
-    // for any UI that wants to surface the "if invested heavier" line.
+    // entry.metrics already has the Brooklyn-optimizer / slider dial-
+    // back applied at buildInterestedSummary() time — so brooklynFees,
+    // fees, savings, and net here are the OPTIMIZED values. The
+    // full-investment baseline is preserved on m._brooklynFeesAtFull,
+    // m._lossAtFull, and m._savingsAtFull for any UI that wants to
+    // surface the "if invested heavier" reference line.
     var opt = entry._opt || null;
     var optScale = (typeof entry._optScale === 'number') ? entry._optScale : 1;
     var effectiveBrooklynFees = m.brooklynFees || 0;
     var fees = m.fees || 0;
-    var primarySavings = Math.max(0, (m.doNothing || 0) - (m.tax || 0));
-    var primaryNet = m.net || (primarySavings - fees);
+    var primarySavings = (typeof m.savings === 'number')
+      ? m.savings
+      : Math.max(0, (m.doNothing || 0) - (m.tax || 0));
+    var primaryNet = (typeof m.net === 'number')
+      ? m.net
+      : (primarySavings - fees);
     // Pull supplementals through the master solver so the hero numbers
     // (Net Benefit, You Save, ROI) reflect everything the client opted
     // in to. Each enabled supplemental's netBenefit is post-its-own-fees,
@@ -227,8 +232,14 @@
     // the conversation can pivot from "you keep $X more" to "for every
     // $1 in fees you got $N back" without scrolling.
     var salePrice = (currentCfg && Number(currentCfg.salePrice)) || 0;
+    // With-planning tax = do-nothing tax minus the savings we actually
+    // captured at the current Brooklyn investment level. Reading m.tax
+    // directly would always show the full-investment tax even when the
+    // slider has dialed Brooklyn back below the absorbable cap, breaking
+    // the walkaway↔you-save reconciliation.
+    var withPlanningTax = Math.max(0, (m.doNothing || 0) - primarySavings);
     var walkawayNoPlanning   = salePrice - (m.doNothing || 0);
-    var walkawayWithPlanning = salePrice - (m.tax || 0) + supplementalBenefit;
+    var walkawayWithPlanning = salePrice - withPlanningTax + supplementalBenefit;
     var ropDisplay = (fees > 0 && savings > 0)
       ? _fmtMultiplier(savings / fees) + '<span class="rop-x">&times;</span>'
       : '—';
