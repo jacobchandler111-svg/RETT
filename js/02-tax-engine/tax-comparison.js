@@ -42,10 +42,19 @@ function _proxyDecayCurve() {
 // the full ordinary income from the property gain in the year it is realized,
 // so we apply the loss to ordinary first, then short-term gain).
 
-function _baseScenarioForYear(cfg, yr, gainTakenThisYear) {
+function _baseScenarioForYear(cfg, yr, gainTakenThisYear, recaptureThisYear) {
       // gainTakenThisYear is the long-term gain recognized in this year of
       // the structured sale. For single-year recommendations, year-1 gets
       // the full longTermGain. For multi-year, the engine spreads it.
+      //
+      // recaptureThisYear is unrecaptured §1250 depreciation recognized
+      // in this year. Recapture is taxed at ORDINARY rates (the §1250
+      // 25% cap is applied in tax-calc-federal — not part of this fn),
+      // so it's added to ordinaryIncome here, not to ltAmt. Y1 of the
+      // immediate path and Y1 of the deferred do-nothing baseline both
+      // need this so they match the Page-1 panel's "Total Tax If You
+      // Did Nothing" — which has always summed recapture into the
+      // ordinary stack.
       const idx = yr - cfg.year1;
       // When no per-year override is supplied, scale ordinary income by
       // the same inflation factor the engine uses for bracket projection
@@ -72,11 +81,12 @@ function _baseScenarioForYear(cfg, yr, gainTakenThisYear) {
       // alongside baseOrdinaryIncome so high-income clients with heavy
       // rental income pay the right NIIT every year.
       const _scaledInvOrd = (cfg.investmentIncomeOrdinary || 0) * Math.pow(1 + _infl, Math.max(0, idx));
+      const _recap = Math.max(0, Number(recaptureThisYear) || 0);
       return {
             year: yr,
             status: cfg.filingStatus,
             state: cfg.state,
-            ordinaryIncome: ordOverride,
+            ordinaryIncome: ordOverride + _recap,
             shortTermGain: shortOverride,
             longTermGain: ltAmt,
             qualifiedDividend: 0,
@@ -121,13 +131,29 @@ function _yearTaxes(scenario) {
             _ord + _st + _lt + _qd,
             _yr, _state, _stat,
             { itemized: _itm, longTermGain: _lt });
+      // Schema convention (don't drift):
+      //   ordinaryTax / ltTax / amt — components of the income-tax
+      //     calculation (Form 1040 line 16-equivalent).
+      //   niit / addlMedicare / seTax — separate federal surcharges.
+      //   federal — GRAND federal total (income tax + all surcharges).
+      //   federalIncomeTax — NARROW: ordinaryTax + ltTax + amt only,
+      //     matches the "Federal Income Tax" label on the Page-1 panel
+      //     and the Strategy Summary. Use this when comparing rendered
+      //     values to the panel; use `federal` when summing to a
+      //     grand-total tax owed.
+      //   total = federal + state.
+      var _ord1 = Number(fed && fed.ordinaryTax) || 0;
+      var _lt1  = Number(fed && fed.ltTax)       || 0;
+      var _amt1 = Number(fed && fed.amtTopUp)    || 0;
       return {
             federal: Number(fed && fed.total) || 0,
-            ordinaryTax: Number(fed && fed.ordinaryTax) || 0,
-            ltTax: Number(fed && fed.ltTax) || 0,
-            amt: Number(fed && fed.amtTopUp) || 0,
+            federalIncomeTax: _ord1 + _lt1 + _amt1,
+            ordinaryTax: _ord1,
+            ltTax: _lt1,
+            amt: _amt1,
             niit: Number(fed && fed.niit) || 0,
             addlMedicare: Number(fed && fed.addlMedicare) || 0,
+            seTax: Number(fed && fed.seTax) || 0,
             state: Number(stateTax) || 0,
             total: (Number(fed && fed.total) || 0) + (Number(stateTax) || 0)
       };
@@ -370,7 +396,13 @@ function computeTaxComparison(cfg, recommendation) {
             // baseline tax (no Brooklyn) becomes the with-strategy tax.
             if (_belowMin) lossThisYear = 0;
 
-            const baseline = _baseScenarioForYear(cfg, yr, gainThisYear);
+            // Recapture is recognized once, in the sale year (Y1 of the
+            // immediate path). Years 2..N have no sale ⇒ no recapture.
+            // Without this, the projection's Y1 baseline silently dropped
+            // the recapture line that the Page-1 panel includes,
+            // producing two different "do-nothing" totals (Bug #5).
+            const _recapY = (i === 0) ? Math.max(0, cfg.acceleratedDepreciation || 0) : 0;
+            const baseline = _baseScenarioForYear(cfg, yr, gainThisYear, _recapY);
             const baselineTax = _yearTaxes(baseline);
             // Carryforward + this year's generated loss flow into the
             // single application call so step-3's $3K ordinary cap
@@ -540,7 +572,14 @@ function _zeroDeferredComparison(cfg) {
       const rows = [];
       for (let i = 0; i < horizon; i++) {
             const year = year1 + i;
-            const baseline = _baseScenarioForYear(cfg, year, 0);
+            // Y1 baseline still includes the sale's LT gain and recapture
+            // (no-engagement means no Brooklyn, NOT no sale). Subsequent
+            // years are quiet — no further sale-side activity.
+            const baseline = _baseScenarioForYear(
+                  cfg, year,
+                  i === 0 ? _ltGain : 0,
+                  i === 0 ? _recap : 0
+            );
             const baselineTax = _yearTaxes(baseline);
             rows.push({
                   year: year,
@@ -940,14 +979,20 @@ function computeDeferredTaxComparison(cfg) {
             const baselineTax = _yearTaxes(baseline);
 
             // "Do nothing" baseline for the bar chart: if the client took
-            // no action at all, the entire property gain (LT bucket + ST
-            // gain) hits Year 1 as a lump sum. Year 2+ baseline is just
-            // ordinary income, no property gain. This is what the chart
-            // visualizes against the planned with-strategy bars so the
-            // visceral story — "without planning you owe $X in Y1" — is
-            // honest. KPI / details / ribbon still use `baseline` (the
-            // matched-timing apples-to-apples comparison).
-            const dnBaseline = _baseScenarioForYear(cfg, year, i === 0 ? totalGainBucket : 0);
+            // no action at all, the LT gain + recapture + any ST gain
+            // hits Year 1 as a lump sum. Recapture is split out and
+            // routed through ordinary income (not the LT bucket) so
+            // Y1 dnBaseline matches the Page-1 panel exactly — the
+            // panel sums recapture into ordinary at full marginal rate,
+            // and any UI that compares panel to dnBaseline must agree.
+            // The §1250 25% cap is enforced inside the federal calc.
+            // Year 2+ baseline is just ordinary income, no property
+            // gain or recapture.
+            const dnBaseline = _baseScenarioForYear(
+                  cfg, year,
+                  i === 0 ? totalLT : 0,
+                  i === 0 ? recapture : 0
+            );
             if (i !== 0) dnBaseline.shortTermGain = 0;
             // Recompute investmentIncome to match the do-nothing LT/ST.
             dnBaseline.investmentIncome =
@@ -1072,7 +1117,12 @@ function renderTaxComparison(host, comparison) {
       const cellsLoss     = comparison.rows.map(r => '<td>' + _fmtUSD(r.lossApplied) + '</td>').join('');
       const cellsGain     = comparison.rows.map(r => '<td>' + _fmtUSD(r.gainRecognized) + '</td>').join('');
 
-      const fedRows = comparison.rows.map(r => '<td>' + _fmtUSD(r.baseline.federal) + '</td>').join('');
+      // Federal tax row uses the NARROW definition (ord + lt + amt)
+      // so NIIT, Additional Medicare, and SE tax — broken out below —
+      // don't visually double-count. This matches the Page-1 panel
+      // and the Strategy Summary, which both label their "Federal
+      // Income Tax" line the narrow way.
+      const fedRows = comparison.rows.map(r => '<td>' + _fmtUSD(r.baseline.federalIncomeTax || (r.baseline.ordinaryTax + r.baseline.ltTax + r.baseline.amt)) + '</td>').join('');
       const stRows  = comparison.rows.map(r => '<td>' + _fmtUSD(r.baseline.state) + '</td>').join('');
       const niitRow = comparison.rows.map(r => '<td>' + _fmtUSD(r.baseline.niit) + '</td>').join('');
       const medRow  = comparison.rows.map(r => '<td>' + _fmtUSD(r.baseline.addlMedicare) + '</td>').join('');
@@ -1085,7 +1135,7 @@ function renderTaxComparison(host, comparison) {
             '<tr><td>Long-term gain recognized</td>' + cellsGain + '<td>' + _fmtUSD(comparison.rows.reduce((a,r)=>a+r.gainRecognized,0)) + '</td></tr>' +
             '<tr><td>Brooklyn loss applied</td>' + cellsLoss + '<td>' + _fmtUSD(comparison.rows.reduce((a,r)=>a+r.lossApplied,0)) + '</td></tr>' +
             '<tr class="grp-head"><td colspan="' + (comparison.rows.length + 2) + '">Without Strategy (Baseline)</td></tr>' +
-            '<tr><td>Federal tax</td>' + fedRows + '<td>' + _fmtUSD(comparison.rows.reduce((a,r)=>a+r.baseline.federal,0)) + '</td></tr>' +
+            '<tr><td>Federal income tax</td>' + fedRows + '<td>' + _fmtUSD(comparison.rows.reduce((a,r)=>a+(r.baseline.federalIncomeTax || (r.baseline.ordinaryTax + r.baseline.ltTax + r.baseline.amt)),0)) + '</td></tr>' +
             '<tr><td>State tax</td>' + stRows + '<td>' + _fmtUSD(comparison.rows.reduce((a,r)=>a+r.baseline.state,0)) + '</td></tr>' +
             '<tr><td>NIIT (3.8%)</td>' + niitRow + '<td>' + _fmtUSD(comparison.rows.reduce((a,r)=>a+r.baseline.niit,0)) + '</td></tr>' +
             '<tr><td>Additional Medicare (0.9%)</td>' + medRow + '<td>' + _fmtUSD(comparison.rows.reduce((a,r)=>a+r.baseline.addlMedicare,0)) + '</td></tr>' +
