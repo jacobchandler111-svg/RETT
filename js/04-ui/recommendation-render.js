@@ -25,6 +25,11 @@
     var costBasis               = parseUSD(($('cost-basis') || {}).value) || 0;
     var acceleratedDepreciation = parseUSD(($('accelerated-depreciation') || {}).value) || 0;
     var implementationDate      = ($('implementation-date') || {}).value || '';
+    // Strategy implementation date — when the Brooklyn position opens.
+    // Falls back to the sale date when unset (for older saved flows).
+    var strategyImplementationDate =
+        ($('strategy-implementation-date') || {}).value
+        || implementationDate;
     var strategyKey             = ($('strategy-select') || {}).value || 'beta1';
     // The Brooklyn Investment input was removed; available-capital is the
     // single source of truth, defaulted from sale price on Page 1 -> Page 2
@@ -83,6 +88,7 @@
       costBasis: costBasis,
       acceleratedDepreciation: acceleratedDepreciation,
       implementationDate: implementationDate,
+      strategyImplementationDate: strategyImplementationDate,
       strategyKey: strategyKey,
       investedCapital: investedCapital,
       availableCapital: availableCapital,
@@ -278,7 +284,7 @@
     // Live readouts as the user types. Short-term gain is included
     // because it reduces the long-term gain bucket (the user can carve
     // part of the property gain into short-term).
-    ['sale-price', 'cost-basis', 'accelerated-depreciation', 'short-term-gain', 'implementation-date'].forEach(function (id) {
+    ['sale-price', 'cost-basis', 'accelerated-depreciation', 'short-term-gain', 'implementation-date', 'strategy-implementation-date'].forEach(function (id) {
       var el = $(id);
       if (el) el.addEventListener('input', function () { updateComputedReadouts(readInputs()); });
     });

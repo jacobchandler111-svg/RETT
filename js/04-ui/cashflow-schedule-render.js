@@ -113,12 +113,15 @@
       // amount the engine chose). Subsequent years = the released
       // tranche reinvested same year.
       var newInvested = Math.max(0, brookCum - prevBrookCum);
-      // Implementation date: Year 1 honors the user's chosen date so
-      // partial-year fee proration lines up with the cashflow display.
-      // Tranche years are released on Jan 1 (consistent with the
-      // engine's model of full-year same-year reinvestment).
-      var assumedDate = (i === 0 && cfg.implementationDate)
-        ? cfg.implementationDate
+      // Implementation date: Year 1 honors the strategy date so the
+      // cashflow display aligns with partial-year fee proration. Falls
+      // back to the sale date for older saved cases that don't carry
+      // strategyImplementationDate. Tranche years (i >= 1) are released
+      // on Jan 1 — consistent with the engine's full-year reinvestment
+      // model regardless of which date drives Y1.
+      var _stratDateY1 = cfg.strategyImplementationDate || cfg.implementationDate;
+      var assumedDate = (i === 0 && _stratDateY1)
+        ? _stratDateY1
         : (year + '-01-01');
       rows.push({
         year: year,
@@ -289,6 +292,9 @@
       || parseUSD((document.getElementById('accelerated-depreciation') || {}).value) || 0;
     cfg.implementationDate = cfg.implementationDate
       || (document.getElementById('implementation-date') || {}).value || '';
+    cfg.strategyImplementationDate = cfg.strategyImplementationDate
+      || (document.getElementById('strategy-implementation-date') || {}).value
+      || cfg.implementationDate || '';
     cfg.baseShortTermGain = cfg.baseShortTermGain
       || parseUSD((document.getElementById('short-term-gain') || {}).value) || 0;
 

@@ -269,7 +269,7 @@ function resetAllInputs(skipConfirm) {
     // Page 1: Withholding from sale
     'withhold-yes-no', 'withhold-amount',
     // Page 1: Implementation timing
-    'implementation-date',
+    'implementation-date', 'strategy-implementation-date',
     // Page 1: Custodian
     'custodian-select', 'leverage-cap-select',
     // Page 2: Brooklyn config
@@ -709,11 +709,29 @@ function bindControls() {
   // of carrying over a Page-2 pill override the user clicked under the
   // old scenario. Without this, loading a saved client and editing
   // their sale price keeps the prior selection locked in.
+  // When the user types a sale/closing date, auto-mirror it into the
+  // strategy implementation date if that field is still blank. The user
+  // can then bump the strategy date later without losing the sale-date
+  // anchor. Once the strategy date has its own value, sale-date edits
+  // do NOT clobber it — that decoupling is the whole point of the field.
+  var saleDateInput = document.getElementById('implementation-date');
+  var strategyDateInput = document.getElementById('strategy-implementation-date');
+  if (saleDateInput && strategyDateInput) {
+    saleDateInput.addEventListener('change', function () {
+      if (window.__rettApplyingState) return;
+      if (!strategyDateInput.value && saleDateInput.value) {
+        strategyDateInput.value = saleDateInput.value;
+        strategyDateInput.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+  }
+
   ['custodian-select', 'year1', 'filing-status', 'state-code',
    'w2-wages', 'se-income', 'biz-revenue', 'rental-income',
    'dividend-income', 'retirement-distributions',
    'sale-price', 'cost-basis', 'accelerated-depreciation', 'short-term-gain',
-   'withhold-yes-no', 'withhold-amount', 'implementation-date'
+   'withhold-yes-no', 'withhold-amount', 'implementation-date',
+   'strategy-implementation-date'
   ].forEach(function (fid) {
     var el = document.getElementById(fid);
     if (!el) return;

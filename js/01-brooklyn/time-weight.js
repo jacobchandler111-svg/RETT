@@ -56,8 +56,22 @@
     return (annualRate || 0) * yearFractionRemaining(implementationDate);
   }
 
+  // Resolve the strategy implementation date for a cfg. The Brooklyn
+  // position can open later than the sale closes (proceeds clearing,
+  // advisor windows). cfg.strategyImplementationDate is the explicit
+  // value when present; we fall back to cfg.implementationDate (the
+  // sale date) for older saved cases that pre-date the split. Engine
+  // consumers that prorate Brooklyn fees / losses should call this
+  // helper rather than reading either field directly so the routing
+  // is centralized.
+  function cfgStrategyDate(cfg) {
+    if (!cfg) return '';
+    return cfg.strategyImplementationDate || cfg.implementationDate || '';
+  }
+
   // parseLocalDate is already exported by date-utils.js; we don't
   // re-export so there is one source of truth for the function.
   window.yearFractionRemaining = yearFractionRemaining;
   window.timeWeightedRate     = timeWeightedRate;
+  window.cfgStrategyDate      = cfgStrategyDate;
 })();

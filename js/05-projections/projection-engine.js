@@ -92,7 +92,10 @@ const ProjectionEngine = {
   const _schwabCombo = (cfg.comboId && typeof getSchwabCombo === 'function')
     ? getSchwabCombo(cfg.comboId) : null;
   const _schwabRates = (_schwabCombo && typeof schwabLossRateByYear === 'function')
-    ? schwabLossRateByYear(cfg.comboId, cfg.implementationDate || (cfg.year1 + '-01-01'), horizon)
+    ? schwabLossRateByYear(cfg.comboId,
+        (typeof cfgStrategyDate === 'function' ? cfgStrategyDate(cfg) : (cfg.strategyImplementationDate || cfg.implementationDate))
+          || (cfg.year1 + '-01-01'),
+        horizon)
     : null;
 
             const yearRows = [];
@@ -137,8 +140,8 @@ const ProjectionEngine = {
       // of the calendar year, so the annual fee must be pro-rated.
       // Without this, a Nov 1 sale was being charged 12 months of
       // Brooklyn fee for ~2 months of operation (a 6× overcharge).
-      const _yfImplPE = (i === 0 && typeof yearFractionRemaining === 'function' && cfg.implementationDate)
-        ? yearFractionRemaining(cfg.implementationDate)
+      const _yfImplPE = (i === 0 && typeof yearFractionRemaining === 'function')
+        ? yearFractionRemaining((typeof cfgStrategyDate === 'function' ? cfgStrategyDate(cfg) : (cfg.strategyImplementationDate || cfg.implementationDate)))
         : 1;
       let fee = 0;
       if (_schwabCombo && typeof window.brooklynFeeRateFor === 'function') {

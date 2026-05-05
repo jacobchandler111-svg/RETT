@@ -84,8 +84,11 @@
     var recapture = Math.max(0, acceleratedDepreciation);
     var gainToOffset = longTermGain + recapture;
 
-    var yf = (typeof root.yearFractionRemaining === 'function' && cfg.implementationDate)
-      ? root.yearFractionRemaining(cfg.implementationDate)
+    var _stratDate = (typeof root.cfgStrategyDate === 'function')
+      ? root.cfgStrategyDate(cfg)
+      : (cfg.strategyImplementationDate || cfg.implementationDate);
+    var yf = (typeof root.yearFractionRemaining === 'function' && _stratDate)
+      ? root.yearFractionRemaining(_stratDate)
       : 1;
     if (yf == null || !Number.isFinite(Number(yf))) yf = 1;
 

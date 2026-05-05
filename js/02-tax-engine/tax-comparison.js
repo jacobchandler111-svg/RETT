@@ -193,8 +193,12 @@ function computeTaxComparison(cfg, recommendation) {
       const _belowMin = _belowMinForLifecycle(cfg);
 
       // Brookhaven advisory wrap fees attach to every comparison row.
-      const yfImpl = (typeof yearFractionRemaining === 'function' && cfg.implementationDate)
-            ? yearFractionRemaining(cfg.implementationDate)
+      // The proration anchors on the STRATEGY implementation date, not
+      // the sale closing date — engagement fees start running when the
+      // Brooklyn position actually opens. Falls back to the sale date
+      // for older saved cases that don't carry strategyImplementationDate.
+      const yfImpl = (typeof yearFractionRemaining === 'function')
+            ? yearFractionRemaining((typeof cfgStrategyDate === 'function' ? cfgStrategyDate(cfg) : (cfg.strategyImplementationDate || cfg.implementationDate)))
             : 1;
       const brookhavenSchedule = (typeof brookhavenFeeSchedule === 'function' && !_belowMin)
             ? brookhavenFeeSchedule(horizon, yfImpl)
@@ -274,8 +278,8 @@ function computeTaxComparison(cfg, recommendation) {
             if (!_isImmediateLoop || _immediateCapital <= 0) return null;
             // Reuse the same Schwab combo / non-Schwab proxy curve the
             // deferred path uses (with B8's mid-year-start interpolation).
-            const _yfImm = (typeof yearFractionRemaining === 'function' && cfg.implementationDate)
-                  ? yearFractionRemaining(cfg.implementationDate) : 1;
+            const _yfImm = (typeof yearFractionRemaining === 'function')
+                  ? yearFractionRemaining((typeof cfgStrategyDate === 'function' ? cfgStrategyDate(cfg) : (cfg.strategyImplementationDate || cfg.implementationDate))) : 1;
             const _comboImm = (cfg.comboId && typeof getSchwabCombo === 'function')
                   ? getSchwabCombo(cfg.comboId) : null;
             if (_comboImm && Array.isArray(_comboImm.lossByYear)) {
@@ -322,8 +326,8 @@ function computeTaxComparison(cfg, recommendation) {
       // tile that pulls fees from ProjectionEngine.run.
       const _immediateFeeFn = (function () {
             if (!_isImmediateLoop || _immediateCapital <= 0) return null;
-            const _yfImm = (typeof yearFractionRemaining === 'function' && cfg.implementationDate)
-                  ? yearFractionRemaining(cfg.implementationDate) : 1;
+            const _yfImm = (typeof yearFractionRemaining === 'function')
+                  ? yearFractionRemaining((typeof cfgStrategyDate === 'function' ? cfgStrategyDate(cfg) : (cfg.strategyImplementationDate || cfg.implementationDate))) : 1;
             const _comboImm = (cfg.comboId && typeof getSchwabCombo === 'function')
                   ? getSchwabCombo(cfg.comboId) : null;
             let feeRate = 0;
@@ -752,8 +756,8 @@ function computeDeferredTaxComparison(cfg) {
       // matches the prior behavior. For yf=0.5 (mid-year sale) Y2 is
       // 50% year-1-rate + 50% year-2-rate; without this fix Y2 used the
       // raw year-2 rate even though the position had only aged 1.5 years.
-      const _yfTranche = (typeof yearFractionRemaining === 'function' && cfg.implementationDate)
-            ? yearFractionRemaining(cfg.implementationDate)
+      const _yfTranche = (typeof yearFractionRemaining === 'function')
+            ? yearFractionRemaining((typeof cfgStrategyDate === 'function' ? cfgStrategyDate(cfg) : (cfg.strategyImplementationDate || cfg.implementationDate)))
             : 1;
       const lossRateForTrancheYear = (function () {
             // Schwab combos carry a year-by-year tranche curve — keep it.
@@ -839,10 +843,11 @@ function computeDeferredTaxComparison(cfg) {
 
       // Brookhaven advisory wrap fees: $45K setup (Year 1) + $2K/qtr
       // for 8 quarters, with Year-1 quarterly fees pro-rated by entry
-      // date. Surfaced as a separate fee line so the advisor can show
-      // the all-in cost transparently.
-      const yfImpl = (typeof yearFractionRemaining === 'function' && cfg.implementationDate)
-            ? yearFractionRemaining(cfg.implementationDate)
+      // date (anchors on STRATEGY implementation date — engagement starts
+      // when the position opens, not when the sale closes). Falls back
+      // to the sale date for older saved cases.
+      const yfImpl = (typeof yearFractionRemaining === 'function')
+            ? yearFractionRemaining((typeof cfgStrategyDate === 'function' ? cfgStrategyDate(cfg) : (cfg.strategyImplementationDate || cfg.implementationDate)))
             : 1;
       const brookhavenSchedule = (typeof brookhavenFeeSchedule === 'function')
             ? brookhavenFeeSchedule(horizon, yfImpl)

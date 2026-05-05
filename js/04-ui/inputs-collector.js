@@ -102,7 +102,22 @@ function collectInputs() {
                 salePrice:               parseUSD(_val('sale-price')),
                 costBasis:               parseUSD(_val('cost-basis')),
                 acceleratedDepreciation: parseUSD(_val('accelerated-depreciation')),
+                // Sale / Closing Date — anchors gain-recognition timing
+                // (which calendar year the gain falls in) and the
+                // structured-sale clock (when the buyer's installment
+                // schedule starts). Use cfg.implementationDate everywhere
+                // sale-side timing matters.
                 implementationDate:      _val('implementation-date') || '',
+                // Strategy Implementation Date — when Brooklyn actually
+                // opens the position. Defaults to the sale date but the
+                // user can defer it (e.g. proceeds take a few weeks to
+                // settle, advisor is between trade windows). Drives
+                // partial-year fee/loss proration on the Brooklyn side.
+                // Engine consumers should read
+                //   cfg.strategyImplementationDate || cfg.implementationDate
+                // so older saved cases (which only carry implementationDate)
+                // continue to work without migration.
+                strategyImplementationDate: _val('strategy-implementation-date') || _val('implementation-date') || '',
                 // Structured-sale product term (months from sale date to
                 // maturity). Empty input → 18-month default. The deferred
                 // tax-comparison engine clips gain recognition so all gain

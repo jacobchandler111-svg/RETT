@@ -45,7 +45,8 @@
     // Page 1: Sale Proceeds questions (drive Available Capital)
     'withhold-yes-no', 'withhold-amount', 'cover-taxes-yes-no',
     // Page 1: Implementation
-    'implementation-date', 'structured-sale-duration-months',
+    'implementation-date', 'strategy-implementation-date',
+    'structured-sale-duration-months',
     // Hidden / Page 2 controls (legacy + horizon + recognition).
     // 'beta1' was a placeholder hidden field that no consumer actually
     // reads; removed to stop saved-state drift from re-introducing it.

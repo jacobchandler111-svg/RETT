@@ -74,26 +74,65 @@
       });
     }
 
-    // --- Implementation date ---
+    // --- Sale / Closing date ---
     var implDate = _str('implementation-date');
     var year1    = parseInt(_str('year1'), 10) || (new Date()).getFullYear();
+    var saleDateValid = false;
+    var saleD = null;
     if (implDate) {
       // Use the shared parseLocalDate so the validator agrees with the
       // engine. new Date(YYYY-MM-DD) parses as UTC midnight in most
       // browsers; reading getUTCFullYear() in negative-UTC timezones
       // can return the prior year for early-January dates and produce
       // a spurious "outside Year 1" warning.
-      var d = (typeof window.parseLocalDate === 'function')
+      saleD = (typeof window.parseLocalDate === 'function')
         ? window.parseLocalDate(implDate)
         : new Date(implDate);
-      if (!d || isNaN(d.getTime())) {
-        errors.push({ field: 'implementation-date', message: 'Implementation date is not a valid date.' });
+      if (!saleD || isNaN(saleD.getTime())) {
+        errors.push({ field: 'implementation-date', message: 'Sale / closing date is not a valid date.' });
       } else {
-        var yr = d.getFullYear();
+        saleDateValid = true;
+        var yr = saleD.getFullYear();
         if (yr < year1 || yr > year1 + 1) {
           warnings.push({
             field: 'implementation-date',
-            message: 'Implementation date is outside Year 1 (' + year1 + '). Time-weighting may be unexpected.'
+            message: 'Sale / closing date is outside Year 1 (' + year1 + '). Time-weighting may be unexpected.'
+          });
+        }
+        // Sanity bound — out-of-range dates produce nonsense projections
+        // (e.g. 1900-01-01 or 9999-12-31). Bound to year1 ± 5 years.
+        if (yr < year1 - 5 || yr > year1 + 10) {
+          errors.push({
+            field: 'implementation-date',
+            message: 'Sale / closing date is far outside the tax-year window (' + year1 + ' ± 5 years).'
+          });
+        }
+      }
+    }
+
+    // --- Strategy implementation date ---
+    var stratDate = _str('strategy-implementation-date');
+    if (stratDate) {
+      var sd = (typeof window.parseLocalDate === 'function')
+        ? window.parseLocalDate(stratDate)
+        : new Date(stratDate);
+      if (!sd || isNaN(sd.getTime())) {
+        errors.push({ field: 'strategy-implementation-date', message: 'Strategy implementation date is not a valid date.' });
+      } else {
+        // Strategy can't open before the sale closes — there are no
+        // proceeds to deploy yet. Flag as warning rather than error so
+        // a 1-day overlap from time-zone drift doesn't block the form.
+        if (saleDateValid && sd < saleD) {
+          warnings.push({
+            field: 'strategy-implementation-date',
+            message: 'Strategy implementation date is before the sale / closing date — the position cannot open before proceeds clear.'
+          });
+        }
+        var sdYr = sd.getFullYear();
+        if (sdYr < year1 - 5 || sdYr > year1 + 10) {
+          errors.push({
+            field: 'strategy-implementation-date',
+            message: 'Strategy implementation date is far outside the tax-year window.'
           });
         }
       }

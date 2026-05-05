@@ -521,10 +521,11 @@
       } else if (projIm && Array.isArray(projIm.years)) {
         projIm.years.forEach(function (y) { brooklynFees += (y.fee || 0); });
       }
-      // Brookhaven flat fees from the schedule directly.
+      // Brookhaven flat fees from the schedule directly. Engagement
+      // proration anchors on the strategy implementation date.
       if (typeof brookhavenFeeSchedule === 'function') {
-        var yfImpl = (typeof yearFractionRemaining === 'function' && cfg.implementationDate)
-          ? yearFractionRemaining(cfg.implementationDate) : 1;
+        var yfImpl = (typeof yearFractionRemaining === 'function')
+          ? yearFractionRemaining((typeof cfgStrategyDate === 'function' ? cfgStrategyDate(cfg) : (cfg.strategyImplementationDate || cfg.implementationDate))) : 1;
         var bhSched = brookhavenFeeSchedule(horizon, yfImpl);
         brookhavenTotal = (bhSched && bhSched.total) || 0;
       }
@@ -776,10 +777,14 @@
       // delaying — instead of inheriting the user's typed Oct/Nov date
       // and getting a partial year that defeats the purpose.
       var bYear = (currentCfg.year1 || (new Date()).getFullYear()) + 1;
+      // For B (Delay-Close), pin BOTH the sale-side and the strategy-side
+      // dates to Jan 1 of next year so the engine sees a clean full-year
+      // proration on every consumer (gain timing AND Brooklyn fees).
       return Object.assign({}, currentCfg, {
         recognitionStartYearIndex: 0,
         maxRecognitionYearIndex: null,
         implementationDate: bYear + '-01-01',
+        strategyImplementationDate: bYear + '-01-01',
         year1: bYear
       });
     }
@@ -910,12 +915,22 @@
     var pcts = _candidateShortPctsLocal(stratKey, custId);
     var horizons = [1, 3, 5, 7];
     // Structured-sale duration: 18 months is the regulatory minimum.
-    // The engine sweeps across longer terms (in 6-month steps) and picks
-    // the one that maximizes net for the client — there's no fee or
-    // optimizer reason to lock at 18 if a longer term wins. Cap at 48
-    // because past 4 years the recognitionSchedule starts to fall
-    // outside the projection horizon and the optimizer stops gaining.
-    var durationsC = [18, 24, 30, 36, 42, 48];
+    // The engine sweeps every 3 months (the smallest practical resolution
+    // for a structured-sale contract) up through the horizon's full
+    // calendar span — there is no artificial upper cap, the bound is
+    // purely "we can't see payments past the projection horizon." Per
+    // user spec the duration can land at any month value in that range
+    // (18, 21, 24, ..., horizon*12) — 1-month granularity is exposed by
+    // a direct override on cfg.structuredSaleDurationMonths but the
+    // auto-picker uses 3-month buckets for perf at typical horizons.
+    function _durationsForHorizon(hor) {
+      var maxMo = Math.max(18, (hor || 5) * 12);
+      var arr = [];
+      for (var m = 18; m <= maxMo; m += 3) arr.push(m);
+      // Always include the explicit max so we don't truncate just below it.
+      if (arr[arr.length - 1] !== maxMo) arr.push(maxMo);
+      return arr;
+    }
     var userDurationFallback = baseCfg.structuredSaleDurationMonths || 18;
     var best = null;
     horizons.forEach(function (hor) {
@@ -938,7 +953,8 @@
           // (duration, recognition) pair gets its own _scenarioMetrics
           // call so the optimizer always lands on the globally best net,
           // not just whichever duration the user (or fallback) seeded.
-          durationsC.forEach(function (durMo) {
+          var durationsThisHor = _durationsForHorizon(hor);
+          durationsThisHor.forEach(function (durMo) {
             var pickRec = 2;
             var bestRecNet = -Infinity;
             for (var r = 2; r <= Math.min(4, hor); r++) {
