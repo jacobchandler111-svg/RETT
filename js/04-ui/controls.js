@@ -126,15 +126,24 @@ function _bindCaseControls() {
   // ---- Client Name input ------------------------------------------------
   // Typing a name turns the un-named draft into a named case. If the user
   // edits an already-active name, the case is renamed in place.
+  //
+  // Phantom-save guard: every keystroke USED to fire activateCaseName,
+  // so partial typing ("S", "Sm", "Smi", "Smit", "Smith") created up to
+  // five ghost cases polluting the dropdown. Two behavior changes here
+  // keep the dropdown clean:
+  //   - During typing (input event): require >= 2 chars before promoting
+  //     a draft to a named case. Renames-in-place still fire so an
+  //     already-named case can be edited.
+  //   - On blur (commit): promote whatever non-empty name is in the box.
+  //     If the user types one character and tabs away, that's an
+  //     intentional 1-char name and we honor it. If they type one
+  //     character and keep typing, we wait for blur or 2+ chars.
   var nameInput = document.getElementById('case-name-input');
   if (nameInput) {
-    var debouncedName = _debounce(function () {
+    function _processName(committed) {
       var typed = (nameInput.value || '').trim();
       var current = store.getCurrentCaseName();
       if (!typed) {
-        // Cleared the name — fall back to draft mode. Keep the saved
-        // case under its old name; new edits go into draft until they
-        // type a name again.
         if (current) {
           store.setCurrentCaseName('');
           _refreshCaseDropdown('');
@@ -144,27 +153,27 @@ function _bindCaseControls() {
       }
       if (current && current !== typed) {
         // Rename in place. renameCase returns false if the new name
-        // collides with an existing case — in that case we revert
-        // the input value so the rename doesn't silently overwrite.
+        // collides with an existing case — in that case revert.
         var ok = store.renameCase(current, typed);
-        if (ok === false) {
-          nameInput.value = current; // revert
-          return;
-        }
+        if (ok === false) { nameInput.value = current; return; }
         _refreshCaseDropdown(typed);
         _refreshCaseStatus();
         return;
       }
       if (!current) {
-        // First time naming — promote the draft (or current form) into
-        // a named case slot.
+        // Promote the draft to a named case. During typing we require
+        // 2+ chars to avoid mid-keystroke ghost saves; on blur we
+        // accept any non-empty name (the user definitively committed).
+        if (!committed && typed.length < 2) return;
         store.activateCaseName(typed);
         _refreshCaseDropdown(typed);
         _refreshCaseStatus();
         _flashSaved(typed);
       }
-    }, 400);
+    }
+    var debouncedName = _debounce(function () { _processName(false); }, 600);
     nameInput.addEventListener('input', debouncedName);
+    nameInput.addEventListener('blur', function () { _processName(true); });
   }
 
   // ---- Load dropdown ---------------------------------------------------

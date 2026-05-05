@@ -21,6 +21,18 @@
     'short-term-gain', 'withhold-amount', 'available-capital'
   ];
 
+  // Fields where negative values are nonsensical. parseUSD permits
+  // them (the user can paste "-$500K"), and the engine has its own
+  // _safeIncome clamp, but displaying a negative in the field misleads
+  // the user into thinking the value was accepted as-is. Reject at
+  // format time so the visible value matches what the engine uses.
+  var NON_NEGATIVE_IDS = {
+    'w2-wages': 1, 'se-income': 1, 'biz-revenue': 1, 'rental-income': 1,
+    'dividend-income': 1, 'retirement-distributions': 1,
+    'sale-price': 1, 'cost-basis': 1, 'accelerated-depreciation': 1,
+    'withhold-amount': 1, 'available-capital': 1
+  };
+
   function _toNum(s) {
     if (typeof parseUSD === 'function') return parseUSD(s);
     var cleaned = String(s == null ? '' : s).replace(/[^0-9.\-]/g, '');
@@ -39,6 +51,13 @@
     if (raw === '' || raw == null) return;
     var n = _toNum(raw);
     if (!isFinite(n)) return;
+    if (n < 0 && el.id && NON_NEGATIVE_IDS[el.id]) {
+      n = 0;
+      if (typeof window.showBanner === 'function') {
+        try { window.showBanner('warning', 'Negative value not allowed for ' + el.id.replace(/-/g, ' ') + ' — set to $0.'); } catch (e) { /* */ }
+        setTimeout(function () { if (typeof window.hideBanner === 'function') window.hideBanner(); }, 2500);
+      }
+    }
     el.value = _formatNum(n);
   }
 

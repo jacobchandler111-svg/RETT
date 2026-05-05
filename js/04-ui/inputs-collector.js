@@ -14,14 +14,24 @@ function _val(id) {
       return el ? el.value : '';
 }
 
+// Income inputs are clamped to >= 0 here. parseUSD permits negatives
+// (the user can paste "-$500K"), but income MEANINGFULLY can't be
+// negative — losses are tracked via separate STCL/LTCL fields. Without
+// this clamp a negative wage silently dropped the projection's tax
+// baseline by tens of thousands and ran without warning. The
+// validator (input-validation.js) still surfaces an error banner;
+// this is the engine-side guard so the math never sees the bad value
+// even if the user bypasses Continue and navigates straight to Page 2.
+function _safeIncome(id) {
+      const v = parseUSD(_val(id));
+      return Math.max(0, Number.isFinite(v) ? v : 0);
+}
+
 function _sumIncomeSources() {
       const ids = ['w2-wages', 'se-income', 'biz-revenue', 'rental-income',
                    'dividend-income', 'retirement-distributions'];
       let sum = 0;
-      for (const id of ids) {
-            const v = parseUSD(_val(id));
-            if (v) sum += v;
-      }
+      for (const id of ids) sum += _safeIncome(id);
       return sum;
 }
 
@@ -31,7 +41,7 @@ function _sumIncomeSources() {
 // retirement income. Keeping this carve-out prevents over-charging
 // the surtax on real-estate clients with no W-2.
 function _wageIncomeForAddlMedicare() {
-      return (parseUSD(_val('w2-wages')) || 0) + (parseUSD(_val('se-income')) || 0);
+      return _safeIncome('w2-wages') + _safeIncome('se-income');
 }
 
 // Passive / portfolio income that's part of the §1411 NIIT base —
@@ -43,8 +53,7 @@ function _wageIncomeForAddlMedicare() {
 // SE earnings, business distributions, and retirement distributions
 // are NOT in the NIIT base.
 function _ordinaryInvestmentIncome() {
-      return (parseUSD(_val('rental-income'))   || 0)
-           + (parseUSD(_val('dividend-income')) || 0);
+      return _safeIncome('rental-income') + _safeIncome('dividend-income');
 }
 
 function collectInputs() {

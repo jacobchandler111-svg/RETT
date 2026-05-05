@@ -669,7 +669,19 @@ function computeDeferredTaxComparison(cfg) {
       // recognition. (Recapture is technically ordinary-rate income; this
       // is a known approximation flagged in the UI.)
       const totalGainBucket = totalLT + recapture;
-      const basisCash = Math.max(0, cfg.costBasis || 0);
+      // basisCash is the cash actually deployed into Brooklyn at sale —
+      // capped by Available Capital (cfg.investment) when the user has
+      // chosen to "keep" some of the proceeds. Without this cap, the
+      // engine ignored the keep-proceeds toggle entirely on the deferred
+      // path because basisCash was hard-wired to cfg.costBasis. Now a
+      // user keeping $5M of a $12M sale (Available = $7M, basis = $4M)
+      // sees the deferred path correctly use $4M (keep didn't dig into
+      // basis), but a user keeping $9M (Available = $3M, basis = $4M)
+      // sees only $3M reach Brooklyn — basis got partially withheld.
+      const _basisFull = Math.max(0, cfg.costBasis || 0);
+      const _availCap = (cfg.investment != null && Number(cfg.investment) >= 0)
+            ? Number(cfg.investment) : _basisFull;
+      const basisCash = Math.min(_basisFull, _availCap);
 
       const combo = (cfg.comboId && typeof getSchwabCombo === 'function')
             ? getSchwabCombo(cfg.comboId) : null;
@@ -773,6 +785,23 @@ function computeDeferredTaxComparison(cfg) {
       const tranches = [];
       if (basisCash > 0) tranches.push({ capital: basisCash, startIdx: 0 });
 
+      // "Keep proceeds" cap on TOTAL Brooklyn deployment (basis + gain
+      // reinvest). cfg.investment is Available Capital = sale - keep -
+      // taxCover. If user keeps $5M of a $12M sale (basis $4M, gain
+      // $8M), Available = $7M — basisCash uses $4M, leaving $3M for
+      // gain reinvest across all years instead of the full $8M.
+      // Without this cap, the keep-proceeds toggle had ZERO effect on
+      // the deferred path because gain reinvest re-deployed the full
+      // gain regardless of what the user said they wanted to keep.
+      // remainingReinvestCap is the cap on FUTURE gain reinvestments
+      // (after basisCash already deployed). Negative when no cfg.
+      // investment provided → falls through to unlimited reinvest
+      // (legacy behavior preserved for non-Page-1 callers).
+      const _availTotal = (cfg.investment != null && Number(cfg.investment) >= 0)
+            ? Number(cfg.investment) : null;
+      let _remainingReinvestCap = (_availTotal != null)
+            ? Math.max(0, _availTotal - basisCash) : null;
+
       let stCF = 0;
       let gainRemaining = totalGainBucket;
       const rows = [];
@@ -852,9 +881,15 @@ function computeDeferredTaxComparison(cfg) {
             // toggle is on) before pushing the new tranche. The full
             // gainRecThisYear is still TAXED — the carve only changes
             // how much of the after-tax proceeds get redeployed into
-            // Brooklyn.
+            // Brooklyn. Then cap the reinvested amount by any remaining
+            // "keep proceeds" budget so the user-controlled Available
+            // Capital total is honored across the full horizon.
             const trancheTaxCarve = gainRecThisYear * _gainTaxRate;
-            const reinvested = Math.max(0, gainRecThisYear - trancheTaxCarve);
+            let reinvested = Math.max(0, gainRecThisYear - trancheTaxCarve);
+            if (_remainingReinvestCap != null) {
+                  reinvested = Math.min(reinvested, _remainingReinvestCap);
+                  _remainingReinvestCap = Math.max(0, _remainingReinvestCap - reinvested);
+            }
             if (reinvested > 0) {
                   tranches.push({ capital: reinvested, startIdx: i });
             }
