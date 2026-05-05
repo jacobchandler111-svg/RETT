@@ -1910,9 +1910,11 @@
   }
 
   function _interestedCard(typeLabel, num, name, picked, metrics, lossSum, isRecommended, durationMonths, paymentScheduleHtml, visuals) {
-    var badge = isRecommended
-      ? '<span class="rett-interested-rec-tag">Recommended</span>'
-      : '';
+    // Recommended badge intentionally suppressed on Page 3 — the user
+    // surfaces the recommendation in conversation, not via UI. The
+    // isRecommended flag still controls the engine-level filter logic
+    // (Recommended-survives-Not-Interested in renderInterestedSnapshot)
+    // so we can't drop the parameter without rewiring the filter.
     var autoSummary = 'horizon = ' + picked.horizon + 'y, leverage = ' +
       picked.shortPct + '%';
     if (typeLabel === 'C') {
@@ -1934,10 +1936,12 @@
     detailItems += _interestedDetailRow('&#8627; Brookhaven fees',    metrics.brookhavenFees, true);
     detailItems += '<li class="rett-interested-detail-net"><span>Net benefit' + hSuffix + '</span><strong>' + _fmt(metrics.net) + '</strong></li>';
 
+    // Card visual: only the user's own "chosen" pick gets a ring.
+    // The engine-recommended border treatment was intentionally removed
+    // — keeping is-recommended class application out of the rendered
+    // markup so the visual stays neutral until the user decides.
     var chosen = (typeof window !== 'undefined' && window.__rettChosenStrategy === typeLabel);
-    var cls = 'rett-interested-card' +
-      (isRecommended ? ' is-recommended' : '') +
-      (chosen ? ' is-chosen' : '');
+    var cls = 'rett-interested-card' + (chosen ? ' is-chosen' : '');
     var chooseBtn =
       '<button type="button" class="rett-use-strategy-btn" data-use-strategy="' + typeLabel + '">' +
         (chosen ? '✓ Selected for Strategy Summary' : 'Use This Strategy &rarr;') +
@@ -1945,7 +1949,6 @@
     return '<div class="' + cls + '" data-type="' + typeLabel + '">' +
       '<div class="rett-interested-header">' +
         '<span class="rett-interested-num">STRATEGY ' + num + '</span>' +
-        badge +
       '</div>' +
       '<div class="rett-interested-name">' + name + '</div>' +
       '<div class="rett-interested-net-label">Net Benefit</div>' +

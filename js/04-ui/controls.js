@@ -379,22 +379,18 @@ function resetAllInputs(skipConfirm) {
 
 // Refresh the visual state of the three Strategy-Selection cards
 // (Sell Now / Seller Finance / Structured). Reads:
-//   - window.__rettRecommendedScenario  ('A' | 'B' | 'C') — set by the
-//     scenario comparison engine; drives the "Recommended" border + tag.
 //   - window.__rettStrategyInterest     ({ A, B, C: true|false|null }) —
 //     the user's per-card Interested / Not Interested earmarks.
-// Pure DOM update; safe to call any time, idempotent.
+// Pure DOM update; safe to call any time, idempotent. The
+// engine-recommended badge was intentionally removed from Page 2 —
+// the user surfaces the recommendation in conversation, not via UI.
 function _refreshStrategyPickCards() {
-  var rec = (typeof window !== 'undefined') ? window.__rettRecommendedScenario : null;
   var interest = (typeof window !== 'undefined') ? (window.__rettStrategyInterest || {}) : {};
   ['A', 'B', 'C'].forEach(function (key) {
     var card = document.getElementById('strategy-pick-' + key);
     if (!card) return;
-    card.classList.toggle('is-recommended', rec === key);
     card.classList.toggle('is-interested', interest[key] === true);
     card.classList.toggle('is-not-interested', interest[key] === false);
-    var tag = document.getElementById('strategy-pick-' + key + '-rec-tag');
-    if (tag) tag.hidden = (rec !== key);
     // Mark the active button.
     card.querySelectorAll('.strategy-pick-btn').forEach(function (btn) {
       var action = btn.getAttribute('data-pick-action');
