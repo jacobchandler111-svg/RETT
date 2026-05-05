@@ -305,12 +305,24 @@ function resetAllInputs(skipConfirm) {
   ['recommendation-panel', 'projection-summary-host',
    'projection-details-host', 'bracket-viz-host', 'narrative-host',
    'tax-comparison-host', 'allocator-output',
-   'cashflow-schedule-host'].forEach(function (id) {
+   'cashflow-schedule-host', 'interested-cards-host'].forEach(function (id) {
     const el = document.getElementById(id);
     if (el) el.innerHTML = '';
   });
   var narrative = document.getElementById('narrative-host');
   if (narrative) narrative.hidden = true;
+  // Reset Page-3 Next-button state so a new client lands on the
+  // minimal cards view, not the prior client's expanded full-detail
+  // region. Strategy-Selection earmarks also clear so the next client's
+  // Projection page doesn't inherit the prior filter.
+  var fullProjRegion = document.getElementById('full-projection-region');
+  if (fullProjRegion) fullProjRegion.hidden = true;
+  var nextProjBtn = document.getElementById('show-full-projection');
+  if (nextProjBtn) nextProjBtn.hidden = false;
+  window.__rettStrategyInterest = { A: null, B: null, C: null };
+  if (typeof _refreshStrategyPickCards === 'function') {
+    try { _refreshStrategyPickCards(); } catch (e) { /* */ }
+  }
   window.__lastResult = null;
   window.__lastAllocation = null;
   window.__lastComparison = null;
