@@ -98,6 +98,16 @@
     return '';
   }
 
+  // Per-button "active" class so the button itself visually darkens
+  // when its action matches the current interest state. Mirrors the
+  // Page-2 _refreshStrategyPickCards behavior.
+  function _btnActiveClass(target, action) {
+    var s = _interestState()[target];
+    var on = (action === 'interested' && s === true) ||
+             (action === 'not-interested' && s === false);
+    return on ? ' is-' + action : '';
+  }
+
   // -----------------------------------------------------------------
   // Strategy: OIL & GAS
   // -----------------------------------------------------------------
@@ -119,12 +129,6 @@
     var years = Math.max(1, Math.ceil((months + 6) / 12));
     if (years > YEAR_HARD_CAP) years = YEAR_HARD_CAP;
     return years;
-  }
-  function _saleStrategyLabel(key, n) {
-    if (key === 'A') return 'Sell Now &middot; 1 investment year';
-    if (key === 'B') return 'Seller Finance &middot; 2 investment years';
-    if (key === 'C') return 'Structured Sale &middot; ' + n + ' investment years';
-    return n + ' investment year' + (n === 1 ? '' : 's');
   }
   function _oilGasResolvedYears() {
     var st = _state().oilGas;
@@ -170,13 +174,12 @@
         '<div class="strategy-lockup-graphic" data-lockup-style="ordinary">' +
           '<span class="strategy-lockup-icon" aria-hidden="true">' + _oilGasIconSVG() + '</span>' +
           '<div class="strategy-lockup-text">' +
-            '<span class="strategy-lockup-value">95% Y1 Deduction</span>' +
-            '<span class="strategy-lockup-sub">' + _saleStrategyLabel(key, count) + '</span>' +
+            '<span class="strategy-lockup-value">Ordinary Income Deduction</span>' +
           '</div>' +
         '</div>' +
         '<div class="strategy-pick-buttons">' +
-          '<button type="button" class="strategy-pick-btn supp-pick-btn" data-supp-pick-action="interested" data-supp-pick-target="oilGas">&#10003; Interested</button>' +
-          '<button type="button" class="strategy-pick-btn supp-pick-btn" data-supp-pick-action="not-interested" data-supp-pick-target="oilGas">Not Interested</button>' +
+          '<button type="button" class="strategy-pick-btn supp-pick-btn' + _btnActiveClass('oilGas', 'interested') + '" data-supp-pick-action="interested" data-supp-pick-target="oilGas">&#10003; Interested</button>' +
+          '<button type="button" class="strategy-pick-btn supp-pick-btn' + _btnActiveClass('oilGas', 'not-interested') + '" data-supp-pick-action="not-interested" data-supp-pick-target="oilGas">Not Interested</button>' +
         '</div>' +
         '<button type="button" class="supp-details-arrow' + detailsOpenCls + '" data-supp-details-target="oilGas" aria-expanded="' + (st.detailsOpen ? 'true' : 'false') + '" aria-controls="supp-details-oilGas" title="' + (st.detailsOpen ? 'Hide details' : 'Show details') + '">' +
           '<span class="supp-details-arrow-chev" aria-hidden="true">&#9662;</span>' +
@@ -208,11 +211,6 @@
   function _delphiClassMeta(key) {
     var DS = root.DELPHI_STRATEGIES || {};
     return DS[key] || DS.classB || { name: 'Class B', minInvestment: 1000000, managementFee: 0.02, liquidity: 'Quarterly' };
-  }
-  function _delphiSubLabel(st) {
-    var meta = _delphiClassMeta(st.classKey);
-    var minDisplay = '$' + (meta.minInvestment / 1e6) + 'M minimum';
-    return meta.name + ' &middot; ' + minDisplay;
   }
   function _delphiIconSVG() {
     // Two arrows in opposite directions — visualizes character
@@ -255,12 +253,11 @@
           '<span class="strategy-lockup-icon" aria-hidden="true">' + _delphiIconSVG() + '</span>' +
           '<div class="strategy-lockup-text">' +
             '<span class="strategy-lockup-value">Rate Arbitrage</span>' +
-            '<span class="strategy-lockup-sub">' + _delphiSubLabel(st) + '</span>' +
           '</div>' +
         '</div>' +
         '<div class="strategy-pick-buttons">' +
-          '<button type="button" class="strategy-pick-btn supp-pick-btn" data-supp-pick-action="interested" data-supp-pick-target="delphi">&#10003; Interested</button>' +
-          '<button type="button" class="strategy-pick-btn supp-pick-btn" data-supp-pick-action="not-interested" data-supp-pick-target="delphi">Not Interested</button>' +
+          '<button type="button" class="strategy-pick-btn supp-pick-btn' + _btnActiveClass('delphi', 'interested') + '" data-supp-pick-action="interested" data-supp-pick-target="delphi">&#10003; Interested</button>' +
+          '<button type="button" class="strategy-pick-btn supp-pick-btn' + _btnActiveClass('delphi', 'not-interested') + '" data-supp-pick-action="not-interested" data-supp-pick-target="delphi">Not Interested</button>' +
         '</div>' +
         '<button type="button" class="supp-details-arrow' + detailsOpenCls + '" data-supp-details-target="delphi" aria-expanded="' + (st.detailsOpen ? 'true' : 'false') + '" aria-controls="supp-details-delphi" title="' + (st.detailsOpen ? 'Hide details' : 'Show details') + '">' +
           '<span class="supp-details-arrow-chev" aria-hidden="true">&#9662;</span>' +
