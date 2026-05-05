@@ -182,22 +182,10 @@
       '<h1>Moving Forward With Brookhaven</h1>' +
     '</div>';
 
-    // Optimizer callout — only shown when a dial-back improves the plan.
-    if (opt && opt.dialBack) {
-      var feeDelta = (m.brooklynFees || 0) - effectiveBrooklynFees;
-      html += '<div class="optimizer-callout">' +
-        '<div class="optimizer-callout-icon">&#9654;</div>' +
-        '<div class="optimizer-callout-body">' +
-          '<strong>Brooklyn investment optimized.</strong> ' +
-          'At full capital (' + _fmt(opt.availableCapital) + '), Brooklyn would generate ' +
-          _fmt(opt.brooklynLossAtFull) + ' in cumulative losses &mdash; ' + _fmt(opt.excessLossAtFull) +
-          ' more than the ' + _fmt(opt.totalAbsorbableGain) + ' of absorbable gain' +
-          (opt.futureSaleEnabled ? ' (current + planned future sale).' : '.') +
-          ' Excess loss carries forward at only $3K/yr against ordinary income. ' +
-          'Recommended investment: <strong>' + _fmt(opt.recommendedInvestment) + '</strong> — generates exactly enough loss to absorb all available gain, saving <strong>' + _fmt(feeDelta) + '</strong> in Brooklyn fees with no reduction in tax savings.' +
-        '</div>' +
-      '</div>';
-    }
+    // The Brooklyn-investment-optimized callout was removed per advisor
+    // spec — the rationale lives in the Implementation panel (audit
+    // view) for advisors who want it; the client-facing summary
+    // doesn't need the explanation, just the optimized numbers.
 
     // ============ TOP ROW: Selected Strategy + Supplemental Strategies ============
     var hasSupps = !!(enabledSupplements.length || (solverOut && solverOut.anyInterested));
@@ -252,7 +240,6 @@
     html += '<div class="forward-rop-row">' +
       '<div class="forward-rop-left">' +
         '<div class="forward-walkaway">' +
-          '<div class="walkaway-head"><h2>Return on Planning</h2></div>' +
           '<div class="walkaway-grid">' +
             '<div class="walkaway-side noplan">' +
               '<div class="walkaway-label">No Planning</div>' +
