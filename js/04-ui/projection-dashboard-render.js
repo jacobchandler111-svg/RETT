@@ -1773,7 +1773,162 @@
     '</div>';
   }
 
-  function _interestedCard(typeLabel, num, name, picked, metrics, lossSum, isRecommended, durationMonths, paymentScheduleHtml) {
+  // -------------------------------------------------------------------
+  // Visuals: SVG donut (tax-saved-vs-tax-still-owed) for A / B / C, and
+  // SVG horizontal-bar timeline (when does cash arrive?) for C.
+  // Inline SVG, no chart-lib dependency, zero external requests.
+  // -------------------------------------------------------------------
+  function _donutSvg(doNothing, savings, fees) {
+    if (!isFinite(doNothing) || doNothing <= 0) return '';
+    // Slice 1: net benefit (savings - fees, the dollars that actually
+    // end up in the client's pocket). Slice 2: tax still owed under
+    // the strategy. Together they should equal doNothing-baseline minus
+    // fees, but we render them against doNothing so the pie shows the
+    // ORIGINAL tax bill the client is starting from.
+    var net = Math.max(0, savings - fees);
+    var stillOwed = Math.max(0, doNothing - savings);
+    var total = doNothing;
+    if (total <= 0 || net + stillOwed === 0) return '';
+    // Compute slice angles. Start at 12 o'clock (-90°) and sweep
+    // clockwise so the green "savings" wedge reads top-to-right —
+    // most-natural visual for "this part is yours".
+    var savingsAngle = (net / total) * Math.PI * 2;
+    var feeAngle    = (fees / total) * Math.PI * 2;
+    var owedAngle   = Math.max(0, Math.PI * 2 - savingsAngle - feeAngle);
+
+    var cx = 110, cy = 110, r = 88, rInner = 56;
+    function _slice(startA, sweepA, fillCss) {
+      if (sweepA <= 0.0001) return '';
+      var endA = startA + sweepA;
+      var x1 = cx + r * Math.cos(startA);
+      var y1 = cy + r * Math.sin(startA);
+      var x2 = cx + r * Math.cos(endA);
+      var y2 = cy + r * Math.sin(endA);
+      var x3 = cx + rInner * Math.cos(endA);
+      var y3 = cy + rInner * Math.sin(endA);
+      var x4 = cx + rInner * Math.cos(startA);
+      var y4 = cy + rInner * Math.sin(startA);
+      var largeArc = sweepA > Math.PI ? 1 : 0;
+      var d = 'M ' + x1.toFixed(2) + ',' + y1.toFixed(2) +
+              ' A ' + r + ',' + r + ' 0 ' + largeArc + ',1 ' + x2.toFixed(2) + ',' + y2.toFixed(2) +
+              ' L ' + x3.toFixed(2) + ',' + y3.toFixed(2) +
+              ' A ' + rInner + ',' + rInner + ' 0 ' + largeArc + ',0 ' + x4.toFixed(2) + ',' + y4.toFixed(2) +
+              ' Z';
+      return '<path d="' + d + '" class="' + fillCss + '"></path>';
+    }
+    var startA = -Math.PI / 2;
+    var slices = '';
+    slices += _slice(startA,                                      savingsAngle, 'rett-donut-savings');
+    slices += _slice(startA + savingsAngle,                       feeAngle,     'rett-donut-fees');
+    slices += _slice(startA + savingsAngle + feeAngle,            owedAngle,    'rett-donut-owed');
+
+    var pctSaved = ((net / total) * 100).toFixed(1) + '%';
+    var legend =
+      '<div class="rett-donut-legend">' +
+        '<div class="rett-donut-leg-row"><span class="rett-donut-swatch sw-savings"></span><span class="rett-donut-leg-label">Net to you</span><strong>' + _fmt(net) + '</strong></div>' +
+        (fees > 0 ? '<div class="rett-donut-leg-row"><span class="rett-donut-swatch sw-fees"></span><span class="rett-donut-leg-label">Fees</span><strong>' + _fmt(fees) + '</strong></div>' : '') +
+        '<div class="rett-donut-leg-row"><span class="rett-donut-swatch sw-owed"></span><span class="rett-donut-leg-label">Tax still owed</span><strong>' + _fmt(stillOwed) + '</strong></div>' +
+      '</div>';
+
+    return '<div class="rett-donut-wrap">' +
+      '<svg class="rett-donut" viewBox="0 0 220 220" role="img" aria-label="Savings vs tax still owed">' +
+        slices +
+        // Center text: percent of original tax bill the client keeps
+        '<text x="110" y="103" text-anchor="middle" class="rett-donut-center-pct">' + pctSaved + '</text>' +
+        '<text x="110" y="125" text-anchor="middle" class="rett-donut-center-sub">saved vs.</text>' +
+        '<text x="110" y="142" text-anchor="middle" class="rett-donut-center-sub">doing nothing</text>' +
+      '</svg>' +
+      legend +
+    '</div>';
+  }
+
+  function _paymentTimelineSvg(rows) {
+    if (!rows || !rows.length) return '';
+    var maxCash = 0;
+    rows.forEach(function (r) { if (r.cash > maxCash) maxCash = r.cash; });
+    if (maxCash <= 0) return '';
+    // SVG geometry — horizontal stacked bars, each row gets one bar.
+    var rowHeight = 36;
+    var labelColW = 130;
+    var barColW   = 320;
+    var amtColW   = 110;
+    var pad       = 12;
+    var svgWidth  = labelColW + barColW + amtColW + pad * 2;
+    var svgHeight = rows.length * rowHeight + pad * 2;
+    var bars = '';
+    rows.forEach(function (r, i) {
+      var y = pad + i * rowHeight + 6;
+      var w = Math.max(2, (r.cash / maxCash) * barColW);
+      var barX = pad + labelColW;
+      var amtX = barX + w + 8;
+      var label = r.year + ' (' + r.dateShort + ')';
+      bars +=
+        // Year + date label (left column)
+        '<text x="' + (pad + labelColW - 8) + '" y="' + (y + 16) + '" class="rett-payviz-year" text-anchor="end">' + label + '</text>' +
+        // Bar
+        '<rect x="' + barX + '" y="' + y + '" width="' + w.toFixed(1) + '" height="22" rx="2" class="rett-payviz-bar' + (r.isClosing ? ' is-closing' : '') + '"></rect>' +
+        // Amount label (just past the bar end)
+        '<text x="' + amtX + '" y="' + (y + 16) + '" class="rett-payviz-amt">' + _fmt(r.cash) + '</text>';
+    });
+    return '<div class="rett-payviz-wrap">' +
+      '<div class="rett-payviz-title">Payments arrive</div>' +
+      '<svg class="rett-payviz" viewBox="0 0 ' + svgWidth + ' ' + svgHeight + '" role="img" aria-label="Payment timeline">' +
+        bars +
+      '</svg>' +
+      '<div class="rett-payviz-legend">' +
+        '<span class="rett-payviz-leg-item"><span class="rett-payviz-swatch is-closing"></span>Basis at closing</span>' +
+        '<span class="rett-payviz-leg-item"><span class="rett-payviz-swatch"></span>Gain installment</span>' +
+      '</div>' +
+    '</div>';
+  }
+
+  // Build the visualizations object (donut + optional timeline) for a
+  // given metrics + payment-schedule pair. Returns { donut, timeline }
+  // strings (timeline only populated for type C with a real schedule).
+  function _buildVisuals(typeLabel, metrics, cfg, comp) {
+    var donut = _donutSvg(metrics.doNothing || 0,
+                          Math.max(0, (metrics.doNothing || 0) - (metrics.tax || 0)),
+                          metrics.fees || 0);
+    var timeline = '';
+    if (typeLabel === 'C' && cfg && comp) {
+      var year1 = cfg.year1 || (new Date()).getFullYear();
+      var basisCash = Math.max(0, Number(cfg.costBasis) || 0);
+      var sched = (comp.recognitionSchedule && comp.recognitionSchedule.length)
+        ? comp.recognitionSchedule.slice() : [];
+      if (sched.length) {
+        var byYear = {};
+        sched.forEach(function (r) {
+          var y = r.year || year1;
+          if (!byYear[y]) byYear[y] = { year: y, gain: 0, isClosing: false };
+          byYear[y].gain += (r.gainRecognized || 0);
+        });
+        if (!byYear[year1]) byYear[year1] = { year: year1, gain: 0, isClosing: false };
+        byYear[year1].isClosing = true;
+        var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        var closingDate = null;
+        if (cfg.implementationDate && typeof window !== 'undefined' && typeof window.parseLocalDate === 'function') {
+          var d = window.parseLocalDate(cfg.implementationDate);
+          if (d && !isNaN(d.getTime())) closingDate = months[d.getMonth()] + ' ' + d.getDate();
+        }
+        var rowsArr = Object.keys(byYear).map(function (k) { return byYear[k]; })
+          .sort(function (a, b) { return a.year - b.year; })
+          .map(function (yr) {
+            var cash = (yr.isClosing ? basisCash : 0) + yr.gain;
+            return {
+              year: yr.year,
+              cash: cash,
+              isClosing: yr.isClosing,
+              dateShort: yr.isClosing ? (closingDate || ('Jan 1')) : 'Jan 1'
+            };
+          })
+          .filter(function (r) { return r.cash > 0; });
+        timeline = _paymentTimelineSvg(rowsArr);
+      }
+    }
+    return { donut: donut, timeline: timeline };
+  }
+
+  function _interestedCard(typeLabel, num, name, picked, metrics, lossSum, isRecommended, durationMonths, paymentScheduleHtml, visuals) {
     var badge = isRecommended
       ? '<span class="rett-interested-rec-tag">Recommended</span>'
       : '';
@@ -1817,6 +1972,11 @@
       '<div class="rett-interested-name">' + name + '</div>' +
       '<div class="rett-interested-net-label">Net Benefit</div>' +
       '<div class="rett-interested-net-value">' + _fmt(metrics.net) + '</div>' +
+      // Visuals always-visible above Show Details. Donut goes on every
+      // card; payment timeline only on C (where there's a multi-year
+      // schedule worth visualizing).
+      ((visuals && visuals.donut) ? visuals.donut : '') +
+      ((visuals && visuals.timeline) ? visuals.timeline : '') +
       '<details class="rett-interested-details">' +
         '<summary>Show details</summary>' +
         '<ul class="rett-interested-detail-list">' + detailItems + '</ul>' +
@@ -1870,30 +2030,34 @@
     var pickedA = _bestPickedCfgLocal('A');
     var mA = _scenarioMetrics(pickedA.cfg);
     var lossA = mA ? _scenarioLossSum(pickedA.cfg) : 0;
+    var visualsA = mA ? _buildVisuals('A', mA, pickedA.cfg, null) : null;
 
-    var pickedB = null, mB = null, lossB = 0;
+    var pickedB = null, mB = null, lossB = 0, visualsB = null;
     if (saleMonth0 >= 8) {
       pickedB = _bestPickedCfgLocal('B');
       mB = _scenarioMetrics(pickedB.cfg);
       lossB = mB ? _scenarioLossSum(pickedB.cfg) : 0;
+      visualsB = mB ? _buildVisuals('B', mB, pickedB.cfg, null) : null;
     }
 
     var pickedC = _bestPickedCfgLocal('C');
     var mC = _scenarioMetrics(pickedC.cfg);
     var lossC = mC ? _scenarioLossSum(pickedC.cfg) : 0;
     var paymentsC = '';
+    var visualsC = null;
     var durationC = (pickedC.picked && pickedC.picked.durationMonths) || userDuration;
     if (mC) {
       var dataC = _scenarioFullData(pickedC.cfg);
       if (dataC && dataC.comp) {
         paymentsC = _buildPaymentScheduleHtml(pickedC.cfg, dataC.comp, durationC);
+        visualsC = _buildVisuals('C', mC, pickedC.cfg, dataC.comp);
       }
     }
 
     var entries = [];
-    if (mA) entries.push({ type: 'A', num: '01', name: 'Sell Now', picked: pickedA.picked, metrics: mA, loss: lossA, payments: '', cfg: pickedA.cfg });
-    if (mB) entries.push({ type: 'B', num: '02', name: 'Seller Finance', picked: pickedB.picked, metrics: mB, loss: lossB, payments: '', cfg: pickedB.cfg });
-    if (mC) entries.push({ type: 'C', num: '03', name: 'Structured Sale', picked: pickedC.picked, metrics: mC, loss: lossC, payments: paymentsC, cfg: pickedC.cfg });
+    if (mA) entries.push({ type: 'A', num: '01', name: 'Sell Now',        picked: pickedA.picked, metrics: mA, loss: lossA, payments: '',        cfg: pickedA.cfg, visuals: visualsA });
+    if (mB) entries.push({ type: 'B', num: '02', name: 'Seller Finance',  picked: pickedB.picked, metrics: mB, loss: lossB, payments: '',        cfg: pickedB.cfg, visuals: visualsB });
+    if (mC) entries.push({ type: 'C', num: '03', name: 'Structured Sale', picked: pickedC.picked, metrics: mC, loss: lossC, payments: paymentsC, cfg: pickedC.cfg, visuals: visualsC });
 
     if (!entries.length) return null;
 
@@ -1970,7 +2134,7 @@
     var grid = '<div class="rett-interested-grid count-' + filtered.length + '">';
     filtered.forEach(function (e, i) {
       var isRec = (entries.indexOf(e) === recIdx);
-      grid += _interestedCard(e.type, e.num, e.name, e.picked, e.metrics, e.loss, isRec, userDuration, e.payments);
+      grid += _interestedCard(e.type, e.num, e.name, e.picked, e.metrics, e.loss, isRec, userDuration, e.payments, e.visuals);
     });
     grid += '</div>';
 

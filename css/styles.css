@@ -3177,6 +3177,145 @@ body { font-size: 16px; }
     color: var(--ink-soft);
 }
 
+/* ============ Page-3 card visuals: donut + payment timeline ============
+   Inline SVG donut showing tax-saved-vs-tax-still-owed (every card),
+   plus a horizontal-bar payment timeline for the Structured-Sale card.
+   The donut sits between the big Net Benefit number and the
+   Show-Details accordion; the timeline (C only) sits right under it. */
+.rett-donut-wrap {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 18px;
+    align-items: center;
+    padding: 14px 0 8px;
+    border-bottom: 1px dashed var(--rule);
+    margin-bottom: 8px;
+}
+@media (max-width: 600px) {
+    .rett-donut-wrap { grid-template-columns: 1fr; justify-items: center; }
+}
+.rett-donut {
+    width: 100%;
+    max-width: 220px;
+    height: auto;
+}
+.rett-donut .rett-donut-savings { fill: var(--green); }
+.rett-donut .rett-donut-fees    { fill: var(--bh-blue-deep); opacity: 0.85; }
+.rett-donut .rett-donut-owed    { fill: var(--ink); opacity: 0.78; }
+.rett-donut-center-pct {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 500;
+    font-size: 30px;
+    fill: var(--green);
+    letter-spacing: -0.02em;
+}
+.rett-donut-center-sub {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    fill: var(--muted);
+    font-weight: 600;
+}
+.rett-donut-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-family: var(--font-body);
+    font-size: 0.9em;
+    color: var(--ink);
+}
+.rett-donut-leg-row {
+    display: grid;
+    grid-template-columns: 14px 1fr auto;
+    align-items: center;
+    gap: 10px;
+}
+.rett-donut-leg-row strong {
+    font-family: var(--font-mono);
+    font-size: 0.92em;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+.rett-donut-leg-label {
+    color: var(--ink-soft);
+    font-size: 0.92em;
+}
+.rett-donut-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+.rett-donut-swatch.sw-savings { background: var(--green); }
+.rett-donut-swatch.sw-fees    { background: var(--bh-blue-deep); opacity: 0.85; }
+.rett-donut-swatch.sw-owed    { background: var(--ink); opacity: 0.78; }
+
+/* Payment-timeline visual for the Structured-Sale card. */
+.rett-payviz-wrap {
+    margin-top: 10px;
+    padding: 12px 14px 14px;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    background: var(--paper-warm);
+}
+.rett-payviz-title {
+    font-family: var(--font-mono);
+    font-size: 0.7em;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--bh-blue-deep);
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+.rett-payviz {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+.rett-payviz-bar {
+    fill: var(--bh-blue-deep);
+}
+.rett-payviz-bar.is-closing {
+    fill: var(--ink);
+}
+.rett-payviz-year {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    fill: var(--ink);
+    font-weight: 600;
+}
+.rett-payviz-amt {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    fill: var(--ink-soft);
+    font-weight: 600;
+}
+.rett-payviz-legend {
+    margin-top: 6px;
+    display: flex;
+    gap: 16px;
+    font-family: var(--font-body);
+    font-size: 0.78em;
+    color: var(--ink-soft);
+}
+.rett-payviz-leg-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.rett-payviz-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    background: var(--bh-blue-deep);
+    display: inline-block;
+}
+.rett-payviz-swatch.is-closing {
+    background: var(--ink);
+}
+
 /* ============================================================
    Page 4 — Strategy Summary (BrookHaven Moving-Forward layout)
    Faithful port of the source tax calculator's Tab 4. Two-column
