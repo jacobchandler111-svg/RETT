@@ -3048,11 +3048,15 @@ body { font-size: 16px; }
     min-height: 520px;
 }
 .strategy-pick-card:hover {
-    border-color: var(--bh-blue-deep);
-    background: var(--paper-warm);
-    box-shadow: 0 0 0 1px var(--bh-blue-deep), 0 6px 18px rgba(35,31,85,0.12), 0 24px 60px rgba(35,31,85,0.14);
-    transform: translateY(-5px);
-    z-index: 1;
+    /* Per advisor spec: thick dark-blue border only on hover. No
+       translation (stays in place), no background tint, no layered
+       shadow "gradient." A 3px BrookHaven blue border draws the eye
+       to the card the cursor is over without any motion or color
+       wash. The 2px border-width delta is offset by a 1px outline
+       that grows in to keep the card's bounds steady. */
+    border: 3px solid var(--bh-blue-deep);
+    margin: -2px;
+    box-shadow: var(--shadow);
 }
 .strategy-pick-card.is-recommended {
     border: 2px solid var(--ink);
@@ -3837,23 +3841,29 @@ body { font-size: 16px; }
        when Selected Strategy has fewer rows than Supplemental, its
        inner body grows to match the taller card's bottom edge. */
     align-items: stretch;
-    /* Big buffer below the row — when the cards are in view in the
-       middle of the screen, the No-Planning / With-Planning tiles
-       should sit clearly beneath them, not crowd in. */
-    margin-bottom: 72px;
+    /* Aggressive buffer below the row — per advisor spec, when the
+       cards are in view in the middle of the screen, that should be
+       the ONLY thing the eye lands on. Net Benefit / ROP / walkaway
+       sit a comfortable scroll distance below. Bumped 72px → 140px. */
+    margin-bottom: 140px;
 }
 .forward-top-row > .input-section {
     margin: 0;
     /* Bigger cards per advisor request — more padding, deeper shadow,
        so the two anchor blocks of the page feel substantial. */
-    padding: 28px 30px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    padding: 32px 34px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    /* Slightly taller minimum height so the cards feel like proper
+       blocks rather than thin headers, even when the Supplemental
+       column has only one row. */
+    min-height: 280px;
     display: flex;
     flex-direction: column;
 }
 .forward-strategy-card {
     /* Solo (no supplemental) layout still needs the same buffer. */
-    margin-bottom: 72px !important;
+    margin-bottom: 140px !important;
+    min-height: 280px;
 }
 /* Selected Strategy body grows to fill the available height so the
    card matches its sibling's bottom edge even with fewer rows. The
@@ -4016,7 +4026,10 @@ body { font-size: 16px; }
     grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
     gap: 28px;
     align-items: stretch;
-    margin: 28px 0;
+    /* Top margin pushes the Net Benefit / ROP / walkaway block
+       further down the page so Selected Strategy + Supplemental
+       remain visually dominant when the page first comes into view. */
+    margin: 60px 0 40px 0;
 }
 .forward-rop-left {
     display: flex;
