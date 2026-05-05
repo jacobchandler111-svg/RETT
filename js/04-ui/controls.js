@@ -825,6 +825,13 @@ function bindControls() {
       if (typeof window.renderInterestedSnapshot === 'function') {
         try { window.renderInterestedSnapshot(); } catch (e) { /* */ }
       }
+      // Persist to localStorage so the strategy-pick visual state
+      // survives a page refresh / browser tab switch / saved-client
+      // round-trip. (P1-3.) Skip while applying restored state.
+      if (!window.__rettApplyingState && window.RETTCaseStorage &&
+          typeof window.RETTCaseStorage.saveWorkingState === 'function') {
+        try { window.RETTCaseStorage.saveWorkingState(); } catch (e) { /* */ }
+      }
     });
   });
 
@@ -840,6 +847,10 @@ function bindControls() {
     var type = btn.getAttribute('data-use-strategy');
     if (!type) return;
     window.__rettChosenStrategy = type;
+    if (!window.__rettApplyingState && window.RETTCaseStorage &&
+        typeof window.RETTCaseStorage.saveWorkingState === 'function') {
+      try { window.RETTCaseStorage.saveWorkingState(); } catch (e) { /* */ }
+    }
     showPage('page-allocator');
   });
   var strategiesBack = document.getElementById('strategies-back');

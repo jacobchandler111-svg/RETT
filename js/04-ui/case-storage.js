@@ -83,14 +83,30 @@
   }
 
   // ---- Form serialize / restore ----------------------------------------
+  // Schema versioning. Bump SCHEMA_VERSION whenever the captureFormState
+  // shape changes in a way old saved cases can't be naively restored
+  // from. The migrate-on-load step in applyFormState reads the
+  // _schemaVersion field and runs the appropriate transforms before
+  // dispatching events. (P3-2.)
+  var SCHEMA_VERSION = 2;
+
   function captureFormState() {
-    var state = {};
+    var state = { _schemaVersion: SCHEMA_VERSION };
     FIELD_IDS.forEach(function (id) {
       var el = document.getElementById(id);
       if (!el) return;
       if (el.type === 'checkbox' || el.type === 'radio') state[id] = !!el.checked;
       else state[id] = el.value;
     });
+    // Page-2 strategy-pick state and Page-3 chosen-strategy pointer
+    // travel with the form so a page refresh, "Load saved client" or
+    // browser tab switch doesn't lose the user's narrowed-down picks.
+    // (P1-3.) Stored under namespaced keys so they don't collide with
+    // future field IDs.
+    state._strategyInterest = (root.__rettStrategyInterest && typeof root.__rettStrategyInterest === 'object')
+      ? Object.assign({}, root.__rettStrategyInterest)
+      : { A: null, B: null, C: null };
+    state._chosenStrategy = root.__rettChosenStrategy || null;
     return state;
   }
 
@@ -100,6 +116,19 @@
   // combo info, etc.) repopulates BEFORE we set leverage-cap-select.
   function applyFormState(state) {
     if (!state || typeof state !== 'object') return;
+    // Migration: v1 (no _schemaVersion field) had no Page-2/Page-3
+    // strategy state. v2 adds _strategyInterest and _chosenStrategy.
+    // Older saved cases load fine — the strategy-pick state just
+    // stays at its default (all null) until the user clicks something.
+    var loadedVersion = (typeof state._schemaVersion === 'number') ? state._schemaVersion : 1;
+    if (loadedVersion < 1 || loadedVersion > SCHEMA_VERSION) {
+      // Out-of-range — surface a warning but proceed best-effort with
+      // what we can recognize.
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn('[case-storage] Unknown _schemaVersion ' + loadedVersion +
+          ' (current: ' + SCHEMA_VERSION + '). Proceeding with field-only restore.');
+      }
+    }
     var ordered = ['custodian-select', 'projection-years'];
     var rest    = FIELD_IDS.filter(function (id) { return ordered.indexOf(id) === -1; });
     // Belt-and-suspenders flag for the auto-save listener. The
@@ -123,6 +152,26 @@
     };
     ordered.forEach(apply);
     rest.forEach(apply);
+    // Restore Page-2 / Page-3 strategy state AFTER form fields land,
+    // so the next runFullPipeline (triggered by the form-restore events)
+    // sees the correct interest map and chosen strategy. Defensive:
+    // accept any saved-state shape but coerce to the canonical
+    // {A,B,C: true|false|null} object so downstream code that does
+    // `interest[k] === true` doesn't break on legacy payloads.
+    if (state._strategyInterest && typeof state._strategyInterest === 'object') {
+      var saved = state._strategyInterest;
+      root.__rettStrategyInterest = {
+        A: (saved.A === true || saved.A === false) ? saved.A : null,
+        B: (saved.B === true || saved.B === false) ? saved.B : null,
+        C: (saved.C === true || saved.C === false) ? saved.C : null
+      };
+    }
+    if (typeof state._chosenStrategy === 'string' &&
+        ['A','B','C'].indexOf(state._chosenStrategy) !== -1) {
+      root.__rettChosenStrategy = state._chosenStrategy;
+    } else if (state._chosenStrategy === null) {
+      root.__rettChosenStrategy = null;
+    }
     root.__rettApplyingState = false;
   }
 

@@ -91,14 +91,22 @@
     var entries = summary.entries;
     var currentCfg = summary.currentCfg;
 
-    // If the user marked exactly one strategy as Interested, treat that
-    // as the implicit choice — they've already narrowed it to one and
-    // forcing them to click "Use This Strategy" twice is friction.
+    // If the user marked exactly one strategy as Interested OR every
+    // other strategy is explicitly Not Interested (so the engine's
+    // recommended is the only one left standing), treat that as the
+    // implicit choice — forcing a second click is friction.
     var chosen = (typeof window !== 'undefined') ? window.__rettChosenStrategy : null;
     if (!chosen) {
       var interest = (typeof window !== 'undefined' && window.__rettStrategyInterest) || {};
       var interested = ['A','B','C'].filter(function (k) { return interest[k] === true; });
-      if (interested.length === 1) chosen = interested[0];
+      if (interested.length === 1) {
+        chosen = interested[0];
+      } else if (interested.length === 0) {
+        // No explicit Interested marks. If exactly one strategy in the
+        // build set isn't ruled out, that's the implicit choice.
+        var stillIn = entries.filter(function (e) { return interest[e.type] !== false; });
+        if (stillIn.length === 1) chosen = stillIn[0].type;
+      }
     }
     if (!chosen) {
       host.innerHTML = _renderNoChoiceHtml();
@@ -227,9 +235,10 @@
       '</div>' +
       '<div class="section-body" style="font-size:13px;line-height:1.6;color:var(--ink-soft);">' +
         '<p style="margin-bottom:10px;">' + durNote + '</p>' +
-        '<p style="margin-bottom:10px;"><strong>Total losses generated:</strong> ' + _fmt(entry.loss || 0) + ' over the projection horizon. Brooklyn produces these year-by-year; only the recognition year(s) actually need the offset.</p>' +
-        '<p style="margin-bottom:10px;"><strong>Do-nothing tax baseline:</strong> ' + _fmt(m.doNothing || 0) + '. This is what the client would owe with no planning.</p>' +
-        '<p style="margin-bottom:10px;"><strong>Tax with strategy:</strong> ' + _fmt(m.tax || 0) + '. Difference is the projected savings shown to the right.</p>' +
+        '<p style="margin-bottom:10px;"><strong>Horizon:</strong> ' + horizon + ' years. The dollar figures below are <em>cumulative across the full horizon</em> &mdash; not single-year. The Page-1 baseline shows the single-year do-nothing tax; this page shows the multi-year sum so fees and savings are on the same time scale.</p>' +
+        '<p style="margin-bottom:10px;"><strong>Total losses generated (' + horizon + '-yr):</strong> ' + _fmt(entry.loss || 0) + '. Brooklyn produces these year-by-year; only the recognition year(s) actually need the offset.</p>' +
+        '<p style="margin-bottom:10px;"><strong>Do-nothing tax baseline (' + horizon + '-yr):</strong> ' + _fmt(m.doNothing || 0) + '. This is what the client would owe with no planning across the full horizon.</p>' +
+        '<p style="margin-bottom:10px;"><strong>Tax with strategy (' + horizon + '-yr):</strong> ' + _fmt(m.tax || 0) + '. Difference is the projected savings shown to the right.</p>' +
       '</div>' +
     '</div>';
 

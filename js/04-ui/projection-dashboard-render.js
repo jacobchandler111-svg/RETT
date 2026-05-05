@@ -1796,14 +1796,22 @@
       autoSummary += ', recognition = Year ' + (picked.bestRecC || 2) +
         ', duration = ' + pickedDur + ' mo';
     }
+    // Time-window for the cumulative figures. The metrics object sums
+    // tax / doNothing / losses / fees across the auto-pick'd horizon,
+    // so the labels need an explicit "(N-yr cumulative)" qualifier or
+    // users compare a Page-1 single-year baseline to a Page-3 multi-
+    // year cumulative one and rightly conclude the math is broken.
+    // (P0-1.)
+    var horizonY = (picked && picked.horizon) || 5;
+    var hSuffix  = ' <span class="muted" style="font-weight:400;">(' + horizonY + '-yr cumulative)</span>';
     var detailItems = '';
-    detailItems += _interestedDetailRow('Total tax (with strategy)',  metrics.tax);
-    detailItems += _interestedDetailRow('Do-nothing tax baseline',    metrics.doNothing);
-    detailItems += _interestedDetailRow('Total losses generated',     lossSum);
-    detailItems += _interestedDetailRow('Total fees',                 metrics.fees);
+    detailItems += _interestedDetailRow('Total tax (with strategy)' + hSuffix,  metrics.tax);
+    detailItems += _interestedDetailRow('Do-nothing tax baseline' + hSuffix,    metrics.doNothing);
+    detailItems += _interestedDetailRow('Total losses generated' + hSuffix,     lossSum);
+    detailItems += _interestedDetailRow('Total fees' + hSuffix,                 metrics.fees);
     detailItems += _interestedDetailRow('&#8627; Brooklyn fees',      metrics.brooklynFees, true);
     detailItems += _interestedDetailRow('&#8627; Brookhaven fees',    metrics.brookhavenFees, true);
-    detailItems += '<li class="rett-interested-detail-net"><span>Net benefit</span><strong>' + _fmt(metrics.net) + '</strong></li>';
+    detailItems += '<li class="rett-interested-detail-net"><span>Net benefit' + hSuffix + '</span><strong>' + _fmt(metrics.net) + '</strong></li>';
 
     var chosen = (typeof window !== 'undefined' && window.__rettChosenStrategy === typeLabel);
     var cls = 'rett-interested-card' +
@@ -1926,16 +1934,50 @@
     var recIdx = summary.recIdx;
     var userDuration = summary.userDuration;
 
+    // Filter logic per P1-1:
+    //   - Always include strategies the user marked Interested.
+    //   - Always include the engine-Recommended strategy UNLESS the user
+    //     explicitly clicked Not Interested on it. The recommendation is
+    //     a real signal — silently dropping it because the user didn't
+    //     click anything yet meant a fresh user landing on Projection
+    //     could see "Sell Now" alone (auto-defaulted) instead of the
+    //     option the engine actually wants them to consider.
+    //   - If the resulting set is empty, show an explicit empty-state
+    //     CTA back to Page 2 (P1-2) instead of a blank page.
     var interest = (typeof window !== 'undefined' && window.__rettStrategyInterest) || {};
-    var anyTrue = ['A','B','C'].some(function (k) { return interest[k] === true; });
+    var recommendedType = (recIdx >= 0) ? entries[recIdx].type : null;
+    var anyExplicit = ['A','B','C'].some(function (k) { return interest[k] === true || interest[k] === false; });
 
-    var filtered = anyTrue
-      ? entries.filter(function (e) { return interest[e.type] === true; })
-      : entries.slice();
+    var filtered;
+    if (anyExplicit) {
+      filtered = entries.filter(function (e) {
+        // Explicit Interested → include.
+        if (interest[e.type] === true) return true;
+        // Recommended → include UNLESS user explicitly opted out.
+        if (e.type === recommendedType && interest[e.type] !== false) return true;
+        return false;
+      });
+    } else {
+      // Fresh user, no clicks yet — show all so they can compare.
+      filtered = entries.slice();
+    }
 
-    var hint = anyTrue
+    var hint = anyExplicit
       ? ''
-      : '<div class="rett-interested-hint">Mark <strong>Interested</strong> on the Strategies page to filter this view to the options you want to compare.</div>';
+      : '<div class="rett-interested-hint">Mark <strong>Interested</strong> or <strong>Not Interested</strong> on the Strategies page to filter this view to the options you actually want to compare.</div>';
+
+    if (!filtered.length) {
+      // Empty state per P1-2: every strategy was clicked Not Interested
+      // (or the recommended one was opted out and nothing else was
+      // marked Interested). Surface a CTA back to Page 2 rather than
+      // rendering a blank page.
+      host.innerHTML =
+        '<div class="rett-interested-hint" style="padding:24px;text-align:center;">' +
+        '<p style="margin:0 0 12px 0;">No strategies are selected. Mark at least one as <strong>Interested</strong> on the Strategies page, or unmark the ones you ruled out.</p>' +
+        '<button type="button" class="cta-btn" onclick="document.getElementById(\'nav-strategies\').click()">Go to Strategies &rarr;</button>' +
+        '</div>';
+      return;
+    }
 
     var grid = '<div class="rett-interested-grid count-' + filtered.length + '">';
     filtered.forEach(function (e, i) {
