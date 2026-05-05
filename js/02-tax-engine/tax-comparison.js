@@ -86,7 +86,12 @@ function _baseScenarioForYear(cfg, yr, gainTakenThisYear, recaptureThisYear) {
             year: yr,
             status: cfg.filingStatus,
             state: cfg.state,
-            ordinaryIncome: ordOverride + _recap,
+            // Recapture flows through depreciationRecapture (separate
+            // field) so the engine can apply the §1250 25% cap. Adding
+            // it to ordinaryIncome would silently route it through
+            // full marginal rates.
+            ordinaryIncome: ordOverride,
+            depreciationRecapture: _recap,
             shortTermGain: shortOverride,
             longTermGain: ltAmt,
             qualifiedDividend: 0,
@@ -115,6 +120,7 @@ function _yearTaxes(scenario) {
       const _st  = Number(_s.shortTermGain)  || 0;
       const _lt  = Number(_s.longTermGain)   || 0;
       const _qd  = Number(_s.qualifiedDividend) || 0;
+      const _rcp = Number(_s.depreciationRecapture) || 0;
       const _inv = (_s.investmentIncome != null) ? Number(_s.investmentIncome) : (_lt + _qd);
       const _w   = (_s.wages != null) ? Number(_s.wages) : 0;
       const _itm = Number(_s.itemized) || 0;
@@ -125,30 +131,38 @@ function _yearTaxes(scenario) {
             _ord + _st,
             _yr, _stat,
             { longTermGain: _lt, qualifiedDividend: _qd,
+              depreciationRecapture: _rcp,
               investmentIncome: _inv, wages: _w,
               itemized: _itm });
+      // State tax sees recapture as ordinary income — most states do
+      // NOT honor the federal §1250 25% cap. Pass recapture into the
+      // ordinary base for state calc so state revenue is right.
       const stateTax = computeStateTax(
-            _ord + _st + _lt + _qd,
+            _ord + _st + _rcp + _lt + _qd,
             _yr, _state, _stat,
             { itemized: _itm, longTermGain: _lt });
       // Schema convention (don't drift):
-      //   ordinaryTax / ltTax / amt — components of the income-tax
-      //     calculation (Form 1040 line 16-equivalent).
+      //   ordinaryTax / recapTax / ltTax / amt — components of the
+      //     income-tax calculation (Form 1040 line 16-equivalent).
+      //     recapTax is the §1(h)(1)(E) unrecaptured §1250 gain
+      //     bucket — capped at 25%, separate from ordinaryTax.
       //   niit / addlMedicare / seTax — separate federal surcharges.
       //   federal — GRAND federal total (income tax + all surcharges).
-      //   federalIncomeTax — NARROW: ordinaryTax + ltTax + amt only,
+      //   federalIncomeTax — NARROW: ord + recap + lt + amt only,
       //     matches the "Federal Income Tax" label on the Page-1 panel
       //     and the Strategy Summary. Use this when comparing rendered
       //     values to the panel; use `federal` when summing to a
       //     grand-total tax owed.
       //   total = federal + state.
       var _ord1 = Number(fed && fed.ordinaryTax) || 0;
+      var _rcp1 = Number(fed && fed.recapTax)    || 0;
       var _lt1  = Number(fed && fed.ltTax)       || 0;
       var _amt1 = Number(fed && fed.amtTopUp)    || 0;
       return {
             federal: Number(fed && fed.total) || 0,
-            federalIncomeTax: _ord1 + _lt1 + _amt1,
+            federalIncomeTax: _ord1 + _rcp1 + _lt1 + _amt1,
             ordinaryTax: _ord1,
+            recapTax: _rcp1,
             ltTax: _lt1,
             amt: _amt1,
             niit: Number(fed && fed.niit) || 0,
@@ -1117,12 +1131,12 @@ function renderTaxComparison(host, comparison) {
       const cellsLoss     = comparison.rows.map(r => '<td>' + _fmtUSD(r.lossApplied) + '</td>').join('');
       const cellsGain     = comparison.rows.map(r => '<td>' + _fmtUSD(r.gainRecognized) + '</td>').join('');
 
-      // Federal tax row uses the NARROW definition (ord + lt + amt)
-      // so NIIT, Additional Medicare, and SE tax — broken out below —
-      // don't visually double-count. This matches the Page-1 panel
-      // and the Strategy Summary, which both label their "Federal
-      // Income Tax" line the narrow way.
-      const fedRows = comparison.rows.map(r => '<td>' + _fmtUSD(r.baseline.federalIncomeTax || (r.baseline.ordinaryTax + r.baseline.ltTax + r.baseline.amt)) + '</td>').join('');
+      // Federal tax row uses the NARROW definition (ord + recap + lt
+      // + amt) so NIIT, Additional Medicare, and SE tax — broken out
+      // below — don't visually double-count. This matches the Page-1
+      // panel and the Strategy Summary, which both label their
+      // "Federal Income Tax" line the narrow way.
+      const fedRows = comparison.rows.map(r => '<td>' + _fmtUSD(r.baseline.federalIncomeTax || (r.baseline.ordinaryTax + (r.baseline.recapTax || 0) + r.baseline.ltTax + r.baseline.amt)) + '</td>').join('');
       const stRows  = comparison.rows.map(r => '<td>' + _fmtUSD(r.baseline.state) + '</td>').join('');
       const niitRow = comparison.rows.map(r => '<td>' + _fmtUSD(r.baseline.niit) + '</td>').join('');
       const medRow  = comparison.rows.map(r => '<td>' + _fmtUSD(r.baseline.addlMedicare) + '</td>').join('');
@@ -1135,7 +1149,7 @@ function renderTaxComparison(host, comparison) {
             '<tr><td>Long-term gain recognized</td>' + cellsGain + '<td>' + _fmtUSD(comparison.rows.reduce((a,r)=>a+r.gainRecognized,0)) + '</td></tr>' +
             '<tr><td>Brooklyn loss applied</td>' + cellsLoss + '<td>' + _fmtUSD(comparison.rows.reduce((a,r)=>a+r.lossApplied,0)) + '</td></tr>' +
             '<tr class="grp-head"><td colspan="' + (comparison.rows.length + 2) + '">Without Strategy (Baseline)</td></tr>' +
-            '<tr><td>Federal income tax</td>' + fedRows + '<td>' + _fmtUSD(comparison.rows.reduce((a,r)=>a+(r.baseline.federalIncomeTax || (r.baseline.ordinaryTax + r.baseline.ltTax + r.baseline.amt)),0)) + '</td></tr>' +
+            '<tr><td>Federal income tax</td>' + fedRows + '<td>' + _fmtUSD(comparison.rows.reduce((a,r)=>a+(r.baseline.federalIncomeTax || (r.baseline.ordinaryTax + (r.baseline.recapTax || 0) + r.baseline.ltTax + r.baseline.amt)),0)) + '</td></tr>' +
             '<tr><td>State tax</td>' + stRows + '<td>' + _fmtUSD(comparison.rows.reduce((a,r)=>a+r.baseline.state,0)) + '</td></tr>' +
             '<tr><td>NIIT (3.8%)</td>' + niitRow + '<td>' + _fmtUSD(comparison.rows.reduce((a,r)=>a+r.baseline.niit,0)) + '</td></tr>' +
             '<tr><td>Additional Medicare (0.9%)</td>' + medRow + '<td>' + _fmtUSD(comparison.rows.reduce((a,r)=>a+r.baseline.addlMedicare,0)) + '</td></tr>' +

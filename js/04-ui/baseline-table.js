@@ -81,15 +81,18 @@
                   + Math.max(0, _num('rental-income'))
                   + Math.max(0, _num('dividend-income'));
 
-    // Federal tax via the engine's breakdown. Pass STG via opts so
-    // the engine can fold it into the ordinary stack — previously the
-    // baseline table pre-stacked STG into 'ord', which worked here but
-    // left opts.shortTermGain dead for any other consumer. (P0-5.)
-    var ord = ordTotal + recap;   // recapture hits ordinary (STG is folded by the engine)
+    // Federal tax via the engine's breakdown. STG and depreciation
+    // recapture both go through opts so the engine can apply special
+    // treatment (recap caps at §1250 25%; STG folds into the ordinary
+    // stack). Earlier this fn pre-stacked recap into 'ord', which
+    // silently bypassed the §1250 cap — high-bracket clients were
+    // taxed on recapture at full marginal rates up to 37%.
+    var ord = ordTotal;
     var fedB = (typeof computeFederalTaxBreakdown === 'function')
       ? computeFederalTaxBreakdown(ord, year, status, {
           longTermGain: ltGain,        // signed — loss flows through to §1211(b) offset
           shortTermGain: stGain,
+          depreciationRecapture: recap,
           investmentIncome: nIIT_base,
           wages: wages,
           seIncome: seInc
@@ -97,6 +100,7 @@
       : null;
 
     var fedOrd  = fedB ? Number(fedB.ordinaryTax) || 0 : 0;
+    var fedRcap = fedB ? Number(fedB.recapTax)    || 0 : 0;
     var fedLt   = fedB ? Number(fedB.ltTax)       || 0 : 0;
     var amt     = fedB ? Number(fedB.amtTopUp)    || 0 : 0;
     var seTax   = fedB ? Number(fedB.seTax)       || 0 : 0;
@@ -105,17 +109,19 @@
     var lossOff = fedB ? Number(fedB.lossOrdOffsetApplied) || 0 : 0;
     var lossCFY = fedB ? Number(fedB.lossCarryforward)     || 0 : 0;
 
-    // Federal tax for display = ordinary + LT + AMT (income-tax
-    // components only). NIIT and Additional Medicare and SE tax are
-    // surfaced on their OWN rows so "Federal Income Tax" stays a clean
-    // single concept everywhere it appears (Inputs page, Strategy
-    // Summary, projection rows). (P0-3.)
-    var fedTotal = fedOrd + fedLt + amt;
+    // Federal tax for display = ordinary + recapture (capped at 25%)
+    // + LT + AMT. NIIT, Additional Medicare, and SE tax are surfaced
+    // on their OWN rows so "Federal Income Tax" stays a clean single
+    // concept everywhere it appears. (P0-3.)
+    var fedTotal = fedOrd + fedRcap + fedLt + amt;
 
     // State tax (passes total income; state engine handles LTCG-vs-ordinary
-    // per state-specific rules)
+    // per state-specific rules). Recapture is included in the ordinary
+    // base because most states do NOT honor the federal §1250 25%
+    // cap — they tax recapture at full state rates. The federal split
+    // happens inside computeFederalTaxBreakdown.
     var stateTax = (typeof computeStateTax === 'function')
-      ? (computeStateTax(ord + Math.max(0, ltGain) + stGain, year, state, status,
+      ? (computeStateTax(ord + recap + Math.max(0, ltGain) + stGain, year, state, status,
             { longTermGain: Math.max(0, ltGain), shortTermGain: stGain }) || 0)
       : 0;
 

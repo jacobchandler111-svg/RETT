@@ -195,6 +195,17 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
               : (opts.ltcg != null ? opts.ltcg : opts.lt);
       var _st = opts.shortTermGain != null ? opts.shortTermGain
               : (opts.stcg != null ? opts.stcg : opts.st);
+      // §1(h)(1)(E) unrecaptured §1250 gain — depreciation recapture
+      // on real estate. Caller passes it separately from
+      // ordinaryIncome so the engine can apply the 25% cap; if it
+      // were bundled into ordinaryIncome it would silently pay full
+      // marginal rates (up to 37%), over-taxing high-bracket clients
+      // by 12+ percentage points on the recapture slice.
+      var _recap = Math.max(0, Number(
+            opts.depreciationRecapture != null
+                  ? opts.depreciationRecapture
+                  : (opts.depRecapture != null ? opts.depRecapture : 0)
+      ) || 0);
       // §1211(b) loss offset: up to $3,000/yr ($1,500 MFS) of net
       // capital loss reduces ordinary income; the remainder carries
       // forward. Both this-year LT loss AND a prior-year carried loss
@@ -237,8 +248,11 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       // §1211(b) loss offset + short-term gain both run through the
       // ordinary-income bracket stack. STG is taxed at ordinary rates
       // (no preferential bucket), and the loss offset reduces the base
-      // before brackets apply. (P0-4, P0-5.)
-      const ordinaryGross   = ordinaryIncome + shortTermGain;
+      // before brackets apply. (P0-4, P0-5.) Depreciation recapture
+      // (§1250) is included in the ordinary stack base so its bracket
+      // position is correct; the special 25% cap is applied below
+      // by splitting it back out of ordinaryTax.
+      const ordinaryGross   = ordinaryIncome + shortTermGain + _recap;
       const taxableOrdinary = Math.max(0, ordinaryGross - deduction - _carriedLossOrdOffset);
       // Leftover deduction (when ordinary income alone wasn't enough to
       // absorb it) bleeds through to the LTCG bracket stack — on a
@@ -249,7 +263,22 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       const _deductionConsumedOnOrd = Math.max(0, ordinaryGross - taxableOrdinary - _carriedLossOrdOffset);
       const _leftoverDeduction = Math.max(0, deduction - _deductionConsumedOnOrd);
 
-      const ordinaryTax = _flatBracketTax(taxableOrdinary, ordBrk);
+      // §1(h)(1)(E) — unrecaptured §1250 gain caps at 25%. Compute
+      // the bracket tax on taxableOrdinary BOTH including and
+      // excluding the recapture slice, then attribute the difference
+      // to recapTaxAtOrdinary. The §1250 cap floors that slice at
+      // 25% × recapture; ordinary income outside the recapture slice
+      // pays normal marginal rates.
+      const _recapInTaxable = Math.min(_recap, taxableOrdinary);
+      const _taxableOrdExRecap = Math.max(0, taxableOrdinary - _recapInTaxable);
+      const ordinaryTaxExRecap = _flatBracketTax(_taxableOrdExRecap, ordBrk);
+      const ordinaryTaxIncRecap = _flatBracketTax(taxableOrdinary, ordBrk);
+      const _recapTaxAtOrdinary = Math.max(0, ordinaryTaxIncRecap - ordinaryTaxExRecap);
+      const _recapTaxCapped = _recapInTaxable * 0.25;
+      const recapTax = (_recapInTaxable > 0)
+            ? Math.min(_recapTaxAtOrdinary, _recapTaxCapped)
+            : 0;
+      const ordinaryTax = ordinaryTaxExRecap;
 
       let ltTax = 0;
       const ltAmount = longTermGain + qualifiedDividend;
@@ -283,7 +312,9 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       const amtAmti     = taxableOrdinary + ltAmount;
       const amtOrdOnly  = _computeAmt(amtAmti, year, status, ltAmount);
       const amtTotal    = amtOrdOnly + ltTax;
-      const amtTopUp    = Math.max(0, amtTotal - (ordinaryTax + ltTax));
+      // Regular tax for AMT comparison includes recapTax — without
+      // it the AMT top-up double-counts the recapture portion.
+      const amtTopUp    = Math.max(0, amtTotal - (ordinaryTax + recapTax + ltTax));
 
       // MAGI for NIIT phase-in includes ordinary, ST gain, and LT gain.
       // Note: NIIT threshold is intentionally NOT inflation-indexed —
@@ -315,9 +346,10 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
             seTax = ssTax + medTax;
       }
 
-      const total = ordinaryTax + ltTax + amtTopUp + niit + addlMed + seTax;
+      const total = ordinaryTax + recapTax + ltTax + amtTopUp + niit + addlMed + seTax;
       return {
             ordinaryTax: ordinaryTax,
+            recapTax: recapTax,
             ltTax: ltTax,
             seTax: seTax,
             amtTopUp: amtTopUp,
