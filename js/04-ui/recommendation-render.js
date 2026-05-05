@@ -105,13 +105,12 @@
     // Long-term gain after subtracting:
     //   - cost basis
     //   - accelerated depreciation (recapture, ordinary)
-    //   - short-term gain (the user can carve part of the property
-    //     gain into short-term — that piece is taxed at ordinary
-    //     rates instead of LTCG rates, so it doesn't belong in the
-    //     LT gain bucket).
-    var stShort = parseUSD((document.getElementById('short-term-gain') || {}).value) || 0;
+    // STG is now an independent income item under "Income Sources"
+    // (any short-term gain the client recognized this year, NOT a
+    // carve-out from the property sale). Property LT gain is computed
+    // from sale - basis - depr only.
     var lt = Math.max(0,
-      inputs.salePrice - inputs.costBasis - inputs.acceleratedDepreciation - stShort);
+      inputs.salePrice - inputs.costBasis - inputs.acceleratedDepreciation);
     var rec = Math.max(0, inputs.acceleratedDepreciation);
     var total = lt + rec;
     var gainEl  = $('computed-gain');

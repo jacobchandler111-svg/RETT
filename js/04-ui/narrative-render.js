@@ -139,15 +139,13 @@
     var sale = parseUSD((document.getElementById('sale-price') || {}).value) || 0;
     var cost = parseUSD((document.getElementById('cost-basis') || {}).value) || 0;
     var depr = parseUSD((document.getElementById('accelerated-depreciation') || {}).value) || 0;
-    var stShort = parseUSD((document.getElementById('short-term-gain') || {}).value) || 0;
     var invested = (cfg && Number(cfg.investment)) ||
                    parseUSD((document.getElementById('available-capital') || {}).value) ||
                    parseUSD((document.getElementById('invested-capital') || {}).value) ||
                    0;
-    // LT gain is the property gain minus accelerated depreciation
-    // recapture (ordinary) and any short-term gain the user carved
-    // out (also ordinary).
-    var ltGain = Math.max(0, sale - cost - depr - stShort);
+    // STG is independent income (in Income Sources), not part of the
+    // property sale. LT gain is sale - basis - depr only.
+    var ltGain = Math.max(0, sale - cost - depr);
 
     var strategy = _strategyLabel(cfg.tierKey || (window.__lastRecommendation && window.__lastRecommendation.tierKey));
     var state = _stateLabel(cfg.state);

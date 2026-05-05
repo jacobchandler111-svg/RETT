@@ -897,8 +897,9 @@ function bindControls() {
     var saleVal  = parseUSD((document.getElementById('sale-price') || {}).value) || 0;
     var basisVal = parseUSD((document.getElementById('cost-basis') || {}).value) || 0;
     var deprVal  = parseUSD((document.getElementById('accelerated-depreciation') || {}).value) || 0;
+    // STG is independent income now; not subtracted from property LT gain.
     var stShort  = parseUSD((document.getElementById('short-term-gain') || {}).value) || 0;
-    var ltGain   = Math.max(0, saleVal - basisVal - deprVal - stShort);
+    var ltGain   = Math.max(0, saleVal - basisVal - deprVal);
     if (ltGain <= 0) return 0;
     var year   = parseInt((document.getElementById('year1') || {}).value, 10) || (new Date()).getFullYear();
     var status = (document.getElementById('filing-status') || {}).value || 'mfj';

@@ -61,7 +61,11 @@
     // yields a negative number, which IRC §1211(b) lets us offset against
     // ordinary income up to $3,000 ($1,500 MFS). Previously the UI
     // clamped to 0 and silently dropped the loss. (P0-4.)
-    var ltGainSigned = sale - basis - depr - stGain;
+    // STG is NO LONGER subtracted from the property LT gain — it's now
+    // an independent income item under "Income Sources" representing
+    // ANY short-term capital gain the client recognized this year
+    // (stock sales, crypto, etc.), not a slice of the property sale.
+    var ltGainSigned = sale - basis - depr;
     // For the displayed "Long-Term Capital Gain" row, show the signed
     // value so users see the loss explicitly. The bracket math will
     // clamp at 0 internally and surface the offset on a separate row.

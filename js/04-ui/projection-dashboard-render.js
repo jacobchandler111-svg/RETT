@@ -1799,11 +1799,12 @@
     var sale  = Math.max(0, Number(cfg.salePrice) || 0);
     var basis = Math.max(0, Number(cfg.costBasis) || 0);
     var depr  = Math.max(0, Number(cfg.acceleratedDepreciation) || 0);
-    var stGain = Math.max(0, Number(cfg.baseShortTermGain) || 0);
-    var ltGain = Math.max(0, sale - basis - depr - stGain);
+    var ltGain = Math.max(0, sale - basis - depr);
     // Total taxable from the sale. Cost basis is NOT income — it's
-    // recovery of capital — so we exclude it.
-    var saleGain = ltGain + depr + stGain;
+    // recovery of capital — so we exclude it. STG is independent
+    // (Income Sources), not part of the property sale, so it's NOT
+    // in the sale-only pie.
+    var saleGain = ltGain + depr;
     if (saleGain <= 0) return '';
 
     // Compute the do-nothing tax IF the sale were the only income.
@@ -1815,28 +1816,18 @@
     var state  = cfg.state || 'NONE';
     var saleTaxDoNothing = 0;
     if (typeof computeFederalTaxBreakdown === 'function') {
-      var fedB = computeFederalTaxBreakdown(0, year, status, {
-        longTermGain: ltGain,
-        shortTermGain: stGain,
-        // Recapture flows in via ordinaryIncome arg. We use 0 above so
-        // ordinary brackets don't tax W-2/rental — the recapture piece
-        // is the only sale-side ordinary contribution and we add it
-        // here explicitly via shortTermGain's ordinary path. Actually
-        // simpler: pass recapture as ordinaryIncome.
+      // Sale-only tax: treats the LT gain + recapture as if they were
+      // the only income. STG is NOT included — it's an independent
+      // income item shown elsewhere, not part of the property sale.
+      var fedB = computeFederalTaxBreakdown(depr, year, status, {
+        longTermGain: ltGain
       });
-      // Recompute with depr as ordinary (the canonical recapture flow).
-      if (depr > 0) {
-        fedB = computeFederalTaxBreakdown(depr, year, status, {
-          longTermGain: ltGain,
-          shortTermGain: stGain
-        });
-      }
       var fedTotal = (Number(fedB.ordinaryTax) || 0) + (Number(fedB.ltTax) || 0)
                    + (Number(fedB.amtTopUp) || 0) + (Number(fedB.niit) || 0)
                    + (Number(fedB.addlMedicare) || 0);
       var stateTax = (typeof computeStateTax === 'function')
-        ? (computeStateTax(depr + ltGain + stGain, year, state, status, {
-            longTermGain: ltGain, shortTermGain: stGain
+        ? (computeStateTax(depr + ltGain, year, state, status, {
+            longTermGain: ltGain
           }) || 0)
         : 0;
       saleTaxDoNothing = fedTotal + stateTax;

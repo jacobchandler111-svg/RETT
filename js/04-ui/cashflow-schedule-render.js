@@ -66,9 +66,9 @@
     var year1 = (cfg && cfg.year1) || (years[0] && years[0].year) || (new Date()).getFullYear();
     // Short-term gain carved from the property sale reduces the LT
     // bucket here so the schedule reconciles with the tax engines.
-    var stShort = Math.max(0, cfg.baseShortTermGain || 0);
+    // STG is now an independent income item — not part of the property sale.
     var totalLT = Math.max(0,
-      (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0) - stShort);
+      (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0));
     var recapture = Math.max(0, cfg.acceleratedDepreciation || 0);
     var totalGain = totalLT + recapture;
     var basis = Math.max(0, cfg.costBasis || 0);
@@ -305,9 +305,9 @@
     }
 
     // Total locked in the structured sale = LT capital gain + recapture.
-    var _stShortSub = Math.max(0, cfg.baseShortTermGain || 0);
+    // STG is independent income — not part of the property sale.
     var _totalLT = Math.max(0,
-      (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0) - _stShortSub);
+      (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0));
     var totalGain = _totalLT + Math.max(0, cfg.acceleratedDepreciation || 0);
 
     var lumpSum = _isLumpSum(cfg, comp, rows);

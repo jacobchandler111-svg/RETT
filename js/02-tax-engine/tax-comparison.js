@@ -232,10 +232,12 @@ function computeTaxComparison(cfg, recommendation) {
             // tax calc, overstating savings. Pull from cfg so the full
             // property gain hits Y1 and any excess over Brooklyn capacity
             // is taxed at LTCG rates.
-            const _stShortFlat = Math.max(0, cfg.baseShortTermGain || 0);
+            // STG no longer subtracted from LT — see top-of-file note
+            // about STG semantics shift to "income source" not "carve-out
+            // from sale." Property LT gain = sale - basis - depr only.
             const _totalLTFromCfg = Math.max(0,
                   (cfg.salePrice || 0) - (cfg.costBasis || 0)
-                  - (cfg.acceleratedDepreciation || 0) - _stShortFlat);
+                  - (cfg.acceleratedDepreciation || 0));
             const _totalLTFromRec = (recommendation.longTermGain != null)
                   ? recommendation.longTermGain
                   : _sched.reduce(function (s, slot) {
@@ -508,13 +510,11 @@ function _belowMinForLifecycle(cfg) {
       const min = window.getMinInvestment(custodianId, stratKey, cfg.comboId);
       if (!min) return false;
       const basis = Math.max(0, cfg.costBasis || 0);
-      // Short-term gain (carved from the property sale) reduces the LT
-      // bucket — it's taxed at ordinary rates and tracked separately.
-      const stShort = Math.max(0, cfg.baseShortTermGain || 0);
-      const ltGain = Math.max(0, (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0) - stShort);
+      // STG is now an independent income item (not carved from sale).
+      const ltGain = Math.max(0, (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0));
       const recapture = Math.max(0, cfg.acceleratedDepreciation || 0);
       const fromSale = (cfg.salePrice || 0) > 0 && basis > 0
-            ? (basis + ltGain + recapture + stShort)
+            ? (basis + ltGain + recapture)
             : 0;
       const fromIntent = Number(cfg.investment || 0);
       const maxCum = Math.max(fromSale, fromIntent);
@@ -532,10 +532,9 @@ function _zeroDeferredComparison(cfg) {
       // — the gain conservation invariant (sumRecognized + unrecognized
       // === totalGainBucket) holds even on the no-engagement path.
       // Without this, downstream sanity checks see a $0 = $X mismatch.
-      const _stShort = Math.max(0, cfg && cfg.baseShortTermGain || 0);
       const _ltGain = Math.max(0,
             (cfg && cfg.salePrice || 0) - (cfg && cfg.costBasis || 0)
-            - (cfg && cfg.acceleratedDepreciation || 0) - _stShort);
+            - (cfg && cfg.acceleratedDepreciation || 0));
       const _recap = Math.max(0, cfg && cfg.acceleratedDepreciation || 0);
       const _totalGainBucket = _ltGain + _recap;
       const rows = [];
@@ -635,10 +634,9 @@ function _structuredSaleMaturityYearIdx(cfg, horizon) {
 // ends up cash-short for an April due date.
 function _estimateGainTaxRate(cfg) {
       if (!cfg) return 0;
-      const stShort = Math.max(0, cfg.baseShortTermGain || 0);
       const totalLT = Math.max(0,
             (cfg.salePrice || 0) - (cfg.costBasis || 0)
-            - (cfg.acceleratedDepreciation || 0) - stShort);
+            - (cfg.acceleratedDepreciation || 0));
       if (totalLT <= 0) return 0;
       const yr = (cfg.year1 != null) ? Number(cfg.year1) : (new Date()).getFullYear();
       const sWith    = _baseScenarioForYear(cfg, yr, totalLT);
@@ -662,10 +660,9 @@ function computeDeferredTaxComparison(cfg) {
       // cfg.investment > 0 and no sale should NOT be suppressed — the
       // engine still generates small §1211 ordinary offsets that
       // legitimately appear in the ribbon.)
-      const _stShortNG = Math.max(0, cfg && cfg.baseShortTermGain || 0);
       const _ltGainNG  = Math.max(0,
             (cfg && cfg.salePrice || 0) - (cfg && cfg.costBasis || 0)
-            - (cfg && cfg.acceleratedDepreciation || 0) - _stShortNG);
+            - (cfg && cfg.acceleratedDepreciation || 0));
       const _recapNG   = Math.max(0, cfg && cfg.acceleratedDepreciation || 0);
       const _hasInvestment = Number(cfg && cfg.investment || cfg && cfg.investedCapital || 0) > 0;
       if ((_ltGainNG + _recapNG) <= 0 && !_hasInvestment) return _zeroDeferredComparison(cfg);
@@ -694,9 +691,8 @@ function computeDeferredTaxComparison(cfg) {
       // recapture, AND any short-term gain the user carved out (ST is
       // taxed at ordinary rates and is tracked separately by the
       // ordinary-income path).
-      const stShortDef = Math.max(0, cfg.baseShortTermGain || 0);
       const totalLT = Math.max(0,
-            (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0) - stShortDef);
+            (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0));
       const recapture = Math.max(0, cfg.acceleratedDepreciation || 0);
       // For MVP we treat the recapture as part of the deferred LT bucket so
       // the math reflects a structured sale that defers the entire gain
