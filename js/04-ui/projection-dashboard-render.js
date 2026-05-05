@@ -1786,19 +1786,15 @@
     '</div>';
   }
 
-  function renderInterestedSnapshot() {
-    var host = document.getElementById('interested-cards-host');
-    if (!host) return;
-    if (typeof collectInputs !== 'function') {
-      host.innerHTML = '';
-      return;
-    }
+  // Build the per-scenario summary data shared by Page 3 (Interested
+  // cards) and Page 4 (Strategy Summary). Returns null when inputs
+  // aren't ready yet. Callers are responsible for filtering by interest
+  // and rendering — this function only computes.
+  function buildInterestedSummary() {
+    if (typeof collectInputs !== 'function') return null;
     var currentCfg;
     try { currentCfg = collectInputs(); } catch (e) { currentCfg = null; }
-    if (!currentCfg) {
-      host.innerHTML = '<div class="muted" style="padding:18px 0;">Fill in the client inputs on Page 1 to see projections.</div>';
-      return;
-    }
+    if (!currentCfg) return null;
     var userDuration = currentCfg.structuredSaleDurationMonths || 18;
 
     function _bestPickedCfgLocal(type) {
@@ -1837,9 +1833,6 @@
     var pickedC = _bestPickedCfgLocal('C');
     var mC = _scenarioMetrics(pickedC.cfg);
     var lossC = mC ? _scenarioLossSum(pickedC.cfg) : 0;
-    // Pull the recognitionSchedule once so the payment-schedule
-    // sub-table inside C's Show Details panel can show real installment
-    // dates + amounts the seller will actually receive.
     var paymentsC = '';
     if (mC) {
       var dataC = _scenarioFullData(pickedC.cfg);
@@ -1849,20 +1842,36 @@
     }
 
     var entries = [];
-    if (mA) entries.push({ type: 'A', num: '01', name: 'Sell Now', picked: pickedA.picked, metrics: mA, loss: lossA, payments: '' });
-    if (mB) entries.push({ type: 'B', num: '02', name: 'Seller Finance', picked: pickedB.picked, metrics: mB, loss: lossB, payments: '' });
-    if (mC) entries.push({ type: 'C', num: '03', name: 'Structured Sale', picked: pickedC.picked, metrics: mC, loss: lossC, payments: paymentsC });
+    if (mA) entries.push({ type: 'A', num: '01', name: 'Sell Now', picked: pickedA.picked, metrics: mA, loss: lossA, payments: '', cfg: pickedA.cfg });
+    if (mB) entries.push({ type: 'B', num: '02', name: 'Seller Finance', picked: pickedB.picked, metrics: mB, loss: lossB, payments: '', cfg: pickedB.cfg });
+    if (mC) entries.push({ type: 'C', num: '03', name: 'Structured Sale', picked: pickedC.picked, metrics: mC, loss: lossC, payments: paymentsC, cfg: pickedC.cfg });
 
-    if (!entries.length) {
-      host.innerHTML = '';
-      return;
-    }
+    if (!entries.length) return null;
 
-    // Recommended = highest net across ALL three (matches Page-2 badge logic).
     var maxNet = -Infinity, recIdx = -1;
     entries.forEach(function (e, i) {
       if (e.metrics.net > maxNet) { maxNet = e.metrics.net; recIdx = i; }
     });
+    return {
+      currentCfg: currentCfg,
+      userDuration: userDuration,
+      entries: entries,
+      recIdx: recIdx
+    };
+  }
+  root.buildInterestedSummary = buildInterestedSummary;
+
+  function renderInterestedSnapshot() {
+    var host = document.getElementById('interested-cards-host');
+    if (!host) return;
+    var summary = buildInterestedSummary();
+    if (!summary) {
+      host.innerHTML = '<div class="muted" style="padding:18px 0;">Fill in the client inputs on Page 1 to see projections.</div>';
+      return;
+    }
+    var entries = summary.entries;
+    var recIdx = summary.recIdx;
+    var userDuration = summary.userDuration;
 
     var interest = (typeof window !== 'undefined' && window.__rettStrategyInterest) || {};
     var anyTrue = ['A','B','C'].some(function (k) { return interest[k] === true; });
@@ -1877,7 +1886,6 @@
 
     var grid = '<div class="rett-interested-grid count-' + filtered.length + '">';
     filtered.forEach(function (e, i) {
-      // Recommended badge follows the original entry index, not the filter index.
       var isRec = (entries.indexOf(e) === recIdx);
       grid += _interestedCard(e.type, e.num, e.name, e.picked, e.metrics, e.loss, isRec, userDuration, e.payments);
     });
