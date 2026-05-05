@@ -237,50 +237,58 @@
       html += selectedStrategyHtml;
     }
 
-    // ============ Return on Planning — walk-away comparison ============
+    // ============ Return on Planning — left: walk-away + compare; right: ROP square ============
     // The big-picture question for the client: "what do I actually walk
-    // away with?" We show two side-by-side numbers — sale proceeds net
-    // of total tax under the do-nothing baseline vs. with the chosen
-    // strategy + any enabled supplementals. The DELTA is the savings
-    // (highlighted below). For multi-year horizons m.doNothing and
-    // m.tax are cumulative; the diff stays conceptually correct
-    // because both sides include the same ordinary baseline.
+    // away with?" We show two side-by-side numbers (No / With Planning)
+    // and the You Save / Total Fees / Net Benefit row below them on
+    // the LEFT side; the right side gets a big percent-return tile so
+    // the conversation can pivot from "you keep $X more" to "for every
+    // $1 in fees you got $N back" without scrolling.
     var salePrice = (currentCfg && Number(currentCfg.salePrice)) || 0;
     var walkawayNoPlanning   = salePrice - (m.doNothing || 0);
     var walkawayWithPlanning = salePrice - (m.tax || 0) + supplementalBenefit;
-    html += '<div class="forward-walkaway">' +
-      '<div class="walkaway-head">' +
-        '<h2>Return on Planning</h2>' +
+    var ropPct = (fees > 0) ? (savings / fees) * 100 : 0;
+    var ropPctDisplay = (ropPct > 0)
+      ? Math.round(ropPct).toLocaleString('en-US') + '%'
+      : '—';
+    html += '<div class="forward-rop-row">' +
+      '<div class="forward-rop-left">' +
+        '<div class="forward-walkaway">' +
+          '<div class="walkaway-head"><h2>Return on Planning</h2></div>' +
+          '<div class="walkaway-grid">' +
+            '<div class="walkaway-side noplan">' +
+              '<div class="walkaway-label">No Planning</div>' +
+              '<div class="walkaway-amt">' + _fmt(walkawayNoPlanning) + '</div>' +
+              '<div class="walkaway-tagline">what you walk away with</div>' +
+            '</div>' +
+            '<div class="walkaway-side withplan">' +
+              '<div class="walkaway-label">With Planning</div>' +
+              '<div class="walkaway-amt">' + _fmt(walkawayWithPlanning) + '</div>' +
+              '<div class="walkaway-tagline">what you walk away with</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="forward-compare">' +
+          '<div class="compare-row">' +
+            '<div class="compare-side savings">' +
+              '<div class="compare-label">You Save</div>' +
+              '<div class="compare-amt"><span class="currency">$</span>' + Math.round(savings).toLocaleString('en-US') + '</div>' +
+            '</div>' +
+            '<div class="compare-side cost">' +
+              '<div class="compare-label">Total Fees</div>' +
+              '<div class="compare-amt"><span class="currency">$</span>' + Math.round(fees).toLocaleString('en-US') + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="compare-net">' +
+            '<div class="net-label">Net Benefit</div>' +
+            '<div class="net-amt"><span class="currency">$</span>' + Math.round(net).toLocaleString('en-US') + '</div>' +
+          '</div>' +
+        '</div>' +
       '</div>' +
-      '<div class="walkaway-grid">' +
-        '<div class="walkaway-side noplan">' +
-          '<div class="walkaway-label">No Planning</div>' +
-          '<div class="walkaway-amt">' + _fmt(walkawayNoPlanning) + '</div>' +
-          '<div class="walkaway-tagline">what you walk away with</div>' +
-        '</div>' +
-        '<div class="walkaway-side withplan">' +
-          '<div class="walkaway-label">With Planning</div>' +
-          '<div class="walkaway-amt">' + _fmt(walkawayWithPlanning) + '</div>' +
-          '<div class="walkaway-tagline">what you walk away with</div>' +
-        '</div>' +
-      '</div>' +
-    '</div>';
-
-    // ============ You Save / Total Fees / Net Benefit ============
-    html += '<div class="forward-compare">' +
-      '<div class="compare-row">' +
-        '<div class="compare-side savings">' +
-          '<div class="compare-label">You Save</div>' +
-          '<div class="compare-amt"><span class="currency">$</span>' + Math.round(savings).toLocaleString('en-US') + '</div>' +
-        '</div>' +
-        '<div class="compare-side cost">' +
-          '<div class="compare-label">Total Fees</div>' +
-          '<div class="compare-amt"><span class="currency">$</span>' + Math.round(fees).toLocaleString('en-US') + '</div>' +
-        '</div>' +
-      '</div>' +
-      '<div class="compare-net">' +
-        '<div class="net-label">Net Benefit</div>' +
-        '<div class="net-amt"><span class="currency">$</span>' + Math.round(net).toLocaleString('en-US') + '</div>' +
+      '<div class="forward-rop-square">' +
+        '<div class="rop-label">Return on Planning</div>' +
+        '<div class="rop-amt">' + ropPctDisplay + '</div>' +
+        '<div class="rop-sub">savings vs. total fees</div>' +
       '</div>' +
     '</div>';
 

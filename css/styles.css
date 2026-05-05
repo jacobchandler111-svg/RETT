@@ -3764,11 +3764,89 @@ body { font-size: 16px; }
     .forward-top-row { grid-template-columns: 1fr; }
 }
 
-/* Return on Planning — the two-block walk-away comparison that
-   replaces the prior ROI multiplier hero. Left half is the do-nothing
-   walk-away amount in muted ink; right half is the with-planning
-   amount in green. The big numbers are the headline; the supporting
-   detail under each label keeps the comparison honest. */
+/* Return on Planning row — 2-col grid:
+     LEFT: walkaway block stacked over the You Save / Fees / Net tile
+     RIGHT: a big square showing the savings/fees ratio as a percent
+   The right square stretches to the full height of the left content
+   so it reads as a single tall callout next to the dollar story. */
+.forward-rop-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: 28px;
+    align-items: stretch;
+    margin: 28px 0;
+}
+.forward-rop-left {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    min-width: 0;
+}
+.forward-rop-left .forward-walkaway,
+.forward-rop-left .forward-compare {
+    margin: 0;
+}
+.forward-rop-square {
+    background: linear-gradient(135deg, var(--ink) 0%, var(--ink-soft) 100%);
+    color: var(--paper);
+    border-radius: 2px;
+    box-shadow: var(--shadow-lg);
+    padding: 36px 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+.forward-rop-square::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 20% 30%, rgba(65,185,234,0.18) 0%, transparent 55%),
+      radial-gradient(circle at 80% 80%, rgba(65,185,234,0.10) 0%, transparent 60%);
+    pointer-events: none;
+}
+.forward-rop-square > * { position: relative; z-index: 1; }
+.forward-rop-square .rop-label {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--bh-blue);
+    font-weight: 600;
+    margin-bottom: 18px;
+}
+.forward-rop-square .rop-amt {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 500;
+    font-size: 96px;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    color: var(--paper);
+    font-variant-numeric: tabular-nums;
+    margin-bottom: 14px;
+}
+.forward-rop-square .rop-sub {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.65);
+    line-height: 1.5;
+}
+@media (max-width: 900px) {
+    .forward-rop-row { grid-template-columns: 1fr; }
+    .forward-rop-square .rop-amt { font-size: 72px; }
+}
+
+/* Walk-away comparison block — lives inside .forward-rop-left in the
+   2-col Return-on-Planning row. Left half is do-nothing walk-away in
+   red; right half is with-planning in green. Big italic numbers, mono
+   caps label above, "what you walk away with" tagline below. */
 .forward-walkaway {
     margin: 28px 0;
 }
