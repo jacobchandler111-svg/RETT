@@ -462,11 +462,12 @@
 
     if (deferred) {
       if (typeof computeDeferredTaxComparison !== 'function') return null;
-      // Engine-collapse phase 5: feature-flagged swap. When
-      // window.__rettUseUnifiedEngine is true, route through the
-      // unified engine (verified $0 delta vs legacy across 3,600
-      // scenarios). Default off so legacy stays canonical until soaked.
-      var def = (typeof window !== 'undefined' && window.__rettUseUnifiedEngine && typeof window.unifiedTaxComparison === 'function')
+      // Engine-collapse: unified engine is now the default. The
+      // window.__rettUseUnifiedEngine flag stays as a rollback escape
+      // hatch — set to false in the dev console to route back to
+      // legacy. Verified $0 delta vs legacy across 3,600 scenarios
+      // and live A/B/C cards.
+      var def = (typeof window !== 'undefined' && window.__rettUseUnifiedEngine !== false && typeof window.unifiedTaxComparison === 'function')
         ? window.unifiedTaxComparison(cfg)
         : computeDeferredTaxComparison(cfg);
       if (!def || !def.rows) return null;
@@ -510,10 +511,11 @@
       };
       var compIm;
       try {
-        // Phase-5 feature-flagged swap. The unified engine doesn't take
-        // a recommendation arg — Y1 loss derives directly from cfg via
-        // tranches. Verified $0 delta vs legacy across the sweep.
-        compIm = (typeof window !== 'undefined' && window.__rettUseUnifiedEngine && typeof window.unifiedTaxComparison === 'function')
+        // Unified engine is now the default. The unified engine doesn't
+        // take a recommendation arg — Y1 loss derives directly from cfg
+        // via tranches. Set window.__rettUseUnifiedEngine = false to
+        // route back to legacy as a rollback escape hatch.
+        compIm = (typeof window !== 'undefined' && window.__rettUseUnifiedEngine !== false && typeof window.unifiedTaxComparison === 'function')
           ? window.unifiedTaxComparison(cfg)
           : computeTaxComparison(cfg, normRecIm);
       } catch (e) { return null; }
@@ -824,7 +826,7 @@
     if (deferred) {
       if (typeof computeDeferredTaxComparison !== 'function') return null;
       // Phase-5 feature-flagged swap. See _scenarioMetrics for context.
-      comp = (typeof window !== 'undefined' && window.__rettUseUnifiedEngine && typeof window.unifiedTaxComparison === 'function')
+      comp = (typeof window !== 'undefined' && window.__rettUseUnifiedEngine !== false && typeof window.unifiedTaxComparison === 'function')
         ? window.unifiedTaxComparison(cfg)
         : computeDeferredTaxComparison(cfg);
       if (!comp || !Array.isArray(comp.rows)) return null;
@@ -869,7 +871,7 @@
         schedule: schedule
       };
       try {
-        comp = (typeof window !== 'undefined' && window.__rettUseUnifiedEngine && typeof window.unifiedTaxComparison === 'function')
+        comp = (typeof window !== 'undefined' && window.__rettUseUnifiedEngine !== false && typeof window.unifiedTaxComparison === 'function')
           ? window.unifiedTaxComparison(cfg)
           : computeTaxComparison(cfg, normRec);
       } catch (e) { return null; }
