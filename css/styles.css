@@ -2941,7 +2941,7 @@ body { font-size: 16px; }
    hierarchy stays calm and presentation-readable. */
 .strategy-keyaspect {
     margin-top: 14px;
-    padding: 24px 26px;
+    padding: 18px 22px;
     background: var(--paper-warm);
     border: 1px solid var(--rule-soft);
     border-radius: 2px;
@@ -2949,7 +2949,7 @@ body { font-size: 16px; }
        three keyaspect blocks align horizontally across the three cards.
        Flex column with center justify so short copy lands on the
        vertical mid-line of the tan box instead of sticking to the top. */
-    min-height: 350px;
+    min-height: 220px;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -2965,9 +2965,9 @@ body { font-size: 16px; }
 }
 .strategy-keyaspect-body {
     font-family: var(--font-body);
-    font-size: 1.2em;
+    font-size: 1.3em;
     color: var(--ink);
-    line-height: 1.5;
+    line-height: 1.45;
     margin: 0;
 }
 .strategy-lockup-graphic {
