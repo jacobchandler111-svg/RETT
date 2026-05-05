@@ -176,28 +176,11 @@
     // were placeholder copy. Will be re-introduced once final phrasing
     // is decided.
 
-    // Engagement note about duration: spell out whether the engine
-    // extended past the 18-month minimum so the seller understands
-    // when they will see the cash.
-    var durNote;
-    if (entry.type === 'C') {
-      if (dur > 18) {
-        durNote = '<strong>Sale term:</strong> ' + dur + ' months. The engine extended past the 18-month minimum because a longer term yielded the highest projected net for this transaction size. Recognition starts in Year ' + (recYr || 2) + ' (' + (year1 + (recYr || 2) - 1) + ').';
-      } else {
-        durNote = '<strong>Sale term:</strong> 18 months (the regulatory minimum). The engine did not need to extend &mdash; an 18-month structured sale was sufficient. Recognition starts in Year ' + (recYr || 2) + ' (' + (year1 + (recYr || 2) - 1) + ').';
-      }
-    } else if (entry.type === 'B') {
-      durNote = '<strong>Closing date:</strong> January 1, ' + (year1 + 1) + '. The seller defers the close into the next tax year so the entire gain hits Year 2, giving Brooklyn a full Year-1 to stockpile losses against it.';
-    } else {
-      durNote = '<strong>Closing date:</strong> ' + (currentCfg.implementationDate || (year1 + '-09-15')) + '. Sale proceeds receive their tax treatment in the current calendar year.';
-    }
-
     var html = '';
 
     // Top intro band
     html += '<div class="forward-intro">' +
       '<h1>Moving Forward With Brookhaven</h1>' +
-      '<p>The setup pays for itself many times over in tax savings. Below is the full breakdown of <em>' + _stratName(entry.type) + '</em> &mdash; what you pay (Brooklyn position fees + Brookhaven planning fees) and what it returns.</p>' +
     '</div>';
 
     // Optimizer callout — only shown when a dial-back improves the plan.
@@ -268,18 +251,17 @@
     html += '<div class="forward-walkaway">' +
       '<div class="walkaway-head">' +
         '<h2>Return on Planning</h2>' +
-        '<p class="walkaway-sub">What you walk away with from the sale, before vs. after planning.</p>' +
       '</div>' +
       '<div class="walkaway-grid">' +
         '<div class="walkaway-side noplan">' +
           '<div class="walkaway-label">No Planning</div>' +
           '<div class="walkaway-amt">' + _fmt(walkawayNoPlanning) + '</div>' +
-          '<div class="walkaway-detail">Sale proceeds &minus; tax (do nothing)</div>' +
+          '<div class="walkaway-tagline">what you walk away with</div>' +
         '</div>' +
         '<div class="walkaway-side withplan">' +
           '<div class="walkaway-label">With Planning</div>' +
           '<div class="walkaway-amt">' + _fmt(walkawayWithPlanning) + '</div>' +
-          '<div class="walkaway-detail">Sale proceeds &minus; tax (strategy) + supplemental benefit</div>' +
+          '<div class="walkaway-tagline">what you walk away with</div>' +
         '</div>' +
       '</div>' +
     '</div>';
@@ -290,12 +272,10 @@
         '<div class="compare-side savings">' +
           '<div class="compare-label">You Save</div>' +
           '<div class="compare-amt"><span class="currency">$</span>' + Math.round(savings).toLocaleString('en-US') + '</div>' +
-          '<div class="compare-detail">Total projected tax savings vs. doing nothing</div>' +
         '</div>' +
         '<div class="compare-side cost">' +
           '<div class="compare-label">Total Fees</div>' +
           '<div class="compare-amt"><span class="currency">$</span>' + Math.round(fees).toLocaleString('en-US') + '</div>' +
-          '<div class="compare-detail">Brooklyn position + Brookhaven planning</div>' +
         '</div>' +
       '</div>' +
       '<div class="compare-net">' +
@@ -322,24 +302,10 @@
       '</div>' +
     '</div>';
 
-    // ============ Engagement Notes (advisor reference) ============
-    html += '<div class="input-section">' +
-      '<div class="section-heading">' +
-        '<h2>Engagement Notes</h2>' +
-        '<span class="num">REFERENCE</span>' +
-      '</div>' +
-      '<div class="section-body" style="font-size:13px;line-height:1.6;color:var(--ink-soft);">' +
-        '<p style="margin-bottom:10px;">' + durNote + '</p>' +
-        '<p style="margin-bottom:10px;"><strong>Horizon:</strong> ' + horizon + ' years. The dollar figures above are <em>cumulative across the full horizon</em> &mdash; not single-year. The Page-1 baseline shows the single-year do-nothing tax; this page shows the multi-year sum so fees and savings are on the same time scale.</p>' +
-        '<p style="margin-bottom:10px;"><strong>Total losses generated (' + horizon + '-yr):</strong> ' +
-          (opt && opt.dialBack
-            ? _fmt(Math.round((entry.loss || 0) * optScale)) + ' (optimizer-scaled; full-capital projection would generate ' + _fmt(entry.loss || 0) + ')'
-            : _fmt(entry.loss || 0)) +
-          '. Brooklyn produces these year-by-year; only the recognition year(s) actually need the offset.</p>' +
-        '<p style="margin-bottom:10px;"><strong>Do-nothing tax baseline (' + horizon + '-yr):</strong> ' + _fmt(m.doNothing || 0) + '. This is what the client would owe with no planning across the full horizon.</p>' +
-        '<p style="margin-bottom:10px;"><strong>Tax with strategy (' + horizon + '-yr):</strong> ' + _fmt(m.tax || 0) + '. Difference is the projected savings.</p>' +
-      '</div>' +
-    '</div>';
+    // Engagement Notes section removed per advisor spec — the
+    // information lives in the Implementation panel (audit) and on
+    // Page 1 already; no need to repeat it on the client-facing
+    // summary.
 
     // Implementation panel — hidden by default, expand via the small
     // triangle on the trailing dash. Advisor-only audit view: shows

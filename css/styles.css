@@ -3674,14 +3674,18 @@ body { font-size: 16px; }
     letter-spacing: -0.02em;
     margin-bottom: 8px;
 }
+.walkaway-side.noplan .walkaway-amt {
+    color: #c0392b;
+}
 .walkaway-side.withplan .walkaway-amt {
     color: var(--green);
 }
-.walkaway-detail {
+.walkaway-tagline {
     font-family: var(--font-body);
-    font-size: 0.85em;
+    font-size: 0.95em;
     color: var(--ink-soft);
     line-height: 1.4;
+    font-style: italic;
 }
 @media (max-width: 720px) {
     .walkaway-grid { grid-template-columns: 1fr; }
@@ -3855,7 +3859,7 @@ body { font-size: 16px; }
     line-height: 1;
     letter-spacing: -0.02em;
 }
-.compare-side.cost .compare-amt { color: var(--ink); }
+.compare-side.cost .compare-amt { color: var(--bh-blue); }
 .compare-side.savings .compare-amt { color: var(--green); }
 .compare-side .compare-amt .currency {
     font-size: 22px;
@@ -3864,6 +3868,7 @@ body { font-size: 16px; }
     margin-right: 1px;
     color: var(--muted);
 }
+.compare-side.cost .compare-amt .currency { color: var(--bh-blue); }
 .compare-side.savings .compare-amt .currency { color: var(--green-soft); }
 .compare-side .compare-detail {
     font-size: 12px;
@@ -3879,31 +3884,38 @@ body { font-size: 16px; }
 }
 .compare-net {
     background: var(--paper-cool);
-    padding: 18px 24px;
+    padding: 32px 24px 40px;
     border-top: 1px solid var(--rule);
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
     align-items: center;
+    text-align: center;
 }
 .compare-net .net-label {
-    font-family: var(--font-display);
-    font-style: italic;
-    font-size: 16px;
-    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+    margin-bottom: 12px;
 }
 .compare-net .net-amt {
     font-family: var(--font-display);
-    font-size: 26px;
+    font-style: italic;
     font-weight: 500;
+    font-size: 64px;
+    line-height: 1.05;
     color: var(--green);
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
 }
 .compare-net .net-amt .currency {
-    font-size: 16px;
+    font-size: 36px;
     color: var(--green-soft);
     vertical-align: top;
     line-height: 1.4;
-    margin-right: 1px;
+    margin-right: 2px;
 }
 
 /* Bar viz */
