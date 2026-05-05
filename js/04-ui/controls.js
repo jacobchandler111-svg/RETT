@@ -961,6 +961,45 @@ function bindControls() {
     syncPayment();
   }
 
+  // Future Appreciated Asset Sale (Section 07): the Yes/No question
+  // toggles the conditional fields group, and the LT-gain readout
+  // mirrors the existing computed-gain pattern (sale - basis - depr,
+  // floored at 0). The optimizer reads cfg.futureSale to decide how
+  // much of the current Brooklyn position should generate carryforward
+  // for that future gain — when "no", excess loss is wasted, so the
+  // solver should pull Brooklyn back. Wiring is purely UI here; the
+  // engine consumes the data via inputs-collector.
+  var futureYesNoEl   = document.getElementById('future-sale-yes-no');
+  var futureGroupEl   = document.getElementById('future-sale-fields-group');
+  var futureSaleEl    = document.getElementById('future-sale-price');
+  var futureBasisEl   = document.getElementById('future-cost-basis');
+  var futureDeprEl    = document.getElementById('future-accelerated-depreciation');
+  var futureGainEl    = document.getElementById('future-long-term-gain');
+  if (futureYesNoEl && futureGroupEl) {
+    var syncFutureGroup = function () {
+      futureGroupEl.hidden = (futureYesNoEl.value !== 'yes');
+    };
+    futureYesNoEl.addEventListener('change', syncFutureGroup);
+    futureYesNoEl.addEventListener('input',  syncFutureGroup);
+    syncFutureGroup();
+  }
+  if (futureSaleEl && futureBasisEl && futureDeprEl && futureGainEl) {
+    var recomputeFutureGain = function () {
+      var sp = parseUSD(futureSaleEl.value)  || 0;
+      var cb = parseUSD(futureBasisEl.value) || 0;
+      var ad = parseUSD(futureDeprEl.value)  || 0;
+      var lt = Math.max(0, sp - cb - ad);
+      futureGainEl.value = (typeof fmtUSD === 'function')
+        ? fmtUSD(lt)
+        : '$' + Math.round(lt).toLocaleString('en-US');
+    };
+    [futureSaleEl, futureBasisEl, futureDeprEl].forEach(function (el) {
+      el.addEventListener('input',  recomputeFutureGain);
+      el.addEventListener('change', recomputeFutureGain);
+    });
+    recomputeFutureGain();
+  }
+
   // Strategy-selection page (between Inputs and Projection): three
   // cards, each with Interested / Not Interested. Currently NOT wired
   // to the engine — purely a presenter aid. The Continue button

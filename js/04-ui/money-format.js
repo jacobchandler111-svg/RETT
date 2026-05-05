@@ -19,7 +19,9 @@
     'dividend-income', 'retirement-distributions',
     'sale-price', 'cost-basis', 'accelerated-depreciation',
     'short-term-gain', 'withhold-amount', 'available-capital',
-    'payment-on-sale-date'
+    'payment-on-sale-date',
+    // Future Appreciated Asset Sale (Section 07).
+    'future-sale-price', 'future-cost-basis', 'future-accelerated-depreciation'
   ];
 
   // Fields where negative values are nonsensical (W-2 / SE / dividend /
@@ -39,7 +41,8 @@
     'sale-price': 1, 'cost-basis': 1, 'accelerated-depreciation': 1,
     'short-term-gain': 1,
     'withhold-amount': 1, 'available-capital': 1,
-    'payment-on-sale-date': 1
+    'payment-on-sale-date': 1,
+    'future-sale-price': 1, 'future-cost-basis': 1, 'future-accelerated-depreciation': 1
   };
 
   function _toNum(s) {

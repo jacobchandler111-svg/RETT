@@ -141,6 +141,27 @@ function collectInputs() {
                 // _recomputeAvailableCapital — the cfg field below just
                 // surfaces the toggle to the engine for future use.
                 coverTaxesFromSale: (_val('cover-taxes-yes-no') === 'yes'),
+                // Future Appreciated Asset Sale (Page 1 Section 07).
+                // When enabled, the optimizer can let loss carryforward
+                // roll forward to absorb futureSale.longTermGain instead
+                // of being capped at the $3K/yr §1211(b) trickle. When
+                // disabled, the solver should pull Brooklyn back to avoid
+                // generating loss the client can't deploy.
+                futureSale: (function () {
+                  var enabled = (_val('future-sale-yes-no') === 'yes');
+                  if (!enabled) return { enabled: false };
+                  var sp = parseUSD(_val('future-sale-price'))  || 0;
+                  var cb = parseUSD(_val('future-cost-basis')) || 0;
+                  var ad = parseUSD(_val('future-accelerated-depreciation')) || 0;
+                  return {
+                    enabled:                  true,
+                    saleDate:                 _val('future-sale-date') || '',
+                    salePrice:                Math.max(0, sp),
+                    costBasis:                Math.max(0, cb),
+                    acceleratedDepreciation:  Math.max(0, ad),
+                    longTermGain:             Math.max(0, sp - cb - ad)
+                  };
+                })(),
                 // Scenario-comparison override: when the user clicked the
                 // "Delay close to Jan 1 next year" row, we stash the
                 // year-index cap on window so the engine forces gain to

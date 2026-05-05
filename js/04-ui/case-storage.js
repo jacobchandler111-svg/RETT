@@ -44,6 +44,10 @@
     'sale-price', 'cost-basis', 'accelerated-depreciation', 'short-term-gain',
     // Page 1: Sale Proceeds questions (drive Available Capital)
     'withhold-yes-no', 'withhold-amount', 'cover-taxes-yes-no',
+    // Page 1: Future Appreciated Asset Sale (drives the optimizer's
+    // decision on whether to let loss carryforward roll forward).
+    'future-sale-yes-no', 'future-sale-date', 'future-sale-price',
+    'future-cost-basis', 'future-accelerated-depreciation',
     // Page 1: Implementation
     'implementation-date', 'strategy-implementation-date',
     'structured-sale-duration-months',
