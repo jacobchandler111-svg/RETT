@@ -797,6 +797,15 @@ function computeDeferredTaxComparison(cfg) {
             // the basis position keeps generating losses every year using
             // the year-2, year-3, ... rates of the lossByYear curve while
             // newer tranches start at the year-1 rate.
+            //
+            // FEE TIME-WEIGHTING: the basis tranche opens at the user's
+            // implementation date (mid-year for most clients) and only
+            // operates `yfImpl` of Y1. Brooklyn's fee is QUOTED ANNUAL,
+            // so charging the full annual rate for ~2 months of operation
+            // overstates Y1 fees by 1/yfImpl (a 6× overcharge on a Nov 1
+            // sale). The basis tranche gets the partial-year fee in Y1
+            // and full-year fees thereafter; gain-reinvest tranches that
+            // open Jan 1 of year R always get full-year fees from R on.
             let existingLoss = 0;
             let existingFee = 0;
             let existingInvested = 0;
@@ -804,7 +813,11 @@ function computeDeferredTaxComparison(cfg) {
                   const trancheAge = i - t.startIdx;
                   if (trancheAge < 0) return;
                   existingLoss += t.capital * lossRateForTrancheYear(trancheAge);
-                  existingFee += t.capital * feeRate;
+                  // Partial-year fee only for the basis tranche's first
+                  // year (startIdx=0, trancheAge=0). Everything else is
+                  // a full year of operation.
+                  const _trancheYf = (t.startIdx === 0 && trancheAge === 0) ? _yfTranche : 1;
+                  existingFee += t.capital * feeRate * _trancheYf;
                   existingInvested += t.capital;
             });
 

@@ -132,14 +132,21 @@ const ProjectionEngine = {
       // Fee uses the unified regression (fee-split.js) for all paths,
       // including Schwab combos. The combo's published feeRate is
       // intentionally bypassed; see fees.js docstring. Charged every
-      // year the position is open.
+      // year the position is open. Y1 is partial-year for any sale
+      // that closes after Jan 1 — the position only operates yfImpl
+      // of the calendar year, so the annual fee must be pro-rated.
+      // Without this, a Nov 1 sale was being charged 12 months of
+      // Brooklyn fee for ~2 months of operation (a 6× overcharge).
+      const _yfImplPE = (i === 0 && typeof yearFractionRemaining === 'function' && cfg.implementationDate)
+        ? yearFractionRemaining(cfg.implementationDate)
+        : 1;
       let fee = 0;
       if (_schwabCombo && typeof window.brooklynFeeRateFor === 'function') {
-        fee = cfg.investment * window.brooklynFeeRateFor(_schwabCombo.longPct, _schwabCombo.shortPct);
+        fee = cfg.investment * window.brooklynFeeRateFor(_schwabCombo.longPct, _schwabCombo.shortPct) * _yfImplPE;
       } else if (_schwabCombo) {
-        fee = cfg.investment * (_schwabCombo.feeRate || 0);
+        fee = cfg.investment * (_schwabCombo.feeRate || 0) * _yfImplPE;
       } else {
-        fee = brooklynFee(cfg.tierKey, cfg.leverage, cfg.investment);
+        fee = brooklynFee(cfg.tierKey, cfg.leverage, cfg.investment) * _yfImplPE;
       }
 
                         // All losses are short-term.
