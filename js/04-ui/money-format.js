@@ -26,10 +26,13 @@
   // _safeIncome clamp, but displaying a negative in the field misleads
   // the user into thinking the value was accepted as-is. Reject at
   // format time so the visible value matches what the engine uses.
+  // accelerated-depreciation explicitly flagged here per P2-6 — prior
+  // version let -$500,000 flow through and produce nonsense tax.
   var NON_NEGATIVE_IDS = {
     'w2-wages': 1, 'se-income': 1, 'biz-revenue': 1, 'rental-income': 1,
     'dividend-income': 1, 'retirement-distributions': 1,
     'sale-price': 1, 'cost-basis': 1, 'accelerated-depreciation': 1,
+    'short-term-gain': 1,
     'withhold-amount': 1, 'available-capital': 1
   };
 

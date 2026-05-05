@@ -50,6 +50,30 @@ const _STATE_LTCG_PREFERENTIAL = new Set(['HI','NM','WI','AR','MT','SC','AL','VT
 
 function computeStateTax(income, year, stateCode, status, opts) {
           if (!stateCode || stateCode === 'NONE') return 0;
+          // P2-7: when a state code isn't in the data file at all (typo
+          // in saved case, future state added without code update), log
+          // once and return 0 rather than silently falling back. The
+          // user sees nothing on screen but at least the dev console
+          // surfaces the data gap.
+          if (typeof TAX_DATA !== 'undefined' && TAX_DATA && TAX_DATA.states &&
+              !getStateNode(year, stateCode)) {
+                  try {
+                          if (typeof window !== 'undefined') {
+                                  var k = '__rettBadStateWarned';
+                                  window[k] = window[k] || {};
+                                  var key = stateCode + ':' + year;
+                                  if (!window[k][key]) {
+                                          window[k][key] = true;
+                                          if (typeof console !== 'undefined' && console.warn) {
+                                                  console.warn('[tax-calc-state] No data node for state ' +
+                                                          stateCode + ' in year ' + year +
+                                                          ' — returning $0. Verify state code in saved case.');
+                                          }
+                                  }
+                          }
+                  } catch (e) { /* */ }
+                  return 0;
+          }
           opts = opts || {};
           const lt = Math.max(0, Number(opts.longTermGain) || 0);
           const st = Math.max(0, Number(opts.shortTermGain) || 0);

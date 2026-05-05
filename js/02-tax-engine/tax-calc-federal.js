@@ -150,6 +150,44 @@ function computeFederalTax(ordinaryIncome, year, status, opts) {
 //           lossOrdOffsetApplied, lossCarryforward, total }.
 function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       opts = opts || {};
+      // P2-7: surface unsupported year / filing status instead of
+      // silently falling through to baseYear or 'single'. Logs once
+      // per session per (year, status) combo so a typo in a saved
+      // case doesn't spam the console while the user is editing.
+      if (!isFilingStatusValid(status) && fsKey(status) === status) {
+            // fsKey returns the raw input when no canonical mapping
+            // exists. Treating that as "single" is what the prior
+            // engine did — call it out so we can fix saved data.
+            try {
+                  if (typeof window !== 'undefined' &&
+                      !(window.__rettBadStatusWarned = window.__rettBadStatusWarned || {})[String(status)]) {
+                          window.__rettBadStatusWarned[String(status)] = true;
+                          if (typeof console !== 'undefined' && console.warn) {
+                                console.warn('[tax-calc-federal] Unsupported filing status "' + status + '" — falling back to single. Valid: ' + TAX_FILING_STATUSES.join(', '));
+                          }
+                  }
+            } catch (e) { /* */ }
+      }
+      if (typeof TAX_DATA !== 'undefined' && TAX_DATA && TAX_DATA.years && TAX_DATA.years.length &&
+          TAX_DATA.years.indexOf(Number(year)) === -1) {
+            try {
+                  var yKey = '__rettBadYearWarned';
+                  if (typeof window !== 'undefined') {
+                        window[yKey] = window[yKey] || {};
+                        if (!window[yKey][String(year)]) {
+                              window[yKey][String(year)] = true;
+                              if (typeof console !== 'undefined' && console.warn) {
+                                    console.warn('[tax-calc-federal] Year ' + year +
+                                        ' is outside the published bracket data ' +
+                                        '(' + TAX_DATA.years.join(', ') +
+                                        '). Projecting from baseYear ' + TAX_DATA.baseYear +
+                                        ' at ' + (TAX_DATA.inflationRate * 100).toFixed(1) +
+                                        '%/yr — the further out, the more speculative.');
+                              }
+                        }
+                  }
+            } catch (e) { /* */ }
+      }
       // Issue #56: alias common synonyms so a downstream rename (e.g.
       // ltcg vs longTermGain) doesn't silently zero out tens of
       // thousands of dollars of tax.

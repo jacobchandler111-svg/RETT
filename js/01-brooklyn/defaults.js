@@ -71,6 +71,48 @@ window.RETT_DEFAULTS = {
       if (typeof window.renderBaselineTable === 'function') {
         try { window.renderBaselineTable(); } catch (e) { /* */ }
       }
+      // P4-3: dynamically populate the Tax Year dropdown from the
+      // bracket data's published years instead of hardcoding 2025/2026
+      // in HTML. When 2027 IRS adjustments land in data/taxBrackets.json
+      // the dropdown picks them up automatically with no code change.
+      try {
+        var sel = document.getElementById('year1');
+        if (sel && window.TAX_DATA && Array.isArray(window.TAX_DATA.years) && window.TAX_DATA.years.length) {
+          var prevSelected = sel.value;
+          var prevDefault = '';
+          for (var i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].defaultSelected) prevDefault = sel.options[i].value;
+          }
+          // Sort newest-first so the most recent year is the first option.
+          var years = window.TAX_DATA.years.slice().sort(function (a, b) { return b - a; });
+          // Only repopulate if the actual set differs — avoids a
+          // visible flicker on every page load when nothing changed.
+          var current = Array.from(sel.options).map(function (o) { return Number(o.value); });
+          var same = years.length === current.length &&
+                     years.every(function (y, idx) { return y === current[idx]; });
+          if (!same) {
+            sel.innerHTML = '';
+            years.forEach(function (y, idx) {
+              var opt = document.createElement('option');
+              opt.value = String(y);
+              opt.textContent = String(y);
+              if (String(y) === prevSelected) opt.selected = true;
+              else if (!prevSelected && idx === 0) {
+                opt.selected = true;
+                opt.defaultSelected = true;
+              } else if (String(y) === prevDefault) {
+                opt.defaultSelected = true;
+              }
+              sel.appendChild(opt);
+            });
+            // Re-render baseline so the year tag reflects whatever
+            // option ended up selected.
+            if (typeof window.renderBaselineTable === 'function') {
+              try { window.renderBaselineTable(); } catch (e) { /* */ }
+            }
+          }
+        }
+      } catch (e) { /* non-fatal */ }
     }).catch(notifyFailure);
   } catch (e) {
     notifyFailure(e);

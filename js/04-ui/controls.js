@@ -151,8 +151,30 @@ function _bindCaseControls() {
   //     character and keep typing, we wait for blur or 2+ chars.
   var nameInput = document.getElementById('case-name-input');
   if (nameInput) {
+    // P3-1: client-name sanitization. Strip anything outside the
+    // allowed character set before the value flows into localStorage
+    // keys, dropdown <option> labels, and the "Saved as ..." status
+    // line. Whitelist: letters, digits, spaces, comma/period/apostrophe/
+    // hyphen, capped at 80 chars. The HTML maxlength=80 is a hint;
+    // this is the enforcement layer that runs on every keystroke and
+    // again on blur. Renders via textContent everywhere so even if
+    // a cleverly-encoded value slipped through, it would not execute.
+    function _sanitizeClientName(raw) {
+      if (raw == null) return '';
+      var s = String(raw);
+      try { s = s.normalize('NFKC'); } catch (e) { /* */ }
+      s = s.replace(/[^A-Za-z0-9 ,.'\-]/g, '');
+      // Collapse runs of spaces and trim — names like "  John   Smith  "
+      // normalize cleanly.
+      s = s.replace(/\s+/g, ' ').trim();
+      if (s.length > 80) s = s.slice(0, 80);
+      return s;
+    }
     function _processName(committed) {
-      var typed = (nameInput.value || '').trim();
+      // Sanitize FIRST so the saved key matches the visible value.
+      var clean = _sanitizeClientName(nameInput.value);
+      if (clean !== nameInput.value) nameInput.value = clean;
+      var typed = clean;
       var current = store.getCurrentCaseName();
       if (!typed) {
         if (current) {

@@ -38,12 +38,43 @@ function fmtSignedUSD(n, opts) {
   return formatted;
 }
 
+// Hard cap on dollar-amount inputs. A two-digit typo (e.g. "$1,000,000"
+// → "$10,000,000,000" by accidentally appending zeros) can otherwise
+// propagate $1B+ figures into projections that produce $607T tax bills
+// and no warning. $1B is well above any realistic single client's
+// taxable transaction; values past it are clipped + flagged. (P2-4.)
+const RETT_USD_CAP = 1e9;
+
 function parseUSD(s) {
   if (s == null) return 0;
-  if (typeof s === 'number') return s;
-  const cleaned = String(s).replace(/[^0-9.\-]/g, '');
+  if (typeof s === 'number') {
+    if (!isFinite(s)) return 0;
+    if (s >  RETT_USD_CAP) return RETT_USD_CAP;
+    if (s < -RETT_USD_CAP) return -RETT_USD_CAP;
+    return s;
+  }
+  // Normalize Unicode so full-width digits ("１００００"), Arabic
+  // numerals, and superscripts collapse to ASCII before parsing.
+  // Without this, "１００００" stripped to "" and parsed as 0. (P2-3.)
+  let raw;
+  try {
+    raw = String(s).normalize('NFKC');
+  } catch (e) {
+    raw = String(s);
+  }
+  // Strip whitespace + dollar signs + commas. Keep digits, dot, minus,
+  // 'e'/'E' for scientific notation, and '+' for positive exponents.
+  const cleaned = raw.replace(/[^0-9.\-eE+]/g, '');
+  if (cleaned === '' || cleaned === '-' || cleaned === '.') return 0;
+  // parseFloat happily accepts "1e9" — that's a real concern when a
+  // user types "1e9" thinking it'll be flagged but ends up as
+  // $1,000,000,000. We allow it for power users (it's a valid number)
+  // but apply the global cap below so a typo can't run away. (P2-1.)
   const n = parseFloat(cleaned);
-  return isNaN(n) ? 0 : n;
+  if (!isFinite(n)) return 0;
+  if (n >  RETT_USD_CAP) return RETT_USD_CAP;
+  if (n < -RETT_USD_CAP) return -RETT_USD_CAP;
+  return n;
 }
 
 function parsePct(s) {
