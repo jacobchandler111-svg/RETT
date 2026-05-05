@@ -2885,12 +2885,14 @@ body { font-size: 16px; }
    and ONE lockup graphic (icon + value + subtext) so the visual
    hierarchy stays calm and presentation-readable. */
 .strategy-keyaspect {
-    margin-top: 6px;
-    padding: 18px 20px;
+    margin-top: 14px;
+    padding: 20px 22px;
     background: var(--paper-warm);
     border: 1px solid var(--rule-soft);
     border-radius: 2px;
-    min-height: 180px;
+    /* Sized to absorb the longest body copy (Seller Finance) so all
+       three keyaspect blocks align horizontally across the three cards. */
+    min-height: 230px;
 }
 .strategy-keyaspect-label {
     font-family: var(--font-mono);
@@ -2918,6 +2920,9 @@ body { font-size: 16px; }
     background: var(--paper);
     border: 1px solid var(--rule);
     border-radius: 2px;
+    /* Keep all three lockup blocks the same height regardless of how
+       the sub text wraps at narrow viewports. */
+    min-height: 150px;
 }
 .strategy-lockup-icon {
     width: 56px;
