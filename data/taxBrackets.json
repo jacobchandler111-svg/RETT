@@ -489,6 +489,10 @@
         "standardDeduction": {
           "single": 2340,
           "married_joint": 4680
+        },
+        "stateLtcg": {
+          "exclusionPct": 0.5,
+          "_source": "Ark Code section 26-51-815 \u2014 50% exemption of net capital gains (Capital Gains Tax Reduction Act of 2015, effective 2016). Additional 100% exemption above $10M not modeled. FindLaw codes/ar/title-26-taxation/ar-code-sect-26-51-815 (verified 2026-05-05)."
         }
       },
       "CA": {
@@ -867,6 +871,10 @@
         "standardDeduction": {
           "single": 2200,
           "married_joint": 4400
+        },
+        "stateLtcg": {
+          "rate": 0.0725,
+          "_source": "HRS section 235-51(f) \u2014 alternative tax rate of 7.25% on net capital gains. For high-income clients (ordinary marginal would be 11%) this IS the effective rate. Justia codes/hawaii/title-14/chapter-235/section-235-51 (verified 2026-05-05)."
         }
       },
       "ID": {
@@ -1398,6 +1406,10 @@
         "standardDeduction": {
           "single": 14600,
           "married_joint": 29200
+        },
+        "stateLtcg": {
+          "rate": 0.041,
+          "_source": "MCA section 15-30-2103 (per HB-337) \u2014 separate LTCG brackets: 3.0% on first ~$95K (MFJ), 4.1% above. For high-income clients virtually all LT gain hits the 4.1% bracket. revenue.mt.gov/news/recent-news/HB-337 (verified 2026-05-05)."
         }
       },
       "NE": {
@@ -1574,6 +1586,10 @@
         "standardDeduction": {
           "single": 14600,
           "married_joint": 29200
+        },
+        "stateLtcg": {
+          "flatExclusion": 2500,
+          "_source": "NMSA section 7-2-34 (effective 2025) \u2014 net capital gains deduction capped at $2,500 for non-business sales. 40% of up to $1M only applies to sale of a NM-allocated business; not modeled (narrow case). Justia codes/new-mexico/chapter-7/article-2/section-7-2-34 (verified 2026-05-05)."
         }
       },
       "NY": {
@@ -1944,6 +1960,10 @@
         "standardDeduction": {
           "single": 14600,
           "married_joint": 29200
+        },
+        "stateLtcg": {
+          "exclusionPct": 0.44,
+          "_source": "SC Code section 12-6-1150 \u2014 44% deduction from net capital gain (held >1 year). SC DOR Policy Manual SCTIED-2025-Chapter-3.pdf and Justia codes/south-carolina/title-12/chapter-6/section-12-6-1150 (verified 2026-05-05)."
         }
       },
       "SD": {
@@ -2167,6 +2187,10 @@
         "standardDeduction": {
           "single": 12760,
           "married_joint": 23620
+        },
+        "stateLtcg": {
+          "exclusionPct": 0.3,
+          "_source": "Wis Stat section 71.05(6)(b)9 \u2014 30% deduction on net long-term capital gains (held >1 year). 60% farm-asset exception not modeled. WI DOR Pub 103 and Justia codes/wisconsin/chapter-71/section-71-05 (verified 2026-05-05)."
         }
       },
       "WY": {
@@ -2337,6 +2361,10 @@
         "standardDeduction": {
           "single": 2340,
           "married_joint": 4680
+        },
+        "stateLtcg": {
+          "exclusionPct": 0.5,
+          "_source": "Ark Code section 26-51-815 \u2014 50% exemption of net capital gains (Capital Gains Tax Reduction Act of 2015, effective 2016). Additional 100% exemption above $10M not modeled. FindLaw codes/ar/title-26-taxation/ar-code-sect-26-51-815 (verified 2026-05-05)."
         }
       },
       "CA": {
@@ -2714,6 +2742,10 @@
         "standardDeduction": {
           "single": 2200,
           "married_joint": 4400
+        },
+        "stateLtcg": {
+          "rate": 0.0725,
+          "_source": "HRS section 235-51(f) \u2014 alternative tax rate of 7.25% on net capital gains. For high-income clients (ordinary marginal would be 11%) this IS the effective rate. Justia codes/hawaii/title-14/chapter-235/section-235-51 (verified 2026-05-05)."
         }
       },
       "ID": {
@@ -3242,6 +3274,10 @@
         "standardDeduction": {
           "single": 15000,
           "married_joint": 30000
+        },
+        "stateLtcg": {
+          "rate": 0.041,
+          "_source": "MCA section 15-30-2103 (per HB-337) \u2014 separate LTCG brackets: 3.0% on first ~$95K (MFJ), 4.1% above. For high-income clients virtually all LT gain hits the 4.1% bracket. revenue.mt.gov/news/recent-news/HB-337 (verified 2026-05-05)."
         }
       },
       "NE": {
@@ -3416,6 +3452,10 @@
         "standardDeduction": {
           "single": 15000,
           "married_joint": 30000
+        },
+        "stateLtcg": {
+          "flatExclusion": 2500,
+          "_source": "NMSA section 7-2-34 (effective 2025) \u2014 net capital gains deduction capped at $2,500 for non-business sales. 40% of up to $1M only applies to sale of a NM-allocated business; not modeled (narrow case). Justia codes/new-mexico/chapter-7/article-2/section-7-2-34 (verified 2026-05-05)."
         }
       },
       "NY": {
@@ -3785,6 +3825,10 @@
         "standardDeduction": {
           "single": 15000,
           "married_joint": 30000
+        },
+        "stateLtcg": {
+          "exclusionPct": 0.44,
+          "_source": "SC Code section 12-6-1150 \u2014 44% deduction from net capital gain (held >1 year). SC DOR Policy Manual SCTIED-2025-Chapter-3.pdf and Justia codes/south-carolina/title-12/chapter-6/section-12-6-1150 (verified 2026-05-05)."
         }
       },
       "SD": {
@@ -4006,6 +4050,10 @@
         "standardDeduction": {
           "single": 13170,
           "married_joint": 24380
+        },
+        "stateLtcg": {
+          "exclusionPct": 0.3,
+          "_source": "Wis Stat section 71.05(6)(b)9 \u2014 30% deduction on net long-term capital gains (held >1 year). 60% farm-asset exception not modeled. WI DOR Pub 103 and Justia codes/wisconsin/chapter-71/section-71-05 (verified 2026-05-05)."
         }
       },
       "WY": {

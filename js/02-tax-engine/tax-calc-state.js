@@ -46,7 +46,17 @@ function _flatBracketTaxState(amount, brackets) {
 // the TODO log fires once per session per state instead of on every
 // keystroke as the user types.
 const _stateLtcgTodoWarned = (typeof window !== 'undefined') ? (window.__rettStateLtcgWarned = window.__rettStateLtcgWarned || {}) : {};
-const _STATE_LTCG_PREFERENTIAL = new Set(['HI','NM','WI','AR','MT','SC','AL','VT','NJ']);
+// States that have any kind of LTCG-specific preferential treatment.
+// When the state's data node lacks stateLtcg metadata, the engine logs a
+// once-per-session TODO so the missing rate surfaces in the audit. AL was
+// removed 2026-05-05 after research confirmed Alabama has NO LTCG
+// preferential treatment — capital gains are taxed as ordinary income at
+// the standard 2-5% brackets. VT remains on the list (40% exclusion exists
+// but the engine schema can't cleanly express VT's multi-cap rule yet —
+// $350K cap on excluded amount + asset-class exclusions for residences,
+// public stocks, depreciable property — so it falls back to ordinary
+// treatment, conservative-high baseline, with a TODO).
+const _STATE_LTCG_PREFERENTIAL = new Set(['HI','NM','WI','AR','MT','SC','VT','NJ']);
 
 function computeStateTax(income, year, stateCode, status, opts) {
           if (!stateCode || stateCode === 'NONE') return 0;
