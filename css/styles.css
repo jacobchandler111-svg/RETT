@@ -3348,6 +3348,30 @@ body { font-size: 16px; }
    Details panel. Renders only for type === 'C'. The seller's real-world
    question is "when does the buyer's cash actually arrive?" — this
    table answers it date-by-date so the advisor can plan liquidity. */
+.rett-interested-payments-details {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--rule);
+}
+.rett-interested-payments-details > summary {
+    font-family: var(--font-body);
+    font-weight: 600;
+    color: var(--bh-blue-deep);
+    cursor: pointer;
+    list-style: none;
+    padding: 4px 0;
+    font-size: 0.92em;
+}
+.rett-interested-payments-details > summary::before {
+    content: "\25B8";
+    display: inline-block;
+    margin-right: 8px;
+    transition: transform 0.15s;
+}
+.rett-interested-payments-details[open] > summary::before {
+    transform: rotate(90deg);
+}
+.rett-interested-payments-details > summary::-webkit-details-marker { display: none; }
 .rett-interested-payments {
     margin-top: 16px;
     padding-top: 12px;

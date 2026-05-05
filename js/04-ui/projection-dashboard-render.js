@@ -1946,12 +1946,11 @@
     '</div>';
   }
 
-  // Build the visualizations object for a card. A and B show a centered
-  // donut inside Show Details; C drops the donut entirely so the
-  // accordion content is just the Payment Schedule (cash-arrival timing
-  // is the actual question for Structured Sale).
+  // Build the visualizations object for a card. All three cards show
+  // the centered donut inside Show Details; C additionally renders a
+  // nested "Show payment schedule" details element underneath the
+  // donut so the cash-arrival timing is one extra click away.
   function _buildVisuals(typeLabel, metrics, cfg, comp) {
-    if (typeLabel === 'C') return { donut: '' };
     return { donut: _saleOnlyDonutSvg(cfg, metrics, 'B') };
   }
 
@@ -1985,10 +1984,13 @@
       '<button type="button" class="rett-use-strategy-btn" data-use-strategy="' + typeLabel + '">' +
         (chosen ? '✓ Selected &mdash; continue to Supplemental' : 'Use This Strategy &rarr;') +
       '</button>';
-    var summaryLabel = (typeLabel === 'C') ? 'Show payment schedule' : 'Show details';
-    var detailsBody = (typeLabel === 'C')
-      ? (paymentScheduleHtml || '')
-      : ((visuals && visuals.donut) ? visuals.donut : '');
+    var donutHtml = (visuals && visuals.donut) ? visuals.donut : '';
+    var paymentNested = (typeLabel === 'C' && paymentScheduleHtml)
+      ? '<details class="rett-interested-payments-details">' +
+          '<summary>Show payment schedule</summary>' +
+          paymentScheduleHtml +
+        '</details>'
+      : '';
     return '<div class="' + cls + '" data-type="' + typeLabel + '">' +
       '<div class="rett-interested-header">' +
         '<span class="rett-interested-num">STRATEGY <span class="rett-interested-num-big">' + num + '</span></span>' +
@@ -2001,8 +2003,9 @@
         '<span class="rett-interested-lockup-value">' + lockupValue + '</span>' +
       '</div>' +
       '<details class="rett-interested-details">' +
-        '<summary>' + summaryLabel + '</summary>' +
-        detailsBody +
+        '<summary>Show details</summary>' +
+        donutHtml +
+        paymentNested +
       '</details>' +
       chooseBtn +
     '</div>';
