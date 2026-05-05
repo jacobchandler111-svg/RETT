@@ -5598,3 +5598,51 @@ body { font-size: 16px; }
 .print-mode .future-sale-option .fs-row.fs-total .fs-amt { font-size: 1.4em !important; }
 
 .print-mode #strategy-fee-summary-host > * { page-break-inside: avoid; }
+
+/* ===========================================================
+   Supplemental-extra placeholder + PMQ empty state
+   =========================================================== */
+.supp-details-note {
+    margin: 10px 0 0 0;
+    padding: 8px 12px;
+    font-family: var(--font-mono);
+    font-size: 0.78em;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    background: var(--paper-warm);
+    border-left: 2px solid var(--rule);
+    border-radius: 2px;
+}
+#supplemental-extra-host {
+    margin-top: 24px;
+}
+.pmq-question-host {
+    margin: 24px 0;
+}
+.pmq-empty {
+    background: var(--paper-warm);
+    border: 1px dashed var(--rule);
+    border-radius: 2px;
+    padding: 48px 32px;
+    text-align: center;
+    max-width: 560px;
+    margin: 0 auto;
+}
+.pmq-empty-icon {
+    font-size: 2.4em;
+    margin-bottom: 12px;
+    opacity: 0.5;
+}
+.pmq-empty-title {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 1.3em;
+    color: var(--ink);
+    margin: 0 0 6px 0;
+}
+.pmq-empty-sub {
+    color: var(--muted);
+    font-size: 0.95em;
+    line-height: 1.45;
+    margin: 0;
+}
