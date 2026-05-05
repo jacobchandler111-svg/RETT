@@ -323,8 +323,10 @@ function resetAllInputs(skipConfirm) {
   var narrative = document.getElementById('narrative-host');
   if (narrative) narrative.hidden = true;
   // Strategy-Selection earmarks clear so the next client's Projection
-  // page doesn't inherit the prior filter.
+  // page doesn't inherit the prior filter. The Page-3 "Use This
+  // Strategy" pick also clears so Page 4 doesn't render stale state.
   window.__rettStrategyInterest = { A: null, B: null, C: null };
+  window.__rettChosenStrategy = null;
   if (typeof _refreshStrategyPickCards === 'function') {
     try { _refreshStrategyPickCards(); } catch (e) { /* */ }
   }
@@ -806,6 +808,21 @@ function bindControls() {
         try { window.renderInterestedSnapshot(); } catch (e) { /* */ }
       }
     });
+  });
+
+  // Page 3 "Use This Strategy" button — sets window.__rettChosenStrategy
+  // and navigates to the Strategy Summary page, which renders ONLY the
+  // chosen strategy in the BrookHaven Moving-Forward layout. Wired via
+  // delegation on #interested-cards-host so it survives every
+  // renderInterestedSnapshot() rebuild.
+  var iHost = document.getElementById('interested-cards-host');
+  if (iHost) iHost.addEventListener('click', function (ev) {
+    var btn = ev.target && ev.target.closest && ev.target.closest('.rett-use-strategy-btn');
+    if (!btn) return;
+    var type = btn.getAttribute('data-use-strategy');
+    if (!type) return;
+    window.__rettChosenStrategy = type;
+    showPage('page-allocator');
   });
   var strategiesBack = document.getElementById('strategies-back');
   if (strategiesBack) strategiesBack.addEventListener('click', function () { showPage('page-inputs'); });

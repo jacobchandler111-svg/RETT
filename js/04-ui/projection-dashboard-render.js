@@ -904,12 +904,19 @@
   // maximizes net for this scenario type. Used both when a section is
   // first checked AND when the user clicks Revert on a section.
   function _autoPickSection(type, baseCfg) {
-    if (!baseCfg) return { horizon: 5, shortPct: 100, comboId: null, bestRecC: 2 };
+    if (!baseCfg) return { horizon: 5, shortPct: 100, comboId: null, bestRecC: 2, durationMonths: 18 };
     var stratKey = baseCfg.tierKey || 'beta1';
     var custId = baseCfg.custodian || '';
     var pcts = _candidateShortPctsLocal(stratKey, custId);
     var horizons = [1, 3, 5, 7];
-    var userDuration = baseCfg.structuredSaleDurationMonths || 18;
+    // Structured-sale duration: 18 months is the regulatory minimum.
+    // The engine sweeps across longer terms (in 6-month steps) and picks
+    // the one that maximizes net for the client — there's no fee or
+    // optimizer reason to lock at 18 if a longer term wins. Cap at 48
+    // because past 4 years the recognitionSchedule starts to fall
+    // outside the projection horizon and the optimizer stops gaining.
+    var durationsC = [18, 24, 30, 36, 42, 48];
+    var userDurationFallback = baseCfg.structuredSaleDurationMonths || 18;
     var best = null;
     horizons.forEach(function (hor) {
       // Scenario C still needs horizon >= 2 (deferred recognition starts
@@ -926,28 +933,41 @@
           leverageCap: p.shortPct / 100,
           comboId: p.comboId
         });
-        // For scenario C, also find the best recognition year.
-        var pickRec = 2;
         if (type === 'C') {
-          var bestRecNet = -Infinity;
-          for (var r = 2; r <= Math.min(4, hor); r++) {
-            var cfgR = Object.assign({}, cfgSection, {
-              recognitionStartYearIndex: r - 1,
-              structuredSaleDurationMonths: userDuration,
-              maxRecognitionYearIndex: null
-            });
-            var mr = _scenarioMetrics(cfgR);
-            if (mr && mr.net > bestRecNet) { bestRecNet = mr.net; pickRec = r; }
+          // For C, sweep duration AND recognition year together. Each
+          // (duration, recognition) pair gets its own _scenarioMetrics
+          // call so the optimizer always lands on the globally best net,
+          // not just whichever duration the user (or fallback) seeded.
+          durationsC.forEach(function (durMo) {
+            var pickRec = 2;
+            var bestRecNet = -Infinity;
+            for (var r = 2; r <= Math.min(4, hor); r++) {
+              var cfgR = Object.assign({}, cfgSection, {
+                recognitionStartYearIndex: r - 1,
+                structuredSaleDurationMonths: durMo,
+                maxRecognitionYearIndex: null
+              });
+              var mr = _scenarioMetrics(cfgR);
+              if (mr && mr.net > bestRecNet) { bestRecNet = mr.net; pickRec = r; }
+            }
+            var typedCfg = _scenarioCfgFor(type, cfgSection, pickRec, durMo);
+            var m = _scenarioMetrics(typedCfg);
+            if (m && (!best || m.net > best.net)) {
+              best = { horizon: hor, shortPct: p.shortPct, comboId: p.comboId, bestRecC: pickRec, net: m.net, durationMonths: durMo };
+            }
+          });
+        } else {
+          // A and B don't use a deferred-sale duration — pass through
+          // the cfg fallback so downstream callers always have something.
+          var typedCfg2 = _scenarioCfgFor(type, cfgSection, 2, userDurationFallback);
+          var m2 = _scenarioMetrics(typedCfg2);
+          if (m2 && (!best || m2.net > best.net)) {
+            best = { horizon: hor, shortPct: p.shortPct, comboId: p.comboId, bestRecC: 2, net: m2.net, durationMonths: userDurationFallback };
           }
-        }
-        var typedCfg = _scenarioCfgFor(type, cfgSection, pickRec, userDuration);
-        var m = _scenarioMetrics(typedCfg);
-        if (m && (!best || m.net > best.net)) {
-          best = { horizon: hor, shortPct: p.shortPct, comboId: p.comboId, bestRecC: pickRec, net: m.net };
         }
       });
     });
-    return best || { horizon: 5, shortPct: 100, comboId: null, bestRecC: 2 };
+    return best || { horizon: 5, shortPct: 100, comboId: null, bestRecC: 2, durationMonths: 18 };
   }
 
   function _ensureSectionState(type, baseCfg) {
@@ -1756,8 +1776,9 @@
     var autoSummary = 'horizon = ' + picked.horizon + 'y, leverage = ' +
       picked.shortPct + '%';
     if (typeLabel === 'C') {
+      var pickedDur = picked.durationMonths || durationMonths || 18;
       autoSummary += ', recognition = Year ' + (picked.bestRecC || 2) +
-        ', duration = ' + (durationMonths || 18) + ' mo';
+        ', duration = ' + pickedDur + ' mo';
     }
     var detailItems = '';
     detailItems += _interestedDetailRow('Total tax (with strategy)',  metrics.tax);
@@ -1768,7 +1789,14 @@
     detailItems += _interestedDetailRow('&#8627; Brookhaven fees',    metrics.brookhavenFees, true);
     detailItems += '<li class="rett-interested-detail-net"><span>Net benefit</span><strong>' + _fmt(metrics.net) + '</strong></li>';
 
-    var cls = 'rett-interested-card' + (isRecommended ? ' is-recommended' : '');
+    var chosen = (typeof window !== 'undefined' && window.__rettChosenStrategy === typeLabel);
+    var cls = 'rett-interested-card' +
+      (isRecommended ? ' is-recommended' : '') +
+      (chosen ? ' is-chosen' : '');
+    var chooseBtn =
+      '<button type="button" class="rett-use-strategy-btn" data-use-strategy="' + typeLabel + '">' +
+        (chosen ? '✓ Selected for Strategy Summary' : 'Use This Strategy &rarr;') +
+      '</button>';
     return '<div class="' + cls + '" data-type="' + typeLabel + '">' +
       '<div class="rett-interested-header">' +
         '<span class="rett-interested-num">STRATEGY ' + num + '</span>' +
@@ -1783,6 +1811,7 @@
         '<div class="rett-interested-autopick">Auto-picked: ' + autoSummary + '</div>' +
         (paymentScheduleHtml || '') +
       '</details>' +
+      chooseBtn +
     '</div>';
   }
 
@@ -1805,8 +1834,15 @@
         leverageCap:  picked.shortPct / 100,
         comboId:      picked.comboId
       });
+      // For C, use the duration the auto-pick chose (engine may extend
+      // past the 18-month minimum if a longer term yields a higher net).
+      // A and B don't use the field downstream but we still pass the
+      // fallback so _scenarioCfgFor doesn't see undefined.
+      var dur = (type === 'C' && picked.durationMonths)
+        ? picked.durationMonths
+        : userDuration;
       return {
-        cfg: _scenarioCfgFor(type, sectionCfg, picked.bestRecC, userDuration),
+        cfg: _scenarioCfgFor(type, sectionCfg, picked.bestRecC, dur),
         picked: picked
       };
     }
@@ -1834,10 +1870,11 @@
     var mC = _scenarioMetrics(pickedC.cfg);
     var lossC = mC ? _scenarioLossSum(pickedC.cfg) : 0;
     var paymentsC = '';
+    var durationC = (pickedC.picked && pickedC.picked.durationMonths) || userDuration;
     if (mC) {
       var dataC = _scenarioFullData(pickedC.cfg);
       if (dataC && dataC.comp) {
-        paymentsC = _buildPaymentScheduleHtml(pickedC.cfg, dataC.comp, userDuration);
+        paymentsC = _buildPaymentScheduleHtml(pickedC.cfg, dataC.comp, durationC);
       }
     }
 

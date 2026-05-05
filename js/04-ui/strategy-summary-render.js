@@ -1,13 +1,16 @@
 // FILE: js/04-ui/strategy-summary-render.js
-// Page 4 (Strategy Summary). Layout inspired by the BrookHaven Moving
-// Forward tab: a hero ROI multiplier on top, fee-vs-savings compare
-// row, Brooklyn / Brookhaven fee breakdown, proportional bar viz, and
-// a plain-English bottom-line callout. Renders one block per strategy
-// the user marked Interested on Page 2 (or all three if none marked).
+// Page 4 (Strategy Summary). Mirrors the BrookHaven "Moving Forward"
+// tab from the source tax calculator: a 2-col layout with Setup / Fee
+// Breakdown / Engagement Notes cards on the left and ROI hero +
+// Compare + Bar viz + Bottom-Line callout on the right.
 //
-// Public entry point: renderStrategySummary(). Reads the per-scenario
-// data from window.buildInterestedSummary() (defined in
-// projection-dashboard-render.js) so Page 4 stays in sync with Page 3.
+// Renders ONLY the strategy the user picked on Page 3 (via the "Use
+// This Strategy" button). State lives on window.__rettChosenStrategy.
+// If no pick exists, surfaces a prompt back to Page 3.
+//
+// Public entry point: renderStrategySummary(). Reads per-scenario data
+// from window.buildInterestedSummary() (in projection-dashboard-render.js)
+// so Page 3 and Page 4 share one data path.
 
 (function (root) {
   'use strict';
@@ -27,131 +30,49 @@
     return ratio.toFixed(1);
   }
 
-  // Each strategy block: hero ROI, compare row + net benefit, fee
-  // breakdown (Brooklyn / Brookhaven), proportional bar viz, callout.
-  function _strategyBlock(entry, isRecommended) {
-    var m = entry.metrics;
-    var fees = (m.fees || 0);
-    var savings = Math.max(0, (m.doNothing || 0) - (m.tax || 0));
-    var net = m.net || 0;
-    var roi = fees > 0 ? (savings / fees) : 0;
-    // Bar widths: scale relative to the larger of fees/savings so the
-    // visual stays proportional even when one dwarfs the other.
-    var maxBar = Math.max(fees, savings, 1);
-    var feePct = Math.max(1, (fees / maxBar) * 100);
-    var savePct = Math.max(1, (savings / maxBar) * 100);
+  function _filingLabel(f) {
+    var m = { single:'Single', mfj:'Married Filing Jointly', mfs:'Married Filing Separately', hoh:'Head of Household' };
+    return m[f] || f || '—';
+  }
 
-    var brooklynFees = m.brooklynFees || 0;
-    var brookhavenFees = m.brookhavenFees || 0;
+  function _strategyDescriptor(type) {
+    if (type === 'A') return 'Sell now (current year). Brooklyn losses absorb the gain immediately.';
+    if (type === 'B') return 'Negotiate a January-1 close so the gain falls in the next tax year. Full-year-1 Brooklyn loss capacity to absorb it.';
+    if (type === 'C') return 'Structured-sale insurance product defers gain recognition past the closing year.';
+    return '';
+  }
 
-    var narrative;
-    if (roi >= 5) {
-      narrative = 'A strong return: every dollar in fees returns roughly $' +
-        _fmtMultiplier(roi) + ' in tax savings. Brooklyn handles the position, Brookhaven handles the planning, and what is left over for you is shown as net benefit.';
-    } else if (roi >= 2) {
-      narrative = 'A solid return: every dollar in fees returns roughly $' +
-        _fmtMultiplier(roi) + ' in tax savings. The fee load is meaningful here — review the Brooklyn vs Brookhaven split below to see exactly where the money goes.';
-    } else if (roi > 1) {
-      narrative = 'This strategy still nets positive after fees, but the margin is thin. The fee load is eating most of the savings — worth comparing against the other Interested strategies.';
-    } else if (net >= 0) {
-      narrative = 'Fees roughly offset the projected savings here. The strategy is not actively destroying value, but it is not generating much either.';
-    } else {
-      narrative = 'Fees exceed projected tax savings on this strategy. Net benefit is negative — this option is not recommended given the current inputs.';
-    }
+  function _stratNum(type) {
+    return type === 'A' ? '01' : type === 'B' ? '02' : type === 'C' ? '03' : '00';
+  }
+  function _stratName(type) {
+    return type === 'A' ? 'Sell Now'
+      : type === 'B' ? 'Seller Finance'
+      : type === 'C' ? 'Structured Sale' : 'Strategy';
+  }
 
-    var recBadge = isRecommended
-      ? '<span class="rett-summary-rec-tag">Recommended</span>'
-      : '';
+  // Empty-state when the user lands on Page 4 without having picked a
+  // strategy on Page 3. Routes them back via the nav (the prompt is
+  // intentionally CTA-shaped so it reads as the next action).
+  function _renderNoChoiceHtml() {
+    return '<div class="forward-intro">' +
+      '<h1>Strategy Summary</h1>' +
+      '<p>This page breaks down the fees baked into your chosen strategy &mdash; both Brooklyn (position management) and Brookhaven (planning &amp; ongoing service) &mdash; and shows the return on those fees vs the projected tax savings.</p>' +
+    '</div>' +
+    '<div class="forward-noChoice">' +
+      '<p>Pick a strategy on the <strong>Projection</strong> page (click <em>Use This Strategy</em> on the card you want to pursue) and the full fee breakdown lands here.</p>' +
+      '<button type="button" class="cta-btn" onclick="document.getElementById(\'nav-projection\').click()">Go to Projection &rarr;</button>' +
+    '</div>';
+  }
 
-    var blockCls = 'rett-summary-block' + (isRecommended ? ' is-recommended' : '');
-
-    return '<div class="' + blockCls + '" data-type="' + entry.type + '">' +
-
-      // Header
-      '<div class="rett-summary-header">' +
-        '<span class="rett-summary-num">STRATEGY ' + entry.num + '</span>' +
-        '<span class="rett-summary-name">' + entry.name + '</span>' +
-        recBadge +
-      '</div>' +
-
-      // ROI Hero (gradient navy panel + big multiplier)
-      '<div class="roi-hero">' +
-        '<div class="roi-label">Return on Fees</div>' +
-        '<div class="roi-multiple">' + _fmtMultiplier(roi) + '<span class="x">×</span></div>' +
-        '<div class="roi-sub">For every $1 in fees, $' + _fmtMultiplier(roi) +
-          ' returned in projected tax savings</div>' +
-      '</div>' +
-
-      // Compare row + net benefit footer
-      '<div class="forward-compare">' +
-        '<div class="compare-row">' +
-          '<div class="compare-side cost">' +
-            '<div class="compare-label">Total Fees</div>' +
-            '<div class="compare-amt"><span class="currency">$</span>' +
-              Math.round(fees).toLocaleString('en-US') + '</div>' +
-            '<div class="compare-detail">Brooklyn position + Brookhaven planning</div>' +
-          '</div>' +
-          '<div class="compare-divider">vs.</div>' +
-          '<div class="compare-side savings">' +
-            '<div class="compare-label">Tax Savings</div>' +
-            '<div class="compare-amt"><span class="currency">$</span>' +
-              Math.round(savings).toLocaleString('en-US') + '</div>' +
-            '<div class="compare-detail">vs. doing nothing</div>' +
-          '</div>' +
-        '</div>' +
-        '<div class="compare-net">' +
-          '<div class="net-label">Net Benefit (after all fees)</div>' +
-          '<div class="net-amt"><span class="currency">$</span>' +
-            Math.round(net).toLocaleString('en-US') + '</div>' +
+  function _bullet(text, amount) {
+    return '<div class="fee-strat-row">' +
+      '<div class="strat-info">' +
+        '<div class="strat-meta">' +
+          '<div class="strat-name">' + text + '</div>' +
         '</div>' +
       '</div>' +
-
-      // Fee breakdown panel (Brooklyn vs Brookhaven)
-      '<div class="rett-fee-breakdown">' +
-        '<div class="rett-fee-row">' +
-          '<div class="rett-fee-info">' +
-            '<div class="rett-fee-name">Brooklyn fees</div>' +
-            '<div class="rett-fee-desc">Cumulative cost of running the loss-generating position over the projection horizon — borrow costs, fund-level fees, and short-side carry.</div>' +
-          '</div>' +
-          '<div class="rett-fee-amt">' + _fmt(brooklynFees) + '</div>' +
-        '</div>' +
-        '<div class="rett-fee-row">' +
-          '<div class="rett-fee-info">' +
-            '<div class="rett-fee-name">Brookhaven fees</div>' +
-            '<div class="rett-fee-desc">Planning engagement (one-time) plus ongoing service — annual return prep and strategy review calls. Flat schedule independent of transaction size.</div>' +
-          '</div>' +
-          '<div class="rett-fee-amt">' + _fmt(brookhavenFees) + '</div>' +
-        '</div>' +
-        '<div class="rett-fee-total">' +
-          '<div class="rett-fee-name">Total Fees</div>' +
-          '<div class="rett-fee-amt">' + _fmt(fees) + '</div>' +
-        '</div>' +
-      '</div>' +
-
-      // Bar viz: fees vs savings, scaled to the larger
-      '<div class="forward-viz">' +
-        '<div class="viz-row">' +
-          '<div class="viz-label">Fees</div>' +
-          '<div class="viz-bar-wrap">' +
-            '<div class="viz-bar fee" style="width:' + feePct.toFixed(2) + '%"></div>' +
-            '<span class="viz-amt">' + _fmt(fees) + '</span>' +
-          '</div>' +
-        '</div>' +
-        '<div class="viz-row">' +
-          '<div class="viz-label">Tax Savings</div>' +
-          '<div class="viz-bar-wrap">' +
-            '<div class="viz-bar savings" style="width:' + savePct.toFixed(2) + '%"></div>' +
-            '<span class="viz-amt">' + _fmt(savings) + '</span>' +
-          '</div>' +
-        '</div>' +
-      '</div>' +
-
-      // Bottom-line callout
-      '<div class="forward-callout">' +
-        '<div class="callout-label">Bottom Line</div>' +
-        '<p>' + narrative + '</p>' +
-      '</div>' +
-
+      '<div class="strat-fee">' + (amount != null ? _fmt(amount) : '') + '</div>' +
     '</div>';
   }
 
@@ -159,48 +80,218 @@
     var host = document.getElementById('strategy-fee-summary-host');
     if (!host) return;
     if (typeof root.buildInterestedSummary !== 'function') {
-      host.innerHTML = '<div class="muted" style="padding:18px 0;">Run the projection on Page 3 first.</div>';
+      host.innerHTML = _renderNoChoiceHtml();
       return;
     }
     var summary = root.buildInterestedSummary();
     if (!summary) {
-      host.innerHTML = '<div class="muted" style="padding:18px 0;">Fill in the client inputs on Page 1 to see strategy fees.</div>';
+      host.innerHTML = '<div class="forward-intro"><h1>Strategy Summary</h1><p>Fill in the client inputs on Page 1, then mark a strategy as Interested and click <strong>Use This Strategy</strong> on Page 3.</p></div>';
       return;
     }
     var entries = summary.entries;
-    var recIdx = summary.recIdx;
+    var currentCfg = summary.currentCfg;
 
-    var interest = (typeof window !== 'undefined' && window.__rettStrategyInterest) || {};
-    var anyTrue = ['A','B','C'].some(function (k) { return interest[k] === true; });
-
-    var filtered = anyTrue
-      ? entries.filter(function (e) { return interest[e.type] === true; })
-      : entries.slice();
-
-    var hint = anyTrue
-      ? ''
-      : '<div class="rett-interested-hint" style="margin-bottom:24px;">Mark <strong>Interested</strong> on the Strategies page to filter this view to the options you actually plan to pursue.</div>';
-
-    if (!filtered.length) {
-      host.innerHTML = hint + '<div class="muted" style="padding:18px 0;">No strategies to summarize.</div>';
+    // If the user marked exactly one strategy as Interested, treat that
+    // as the implicit choice — they've already narrowed it to one and
+    // forcing them to click "Use This Strategy" twice is friction.
+    var chosen = (typeof window !== 'undefined') ? window.__rettChosenStrategy : null;
+    if (!chosen) {
+      var interest = (typeof window !== 'undefined' && window.__rettStrategyInterest) || {};
+      var interested = ['A','B','C'].filter(function (k) { return interest[k] === true; });
+      if (interested.length === 1) chosen = interested[0];
+    }
+    if (!chosen) {
+      host.innerHTML = _renderNoChoiceHtml();
       return;
     }
 
-    // On the Strategy Summary page we mark the best-of-SHOWN as
-    // Recommended rather than the global winner. The user is here to
-    // compare fees among strategies they actually plan to pursue —
-    // pointing at a global winner that's been filtered out adds noise.
-    // Page 3's Interested cards keep the global behavior so the
-    // recommended badge there means "what the engine picked overall".
-    var bestNet = -Infinity, bestIdx = -1;
-    filtered.forEach(function (e, i) {
-      if (e.metrics.net > bestNet) { bestNet = e.metrics.net; bestIdx = i; }
-    });
+    var entry = null;
+    for (var i = 0; i < entries.length; i++) {
+      if (entries[i].type === chosen) { entry = entries[i]; break; }
+    }
+    if (!entry) {
+      // Chosen strategy is not available for this scenario (e.g. picked
+      // B but the sale date moved earlier than September). Bounce back
+      // to the no-choice prompt rather than silently rendering nothing.
+      host.innerHTML = _renderNoChoiceHtml();
+      return;
+    }
 
-    var html = hint;
-    filtered.forEach(function (e, i) {
-      html += _strategyBlock(e, i === bestIdx);
-    });
+    var m = entry.metrics;
+    var fees = m.fees || 0;
+    var savings = Math.max(0, (m.doNothing || 0) - (m.tax || 0));
+    var net = m.net || 0;
+    var roi = fees > 0 ? (savings / fees) : 0;
+    var maxBar = Math.max(fees, savings, 1);
+    var feePct = Math.max(1, (fees / maxBar) * 100);
+    var savePct = Math.max(1, (savings / maxBar) * 100);
+
+    var picked = entry.picked || {};
+    var dur = picked.durationMonths || 18;
+    var horizon = picked.horizon;
+    var leverage = picked.shortPct;
+    var recYr = picked.bestRecC;
+    var year1 = (currentCfg && currentCfg.year1) || (new Date()).getFullYear();
+
+    // Bottom-line narrative (tier'd by ROI)
+    var narrative;
+    if (roi >= 5) {
+      narrative = 'An exceptional return: every $1 in fees delivers $' + _fmtMultiplier(roi) + ' in projected tax savings. Brooklyn handles the loss-generating position, Brookhaven handles the planning &mdash; what is left after both is your net benefit.';
+    } else if (roi >= 2) {
+      narrative = 'A solid return: every $1 in fees delivers $' + _fmtMultiplier(roi) + ' in projected tax savings. The fee load is meaningful here &mdash; review the Brooklyn vs Brookhaven split on the left to see where the dollars go.';
+    } else if (roi > 1) {
+      narrative = 'This strategy nets positive after fees, but the margin is thin. The fee load is eating most of the savings &mdash; worth comparing against the other Interested strategies before committing.';
+    } else if (net >= 0) {
+      narrative = 'Fees roughly offset projected savings here. The strategy is not destroying value, but it is not generating much either.';
+    } else {
+      narrative = 'Fees exceed projected tax savings. Net benefit is negative &mdash; this option is not recommended given the current inputs.';
+    }
+
+    // Engagement note about duration: spell out whether the engine
+    // extended past the 18-month minimum so the seller understands
+    // when they will see the cash.
+    var durNote;
+    if (entry.type === 'C') {
+      if (dur > 18) {
+        durNote = '<strong>Sale term:</strong> ' + dur + ' months. The engine extended past the 18-month minimum because a longer term yielded the highest projected net for this transaction size. Recognition starts in Year ' + (recYr || 2) + ' (' + (year1 + (recYr || 2) - 1) + ').';
+      } else {
+        durNote = '<strong>Sale term:</strong> 18 months (the regulatory minimum). The engine did not need to extend &mdash; an 18-month structured sale was sufficient. Recognition starts in Year ' + (recYr || 2) + ' (' + (year1 + (recYr || 2) - 1) + ').';
+      }
+    } else if (entry.type === 'B') {
+      durNote = '<strong>Closing date:</strong> January 1, ' + (year1 + 1) + '. The seller defers the close into the next tax year so the entire gain hits Year 2, giving Brooklyn a full Year-1 to stockpile losses against it.';
+    } else {
+      durNote = '<strong>Closing date:</strong> ' + (currentCfg.implementationDate || (year1 + '-09-15')) + '. Sale proceeds receive their tax treatment in the current calendar year.';
+    }
+
+    var html = '';
+
+    // Top intro band
+    html += '<div class="forward-intro">' +
+      '<h1>Moving Forward With Brookhaven</h1>' +
+      '<p>The setup pays for itself many times over in tax savings. Below is the full breakdown of <em>' + _stratName(entry.type) + '</em> &mdash; what you pay (Brooklyn position fees + Brookhaven planning fees) and what it returns.</p>' +
+    '</div>';
+
+    html += '<div class="forward-layout">';
+
+    // ============ LEFT COLUMN ============
+    html += '<div class="forward-inputs">';
+
+    // Section: Selected Strategy
+    html += '<div class="input-section">' +
+      '<div class="section-heading">' +
+        '<h2>Selected Strategy</h2>' +
+        '<span class="num">STRATEGY ' + _stratNum(entry.type) + '</span>' +
+      '</div>' +
+      '<div class="section-body">' +
+        '<div class="input-row">' +
+          '<div class="label">Strategy<span class="sub">' + _strategyDescriptor(entry.type) + '</span></div>' +
+          '<div class="forward-fee-display" style="font-family:var(--font-display);font-style:italic;font-size:1.4em;">' +
+            _stratName(entry.type) +
+          '</div>' +
+        '</div>' +
+        '<div class="input-row">' +
+          '<div class="label">Filing<span class="sub">Tax year ' + year1 + ', ' + (currentCfg.state || '—') + '</span></div>' +
+          '<div class="forward-balance">' + _filingLabel(currentCfg.filingStatus) + '</div>' +
+        '</div>' +
+        '<div class="input-row">' +
+          '<div class="label">Auto-pick<span class="sub">Engine-chosen tuple</span></div>' +
+          '<div class="forward-balance" style="font-size:0.85em;">' +
+            'Horizon ' + horizon + 'y &middot; Leverage ' + leverage + '%' +
+            (entry.type === 'C' ? ' &middot; ' + dur + ' mo' : '') +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+    // Section: Fees Included
+    html += '<div class="input-section" id="fee-strategies-section">' +
+      '<div class="section-heading">' +
+        '<h2>Fees Baked In</h2>' +
+        '<span class="num">REVIEW</span>' +
+      '</div>' +
+      '<div class="section-body">' +
+        _bullet('Brooklyn fees<span class="strat-savings-line">Borrow + fund + short-side carry over the position</span>', m.brooklynFees || 0) +
+        _bullet('Brookhaven fees<span class="strat-savings-line">Planning engagement + ongoing service (flat schedule)</span>', m.brookhavenFees || 0) +
+        '<div class="fee-summary-row">' +
+          '<div class="fee-summary-label">Total Fees</div>' +
+          '<div class="fee-summary-amt">' + _fmt(fees) + '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+    // Section: Engagement Notes
+    html += '<div class="input-section">' +
+      '<div class="section-heading">' +
+        '<h2>Engagement Notes</h2>' +
+        '<span class="num">REFERENCE</span>' +
+      '</div>' +
+      '<div class="section-body" style="font-size:13px;line-height:1.6;color:var(--ink-soft);">' +
+        '<p style="margin-bottom:10px;">' + durNote + '</p>' +
+        '<p style="margin-bottom:10px;"><strong>Total losses generated:</strong> ' + _fmt(entry.loss || 0) + ' over the projection horizon. Brooklyn produces these year-by-year; only the recognition year(s) actually need the offset.</p>' +
+        '<p style="margin-bottom:10px;"><strong>Do-nothing tax baseline:</strong> ' + _fmt(m.doNothing || 0) + '. This is what the client would owe with no planning.</p>' +
+        '<p style="margin-bottom:10px;"><strong>Tax with strategy:</strong> ' + _fmt(m.tax || 0) + '. Difference is the projected savings shown to the right.</p>' +
+      '</div>' +
+    '</div>';
+
+    html += '</div>'; // /forward-inputs
+
+    // ============ RIGHT COLUMN ============
+    html += '<div class="forward-results">';
+
+    // ROI Hero
+    html += '<div class="roi-hero">' +
+      '<div class="roi-label">Return on Fees</div>' +
+      '<div class="roi-multiple">' + _fmtMultiplier(roi) + '<span class="x">&times;</span></div>' +
+      '<div class="roi-sub">For every $1 paid in fees, $' + _fmtMultiplier(roi) + ' is returned in projected tax savings</div>' +
+    '</div>';
+
+    // Compare Row + Net
+    html += '<div class="forward-compare">' +
+      '<div class="compare-row">' +
+        '<div class="compare-side cost">' +
+          '<div class="compare-label">Total Fees</div>' +
+          '<div class="compare-amt"><span class="currency">$</span>' + Math.round(fees).toLocaleString('en-US') + '</div>' +
+          '<div class="compare-detail">Brooklyn position + Brookhaven planning</div>' +
+        '</div>' +
+        '<div class="compare-divider">vs.</div>' +
+        '<div class="compare-side savings">' +
+          '<div class="compare-label">You Save</div>' +
+          '<div class="compare-amt"><span class="currency">$</span>' + Math.round(savings).toLocaleString('en-US') + '</div>' +
+          '<div class="compare-detail">Total projected tax savings vs. doing nothing</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="compare-net">' +
+        '<div class="net-label">Net Benefit</div>' +
+        '<div class="net-amt"><span class="currency">$</span>' + Math.round(net).toLocaleString('en-US') + '</div>' +
+      '</div>' +
+    '</div>';
+
+    // Bar Viz
+    html += '<div class="forward-viz">' +
+      '<div class="viz-row">' +
+        '<div class="viz-label">Total Fees</div>' +
+        '<div class="viz-bar-wrap">' +
+          '<div class="viz-bar fee" style="width:' + feePct.toFixed(2) + '%"></div>' +
+          '<span class="viz-amt">' + _fmt(fees) + '</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="viz-row">' +
+        '<div class="viz-label">Tax Savings</div>' +
+        '<div class="viz-bar-wrap">' +
+          '<div class="viz-bar savings" style="width:' + savePct.toFixed(2) + '%"></div>' +
+          '<span class="viz-amt">' + _fmt(savings) + '</span>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+    // Bottom Callout
+    html += '<div class="forward-callout">' +
+      '<div class="callout-label">Bottom Line</div>' +
+      '<p>' + narrative + '</p>' +
+    '</div>';
+
+    html += '</div>'; // /forward-results
+    html += '</div>'; // /forward-layout
 
     host.innerHTML = html;
   }
