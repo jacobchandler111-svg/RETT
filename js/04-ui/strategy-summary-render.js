@@ -359,13 +359,10 @@
     // investment to keep loss carryforward within absorbable gain.
     html += _renderImplementationPanel(currentCfg, entry.loss || 0, opt);
 
-    // Print button — screen-only; triggers window.print()
-    html += '<div class="forward-print-bar">' +
-      '<button type="button" class="btn-print" onclick="window.print()">' +
-        '&#128438;&nbsp; Print / Save as PDF' +
-      '</button>' +
-      '<span class="forward-print-hint">Opens your browser\'s print dialog. Choose &ldquo;Save as PDF&rdquo; to generate a client-ready document.</span>' +
-    '</div>';
+    // The legacy "Print / Save as PDF" button that previously rendered
+    // here (window.print() trigger) was removed per advisor spec. The
+    // single Download PDF button at the bottom of #page-allocator
+    // (index.html, uses html2pdf.js) is the only export control now.
 
     // Print view — hidden on screen, visible only when printing.
     html += _renderPrintView({
