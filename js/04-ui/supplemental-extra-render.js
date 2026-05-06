@@ -188,7 +188,7 @@
     },
     {
       id: 'charitableGifts',
-      num: '04',
+      num: '05',
       name: 'Charitable Gifts',
       shortName: 'Charitable Gifts',
       keyaspect: 'Charitable Deduction',
@@ -226,7 +226,7 @@
     // ----------------------------------------------------------------
     {
       id: 'slot05',
-      num: '05',
+      num: '06',
       name: 'Cost Segregation Study',
       shortName: 'Cost Seg',
       keyaspect: 'Accelerated Depreciation',
@@ -259,7 +259,7 @@
     },
     {
       id: 'slot06',
-      num: '06',
+      num: '07',
       name: 'Heavy Vehicle Deduction',
       shortName: 'Heavy Vehicle',
       keyaspect: 'Vehicle Expensing',
@@ -285,7 +285,7 @@
     },
     {
       id: 'slot07',
-      num: '07',
+      num: '08',
       name: 'Equipment Leasing Fund',
       shortName: 'Equip Leasing',
       keyaspect: 'Bonus Pass-Through',
@@ -312,7 +312,7 @@
     },
     {
       id: 'slot08',
-      num: '08',
+      num: '09',
       name: 'Augusta Rule &mdash; §280A(g)',
       shortName: 'Augusta Rule',
       keyaspect: 'Tax-Free Home Rental',
@@ -330,7 +330,7 @@
     },
     {
       id: 'slot09',
-      num: '09',
+      num: '04',
       name: '401(k) + Profit Sharing',
       shortName: '401(k) + PS',
       keyaspect: 'Retirement Deferral',
