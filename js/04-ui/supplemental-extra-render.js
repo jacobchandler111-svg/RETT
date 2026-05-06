@@ -676,11 +676,20 @@
     var host = document.getElementById('supplemental-extra-host');
     if (!host) return;
     var iState = _interestState();
-    // Sort: not-interested cards drop to the end, then by spec order.
+    // Sort:
+    //   1. Not-interested cards drop to the very end.
+    //   2. Cards that need a chip-pick (Independent strategies whose
+    //      primary $ input can't be auto-derived) come AFTER cards
+    //      that auto-fill from sale data / wages — so the advisor
+    //      can rapid-fire Interested/Not Interested on the easy ones
+    //      first, then deal with the chip-prompt cards.
     var sorted = SPECS.slice().sort(function (a, b) {
-      var an = iState[a.id] === false ? 1 : 0;
-      var bn = iState[b.id] === false ? 1 : 0;
-      return an - bn;
+      var aNo = iState[a.id] === false ? 1 : 0;
+      var bNo = iState[b.id] === false ? 1 : 0;
+      if (aNo !== bNo) return aNo - bNo;
+      var aChip = CHIPS_CONFIG[a.id] ? 1 : 0;
+      var bChip = CHIPS_CONFIG[b.id] ? 1 : 0;
+      return aChip - bChip;
     });
     var cards = sorted.map(_renderCard).join('');
     host.innerHTML = '<div class="supp-strategies-grid">' + cards + '</div>';
