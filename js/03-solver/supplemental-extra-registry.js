@@ -30,26 +30,18 @@
 
   if (typeof root.registerSupplemental !== 'function') return;
 
-  // The 8 placeholder ids must match supplemental-extra-render.js SPECS.
-  // Order numbers continue past oilGas (10) and delphi (20) so the
-  // master-solver list view shows them after the math-having pair.
+  // Trimmed per advisor 2026-05-06: only PTET and Charitable Gifts
+  // remain. The other six (412(e)(3), QBI, R&D, 401(h), Solar ITC,
+  // Film §181) were dropped — they either happen automatically or
+  // come up too rarely for typical sale-and-transition advisory
+  // engagements. QCD was repurposed into a broader Charitable Gifts
+  // module covering cash + appreciated assets (not the IRA-only
+  // 70.5+ path).
   var EXTRAS = [
-    { id: 'plan412e3',  name: '412(e)(3) Fully Insured Plan',     shortName: '412(e)(3)',      bucket: 'ordinary', order: 30,
-      descriptor: 'Defined-benefit plan funded with insurance contracts; very large annual deduction.' },
-    { id: 'ptet',       name: 'PTET — Pass-Through Entity SALT',  shortName: 'PTET',           bucket: 'ordinary', order: 40,
+    { id: 'ptet',            name: 'PTET — Pass-Through Entity SALT', shortName: 'PTET',             bucket: 'ordinary', order: 40,
       descriptor: 'State income tax paid at the entity level — bypasses the federal SALT cap.' },
-    { id: 'qbi',        name: 'QBI Deduction (199A)',             shortName: 'QBI',            bucket: 'ordinary', order: 50,
-      descriptor: '20% deduction on qualified business income from pass-through entities.' },
-    { id: 'rdCredit',   name: 'R&D Credit + Expensing',           shortName: 'R&D',            bucket: 'ordinary', order: 60,
-      descriptor: 'Federal credit on qualified research expenses plus immediate expensing of domestic R&D.' },
-    { id: 'plan401h',   name: '401(h) Tax Trifecta',              shortName: '401(h)',         bucket: 'ordinary', order: 70,
-      descriptor: 'Add-on to a DB plan: deductible in, tax-free growth, tax-free retiree medical out.' },
-    { id: 'qcd',        name: 'Qualified Charitable Distribution', shortName: 'QCD',           bucket: 'ordinary', order: 80,
-      descriptor: 'IRA-to-charity transfer at 70.5+ that counts toward the RMD without entering income.' },
-    { id: 'solarITC',   name: 'Solar ITC Investment',             shortName: 'Solar ITC',      bucket: 'mixed',    order: 90,
-      descriptor: '30% federal investment tax credit plus 5-year MACRS depreciation on a solar project.' },
-    { id: 'film181',    name: 'Film Debt Financing (§181)',       shortName: 'Film §181',      bucket: 'ordinary', order: 100,
-      descriptor: 'Section 181 immediate expensing of qualified domestic film production investment.' }
+    { id: 'charitableGifts', name: 'Charitable Gifts',                 shortName: 'Charitable Gifts', bucket: 'ordinary', order: 50,
+      descriptor: 'Cash or appreciated-asset gifts under §170 — deductible up to AGI percentage caps; appreciated assets avoid capital gains.' }
   ];
 
   EXTRAS.forEach(function (e) {
@@ -102,14 +94,8 @@
         // each strategy. Mirrors the SPECS detailRows in
         // supplemental-extra-render.js.
         var INVESTMENT_FIELD = {
-          plan412e3:  'contribution',
-          ptet:       'taxableIncome',
-          qbi:        'qbiIncome',
-          rdCredit:   'rdSpend',
-          plan401h:   'medContribution',
-          qcd:        'qcdAmount',
-          solarITC:   'solarInvestment',
-          film181:    'filmInvestment'
+          ptet:            'taxableIncome',
+          charitableGifts: 'giftAmount'
         };
         var key = INVESTMENT_FIELD[e.id];
         if (!key) return 0;

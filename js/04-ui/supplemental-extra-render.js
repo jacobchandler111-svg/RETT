@@ -34,43 +34,27 @@
   // the Details dropdown placeholder inputs. `descriptor` is the
   // 1-2 sentence summary that lives on the front of the card.
   // --------------------------------------------------------------
+  // Trimmed per advisor 2026-05-06: only PTET and Charitable Gifts
+  // remain on the placeholder rail. The other six (412(e)(3), QBI,
+  // R&D, 401(h), Solar ITC, Film §181) were removed because they
+  // either happen automatically (QBI, business already running) or
+  // come up too rarely in the typical sale-and-transition advisory
+  // setting. QCD was repurposed into a broader Charitable Gifts
+  // strategy (cash + appreciated assets, not the IRA-only QCD path)
+  // since the latter has tighter eligibility (age 70.5+ only).
   var SPECS = [
     {
-      id: 'plan412e3',
-      num: '03',
-      name: '412(e)(3) Fully Insured Plan',
-      keyaspect: 'Maximum Deduction',
-      descriptor: 'A defined-benefit plan funded with insurance contracts. Allows business owners to deduct $300K&ndash;$1M+ per year &mdash; the largest annual deduction available.',
-      audience: 'Business owner',
-      defaults: {
-        contribution:       350000,
-        ageOwner:           55,
-        ownerComp:          360000,   // §401(a)(17) cap, 2026
-        nra:                65,        // normal retirement age
-        yearsParticipation: 10,        // for §415(b)(5) reduction
-        creditingRate:      3.5        // insurer guaranteed rate
-      },
-      detailRows: [
-        { id: 'contribution',       label: 'Annual contribution',           kind: 'usd', placeholder: '350,000' },
-        { id: 'ownerComp',          label: 'Owner W-2 / SE earnings',       kind: 'usd', placeholder: '360,000' },
-        { id: 'ageOwner',           label: 'Owner age',                     kind: 'num', placeholder: '55' },
-        { id: 'nra',                label: 'Normal retirement age',         kind: 'num', placeholder: '65' },
-        { id: 'yearsParticipation', label: 'Years of participation/service', kind: 'num', placeholder: '10' },
-        { id: 'creditingRate',      label: 'Insurer crediting rate (%)',    kind: 'pct', placeholder: '3.5' }
-      ]
-    },
-    {
       id: 'ptet',
-      num: '04',
+      num: '03',
       name: 'PTET &mdash; Pass-Through Entity SALT',
       keyaspect: 'SALT Cap Workaround',
       descriptor: 'Pass-through entity elects to pay state income tax at the entity level, deductible as a federal business expense &mdash; bypasses the $40K SALT cap.',
       audience: 'Pass-through owner',
       defaults: {
-        taxableIncome:        1000000,
-        stateRate:            5.49,
-        saltCapacityRemaining: 0,         // unused individual SALT cap headroom
-        creditPct:            100         // % of PTET creditable on owner state return (MA = 90)
+        taxableIncome:         1000000,
+        stateRate:             5.49,
+        saltCapacityRemaining: 0,        // unused individual SALT cap headroom
+        creditPct:             100        // % of PTET creditable on owner state return (MA = 90)
       },
       detailRows: [
         { id: 'taxableIncome',         label: 'Pass-through income',                 kind: 'usd', placeholder: '1,000,000' },
@@ -80,150 +64,27 @@
       ]
     },
     {
-      id: 'qbi',
-      num: '05',
-      name: 'QBI Deduction (199A)',
-      keyaspect: '20% Deduction',
-      descriptor: 'A 20% deduction on qualified business income from pass-through entities. Phases out for high-earning service-business owners.',
-      audience: 'Pass-through owner',
+      id: 'charitableGifts',
+      num: '04',
+      name: 'Charitable Gifts',
+      keyaspect: '§170 Deduction',
+      descriptor: 'Cash or appreciated-asset gift to a public charity. Cash deductible up to 60% of AGI; appreciated stock at FMV up to 30% of AGI &mdash; avoids capital gains on the appreciation.',
+      audience: 'Any donor',
       defaults: {
-        qbiIncome: 500000,
-        isSSTB:    false,
-        w2Wages:   100000,    // entity W-2 wages — drives the W-2 limit
-        ubia:      0           // unadjusted basis of qualified property
+        giftAmount:    100000,
+        giftType:      'cash',     // 'cash' | 'appreciated' | 'daf'
+        appreciation:  0,           // dollars of unrealized gain (appreciated path)
+        agi:           0            // donor AGI for §170 percentage caps
       },
       detailRows: [
-        { id: 'qbiIncome', label: 'Qualified business income',          kind: 'usd',   placeholder: '500,000' },
-        { id: 'w2Wages',   label: 'Entity W-2 wages',                   kind: 'usd',   placeholder: '100,000' },
-        { id: 'ubia',      label: 'UBIA of qualified property',         kind: 'usd',   placeholder: '0' },
-        { id: 'isSSTB',    label: 'Specified service business?',        kind: 'yesno' }
-      ]
-    },
-    {
-      id: 'rdCredit',
-      num: '06',
-      name: 'R&amp;D Credit + Expensing',
-      keyaspect: 'Credit & Deduction',
-      descriptor: 'Dollar-for-dollar federal credit on qualified research expenses, paired with OBBBA&rsquo;s immediate expensing of domestic R&amp;D costs.',
-      audience: 'Tech / manufacturing',
-      defaults: {
-        rdSpend:        500000,
-        priorYrAvgQRE:  0,         // avg QRE prior 3 yrs — empty → ASC start-up 6%
-        isQSB:          false,      // gross receipts < $5M, no receipts > 5 yrs back
-        elect280C:      true,       // §280C(c)(2) reduced-credit (×0.79); preserves §174A
-        ssWages:        0           // SS wages for $250K OASDI offset cap
-      },
-      detailRows: [
-        { id: 'rdSpend',       label: 'Current-year QRE',                kind: 'usd',   placeholder: '500,000' },
-        { id: 'priorYrAvgQRE', label: 'Prior 3-yr avg QRE',              kind: 'usd',   placeholder: '0 = start-up' },
-        { id: 'isQSB',         label: 'QSB (payroll offset eligible)?',  kind: 'yesno' },
-        { id: 'ssWages',       label: 'Social Security wages',           kind: 'usd',   placeholder: '0' },
-        { id: 'elect280C',     label: '§280C(c)(2) reduced-credit?',     kind: 'yesno' }
-      ]
-    },
-    {
-      id: 'plan401h',
-      num: '07',
-      name: '401(h) Tax Trifecta',
-      keyaspect: 'Triple Tax Benefit',
-      descriptor: 'Add-on to a defined-benefit plan: contributions are deductible, growth is tax-free, and withdrawals for retiree medical expenses are tax-free.',
-      audience: 'Business owner',
-      defaults: {
-        medContribution:       50000,
-        cumulativeDBContrib:   1000000,  // total DB contribs since 401(h) adoption
-        cumulative401hPrior:   0,         // running total of prior 401(h) + life-ins
-        isKeyEmployee:         false       // §415(c) annual-additions cap applies if true
-      },
-      detailRows: [
-        { id: 'medContribution',     label: 'Annual medical contribution',         kind: 'usd',   placeholder: '50,000' },
-        { id: 'cumulativeDBContrib', label: 'Cumulative DB contribs (since 401(h))', kind: 'usd', placeholder: '1,000,000' },
-        { id: 'cumulative401hPrior', label: 'Prior 401(h) + life-ins contribs',    kind: 'usd',   placeholder: '0' },
-        { id: 'isKeyEmployee',       label: 'Owner is a key employee?',            kind: 'yesno' }
-      ]
-    },
-    {
-      id: 'qcd',
-      num: '08',
-      name: 'Qualified Charitable Distribution',
-      keyaspect: 'Charitable RMD Bypass',
-      descriptor: 'Direct transfer from an IRA to a charity at age 70.5+. Counts toward the RMD but never enters taxable income &mdash; cleanest charitable lever for retirees.',
-      audience: 'Retiree (70.5+)',
-      defaults: {
-        qcdAmount:         100000,
-        donorAge:          75,
-        isSplitInterest:   false,    // one-time CGA/CRT election, $55K cap
-        post705IraContrib: 0          // post-70.5 deductible IRA contribs
-      },
-      detailRows: [
-        { id: 'qcdAmount',         label: 'QCD amount',                            kind: 'usd',   placeholder: '100,000' },
-        { id: 'donorAge',          label: 'Donor age',                              kind: 'num',   placeholder: '75' },
-        { id: 'isSplitInterest',   label: 'One-time split-interest CGA/CRT?',      kind: 'yesno' },
-        { id: 'post705IraContrib', label: 'Post-70.5 deductible IRA contribs',     kind: 'usd',   placeholder: '0' }
-      ]
-    },
-    {
-      id: 'solarITC',
-      num: '09',
-      name: 'Solar ITC Investment',
-      keyaspect: 'Federal Credit + MACRS',
-      descriptor: 'Tax-equity partnership in a solar project: 30% Investment Tax Credit plus 5-year MACRS depreciation. Combines a credit and a deduction.',
-      audience: 'Passive investor',
-      defaults: {
-        solarInvestment:  250000,
-        mwSize:           1,        // <1 MW exempt from PWA
-        pwaCompliant:     true,
-        domesticContent:  false,
-        energyCommunity:  false,
-        lowIncomeAdder:   'none',   // 'none' | 'lic-10' | 'lic-20'
-        isPassive:        true,      // §469 trap default — most retail investors
-        holdingPeriod:    7,         // years — governs §50(a) recapture vesting
-        transferElect:    false      // §6418 sell-credit-for-cash election
-      },
-      detailRows: [
-        { id: 'solarInvestment', label: 'Investment amount',               kind: 'usd',   placeholder: '250,000' },
-        { id: 'mwSize',          label: 'Facility size (MW AC)',           kind: 'num',   placeholder: '1' },
-        { id: 'pwaCompliant',    label: 'PWA-compliant?',                  kind: 'yesno' },
-        { id: 'domesticContent', label: 'Domestic-content adder met?',     kind: 'yesno' },
-        { id: 'energyCommunity', label: 'Energy-community adder?',         kind: 'yesno' },
-        { id: 'lowIncomeAdder',  label: 'Low-income community',            kind: 'select', options: [
-            { value: 'none',   label: 'None' },
-            { value: 'lic-10', label: '+10% LIC / Indian land' },
-            { value: 'lic-20', label: '+20% LIC residential / economic' }
+        { id: 'giftAmount',   label: 'Gift amount',                        kind: 'usd',   placeholder: '100,000' },
+        { id: 'giftType',     label: 'Gift type',                          kind: 'select', options: [
+            { value: 'cash',         label: 'Cash (60% AGI cap)' },
+            { value: 'appreciated',  label: 'Appreciated stock / asset (30% AGI cap)' },
+            { value: 'daf',          label: 'Donor-advised fund (60% AGI cap)' }
         ] },
-        { id: 'isPassive',       label: 'Passive investor (§469)?',        kind: 'yesno' },
-        { id: 'holdingPeriod',   label: 'Planned hold (yrs) — recapture',  kind: 'num',   placeholder: '7' },
-        { id: 'transferElect',   label: '§6418 transfer credit for cash?', kind: 'yesno' }
-      ]
-    },
-    {
-      id: 'film181',
-      num: '10',
-      name: 'Film Debt Financing (§181)',
-      keyaspect: 'Section 181 Expensing',
-      descriptor: 'Investment in film production debt. Section 181 allows immediate expensing of the full cost in Y1 for qualified domestic productions.',
-      audience: 'HNW investor',
-      defaults: {
-        filmInvestment:    250000,
-        commencedBy2025:   true,    // production started ≤ 12/31/2025 → §181 alive
-        productionType:    'film',  // film | tv | theatrical | sound
-        lowIncomeArea:     false,    // raises §181 cap to $20M
-        usServicesPct:     90,       // must be ≥ 75% for §181 eligibility
-        isPassive:         false,    // §469 trap — gates benefit if true
-        episodeCount:      1          // TV: cap is per-episode, first 44 only
-      },
-      detailRows: [
-        { id: 'filmInvestment',  label: 'Investment / production cost',     kind: 'usd',   placeholder: '250,000' },
-        { id: 'productionType',  label: 'Production type',                  kind: 'select', options: [
-            { value: 'film',       label: 'Feature film' },
-            { value: 'tv',         label: 'TV series' },
-            { value: 'theatrical', label: 'Live theatrical' },
-            { value: 'sound',      label: 'Sound recording ($150K cap)' }
-        ] },
-        { id: 'episodeCount',    label: 'Episodes (TV only, max 44)',       kind: 'num',   placeholder: '1' },
-        { id: 'commencedBy2025', label: 'Production commenced by 12/31/25?', kind: 'yesno' },
-        { id: 'lowIncomeArea',   label: 'Low-income area ($20M cap)?',      kind: 'yesno' },
-        { id: 'usServicesPct',   label: 'U.S. services compensation (%)',   kind: 'pct',   placeholder: '90' },
-        { id: 'isPassive',       label: 'Passive investor (§469)?',         kind: 'yesno' }
+        { id: 'appreciation', label: 'Unrealized gain (appreciated only)', kind: 'usd',   placeholder: '0' },
+        { id: 'agi',          label: 'Donor AGI (for AGI cap, optional)',  kind: 'usd',   placeholder: '0' }
       ]
     }
   ];
