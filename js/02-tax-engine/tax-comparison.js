@@ -718,16 +718,24 @@ function unifiedTaxComparison(cfg, opts) {
             // baseline (same gain timing). In deferred mode it differs:
             // matched-timing baseline taxes the gain as it's recognized
             // year by year, while do-nothing taxes the full lump in Y1.
+            //
+            // Short-term gain stays as the annual income source from
+            // _baseScenarioForYear (cfg.baseShortTermGain) — per the
+            // recent semantics shift, STG is an Income-Source line
+            // item, NOT a sale carve-out. Earlier code zeroed
+            // shortTermGain for i!=0 here; that under-reported the do-
+            // nothing tax in scenarios with non-zero baseShortTermGain
+            // and produced false-positive `withStrategy > totalBaseline`
+            // results in ~2.3% of Monte Carlo trials (audit finding F12).
             const dnBaseline = _baseScenarioForYear(
                   cfg, year,
                   i === 0 ? totalLT : 0,
                   i === 0 ? recapture : 0
             );
-            if (i !== 0) dnBaseline.shortTermGain = 0;
-            // Recompute investmentIncome to match the do-nothing LT/ST
-            // (otherwise NIIT base in Y2+ would still reflect the
-            // matched-timing gain, double-counting). Note: recapture
-            // is in investmentIncome per §1411 (see _baseScenarioForYear).
+            // Recompute investmentIncome to match the do-nothing LT/ST/recap
+            // — the LT slice differs from the matched-timing baseline so
+            // NIIT base must be recomputed; ST stays as set by
+            // _baseScenarioForYear.
             dnBaseline.investmentIncome = (dnBaseline.longTermGain || 0)
                   + Math.max(0, dnBaseline.shortTermGain || 0)
                   + (dnBaseline.depreciationRecapture || 0);
