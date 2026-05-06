@@ -172,10 +172,26 @@
     var decisions = {};
     var remaining = avail;
     candidates.forEach(function (c) {
-      if (!c.available || c.investment <= 0) {
+      if (!c.available) {
         decisions[c.id] = { funded: false, reason: 'no-result-or-zero',
           granted: 0, rate: c.rate, brooklynRate: brooklynYieldRate,
           netBenefit: c.netBenefit, requested: c.investment };
+      } else if (c.investment <= 0) {
+        // Strategies that deliver tax savings without consuming Brooklyn
+        // capital — e.g., PTET election, QBI deduction, QCD, R&D Credit.
+        // Fund them as "free" (granted = 0) so their net benefit folds
+        // into the combined total, but no dollars come out of the pool.
+        // No yield-vs-Brooklyn comparison applies because there's no
+        // capital being allocated.
+        if (c.netBenefit > 0) {
+          decisions[c.id] = { funded: true, reason: 'free-benefit',
+            granted: 0, rate: 0, brooklynRate: brooklynYieldRate,
+            netBenefit: c.netBenefit, requested: 0 };
+        } else {
+          decisions[c.id] = { funded: false, reason: 'no-result-or-zero',
+            granted: 0, rate: c.rate, brooklynRate: brooklynYieldRate,
+            netBenefit: c.netBenefit, requested: c.investment };
+        }
       } else if (c.rate <= 0) {
         // Hard rule (advisor 2026-05-06): never deploy a dollar whose
         // marginal net-of-fee yield is non-positive. Money sits free.

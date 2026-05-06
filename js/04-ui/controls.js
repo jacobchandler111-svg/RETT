@@ -791,6 +791,29 @@ function runFullPipeline() {
     try {
       var cfg = _buildEngineCfg();
       if (cfg) {
+        // Dollar conservation (advisor 2026-05-06): a single dollar
+        // can't simultaneously fund Brooklyn AND a supplemental — the
+        // pool is finite. Ask the rivalry allocator how much of
+        // availableCapital was claimed by funded supps and reduce
+        // Brooklyn's effective investment by that amount BEFORE
+        // running the engine. Without this, the page would show
+        // Brooklyn deployed at full availCap plus supps deploying
+        // their own slice, double-counting the same dollars.
+        var fundedSuppTotal = 0;
+        if (typeof window.runAllocator === 'function') {
+          try {
+            var alloc = window.runAllocator(cfg.availableCapital);
+            if (alloc && Number.isFinite(alloc.allocatedToSupplementals)) {
+              fundedSuppTotal = alloc.allocatedToSupplementals;
+            }
+          } catch (allocErr) { /* leave fundedSuppTotal = 0 */ }
+        }
+        var brooklynPool = Math.max(0,
+          (Number(cfg.availableCapital) || 0) - fundedSuppTotal);
+        if (brooklynPool < (Number(cfg.investment) || 0)) {
+          cfg = Object.assign({}, cfg, { investment: brooklynPool });
+        }
+
         // Two-pass optimizer wiring: run the engine once at the user's
         // requested investment to learn cumulative Brooklyn loss, then
         // ask runBrooklynOptimizer whether to dial back. If yes, re-run
@@ -809,6 +832,14 @@ function runFullPipeline() {
           : 0;
         if (typeof window.runBrooklynOptimizer === 'function' && firstLoss > 0) {
           var opt = window.runBrooklynOptimizer(cfg, firstLoss);
+          // The optimizer doesn't see the rivalry's allocation — it
+          // sizes a recommendation against availableCapital. Cap the
+          // recommendation at brooklynPool so the dial-back path can't
+          // recommend more dollars than Brooklyn actually has after
+          // supps took their share.
+          if (opt && Number.isFinite(opt.recommendedInvestment)) {
+            opt.recommendedInvestment = Math.min(opt.recommendedInvestment, brooklynPool);
+          }
           if (opt && opt.dialBack && opt.recommendedInvestment >= 0
               && opt.recommendedInvestment < cfg.investment) {
             cfg = Object.assign({}, cfg, { investment: opt.recommendedInvestment });
