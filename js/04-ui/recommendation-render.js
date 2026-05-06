@@ -228,20 +228,19 @@
 
         var comparison;
         var deferred = (multiCfg.recognitionStartYearIndex || 0) >= 1;
-        // Unified engine is now the default for both branches. The
-        // unified engine takes only cfg (no recommendation) — Y1 loss
-        // derives from tranches. Verified $0 delta vs legacy across
-        // 3,600 sweep scenarios. Set window.__rettUseUnifiedEngine
-        // to false in the dev console to route back to legacy as a
-        // rollback escape hatch.
-        var useUnified = (typeof window !== 'undefined' && window.__rettUseUnifiedEngine !== false
+        // Unified engine handles both immediate and deferred. Legacy
+        // computeDeferredTaxComparison was deleted after the parity
+        // sweep verified $0 delta. Legacy computeTaxComparison stays
+        // for now (the optimizer's _scoreSchedule still calls it for
+        // candidate scoring — Session B migration), so the rollback
+        // flag on the immediate path remains as an escape hatch.
+        var useUnifiedImmediate = (typeof window !== 'undefined' && window.__rettUseUnifiedEngine !== false
               && typeof window.unifiedTaxComparison === 'function');
-        if (useUnified) {
+        if (deferred || useUnifiedImmediate) {
           comparison = window.unifiedTaxComparison(multiCfg);
-        } else if (deferred && typeof computeDeferredTaxComparison === 'function') {
-          comparison = computeDeferredTaxComparison(multiCfg);
         } else {
-          // Synthesize a normalized recommendation shape the comparison expects.
+          // Legacy immediate-path rollback. Synthesize a normalized
+          // recommendation shape the legacy engine expects.
           var lossGen = (result.summary && result.summary.loss) || (result.stage1 && result.stage1.loss) || 0;
           var normRec = {
                 recommendation: result.recommendation,

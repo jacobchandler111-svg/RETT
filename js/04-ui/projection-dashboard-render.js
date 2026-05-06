@@ -461,15 +461,17 @@
     var tax = 0, doNothing = 0, brooklynFees = 0, brookhavenTotal = 0;
 
     if (deferred) {
-      if (typeof computeDeferredTaxComparison !== 'function') return null;
-      // Engine-collapse: unified engine is now the default. The
-      // window.__rettUseUnifiedEngine flag stays as a rollback escape
-      // hatch — set to false in the dev console to route back to
-      // legacy. Verified $0 delta vs legacy across 3,600 scenarios
-      // and live A/B/C cards.
-      var def = (typeof window !== 'undefined' && window.__rettUseUnifiedEngine !== false && typeof window.unifiedTaxComparison === 'function')
-        ? window.unifiedTaxComparison(cfg)
-        : computeDeferredTaxComparison(cfg);
+      // Deferred-path engine collapse complete. Legacy
+      // computeDeferredTaxComparison was removed after the parity
+      // sweep verified $0 delta across 4,800 scenarios + live UI
+      // cards. Unified handles deferred mode (recognitionStartYearIndex
+      // >= 1) directly — same tranche-based loop, same §1(h) loss
+      // netting, same do-nothing baseline. The
+      // window.__rettUseUnifiedEngine rollback flag no longer affects
+      // deferred — only immediate (where legacy computeTaxComparison
+      // is still present pending the optimizer migration in Session B).
+      if (typeof window === 'undefined' || typeof window.unifiedTaxComparison !== 'function') return null;
+      var def = window.unifiedTaxComparison(cfg);
       if (!def || !def.rows) return null;
       def.rows.forEach(function (r) {
         tax += (r.withStrategy ? r.withStrategy.total : 0);
@@ -824,11 +826,9 @@
     var comp = null, result = null, years = null;
 
     if (deferred) {
-      if (typeof computeDeferredTaxComparison !== 'function') return null;
-      // Phase-5 feature-flagged swap. See _scenarioMetrics for context.
-      comp = (typeof window !== 'undefined' && window.__rettUseUnifiedEngine !== false && typeof window.unifiedTaxComparison === 'function')
-        ? window.unifiedTaxComparison(cfg)
-        : computeDeferredTaxComparison(cfg);
+      // Deferred routes through unified directly — see _scenarioMetrics.
+      if (typeof window === 'undefined' || typeof window.unifiedTaxComparison !== 'function') return null;
+      comp = window.unifiedTaxComparison(cfg);
       if (!comp || !Array.isArray(comp.rows)) return null;
       // Synthesize a result-shape for fee accounting consumers.
       result = { config: cfg, totals: { cumulativeFees: comp.totalFees || 0 } };

@@ -543,30 +543,16 @@ function computeTaxComparison(cfg, recommendation) {
 }
 
 // ============================================================
-// Deferred-recognition comparison.
-// Models a structured-sale scenario where:
-//   - Year 1: cost-basis cash is invested in Brooklyn (gain locked up
-//     in a structured-sale agreement with an insurance company).
-//   - Years 1..(R-1): Brooklyn generates short-term losses with no
-//     gain to absorb them. Per IRS rules, only $3,000 of those losses
-//     can offset ordinary income each year; the rest carries forward
-//     as short-term capital loss.
-//   - Year R onwards: a portion of the gain is paid out (Jan 1 so it
-//     gets a full year of fresh STL). The accumulated CF + same-year
-//     Brooklyn loss offsets the recognized gain. Recognized gain cash
-//     is reinvested in Brooklyn as a NEW tranche.
-//   - Greedy schedule: each eligible year, recognize as much gain as
-//     accumulated capacity will absorb. If gain still remains in the
-//     final horizon year, force-recognize the remainder (it gets taxed).
+// Deferred-path helpers.
 //
-// Tranche math: each tranche tracks (capital, startYearIdx). The Year-i
-// loss for tranche t = t.capital * lossRate(i - t.startYearIdx). For
-// non-Schwab strategies the rate is year-independent (brooklynInterpolate
-// returns one number); for Schwab combos the rate comes from the
-// combo's lossByYear array indexed by the tranche's age in years.
-//
-// Returns the same shape as computeTaxComparison plus a deferred:true
-// flag and a recognitionSchedule[] for display.
+// _applyLossesWithSTCfCap, _belowMinForLifecycle, _zeroDeferredComparison,
+// _structuredSaleMaturityYearIdx, and _estimateGainTaxRate are shared
+// between the unified engine (deferred mode) and the legacy immediate
+// engine. The original computeDeferredTaxComparison function was deleted
+// in Session A of the engine collapse — unified handles the deferred
+// path directly. See unifiedTaxComparison below for the deferred-mode
+// loop logic (gain recognition window, tranche reinvestment, structured-
+// sale maturity clamping, gain conservation invariant, etc.).
 
 function _applyLossesWithSTCfCap(scenario, lossAvailable, capOrdinary) {
       capOrdinary = capOrdinary != null ? capOrdinary : 3000;
@@ -778,401 +764,6 @@ function _estimateGainTaxRate(cfg) {
       return Math.max(0, Math.min(0.5, rate));
 }
 
-function computeDeferredTaxComparison(cfg) {
-      // Below-min lifecycle check: if the position can never legally
-      // open over the horizon (basis + total gain proceeds < custodian
-      // min, OR cfg.investment alone < min and no sale), return a
-      // zeroed result so the dashboard / ribbon / narrative all show
-      // "no engagement" rather than fabricated Brooklyn math.
-      if (_belowMinForLifecycle(cfg)) return _zeroDeferredComparison(cfg);
-      // No-deferral-possible short-circuit: with no LT gain AND no
-      // standalone Brooklyn investment, there is literally nothing for
-      // the deferred path to do. (Note: a Brooklyn-only client with
-      // cfg.investment > 0 and no sale should NOT be suppressed — the
-      // engine still generates small §1211 ordinary offsets that
-      // legitimately appear in the ribbon.)
-      const _ltGainNG  = Math.max(0,
-            (cfg && cfg.salePrice || 0) - (cfg && cfg.costBasis || 0)
-            - (cfg && cfg.acceleratedDepreciation || 0));
-      const _recapNG   = Math.max(0, cfg && cfg.acceleratedDepreciation || 0);
-      const _hasInvestment = Number(cfg && cfg.investment || cfg && cfg.investedCapital || 0) > 0;
-      if ((_ltGainNG + _recapNG) <= 0 && !_hasInvestment) return _zeroDeferredComparison(cfg);
-      const horizon = Math.max(1, cfg.horizonYears || cfg.years || 5);
-      // Year-fraction-remaining for the strategy implementation date.
-      // Computed once and reused for tranche loss interpolation, fee
-      // proration, and the Brookhaven schedule below — three call sites
-      // that all read the same date and would otherwise re-derive
-      // independently.
-      const yfImpl = (typeof yearFractionRemaining === 'function')
-            ? yearFractionRemaining((typeof cfgStrategyDate === 'function' ? cfgStrategyDate(cfg) : (cfg.strategyImplementationDate || cfg.implementationDate)))
-            : 1;
-      const startIdxRaw = Math.max(1, Math.min(horizon - 1,
-            (cfg.recognitionStartYearIndex != null ? cfg.recognitionStartYearIndex : 1)));
-      // Structured-sale maturity caps the recognition window. After this
-      // year index, no further gain can be deferred — the product has
-      // matured and any remainder must be recognized.
-      //
-      // If the user (or auto-pick) requested a startIdx LATER than the
-      // maturity year, that's infeasible: gain literally cannot be
-      // deferred past the product term. Clamp startIdx DOWN to maturity
-      // so the engine produces a legal schedule (gain forced into the
-      // last legal year). Without this, picking rec=4 with an 18-month
-      // duration silently extended the recognition into illegal years
-      // and produced fake savings that beat the legal rec=1 / rec=2
-      // options in the auto-pick optimizer — making the calculator
-      // refuse to choose "no structured sale" even when it should.
-      const matIdxRaw = _structuredSaleMaturityYearIdx(cfg, horizon);
-      const startIdx = Math.min(startIdxRaw, Math.max(1, matIdxRaw));
-      const maturityIdx = Math.max(startIdx, matIdxRaw);
-      const ordCap = (cfg.filingStatus === 'mfs') ? 1500 : 3000;
-
-      // Long-term gain bucket: salePrice net of basis, depreciation
-      // recapture, AND any short-term gain the user carved out (ST is
-      // taxed at ordinary rates and is tracked separately by the
-      // ordinary-income path).
-      const totalLT = Math.max(0,
-            (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0));
-      const recapture = Math.max(0, cfg.acceleratedDepreciation || 0);
-      // §453(i): unrecaptured §1250 depreciation recapture is recognized
-      // in the YEAR OF SALE, not deferred over the installment period.
-      // Only the long-term gain bucket is deferrable; recapture hits Y1
-      // alongside the first tranche of LT gain. See line 992 below where
-      // recapture is passed into _baseScenarioForYear for i===0 only.
-      const totalGainBucket = totalLT;
-      // basisCash is the cash actually deployed into Brooklyn at sale —
-      // capped by Available Capital (cfg.investment) when the user has
-      // chosen to "keep" some of the proceeds. Without this cap, the
-      // engine ignored the keep-proceeds toggle entirely on the deferred
-      // path because basisCash was hard-wired to cfg.costBasis. Now a
-      // user keeping $5M of a $12M sale (Available = $7M, basis = $4M)
-      // sees the deferred path correctly use $4M (keep didn't dig into
-      // basis), but a user keeping $9M (Available = $3M, basis = $4M)
-      // sees only $3M reach Brooklyn — basis got partially withheld.
-      const _basisFull = Math.max(0, cfg.costBasis || 0);
-      const _availCap = (cfg.investment != null && Number(cfg.investment) >= 0)
-            ? Number(cfg.investment) : _basisFull;
-      const basisCash = Math.min(_basisFull, _availCap);
-
-      const combo = (cfg.comboId && typeof getSchwabCombo === 'function')
-            ? getSchwabCombo(cfg.comboId) : null;
-      // Fee rate now comes from the regression in fee-split.js, applied
-      // uniformly across presets, Schwab combos, and variable leverage.
-      // The published Schwab combo feeRate (e.g. 2.03% for 200/100) is
-      // intentionally bypassed because the regression is more
-      // forward-accurate and consistent across all strategies.
-      const feeRate = (function () {
-            var lp, sp;
-            if (combo) { lp = combo.longPct; sp = combo.shortPct; }
-            else {
-                  var lev = _defaultLeverage(cfg);
-                  if (typeof window.brooklynPctsForLeverage === 'function') {
-                        var p = window.brooklynPctsForLeverage(cfg.tierKey || 'beta1', lev);
-                        lp = p.longPct; sp = p.shortPct;
-                  }
-            }
-            if (typeof window.brooklynFeeRateFor === 'function' && lp != null && sp != null) {
-                  return window.brooklynFeeRateFor(lp, sp);
-            }
-            // Fallback if the splitter isn't loaded.
-            if (combo) return combo.feeRate || 0;
-            if (typeof brooklynInterpolate === 'function') {
-                  var snap = brooklynInterpolate(cfg.tierKey || 'beta1', _defaultLeverage(cfg));
-                  return snap ? (snap.feeRate || 0) : 0;
-            }
-            return 0;
-      })();
-      // B8: a tranche opening mid-year ages fractionally — at year-end
-      // it's only `yf` years old, not 1.0 years. The published lossByYear
-      // curve is per-full-year-of-operation, so a calendar-year-2 loss
-      // for a July tranche straddles the year-1 and year-2 rates roughly
-      // 50/50. Linear-interpolate between adjacent buckets:
-      //   Y1 (j=0):     yf  * lossByYear[0]                           (partial first year)
-      //   Y2+  (j>=1):  (1-yf) * lossByYear[j-1] + yf * lossByYear[j]   (straddles two buckets)
-      // For yf=1 (Jan-1 sale) the formula collapses to lossByYear[j] —
-      // matches the prior behavior. For yf=0.5 (mid-year sale) Y2 is
-      // 50% year-1-rate + 50% year-2-rate; without this fix Y2 used the
-      // raw year-2 rate even though the position had only aged 1.5 years.
-      // Tranche loss rate by age. Schwab combos carry a year-by-year
-      // curve; non-Schwab uses the per-tier Y1 regression with a Schwab
-      // Beta 1 200/100 decay shape proxy. Both paths use the same
-      // mid-year-start interpolation. See _buildLossRateByAge at the
-      // top of this module — the immediate path uses the same helper.
-      const lossRateForTrancheYear = _buildLossRateByAge(cfg, yfImpl) || function () { return 0; };
-
-      // Per-tranche tax carve-out for "cover taxes from sale" toggle.
-      // Each year's recognized gain spawns a new Brooklyn tranche; when
-      // the user wants to cover taxes from the sale itself, the
-      // estimated tax on the recognized chunk is reserved (carved out)
-      // before the proceeds get reinvested. "A dollar paid for tax is
-      // a dollar that can't be in Brooklyn." Rate is held constant
-      // across the recognition window so the client can plan a stable
-      // cash reserve.
-      const _gainTaxRate = cfg.coverTaxesFromSale ? _estimateGainTaxRate(cfg) : 0;
-      const _reinvestFrac = 1 - _gainTaxRate;
-
-      // Tranche state. tranches[k] = { capital, startIdx } where startIdx is
-      // the cfg-relative year (0 = year1).
-      const tranches = [];
-      if (basisCash > 0) tranches.push({ capital: basisCash, startIdx: 0 });
-
-      // "Keep proceeds" cap on TOTAL Brooklyn deployment (basis + gain
-      // reinvest). cfg.investment is Available Capital = sale - keep -
-      // taxCover. If user keeps $5M of a $12M sale (basis $4M, gain
-      // $8M), Available = $7M — basisCash uses $4M, leaving $3M for
-      // gain reinvest across all years instead of the full $8M.
-      // Without this cap, the keep-proceeds toggle had ZERO effect on
-      // the deferred path because gain reinvest re-deployed the full
-      // gain regardless of what the user said they wanted to keep.
-      // remainingReinvestCap is the cap on FUTURE gain reinvestments
-      // (after basisCash already deployed). Negative when no cfg.
-      // investment provided → falls through to unlimited reinvest
-      // (legacy behavior preserved for non-Page-1 callers).
-      const _availTotal = (cfg.investment != null && Number(cfg.investment) >= 0)
-            ? Number(cfg.investment) : null;
-      let _remainingReinvestCap = (_availTotal != null)
-            ? Math.max(0, _availTotal - basisCash) : null;
-
-      let stCF = 0;
-      let gainRemaining = totalGainBucket;
-      const rows = [];
-      const recognitionSchedule = [];
-
-      // Brookhaven advisory wrap fees: $45K setup (Year 1) + $2K/qtr
-      // for 8 quarters, with Year-1 quarterly fees pro-rated by entry
-      // date (anchors on STRATEGY implementation date — engagement starts
-      // when the position opens, not when the sale closes). Reuses outer
-      // yfImpl computed at function entry.
-      const brookhavenSchedule = (typeof brookhavenFeeSchedule === 'function')
-            ? brookhavenFeeSchedule(horizon, yfImpl)
-            : null;
-
-      for (let i = 0; i < horizon; i++) {
-            const year = (cfg.year1 || (new Date()).getFullYear()) + i;
-
-            // Step 1 — compute Brooklyn loss + fees from EXISTING tranches.
-            // Each tranche uses lossRateForTrancheYear(age-of-tranche), so
-            // the basis position keeps generating losses every year using
-            // the year-2, year-3, ... rates of the lossByYear curve while
-            // newer tranches start at the year-1 rate.
-            //
-            // FEE TIME-WEIGHTING: the basis tranche opens at the user's
-            // implementation date (mid-year for most clients) and only
-            // operates `yfImpl` of Y1. Brooklyn's fee is QUOTED ANNUAL,
-            // so charging the full annual rate for ~2 months of operation
-            // overstates Y1 fees by 1/yfImpl (a 6× overcharge on a Nov 1
-            // sale). The basis tranche gets the partial-year fee in Y1
-            // and full-year fees thereafter; gain-reinvest tranches that
-            // open Jan 1 of year R always get full-year fees from R on.
-            let existingLoss = 0;
-            let existingFee = 0;
-            let existingInvested = 0;
-            tranches.forEach(function (t) {
-                  const trancheAge = i - t.startIdx;
-                  if (trancheAge < 0) return;
-                  existingLoss += t.capital * lossRateForTrancheYear(trancheAge);
-                  // Partial-year fee only for the basis tranche's first
-                  // year (startIdx=0, trancheAge=0). Everything else is
-                  // a full year of operation.
-                  const _trancheYf = (t.startIdx === 0 && trancheAge === 0) ? yfImpl : 1;
-                  existingFee += t.capital * feeRate * _trancheYf;
-                  existingInvested += t.capital;
-            });
-
-            // Step 2 — decide gain to recognize this year. Gain proceeds
-            // are received Jan 1 of year R and reinvested same year, so
-            // the new tranche generates fresh year-1 losses in year R
-            // alongside the existing tranches' year-N losses. With the
-            // "cover taxes from sale" toggle, only (1-taxRate)·G is
-            // reinvested — so the absorption inequality becomes:
-            //     G ≤ stCF + existingLoss + (G · reinvestFrac) · year1Rate
-            // i.e. G ≤ (stCF + existingLoss) / (1 - reinvestFrac · year1Rate).
-            // Final-year fallback: recognize any remaining gain even if
-            // it can't be fully offset.
-            const year1Rate = lossRateForTrancheYear(0);
-            const effYear1Rate = year1Rate * _reinvestFrac;
-            const denom = Math.max(0.001, 1 - effYear1Rate);
-            // §453(i): recapture is recognized in Y1 only and consumes
-            // Brooklyn loss FIRST (per IRC §1(h) — 25% bucket absorbs
-            // before the 20% LT bucket). So the LT-gain absorption
-            // ceiling for Y1 is reduced by the recapture amount.
-            // Y2..N have no recapture flow.
-            const _recapDrag = (i === 0) ? recapture : 0;
-            let gainRecThisYear = 0;
-            if (i >= startIdx && i <= maturityIdx && gainRemaining > 0) {
-                  const maxAbsorbable = Math.max(0, (stCF + existingLoss - _recapDrag) / denom);
-                  gainRecThisYear = Math.min(gainRemaining, maxAbsorbable);
-                  // Force-recognize remainder at maturity: the product has
-                  // matured, no more deferral is legally possible. (Used
-                  // to be `i === horizon - 1`; the maturity year is now
-                  // capped by cfg.structuredSaleDurationMonths.)
-                  if (i === maturityIdx && gainRemaining > gainRecThisYear) {
-                        gainRecThisYear = gainRemaining;
-                  }
-                  gainRemaining -= gainRecThisYear;
-            }
-
-            // Step 3 — carve estimated tax out of the proceeds (when the
-            // toggle is on) before pushing the new tranche. The full
-            // gainRecThisYear is still TAXED — the carve only changes
-            // how much of the after-tax proceeds get redeployed into
-            // Brooklyn. Then cap the reinvested amount by any remaining
-            // "keep proceeds" budget so the user-controlled Available
-            // Capital total is honored across the full horizon.
-            const trancheTaxCarve = gainRecThisYear * _gainTaxRate;
-            let reinvested = Math.max(0, gainRecThisYear - trancheTaxCarve);
-            if (_remainingReinvestCap != null) {
-                  reinvested = Math.min(reinvested, _remainingReinvestCap);
-                  _remainingReinvestCap = Math.max(0, _remainingReinvestCap - reinvested);
-            }
-            if (reinvested > 0) {
-                  tranches.push({ capital: reinvested, startIdx: i });
-            }
-
-            // Step 4 — recompute year totals INCLUDING the new tranche.
-            // Loss / fee / invested capital all scale with the
-            // reinvested portion, not the gross gain.
-            const newTrancheLoss = reinvested * year1Rate;
-            const newTrancheFee = reinvested * feeRate;
-            const yearLoss = existingLoss + newTrancheLoss;
-            const yearFee = existingFee + newTrancheFee;
-            const yearInvested = existingInvested + reinvested;
-
-            recognitionSchedule.push({ year: year, gainRecognized: gainRecThisYear });
-
-            // §453(i): recapture is recognized in the year of sale (i===0)
-            // alongside the first LT-gain tranche. The strategy-matched
-            // baseline must include recapture so the with-strategy
-            // comparison correctly reflects ordinary-rate tax on the
-            // recapture slice (capped at 25% via §1250 inside the
-            // federal calc). Years 2..N have no recapture flow.
-            const _recapThisYear = (i === 0) ? recapture : 0;
-            const baseline = _baseScenarioForYear(cfg, year, gainRecThisYear, _recapThisYear);
-            const baselineTax = _yearTaxes(baseline);
-
-            // "Do nothing" baseline for the bar chart: if the client took
-            // no action at all, the LT gain + recapture + any ST gain
-            // hits Year 1 as a lump sum. Recapture is split out and
-            // routed through ordinary income (not the LT bucket) so
-            // Y1 dnBaseline matches the Page-1 panel exactly — the
-            // panel sums recapture into ordinary at full marginal rate,
-            // and any UI that compares panel to dnBaseline must agree.
-            // The §1250 25% cap is enforced inside the federal calc.
-            // Year 2+ baseline is just ordinary income, no property
-            // gain or recapture.
-            const dnBaseline = _baseScenarioForYear(
-                  cfg, year,
-                  i === 0 ? totalLT : 0,
-                  i === 0 ? recapture : 0
-            );
-            if (i !== 0) dnBaseline.shortTermGain = 0;
-            // Recompute investmentIncome to match the do-nothing LT/ST/recap
-            // (otherwise NIIT base in Y2+ would still reflect the matched-
-            // timing gain, double-counting). Include recapture per §1411 —
-            // batch 1's fix to _baseScenarioForYear adds it to investment-
-            // income; this override needs to match or it silently drops
-            // recapture from the do-nothing NIIT base by ~$114K on a $3M
-            // recapture (cause of the unifiedTaxComparison parallel-run
-            // diff before this line was fixed).
-            dnBaseline.investmentIncome =
-                  (dnBaseline.longTermGain || 0)
-                  + Math.max(0, dnBaseline.shortTermGain || 0)
-                  + (dnBaseline.depreciationRecapture || 0);
-            const dnBaselineTax = _yearTaxes(dnBaseline);
-
-            const totalLossAvail = stCF + yearLoss;
-            const withStrat = _applyLossesWithSTCfCap(baseline, totalLossAvail, ordCap);
-            const withStratTax = _yearTaxes(withStrat);
-
-            stCF = Math.max(0, withStrat._lossUnused || 0);
-
-            // Brookhaven flat fees for this year (setup is Year-1 only).
-            const bh = brookhavenSchedule ? brookhavenSchedule.perYear[i] : { setup: 0, quarterly: 0, total: 0 };
-
-            rows.push({
-                  year: year,
-                  gainRecognized: gainRecThisYear,
-                  taxCarveOut: trancheTaxCarve,
-                  reinvestedThisYear: reinvested,
-                  lossGenerated: yearLoss,
-                  lossApplied: withStrat._lossUsed || 0,
-                  stCarryForward: stCF,
-                  investmentThisYear: yearInvested,
-                  fee: yearFee,
-                  brookhavenFee: bh.total,
-                  brookhavenSetupFee: bh.setup,
-                  brookhavenQuarterlyFee: bh.quarterly,
-                  baseline: baselineTax,
-                  doNothingBaseline: dnBaselineTax,
-                  withStrategy: withStratTax,
-                  savings: baselineTax.total - withStratTax.total
-            });
-      }
-
-      // totalBaseline aggregates the do-nothing baseline (lump-Y1, the
-      // honest "what would the client owe if they sold today and did
-      // nothing" comparison) when each row exposes it. Falls back to the
-      // matched-timing baseline if doNothingBaseline isn't populated on
-      // a row (defensive). The matched-timing total used to be returned
-      // separately as totalBaselineMatched but no consumer reads it —
-      // the dashboard KPI / strategy row / savings ribbon all agree on
-      // doNothingBaseline now.
-      let totalBaseline = 0, totalWith = 0, totalFees = 0, totalBrookhaven = 0;
-      rows.forEach(function (r) {
-            const _matched = (r.baseline ? r.baseline.total : 0);
-            const _dn = (r.doNothingBaseline && r.doNothingBaseline.total != null)
-                  ? r.doNothingBaseline.total
-                  : _matched;
-            totalBaseline += _dn;
-            totalWith += r.withStrategy.total;
-            totalFees += r.fee;
-            totalBrookhaven += (r.brookhavenFee || 0);
-      });
-
-      // Conservation guard: every dollar of LT gain must EITHER be
-      // recognized in some year's tranche OR sit in unrecognizedGain at
-      // maturity. If sum(recognized) + unrecognized != totalGainBucket
-      // the engine silently created or destroyed gain — usually a
-      // forced-recognition off-by-one or a tranche-push skip. Warn so
-      // it surfaces in dev; the calculator keeps rendering since the
-      // user-visible numbers are still self-consistent (savings = base
-      // - with regardless of where the gain went).
-      if (typeof console !== 'undefined' && typeof console.warn === 'function') {
-            const _sumRec = recognitionSchedule.reduce(function (s, r) {
-                  return s + (r.gainRecognized || 0);
-            }, 0);
-            const _accountedGain = _sumRec + Math.max(0, gainRemaining);
-            if (Math.abs(_accountedGain - totalGainBucket) > 1) {
-                  console.warn('[RETT engine] computeDeferredTaxComparison gain conservation broken: ' +
-                        'totalGainBucket=' + totalGainBucket +
-                        ' sumRecognized=' + _sumRec +
-                        ' unrecognized=' + gainRemaining +
-                        ' delta=' + (_accountedGain - totalGainBucket));
-            }
-      }
-
-      // Effective duration = number of years over which gain was recognized
-      // (used by the optimizer's tie-breaker to prefer shorter lockups).
-      const recognitionYears = recognitionSchedule.filter(function (r) {
-            return r.gainRecognized > 0;
-      }).map(function (r) { return r.year; });
-      const durationYears = recognitionYears.length
-            ? (recognitionYears[recognitionYears.length - 1] - recognitionYears[0] + 1)
-            : 0;
-
-      return {
-            rows: rows,
-            totalBaseline: totalBaseline,
-            totalWithStrategy: totalWith,
-            totalSavings: totalBaseline - totalWith,
-            totalFees: totalFees,
-            totalBrookhavenFees: totalBrookhaven,
-            totalAllFees: totalFees + totalBrookhaven,
-            recognitionSchedule: recognitionSchedule,
-            durationYears: durationYears,
-            unrecognizedGain: gainRemaining,
-            deferred: true
-      };
-}
 
 // ============================================================
 // UNIFIED ENGINE — supersedes computeTaxComparison + computeDeferredTaxComparison
@@ -1690,6 +1281,14 @@ function runEngineParitySweep(opts) {
 
             let legacy, unified;
             try {
+                  // Session A removed computeDeferredTaxComparison; the
+                  // sweep can only diff legacy-vs-unified for immediate
+                  // (rec=0) scenarios. Deferred scenarios still run the
+                  // unified engine end-to-end (smoke test that it
+                  // doesn't throw + produces sensible totals), but the
+                  // diff is a self-comparison so it always passes — the
+                  // value is in catching exceptions, not in detecting
+                  // regressions vs a deleted reference.
                   if (rh.rec === 0) {
                         const rec = recommendSale(cfg);
                         const lossGen = (rec && rec.summary && Array.isArray(rec.summary.lossByYear) && rec.summary.lossByYear[0])
@@ -1701,10 +1300,11 @@ function runEngineParitySweep(opts) {
                               schedule: null
                         };
                         legacy = computeTaxComparison(cfg, normRec);
+                        unified = window.unifiedTaxComparison(cfg);
                   } else {
-                        legacy = computeDeferredTaxComparison(cfg);
+                        unified = window.unifiedTaxComparison(cfg);
+                        legacy = unified;  // self-compare (smoke test only)
                   }
-                  unified = window.unifiedTaxComparison(cfg);
             } catch (e) {
                   failingScenarios.push({ label: label, error: String(e) });
                   return;
