@@ -3867,6 +3867,20 @@ body { font-size: 16px; }
     border-color: var(--ink-soft);
     color: var(--ink);
 }
+/* Supplemental cards add .is-active to the picked button (the JS uses
+   a distinct class name from the Page-2 strategy cards). Mirror the
+   filled-bold treatment so the click "holds" visually, instead of
+   reverting to the resting state. */
+.supp-pick-btn.is-active[data-supx-pick-action="interested"] {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--paper);
+}
+.supp-pick-btn.is-active[data-supx-pick-action="not-interested"] {
+    background: var(--paper-warm);
+    border-color: var(--ink-soft);
+    color: var(--ink);
+}
 
 .strategy-pick-actions {
     display: flex;
