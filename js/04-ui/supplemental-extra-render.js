@@ -597,6 +597,33 @@
         var newVal = (action === 'interested') ? true : false;
         var iState = _interestState();
         iState[target] = (iState[target] === newVal) ? null : newVal;
+        // When Interested is freshly engaged, "warm up" the card —
+        // restore any USD field that is currently $0 from the spec
+        // default. Without this, a card that survived a New Client
+        // reset (which zeros all USD fields) sits at netBenefit=$0
+        // forever and never appears on Page 5, even though the user
+        // explicitly clicked Interested. The user-touched flag is
+        // respected: a field the advisor explicitly typed $0 into
+        // stays at $0.
+        if (iState[target] === true) {
+          var st = _state()[target];
+          var spec = SPECS.filter(function (s) { return s.id === target; })[0];
+          if (st && spec) {
+            (spec.detailRows || []).forEach(function (row) {
+              if (row.kind !== 'usd') return;
+              var current = Number(st[row.id]) || 0;
+              var defaultVal = Number((spec.defaults || {})[row.id]) || 0;
+              var touched = st._userTouched && st._userTouched[row.id];
+              if (current === 0 && defaultVal > 0 && !touched) {
+                st[row.id] = defaultVal;
+              }
+            });
+            // Recompute so lastResult lands before the next render.
+            if (typeof root.recomputeSupplementalExtra === 'function') {
+              try { root.recomputeSupplementalExtra(); } catch (e) { /* */ }
+            }
+          }
+        }
         _renderHost();
         _persist();
         // Conservation: toggling Interested changes the rivalry-funded
