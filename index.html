@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=1777600000176">
+  <link rel="stylesheet" href="css/styles.css?v=1777600000177">
   <!-- html2pdf.js: turns the page-allocator DOM into a downloadable
        PDF on click. Bundled build (includes html2canvas + jsPDF).
        Script loads async/defer-friendly; window.html2pdf is the
@@ -57,6 +57,64 @@
        supplemental strategies surface on Page 4. The compact icons
        expand inline when clicked to reveal the dropzone. -->
   <section id="page-pmq" class="page active" role="tabpanel" aria-labelledby="nav-pmq">
+    <!-- ============ BOOTH HERO ============
+         Lifts the trade-booth tagline + 5-step process flow into the
+         app so the in-meeting narrative matches the marketing
+         materials. Sits at the very top of the Pre-Meeting page so
+         the advisor opens the meeting on-brand. -->
+    <div class="rett-hero">
+      <div class="rett-hero-tag">ONE PLAN. ONE PLACE. <span class="rett-hero-tag-em">A BETTER EXIT.</span></div>
+      <p class="rett-hero-sub">A tax-efficient strategy to reduce taxes, protect wealth, and maintain control through the sale of real estate.</p>
+    </div>
+
+    <ol class="rett-process" aria-label="The RETT Process — 5 strategic steps">
+      <li class="rett-process-step">
+        <span class="rett-process-num">1</span>
+        <span class="rett-process-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="6" height="11"/><rect x="10" y="4" width="6" height="16"/><rect x="17" y="12" width="4" height="8"/><path d="M2 20h20"/></svg>
+        </span>
+        <h3 class="rett-process-title">Sale of Appreciated Real Estate Identified</h3>
+        <p class="rett-process-body">$1.5M+ sale value, $1M+ gain typical fit.</p>
+      </li>
+      <li class="rett-process-step">
+        <span class="rett-process-num">2</span>
+        <span class="rett-process-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.6 8.5-8 10-4.4-1.5-8-5-8-10V6l8-3z"/><path d="M9 12l2 2 4-4"/></svg>
+        </span>
+        <h3 class="rett-process-title">RETT Trust Established <span class="rett-process-meta">South Dakota</span></h3>
+        <p class="rett-process-body">Revocable grantor trust &mdash; control, flexibility, asset protection.</p>
+      </li>
+      <li class="rett-process-step">
+        <span class="rett-process-num">3</span>
+        <span class="rett-process-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg>
+        </span>
+        <h3 class="rett-process-title">Structured Installment Sale <span class="rett-process-meta">IRC &sect;453</span></h3>
+        <p class="rett-process-body">Gain recognized over time, not all at once &mdash; reduce current tax burden.</p>
+      </li>
+      <li class="rett-process-step">
+        <span class="rett-process-num">4</span>
+        <span class="rett-process-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-6 4 4 8-9"/><path d="M14 6h6v6"/></svg>
+        </span>
+        <h3 class="rett-process-title">Proceeds Managed + Tax Strategy Applied</h3>
+        <p class="rett-process-body">Long/short investment overlay with Brooklyn + Nuveen offsets gains and defers capital-gains tax.</p>
+      </li>
+      <li class="rett-process-step">
+        <span class="rett-process-num">5</span>
+        <span class="rett-process-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg>
+        </span>
+        <h3 class="rett-process-title">Optimized Outcome</h3>
+        <ul class="rett-process-checks">
+          <li>Reduce capital-gains tax</li>
+          <li>Preserve and grow wealth</li>
+          <li>Increase after-tax proceeds</li>
+          <li>Maintain investment flexibility</li>
+        </ul>
+      </li>
+    </ol>
+
     <!-- Top row: Client identity card on the LEFT (name / email /
          phone — these route into Client Inputs on Continue and are
          stashed on window for the printout), and the CLIENT FORM
@@ -900,81 +958,117 @@
   </section>
   </main>
 
-  <!-- Compliance footer — placeholder line, intentionally tiny so it
-       reads as legal small print. Real compliance copy will be dropped
-       in here when finalized; until then the placeholder reminds the
-       advisor + dev team that this slot exists and is reserved. -->
+  <!-- Brookhaven attribution + compliance footer.
+       Mirrors the booth tablecloth row: 5 service icons (CPA · LAW ·
+       INVESTMENT MANAGEMENT · INSURANCE · TRUSTEE SERVICES) above a
+       compliance placeholder. Tiny mono small-print so it reads as
+       legal, not as primary content. -->
   <footer class="app-compliance" role="contentinfo">
+    <div class="compliance-brand">
+      <div class="compliance-brand-mark">A BrookHaven Multi-Family Office Strategy</div>
+      <ul class="compliance-services" aria-label="BrookHaven service lines">
+        <li>
+          <span class="compliance-service-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19h16M4 19V8l8-4 8 4v11M9 19v-6h6v6"/></svg>
+          </span>
+          <span class="compliance-service-label">CPA</span>
+        </li>
+        <li>
+          <span class="compliance-service-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 7h14M3 21h18M6 7v14M18 7v14"/></svg>
+          </span>
+          <span class="compliance-service-label">Law</span>
+        </li>
+        <li>
+          <span class="compliance-service-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-6 4 4 8-9M14 6h6v6"/></svg>
+          </span>
+          <span class="compliance-service-label">Investment Management</span>
+        </li>
+        <li>
+          <span class="compliance-service-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"/></svg>
+          </span>
+          <span class="compliance-service-label">Insurance</span>
+        </li>
+        <li>
+          <span class="compliance-service-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg>
+          </span>
+          <span class="compliance-service-label">Trustee Services</span>
+        </li>
+      </ul>
+    </div>
     <p class="compliance-line">[ Compliance line goes here &mdash; final copy pending ]</p>
-    <p class="compliance-attrib">RETT&trade; &middot; Real Estate Transition Trust &middot; A BrookHaven Multi-Family Office Strategy</p>
+    <p class="compliance-attrib">RETT&trade; &middot; Real Estate Transition Trust &middot; Trust Company South Dakota (Coming Soon)</p>
   </footer>
 
   <!-- ============ Subsystem load order: 00 -> 01 -> 02 -> 03 -> 05 -> 04 ============ -->
   <!-- date-utils is loaded ahead of 00-data so schwab-strategies can use the
        shared parseLocalDate global instead of defining its own copy. -->
-  <script src="js/01-brooklyn/date-utils.js?v=1777600000176"></script>
-  <script src="js/00-data/custodians.js?v=1777600000176"></script>
-  <script src="js/00-data/schwab-strategies.js?v=1777600000176"></script>
-  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000176"></script>
-  <script src="js/01-brooklyn/time-weight.js?v=1777600000176"></script>
-  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000176"></script>
-  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000176"></script>
+  <script src="js/01-brooklyn/date-utils.js?v=1777600000177"></script>
+  <script src="js/00-data/custodians.js?v=1777600000177"></script>
+  <script src="js/00-data/schwab-strategies.js?v=1777600000177"></script>
+  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000177"></script>
+  <script src="js/01-brooklyn/time-weight.js?v=1777600000177"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000177"></script>
+  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000177"></script>
 
-  <script src="js/02-tax-engine/tax-data.js?v=1777600000176"></script>
-  <script src="js/02-tax-engine/tax-loader.js?v=1777600000176"></script>
-  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000176"></script>
-  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000176"></script>
-  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000176"></script>
-  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000176"></script>
-  <script src="js/02-tax-engine/engine-self-test.js?v=1777600000176"></script>
+  <script src="js/02-tax-engine/tax-data.js?v=1777600000177"></script>
+  <script src="js/02-tax-engine/tax-loader.js?v=1777600000177"></script>
+  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000177"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000177"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000177"></script>
+  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000177"></script>
+  <script src="js/02-tax-engine/engine-self-test.js?v=1777600000177"></script>
 
-  <script src="js/03-solver/fees.js?v=1777600000176"></script>
-  <script src="js/03-solver/fee-split.js?v=1777600000176"></script>
-  <script src="js/03-solver/brookhaven-fees.js?v=1777600000176"></script>
-  <script src="js/03-solver/single-year-solver.js?v=1777600000176"></script>
-  <script src="js/03-solver/multi-year-solver.js?v=1777600000176"></script>
-  <script src="js/03-solver/structured-sale.js?v=1777600000176"></script>
-  <script src="js/03-solver/calc-oil-gas.js?v=1777600000176"></script>
-  <script src="js/03-solver/calc-delphi.js?v=1777600000176"></script>
-  <script src="js/03-solver/decision-engine.js?v=1777600000176"></script>
+  <script src="js/03-solver/fees.js?v=1777600000177"></script>
+  <script src="js/03-solver/fee-split.js?v=1777600000177"></script>
+  <script src="js/03-solver/brookhaven-fees.js?v=1777600000177"></script>
+  <script src="js/03-solver/single-year-solver.js?v=1777600000177"></script>
+  <script src="js/03-solver/multi-year-solver.js?v=1777600000177"></script>
+  <script src="js/03-solver/structured-sale.js?v=1777600000177"></script>
+  <script src="js/03-solver/calc-oil-gas.js?v=1777600000177"></script>
+  <script src="js/03-solver/calc-delphi.js?v=1777600000177"></script>
+  <script src="js/03-solver/decision-engine.js?v=1777600000177"></script>
   <!-- Master solver registry + Page-5 supplemental defaults. master-solver
        declares register*/list*/runMasterSolver; supplemental-defaults uses
        those to register Oil & Gas. Future supplemental strategies append
        to supplemental-defaults — calc-* modules don't reach into this. -->
-  <script src="js/03-solver/master-solver.js?v=1777600000176"></script>
-  <script src="js/03-solver/supplemental-defaults.js?v=1777600000176"></script>
-  <script src="js/03-solver/supplemental-extra-registry.js?v=1777600000176"></script>
-  <script src="js/03-solver/supplemental-investment-shims.js?v=1777600000176"></script>
+  <script src="js/03-solver/master-solver.js?v=1777600000177"></script>
+  <script src="js/03-solver/supplemental-defaults.js?v=1777600000177"></script>
+  <script src="js/03-solver/supplemental-extra-registry.js?v=1777600000177"></script>
+  <script src="js/03-solver/supplemental-investment-shims.js?v=1777600000177"></script>
 
-  <script src="js/05-projections/carryforward-tracker.js?v=1777600000176"></script>
-  <script src="js/05-projections/projection-engine.js?v=1777600000176"></script>
+  <script src="js/05-projections/carryforward-tracker.js?v=1777600000177"></script>
+  <script src="js/05-projections/projection-engine.js?v=1777600000177"></script>
 
   <!-- format-helpers loads first inside 04-ui so every renderer can use
        fmtUSD / fmtPct / fmtNum directly without a defensive fallback. -->
-  <script src="js/04-ui/format-helpers.js?v=1777600000176"></script>
-  <script src="js/04-ui/money-format.js?v=1777600000176"></script>
-  <script src="js/04-ui/banner.js?v=1777600000176"></script>
-  <script src="js/04-ui/number-animator.js?v=1777600000176"></script>
-  <script src="js/04-ui/case-storage.js?v=1777600000176"></script>
-  <script src="js/04-ui/pill-toggles.js?v=1777600000176"></script>
-  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000176"></script>
-  <script src="js/04-ui/input-validation.js?v=1777600000176"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1777600000176"></script>
-  <script src="js/04-ui/controls.js?v=1777600000176"></script>
-  <script src="js/04-ui/recommendation-render.js?v=1777600000176"></script>
-  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000176"></script>
-  <script src="js/04-ui/savings-ribbon.js?v=1777600000176"></script>
-  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000176"></script>
-  <script src="js/04-ui/narrative-render.js?v=1777600000176"></script>
-  <script src="js/04-ui/strategy-summary-render.js?v=1777600000176"></script>
-  <script src="js/04-ui/baseline-table.js?v=1777600000176"></script>
-  <script src="js/04-ui/supplemental-render.js?v=1777600000176"></script>
-  <script src="js/04-ui/supplemental-extra-render.js?v=1777600000176"></script>
+  <script src="js/04-ui/format-helpers.js?v=1777600000177"></script>
+  <script src="js/04-ui/money-format.js?v=1777600000177"></script>
+  <script src="js/04-ui/banner.js?v=1777600000177"></script>
+  <script src="js/04-ui/number-animator.js?v=1777600000177"></script>
+  <script src="js/04-ui/case-storage.js?v=1777600000177"></script>
+  <script src="js/04-ui/pill-toggles.js?v=1777600000177"></script>
+  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000177"></script>
+  <script src="js/04-ui/input-validation.js?v=1777600000177"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1777600000177"></script>
+  <script src="js/04-ui/controls.js?v=1777600000177"></script>
+  <script src="js/04-ui/recommendation-render.js?v=1777600000177"></script>
+  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000177"></script>
+  <script src="js/04-ui/savings-ribbon.js?v=1777600000177"></script>
+  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000177"></script>
+  <script src="js/04-ui/narrative-render.js?v=1777600000177"></script>
+  <script src="js/04-ui/strategy-summary-render.js?v=1777600000177"></script>
+  <script src="js/04-ui/baseline-table.js?v=1777600000177"></script>
+  <script src="js/04-ui/supplemental-render.js?v=1777600000177"></script>
+  <script src="js/04-ui/supplemental-extra-render.js?v=1777600000177"></script>
 
-  <script src="js/04-ui/pmq-handler.js?v=1777600000176"></script>
-  <script src="js/04-ui/pmq-questions.js?v=1777600000176"></script>
+  <script src="js/04-ui/pmq-handler.js?v=1777600000177"></script>
+  <script src="js/04-ui/pmq-questions.js?v=1777600000177"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1777600000176"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1777600000177"></script>
 </body>
 </html>

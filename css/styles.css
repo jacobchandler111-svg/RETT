@@ -19,17 +19,26 @@
                          glyph + secondary chart bars).
      --rett-amber     — gold of the numbered step circles + chart bars.
                          Use sparingly for "this matters" moments. */
-  /* Re-sampled from the printed visuals (booth wall + leave-behind):
-     navy is deeper and slightly cooler than the prior take; the
-     amber pulls toward orange-gold rather than pure yellow; blue
-     reads as a saturated cobalt rather than the prior bright royal. */
-  --rett-navy:       #0a1d3d;
-  --rett-navy-soft:  #142a52;
-  --rett-blue:       #1e4f9a;
-  --rett-blue-soft:  #356cba;
-  --rett-cyan:       #6dc5e8;
-  --rett-amber:      #f29c2c;
-  --rett-amber-soft: #f7bf6a;
+  /* Final brand tokens per the audit handoff. Sampled to match the
+     three booth marketing pieces (front, "1031 Alternative" variant,
+     full-page infographic). Colors below are the canonical source
+     of truth; legacy --bh-* aliases below remap to these. */
+  --rett-navy:       #0B1B3A;  /* primary backgrounds, headers, CTAs */
+  --rett-navy-2:     #122A55;  /* gradient pair to navy */
+  --rett-navy-soft:  #142a52;  /* soft hover/highlight tier */
+  --rett-blue:       #1F6FEB;  /* booth icons + accents (brighter than prior cobalt) */
+  --rett-blue-soft:  #4287f0;
+  --rett-blue-light: #DCE9FA;  /* tinted bullet boxes, selected tab fill */
+  --rett-cyan:       #5BA9FF;  /* uppercase mono section tags, secondary accent */
+  --rett-bg:         #F4F7FB;  /* page background gradient top */
+  /* Step-circle warning orange — booth uses this for the numbered
+     1-5 process circles. Keep --rett-amber as an alias so existing
+     rules pointing at amber resolve to the new orange automatically. */
+  --rett-warning:    #E07B2A;
+  --rett-amber:      var(--rett-warning);
+  --rett-amber-soft: #f3a567;
+  --rett-success:    #1F8A4C;  /* green selected, savings deltas */
+  --rett-danger:     #C0392B;  /* "no planning" walk-away figure */
 
   /* Legacy BrookHaven aliases — kept so existing rules keep
      compiling. Each maps to the closest RETT brand counterpart. */
@@ -1917,31 +1926,244 @@ body {
     .header-right { align-items: flex-start; border-left: 0; padding-left: 0; border-top: 1px solid rgba(255,255,255,0.12); padding-top: 10px; }
 }
 
-/* Compliance footer — small-print disclosure slot at the bottom of
-   every page. Final copy pending; placeholder reminds the team
-   that the slot exists. Sits just above the page bottom in a muted
-   warm-cool surface so it doesn't compete with the navy header. */
+/* Compliance footer — Brookhaven 5-service attribution + small-print
+   disclosure. Mirrors the trade-booth tablecloth row. Final compliance
+   copy will replace the bracketed placeholder when ready. */
 .app-compliance {
     margin-top: 36px;
-    padding: 14px 48px 22px;
-    background: var(--paper-cool);
-    border-top: 1px solid var(--rule);
+    padding: 22px 48px 24px;
+    background: var(--rett-navy);
+    color: rgba(255,255,255,0.78);
+    border-top: 0;
     text-align: center;
+}
+.app-compliance .compliance-brand {
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    padding-bottom: 14px;
+    margin-bottom: 12px;
+}
+.app-compliance .compliance-brand-mark {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 16px;
+    font-weight: 500;
+    color: #fff;
+    letter-spacing: -0.005em;
+    margin-bottom: 12px;
+}
+.app-compliance .compliance-services {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 32px;
+}
+.app-compliance .compliance-services li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: rgba(255,255,255,0.85);
+}
+.app-compliance .compliance-service-icon {
+    width: 22px;
+    height: 22px;
+    color: var(--rett-cyan);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.app-compliance .compliance-service-icon svg {
+    width: 100%;
+    height: 100%;
+}
+.app-compliance .compliance-service-label {
+    font-family: var(--font-body);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #fff;
 }
 .app-compliance .compliance-line {
     font-family: var(--font-mono);
     font-size: 10px;
     line-height: 1.55;
-    color: var(--muted);
+    color: rgba(255,255,255,0.65);
     letter-spacing: 0.04em;
     margin: 0 0 4px 0;
 }
 .app-compliance .compliance-attrib {
     font-family: var(--font-body);
     font-size: 10px;
+    color: rgba(255,255,255,0.55);
+    margin: 0;
+}
+@media (max-width: 720px) {
+    .app-compliance .compliance-services { gap: 16px 22px; }
+}
+
+/* ============ Booth-hero + 5-step process flow (Tab 0) ============
+   Lifts the booth's tagline + numbered process visualization into
+   the in-app meeting opener. Hero is a navy panel with the booth
+   tagline; below it sits the 5-step flow as a horizontal row of
+   numbered cards (stacks vertically on narrow viewports). Numbers
+   live in orange filled circles to match the booth visual. */
+.rett-hero {
+    margin: 0 0 18px 0;
+    padding: 28px 32px;
+    background:
+      linear-gradient(135deg, var(--rett-navy) 0%, var(--rett-navy-2) 100%);
+    color: #fff;
+    border-radius: 4px;
+    text-align: center;
+    box-shadow: 0 4px 16px rgba(11,27,58,0.16);
+}
+.rett-hero-tag {
+    font-family: var(--font-body);
+    font-weight: 800;
+    font-size: 30px;
+    letter-spacing: -0.01em;
+    line-height: 1.05;
+    color: #fff;
+    text-transform: uppercase;
+}
+.rett-hero-tag-em {
+    color: var(--rett-cyan);
+    font-style: italic;
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 0.96em;
+    text-transform: none;
+    letter-spacing: -0.01em;
+}
+.rett-hero-sub {
+    margin: 8px auto 0;
+    max-width: 760px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: rgba(255,255,255,0.82);
+}
+@media (max-width: 720px) {
+    .rett-hero { padding: 20px 18px; }
+    .rett-hero-tag { font-size: 22px; }
+}
+
+.rett-process {
+    list-style: none;
+    margin: 0 0 22px 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 12px;
+}
+.rett-process-step {
+    position: relative;
+    background: var(--rett-card, var(--paper));
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 22px 16px 18px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+/* Connector line between consecutive step cards on desktop. Thin
+   navy bar that sits at the vertical mid-line of the step circles
+   so the row reads as a sequence rather than 5 disconnected cards. */
+.rett-process-step::after {
+    content: "";
+    position: absolute;
+    top: 38px;
+    right: -7px;
+    width: 14px;
+    height: 1.5px;
+    background: var(--rett-blue);
+    opacity: 0.6;
+}
+.rett-process-step:last-child::after { display: none; }
+.rett-process-num {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--rett-warning);
+    color: #fff;
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    box-shadow: 0 2px 6px rgba(224,123,42,0.30);
+    align-self: flex-start;
+}
+.rett-process-icon {
+    width: 32px;
+    height: 32px;
+    color: var(--rett-blue);
+    display: inline-flex;
+    margin-top: 2px;
+}
+.rett-process-icon svg { width: 100%; height: 100%; }
+.rett-process-title {
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 13px;
+    line-height: 1.3;
+    color: var(--ink);
+    margin: 0;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+.rett-process-meta {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: var(--rett-blue);
+    margin-top: 2px;
+    text-transform: uppercase;
+}
+.rett-process-body {
+    font-family: var(--font-body);
+    font-size: 12px;
+    line-height: 1.45;
     color: var(--muted);
     margin: 0;
-    opacity: 0.75;
+}
+.rett-process-checks {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.rett-process-checks li {
+    font-size: 11.5px;
+    line-height: 1.35;
+    color: var(--ink);
+    padding-left: 16px;
+    position: relative;
+}
+.rett-process-checks li::before {
+    content: "\2713";
+    position: absolute;
+    left: 0;
+    top: 0;
+    color: var(--rett-success);
+    font-weight: 700;
+}
+@media (max-width: 1100px) {
+    .rett-process { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .rett-process-step::after { display: none; }
+}
+@media (max-width: 720px) {
+    .rett-process { grid-template-columns: 1fr; }
 }
 
 /* NAV TABS */
