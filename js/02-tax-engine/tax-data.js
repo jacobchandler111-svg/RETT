@@ -30,12 +30,11 @@ const TAX_DATA = {
           // is the SE-earnings adjustment per Form SE — multiply gross SE
           // income by this before applying SS/Medicare rates. ssWageBase
           // is the Social Security taxable wage cap (the 2.9% Medicare
-          // portion is uncapped). Verify ssWageBase against SSA each
-          // January — 2025 was $176,100, the 2026 value is published in
-          // late October 2025 and should be patched here when released.
+          // portion is uncapped). 2026 base is $184,500 per SSA Fact
+          // Sheet released October 2025. Verify each January.
           seTaxRate: 0.153,        // 12.4% SS + 2.9% Medicare combined
           seTaxMultiplier: 0.9235, // SE income × this = SECA base
-          ssWageBase: 176100       // 2025 SSA wage base; 2026 TBD-pending
+          ssWageBase: 184500       // 2026 SSA wage base (Oct 2025 release)
 };
 
 function setTaxData(decoded) {

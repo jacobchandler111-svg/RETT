@@ -126,7 +126,15 @@ function computeFederalTax(ordinaryIncome, year, status, opts) {
 //                         the ordinary stack inside this function so
 //                         callers don't all have to pre-stack it. (P0-5.)
 //   qualifiedDividend   — numeric, taxed at LTCG rates (treated like LT gain)
-//   investmentIncome    — numeric, NIIT base (defaults to LT + QD + ST + rental + non-qual divs)
+//   investmentIncome    — numeric, NIIT base. DEFAULT IS NARROW:
+//                         longTermGain + qualifiedDividend + shortTermGain.
+//                         Real §1411 NIIT base also includes interest,
+//                         rental + royalty income, annuity income, and
+//                         passive-activity income — which this engine
+//                         doesn't see as separate buckets. Callers with
+//                         those items MUST pass an explicit
+//                         opts.investmentIncome that includes them, or
+//                         NIIT will be understated.
 //   wages               — numeric, Additional Medicare base (W-2 only)
 //   seIncome            — numeric, added to wages × 0.9235 for the
 //                         Add'l Medicare base (Form 8959). The 0.9235
@@ -209,15 +217,52 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       // §1211(b) loss offset: up to $3,000/yr ($1,500 MFS) of net
       // capital loss reduces ordinary income; the remainder carries
       // forward. Both this-year LT loss AND a prior-year carried loss
-      // contribute, capped at the same single annual ceiling. Previously
-      // the engine clamped LT to 0 silently and ignored carryforwards.
+      // contribute, capped at the same single annual ceiling.
+      //
+      // Cross-bucket netting per Schedule D (Form 1040): a net ST loss
+      // first reduces net LT gain (and vice versa) BEFORE either bucket
+      // hits the ordinary brackets / LTCG brackets. Whatever remains
+      // negative after netting feeds §1211(b). The earlier code
+      // captured only LT loss → §1211(b) and silently dropped any ST
+      // loss, which understated the carryforward and could miss the
+      // $3K ordinary offset for clients with a loss-only ST position.
       var _capLoss = (status === 'mfs' || status === 'married_separate') ? 1500 : 3000;
-      var _ltLossThisYear = (_lt != null && Number(_lt) < 0) ? Math.abs(Number(_lt)) : 0;
+      var _ltSigned = (_lt != null) ? Number(_lt) : 0;
+      var _stSigned = (_st != null) ? Number(_st) : 0;
+      // Schedule D Part III netting between ST and LT buckets when one
+      // is negative and the other positive.
+      if (_ltSigned > 0 && _stSigned < 0) {
+            var _stLossAbs = -_stSigned;
+            if (_stLossAbs <= _ltSigned) {
+                  _ltSigned -= _stLossAbs;
+                  _stSigned = 0;
+            } else {
+                  _stSigned = -(_stLossAbs - _ltSigned);
+                  _ltSigned = 0;
+            }
+      } else if (_ltSigned < 0 && _stSigned > 0) {
+            var _ltLossAbs = -_ltSigned;
+            if (_ltLossAbs <= _stSigned) {
+                  _stSigned -= _ltLossAbs;
+                  _ltSigned = 0;
+            } else {
+                  _ltSigned = -(_ltLossAbs - _stSigned);
+                  _stSigned = 0;
+            }
+      }
+      var _ltLossThisYear = _ltSigned < 0 ? -_ltSigned : 0;
+      var _stLossThisYear = _stSigned < 0 ? -_stSigned : 0;
       var _carriedLossPrior = Math.max(0, Number(opts.carriedLossPriorYear) || 0);
-      var _totalNetLoss = _ltLossThisYear + _carriedLossPrior;
+      var _totalNetLoss = _ltLossThisYear + _stLossThisYear + _carriedLossPrior;
       var _carriedLossOrdOffset = Math.min(_capLoss, _totalNetLoss);
       var _lossCarryforward = Math.max(0, _totalNetLoss - _carriedLossOrdOffset);
-      if (_ltLossThisYear > 0) _lt = 0; // cap LT at 0 for the LTCG bracket loop
+      // Push post-netting residuals back into the variables the rest of
+      // this function uses for the bracket walks. Either remaining
+      // signed value is non-negative now (negatives went into the
+      // §1211(b) bucket above), so the Math.max(0, ...) clamps below
+      // are no-ops in the normal case.
+      _lt = Math.max(0, _ltSigned);
+      _st = Math.max(0, _stSigned);
       var _qd = opts.qualifiedDividend != null ? opts.qualifiedDividend : opts.qualifiedDiv;
       var _inv = opts.investmentIncome != null ? opts.investmentIncome
               : (opts.niitable != null ? opts.niitable : opts.niitIncome);
@@ -245,6 +290,22 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       const ltBrk    = getFederalLTCGBrackets(year, status);
 
       const deduction = Math.max(stdDed, itemized);
+
+      // §1212(b) carryforward accounting: the §1211(b) ordinary offset
+      // is BOUNDED by available taxable ordinary AFTER std deduction.
+      // If ord = $5K and stdDed = $32K, taxable ord clamps to 0 with
+      // stdDed alone — the cap loss offset can't reduce a 0 base any
+      // further, and the unused portion must carry forward. Without
+      // this correction the carryforward was understated by up to the
+      // full ($3K / $1.5K MFS) cap for low-income years.
+      const _ordGrossForOffsetCap = (ordinaryIncome + shortTermGain + _recap);
+      const _ordPostStdDed = Math.max(0, _ordGrossForOffsetCap - deduction);
+      const _effectiveLossOrdOffset = Math.min(_carriedLossOrdOffset, _ordPostStdDed);
+      // The carryforward is "everything that didn't actually reduce
+      // taxable ord this year." Effective offset replaces the nominal
+      // for both the carryforward calc and the value returned to the
+      // caller via lossOrdOffsetApplied.
+      _lossCarryforward = Math.max(0, _totalNetLoss - _effectiveLossOrdOffset);
       // §1211(b) loss offset + short-term gain both run through the
       // ordinary-income bracket stack. STG is taxed at ordinary rates
       // (no preferential bucket), and the loss offset reduces the base
@@ -337,7 +398,7 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       let seTax = 0;
       if (seIncomeRaw > 0 && typeof TAX_DATA !== 'undefined' && TAX_DATA) {
             const seBase = seIncomeRaw * seTaxMult;
-            const ssWageBase = Number(TAX_DATA.ssWageBase) || 176100; // 2025 SSA cap, 2026 TBD
+            const ssWageBase = Number(TAX_DATA.ssWageBase) || 184500; // 2026 SSA wage base (Oct 2025 release)
             const w2Wages = Math.max(0, _w != null ? Number(_w) : 0);
             const ssRoom = Math.max(0, ssWageBase - w2Wages);
             const ssBase = Math.min(seBase, ssRoom);
@@ -357,7 +418,12 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
             addlMedicare: addlMed,
             // Surface the §1211(b) accounting so callers can render a
             // "$3K loss offset applied" line + a carryforward note.
-            lossOrdOffsetApplied: _carriedLossOrdOffset,
+            // Return the EFFECTIVE offset (bounded by available taxable
+            // ord) rather than the nominal min($3K, totalLoss) so the
+            // displayed offset matches what actually reduced the tax
+            // bill, and the carryforward correctly captures everything
+            // that didn't apply this year.
+            lossOrdOffsetApplied: _effectiveLossOrdOffset,
             lossCarryforward: _lossCarryforward,
             total: total
       };

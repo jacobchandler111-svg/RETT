@@ -2620,13 +2620,13 @@
           "single": [
             [
               999999999,
-              0.0499
+              0.0519
             ]
           ],
           "married_joint": [
             [
               999999999,
-              0.0499
+              0.0519
             ]
           ]
         },
@@ -2634,7 +2634,8 @@
         "standardDeduction": {
           "single": 12000,
           "married_joint": 24000
-        }
+        },
+        "_source": "Georgia HB 111 (signed April 2025) reduced the flat individual income tax rate from 5.39% to 5.19% effective Jan 1 2025. The schedule contemplates 0.10% annual reductions toward 4.99% IF economic triggers are met (3%+ revenue growth, reserve adequacy, evaluated by Office of Planning and Budget each Dec 1). 2026 rate stays at 5.19% absent confirmed trigger. Prior file value of 4.99% was the eventual end-state, not the active 2026 rate; corrected 2026-05-06."
       },
       "HI": {
         "brackets": {
@@ -3499,18 +3500,22 @@
             ],
             [
               70000,
-              0.035
+              0.0245
             ],
             [
               80000,
-              0.05525
+              0.035
             ],
             [
               150000,
-              0.0637
+              0.05525
             ],
             [
               500000,
+              0.0637
+            ],
+            [
+              5000000,
               0.0897
             ],
             [
@@ -3525,7 +3530,7 @@
         },
         "stateLtcg": {
           "disconformLossOffset": true,
-          "_source": "NJSA 54A:5-2 \u2014 NJ Gross Income Tax categorizes income; capital losses offset only capital gains, not ordinary income. Verified 2026-05-05 against NJ Division of Taxation guidance."
+          "_source": "NJSA 54A:5-2 \u2014 NJ Gross Income Tax categorizes income; capital losses offset only capital gains, not ordinary income. MFJ brackets restored 2026-05-06 to NJ Division of Taxation publication: 1.4/1.75/2.45/3.5/5.525/6.37/8.97/10.75 with breakpoints 20K/50K/70K/80K/150K/500K/5M. Prior file dropped the 2.45% slab and shifted 8.97% start from $5M down to $500K, overcharging MFJ filers from $50K up by one rate slot ($10K+ at $500K)."
         }
       },
       "NM": {
