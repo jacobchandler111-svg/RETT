@@ -175,7 +175,9 @@
         domesticContent:  false,
         energyCommunity:  false,
         lowIncomeAdder:   'none',   // 'none' | 'lic-10' | 'lic-20'
-        isPassive:        true       // §469 trap default — most retail investors
+        isPassive:        true,      // §469 trap default — most retail investors
+        holdingPeriod:    7,         // years — governs §50(a) recapture vesting
+        transferElect:    false      // §6418 sell-credit-for-cash election
       },
       detailRows: [
         { id: 'solarInvestment', label: 'Investment amount',               kind: 'usd',   placeholder: '250,000' },
@@ -188,7 +190,9 @@
             { value: 'lic-10', label: '+10% LIC / Indian land' },
             { value: 'lic-20', label: '+20% LIC residential / economic' }
         ] },
-        { id: 'isPassive',       label: 'Passive investor (§469)?',        kind: 'yesno' }
+        { id: 'isPassive',       label: 'Passive investor (§469)?',        kind: 'yesno' },
+        { id: 'holdingPeriod',   label: 'Planned hold (yrs) — recapture',  kind: 'num',   placeholder: '7' },
+        { id: 'transferElect',   label: '§6418 transfer credit for cash?', kind: 'yesno' }
       ]
     },
     {
@@ -204,7 +208,8 @@
         productionType:    'film',  // film | tv | theatrical | sound
         lowIncomeArea:     false,    // raises §181 cap to $20M
         usServicesPct:     90,       // must be ≥ 75% for §181 eligibility
-        isPassive:         false     // §469 trap — gates benefit if true
+        isPassive:         false,    // §469 trap — gates benefit if true
+        episodeCount:      1          // TV: cap is per-episode, first 44 only
       },
       detailRows: [
         { id: 'filmInvestment',  label: 'Investment / production cost',     kind: 'usd',   placeholder: '250,000' },
@@ -214,6 +219,7 @@
             { value: 'theatrical', label: 'Live theatrical' },
             { value: 'sound',      label: 'Sound recording ($150K cap)' }
         ] },
+        { id: 'episodeCount',    label: 'Episodes (TV only, max 44)',       kind: 'num',   placeholder: '1' },
         { id: 'commencedBy2025', label: 'Production commenced by 12/31/25?', kind: 'yesno' },
         { id: 'lowIncomeArea',   label: 'Low-income area ($20M cap)?',      kind: 'yesno' },
         { id: 'usServicesPct',   label: 'U.S. services compensation (%)',   kind: 'pct',   placeholder: '90' },

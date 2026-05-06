@@ -182,17 +182,47 @@
     var qbi   = _qbiHaircut(cfg);
     var marginal = fed + st_ + addl;
     var netBenefit = actual * marginal * (1 - 0.20 * qbi);
+
+    // Multi-year cumulative projection. The DB plan deduction
+    // recurs every year from now through NRA (level premium). We
+    // surface the cumulative dollar value so the advisor can frame
+    // "this saves you $X per year × N years to retirement = $Y total".
+    // Single-year netBenefit stays the headline number; cumulative
+    // is informational in detail.
+    var ageOwner = Math.max(20, _num(st.ageOwner) || 55);
+    var nra      = Math.max(ageOwner + 1, _num(st.nra) || 65);
+    var yearsToNRA = nra - ageOwner;
+    var cumulativeBenefit = netBenefit * yearsToNRA;
+    var cumulativeContribution = actual * yearsToNRA;
+
     _writeResult('plan412e3', {
       netBenefit: Math.round(netBenefit),
       investment: Math.round(actual),
       marginalRate: marginal,
       detail: {
-        contribution: Math.round(actual),
-        maxAllowed:   Math.round(maxPremium),
-        capped:       contribution > maxPremium
+        contribution:           Math.round(actual),
+        maxAllowed:             Math.round(maxPremium),
+        capped:                 contribution > maxPremium,
+        yearsToNRA:             yearsToNRA,
+        cumulativeBenefit:      Math.round(cumulativeBenefit),
+        cumulativeContribution: Math.round(cumulativeContribution)
       }
     });
   }
+
+  // PTET top rates by state (2026, from spec table). Used to auto-
+  // populate the user's stateRate default when their cfg.state has
+  // a PTET regime — they can still override. States not in this map
+  // either have no PTET regime (TX, FL, WY, NV, WA, AK, SD, TN, NH)
+  // or weren't promulgated; user must enter manually.
+  var PTET_RATES_2026 = {
+    AL: 5.0, AZ: 2.5, AR: 4.4, CA: 9.3, CO: 4.4, CT: 6.99, GA: 5.19,
+    HI: 11.0, ID: 5.695, IL: 4.95, IN: 3.05, IA: 5.7, KS: 5.7,
+    KY: 4.0, LA: 4.25, ME: 7.15, MD: 8.95, MA: 5.0, MI: 4.25,
+    MS: 4.7, MO: 4.7, MT: 5.9, NE: 5.84, NJ: 10.9, NM: 5.9,
+    NY: 10.9, NC: 4.5, OH: 3.0, OK: 4.75, OR: 9.9, RI: 5.99,
+    SC: 6.4, UT: 4.5, VA: 5.75, WV: 5.12, WI: 7.65
+  };
 
   // ----------------------------------------------------------------
   // Strategy 2 — Pass-Through Entity Tax (PTET)
@@ -216,7 +246,14 @@
     var cfg = _cfg(); if (!cfg) return _writeResult('ptet', null);
     var st = _state('ptet');
     var income = Math.max(0, _num(st.taxableIncome));
-    var rate   = Math.max(0, _num(st.stateRate)) / 100;
+    // Auto-fill state rate from the lookup table when the user has
+    // not manually entered one (or has cleared it). User-entered
+    // values still win — only an empty / 0 stateRate triggers the
+    // table fallback.
+    var rate = Math.max(0, _num(st.stateRate)) / 100;
+    if (rate <= 0 && cfg.state && PTET_RATES_2026[cfg.state] != null) {
+      rate = PTET_RATES_2026[cfg.state] / 100;
+    }
     if (income <= 0 || rate <= 0) return _writeResult('ptet', null);
 
     var ptet = income * rate;
@@ -406,9 +443,14 @@
     }
 
     var netBenefit = credit + deductionValue;
+    // RIVALRY NOTE: R&D spend is an operating expense the business
+    // already committed to before any tax planning runs. It does NOT
+    // compete with sale-proceed capital for Brooklyn allocation, so
+    // investment is reported as 0 — the strategy delivers a benefit
+    // without claiming any of the rivalrous capital pool.
     _writeResult('rdCredit', {
       netBenefit: Math.round(netBenefit),
-      investment: Math.round(spend),
+      investment: 0,
       marginalRate: fed,
       detail: {
         credit:         Math.round(credit),
@@ -416,7 +458,8 @@
         deductionValue: Math.round(deductionValue),
         elect280C:      elect280C,
         ascMode:        priorAvg > 0 ? 'continuing' : 'start-up',
-        qsbCapped:      isQSB
+        qsbCapped:      isQSB,
+        rdSpend:        Math.round(spend)   // surfaced for context only
       }
     });
   }
@@ -524,16 +567,34 @@
     var fed = _fedMarginal(cfg);
     var st_ = _stateMarginal(cfg);
     var marginal = fed + st_;
-    var netBenefit = capped * marginal;
+    var directBenefit = capped * marginal;
+
+    // Second-order benefits — QCD bypasses AGI, so the donor gets:
+    //   (a) IRMAA premium-bracket relief ($1-3K/yr for couples
+    //       crossing a single bracket); modeled as a flat 2% of QCD
+    //       in the typical-retiree band ($1K per $50K QCD).
+    //   (b) Reduced taxation of Social Security — up to 85% of SS
+    //       can be taxable; a $50K AGI reduction commonly shifts
+    //       a meaningful chunk to 50% or 0%. Modeled as 5% of QCD
+    //       in the retiree-age band as a directional uplift.
+    // These are conservative, directional estimates — final
+    // computation requires the donor's full income picture.
+    var secondOrder = 0;
+    if (donorAge >= 65) {
+      secondOrder = capped * 0.07;   // ~2% IRMAA + 5% SS-taxation
+    }
+    var netBenefit = directBenefit + secondOrder;
     _writeResult('qcd', {
       netBenefit: Math.round(netBenefit),
       investment: 0,
       marginalRate: marginal,
       detail: {
-        qcdAmount:    Math.round(capped),
-        statutoryCap: statutoryCap,
-        eligibleCap:  Math.round(eligibleCap),
-        splitInt:     splitInt
+        qcdAmount:     Math.round(capped),
+        statutoryCap:  statutoryCap,
+        eligibleCap:   Math.round(eligibleCap),
+        splitInt:      splitInt,
+        directBenefit: Math.round(directBenefit),
+        secondOrder:   Math.round(secondOrder)
       }
     });
   }
@@ -589,9 +650,25 @@
     var stRate = _stateMarginal(cfg);
     var marginal = fed + stRate;
 
-    var itcDollars = inv * itcRate;             // $-for-$ credit
+    var itcDollarsGross = inv * itcRate;        // $-for-$ credit, pre-vesting
     var depreciableBasis = inv * (1 - 0.5 * itcRate);
     var bonusValue = depreciableBasis * marginal;  // 100% Y1 bonus
+
+    // §50(a) 5-yr recapture vesting. Credit vests 20%/yr; if the
+    // investor's planned holding period < 5, only the vested
+    // fraction is "safe." Conservative model: assume the disposition
+    // happens at the END of the planned holding period, and discount
+    // the unvested portion fully (worst-case recapture).
+    var hold = Math.max(0, _num(st.holdingPeriod) || 5);
+    var vestedFraction = Math.min(1, Math.max(0, hold / 5));
+    var itcDollars = itcDollarsGross * vestedFraction;
+
+    // §6418 transferability — sell credit for cash. Market range
+    // ~88-94 cents on the dollar; use 0.91 midpoint. Reduces ITC
+    // value but unlocks immediate cash and removes some §469 /
+    // at-risk friction at the buyer side.
+    var transferElect = !!st.transferElect;
+    if (transferElect) itcDollars *= 0.91;
 
     var grossBenefit = itcDollars + bonusValue;
     var netBenefit = passive ? 0 : grossBenefit;
@@ -603,9 +680,12 @@
       detail: {
         itcRate:          itcRate,
         itc:              Math.round(itcDollars),
+        itcGross:         Math.round(itcDollarsGross),
         bonusValue:       Math.round(bonusValue),
         depreciableBasis: Math.round(depreciableBasis),
         passiveFiltered:  passive,
+        vestedFraction:   vestedFraction,
+        transferElect:    transferElect,
         adders:           { dc: dc, ec: ec, lic: lic, pwa: pwa, mwSize: mwSize }
       }
     });
@@ -649,9 +729,19 @@
     var passive  = !!st.isPassive;
 
     // Per-production cap by type.
+    //   film/theatrical: $15M (or $20M low-income).
+    //   sound recording: $150K per production AND $150K aggregate
+    //                    annual (we cap at $150K — single production
+    //                    assumed).
+    //   TV series: cap is per-episode, first 44 episodes only. Total
+    //              available cap = min(episodes, 44) × $15M (or
+    //              $20M low-income).
     var cap;
     if (prodType === 'sound') {
-      cap = 150000;   // sound recording
+      cap = 150000;
+    } else if (prodType === 'tv') {
+      var episodes = Math.max(1, Math.min(44, _num(st.episodeCount) || 1));
+      cap = (lowIncome ? 20000000 : 15000000) * episodes;
     } else {
       cap = lowIncome ? 20000000 : 15000000;
     }
