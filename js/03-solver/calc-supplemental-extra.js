@@ -327,12 +327,20 @@
       }
       // Page 5 — if it's the active page, re-render so the hero
       // numbers reflect the new input. Skipped when Page 5 isn't
-      // visible to avoid wasted work.
+      // visible to avoid wasted work AND when the user is currently
+      // focused inside one of Page 5's own inputs (e.g.
+      // #growth-end-date) — re-rendering mid-keystroke would
+      // destroy and rebuild the input, eating the user's caret +
+      // typed digits. (Bug 2026-05-06: typing the year portion of
+      // the End Date wiped the date.)
       var active = document.querySelector('.page.active');
-      if (active && active.id === 'page-allocator' &&
-          typeof root.renderStrategySummary === 'function') {
-        try { root.renderStrategySummary(); } catch (e) { /* */ }
-      }
+      if (!active || active.id !== 'page-allocator') return;
+      if (typeof root.renderStrategySummary !== 'function') return;
+      var focused = document.activeElement;
+      var typingInPage5 = focused && active.contains(focused) &&
+        (focused.tagName === 'INPUT' || focused.tagName === 'SELECT' || focused.tagName === 'TEXTAREA');
+      if (typingInPage5) return;
+      try { root.renderStrategySummary(); } catch (e) { /* */ }
     }
     function _scheduleRecompute() {
       if (t) clearTimeout(t);
