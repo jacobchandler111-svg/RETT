@@ -3985,17 +3985,19 @@ body { font-size: 16px; }
    surfaces an "excess loss" callout that segues into future-sale
    planning. Revert / Max buttons snap the slider back. */
 /* ---- Page 5: "Another Option — Offset Your Future Sale" callout ----
-   Increased top margin per advisor: each section on the Strategy
-   Summary should read independently, with breathing room above. */
+   Generous top margin per advisor spec: when the user is looking at
+   the Fees Baked In total, the next section ("Another Option:
+   Offset Your Future Sale") should be out of view. 120px puts a
+   full visible gap between the two so each reads independently. */
 .future-sale-option {
-    margin: 56px 0 28px;
+    margin: 120px 0 28px;
     padding: 22px 24px;
     background: var(--paper);
     border: 1px solid var(--rule);
     border-radius: 2px;
 }
-/* And give the Fees Baked In section more space above so it
-   visually separates from the Net Benefit / ROP / walkaway block. */
+/* Same generous gap above Fees Baked In so it separates clearly
+   from the Net Benefit / ROP / walkaway block. */
 #fee-strategies-section {
     margin-top: 56px !important;
 }
