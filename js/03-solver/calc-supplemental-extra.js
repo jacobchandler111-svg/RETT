@@ -259,17 +259,51 @@
   }
 
   // ----------------------------------------------------------------
-  // Driver — runs every active calc, idempotent. Called on input
+  // CALC REGISTRY — one entry per supplemental strategy id. Adding a
+  // new strategy is a single-line addition here once its math is
+  // written (see "Activation contract" in supplemental-extra-
+  // registry.js for the full 2-file workflow).
+  //
+  // Each calc fn:
+  //   - reads cfg via _cfg() and per-strategy state via _state(id)
+  //   - computes { netBenefit, investment, marginalRate, detail }
+  //   - writes via _writeResult(id, result) — null for ineligible
+  //
+  // Placeholder slots (slot05 .. slot11) intentionally have NO calc
+  // entry. That keeps lastResult = null → registry returns null
+  // result → UI shows "Math pending". When a slot activates, just
+  // append `_CALCS.slotNN = function () { ... };` and the strategy
+  // is fully wired into the rivalry / hero / See Value pipeline.
+  // ----------------------------------------------------------------
+  var _CALCS = {
+    ptet:            _calcPtet,
+    charitableGifts: _calcCharitableGifts
+  };
+
+  // Public registration API for late-arriving calc modules. Pattern:
+  //   window.registerSupplementalExtraCalc('slot05', function () { ... });
+  // After registration, recomputeAll picks up the new entry on its
+  // next tick.
+  function registerCalc(id, fn) {
+    if (typeof id !== 'string' || !id) return false;
+    if (typeof fn !== 'function')      return false;
+    _CALCS[id] = fn;
+    return true;
+  }
+
+  // Driver — runs every registered calc, idempotent. Called on input
   // events (cfg or detail-panel changes) AND from the See Value
   // button so results are guaranteed fresh at click time.
-  // ----------------------------------------------------------------
   function recomputeAll() {
-    try { _calcPtet();             } catch (e) { (root.reportFailure || console.warn)('calc ptet failed', e); }
-    try { _calcCharitableGifts();  } catch (e) { (root.reportFailure || console.warn)('calc charitableGifts failed', e); }
+    Object.keys(_CALCS).forEach(function (id) {
+      try { _CALCS[id](); }
+      catch (e) { (root.reportFailure || console.warn)('calc ' + id + ' failed', e); }
+    });
   }
 
   // Expose for See Value button + external callers.
-  root.recomputeSupplementalExtra = recomputeAll;
+  root.recomputeSupplementalExtra      = recomputeAll;
+  root.registerSupplementalExtraCalc   = registerCalc;
 
   // Wire to input events: the supplemental-extra-render.js panel
   // dispatches plain "input" events on its currency / pct / yes-no

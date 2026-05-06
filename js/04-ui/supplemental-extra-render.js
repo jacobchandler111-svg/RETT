@@ -1,27 +1,63 @@
 // FILE: js/04-ui/supplemental-extra-render.js
-// Placeholder cards for the additional supplemental strategies the
-// advisor identified from the Tax Strategy Reference Guide:
-//   1. 412(e)(3) Fully Insured Plan
-//   2. PTET (Pass-Through Entity SALT)
-//   3. QBI Deduction (Section 199A)
-//   4. R&D Credit + OBBBA R&D Expensing
-//   5. 401(h) Tax Trifecta
-//   6. Qualified Charitable Distributions (QCDs)
-//   7. Solar ITC Investment
-//   8. Film Debt Financing (Section 181)
+// Page-4 supplemental strategy rail — placeholder-style cards that
+// auto-register with the master solver and the dollar-rivalry
+// allocator the moment a slot goes live.
 //
-// Math is intentionally NOT implemented — the other agent owns engine
-// work. This file just renders cards in the same visual format as the
-// oilGas / delphi cards (same .strategy-pick-card / .supp-strategy-card
-// classes, same Interested/Not-Interested buttons, same Details
-// dropdown). State persists via window.__rettSupplementalExtra and
-// window.__rettSupplementalExtraInterest so the advisor's selections
-// survive a page reload.
+// Active strategies (post-trim 2026-05-06): PTET, Charitable Gifts.
+// Reserved slots (slot05 .. slot11) ship rendered as "Coming Soon"
+// placeholders ready to receive the next round of strategies.
 //
-// When the math is wired in, each spec below grows a calc function
-// that reads its `state` (investment, rate, etc.) and returns a
-// netBenefit. The runMasterSolver registry pattern is the integration
-// point — see supplemental-defaults.js for the existing pattern.
+// ============ ACTIVATION CONTRACT (2-file edit) ============
+// To turn a `placeholder: true` slot into a live strategy:
+//
+//   STEP 1 — supplemental-extra-render.js (THIS FILE)
+//   Replace the placeholder spec entry with full config:
+//     {
+//       id:              'slotNN',           // keep the slotNN id
+//       num:             'NN',
+//       name:            'My Strategy',
+//       shortName:       'My Strat',          // optional — chip label
+//       keyaspect:       'Headline',
+//       descriptor:      'One-liner describing the lever.',
+//       audience:        'Target client type',
+//       bucket:          'ordinary',          // 'ordinary'|'capital'|'mixed'
+//       investmentField: 'maxInvestment',     // optional — see below
+//       defaults:        { ... },
+//       detailRows:      [ ... ]
+//     }
+//   (Remove `placeholder: true` to flip the slot live.)
+//
+//   STEP 2 — js/03-solver/calc-supplemental-extra.js
+//   Add the calc fn to the _CALCS map:
+//     _CALCS.slotNN = function () {
+//       var cfg = _cfg(); if (!cfg) return _writeResult('slotNN', null);
+//       var st = _state('slotNN');
+//       // ... math here ...
+//       _writeResult('slotNN', {
+//         netBenefit: <dollar tax savings>,
+//         investment: <dollar capital deployed>,
+//         marginalRate: <effective rate, optional>,
+//         detail: { ... whatever surfaces in the See Value row ... }
+//       });
+//     };
+//
+//   That's it. Registry, allocator, master solver, See Value chevron,
+//   Page-5 hero numbers, and the dollar-rivalry engine all auto-light
+//   up the moment the user clicks Interested + types details.
+//
+// `investmentField` semantics:
+//   - When set, the registry uses that detail-row id as the "max
+//     investment" surrogate the allocator sees BEFORE the calc has
+//     run a tick (so clicking Interested immediately starts taking
+//     capital away from Brooklyn).
+//   - When the calc DOES run and writes result.investment, that
+//     wins.
+//   - Tax-side strategies (PTET, Charitable Gifts) leave it unset
+//     so they never claim sale-proceed capital from Brooklyn.
+//
+// State persists via:
+//   window.__rettSupplementalExtraInterest[id]    -> true|false|null
+//   window.__rettSupplementalExtra[id]            -> { detailFields..., lastResult }
 
 (function (root) {
   'use strict';
@@ -47,9 +83,13 @@
       id: 'ptet',
       num: '03',
       name: 'PTET &mdash; Pass-Through Entity SALT',
+      shortName: 'PTET',
       keyaspect: 'SALT Cap Workaround',
       descriptor: 'Pass-through entity elects to pay state income tax at the entity level, deductible as a federal business expense &mdash; bypasses the $40K SALT cap.',
       audience: 'Pass-through owner',
+      bucket: 'ordinary',
+      // No investmentField — PTET is a tax payment, not capital that
+      // competes with Brooklyn for sale-proceed dollars.
       defaults: {
         taxableIncome:         1000000,
         stateRate:             5.49,
@@ -67,9 +107,13 @@
       id: 'charitableGifts',
       num: '04',
       name: 'Charitable Gifts',
+      shortName: 'Charitable Gifts',
       keyaspect: '§170 Deduction',
       descriptor: 'Cash or appreciated-asset gift to a public charity. Cash deductible up to 60% of AGI; appreciated stock at FMV up to 30% of AGI &mdash; avoids capital gains on the appreciation.',
       audience: 'Any donor',
+      bucket: 'ordinary',
+      // No investmentField — gifts leave the estate but don't
+      // compete with Brooklyn for sale-proceed capital (tax-side).
       defaults: {
         giftAmount:    100000,
         giftType:      'cash',     // 'cash' | 'appreciated' | 'daf'
