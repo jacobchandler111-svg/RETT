@@ -540,16 +540,23 @@
   }
 
   // Listen for Page-4 Interested/Not-Interested clicks (event delegation
-  // on document). The supplemental-render.js card uses
-  // [data-supp-pick-action] / [data-supp-pick-target]; we read the
-  // target id and clear the corresponding enabled override. Doesn't
-  // require modifying supplemental-render.js — purely additive.
+  // on document). Two attribute conventions in play:
+  //   - oilGas / delphi cards use [data-supp-pick-action]
+  //     + [data-supp-pick-target]  (supplemental-render.js)
+  //   - placeholder-rail cards (PTET, charitableGifts, slot05..slot12)
+  //     use [data-supx-pick-action] + [data-supx-pick-target]
+  //     (supplemental-extra-render.js)
+  // Without catching BOTH, toggling a placeholder-rail supp off on
+  // Page 5 leaves the enabled override sticking even after the
+  // advisor re-clicks Interested on Page 4 — the row never repopulates.
   if (typeof document !== 'undefined') {
     document.addEventListener('click', function (ev) {
       var t = ev.target;
-      var btn = t && t.closest && t.closest('[data-supp-pick-action]');
+      if (!t || !t.closest) return;
+      var btn = t.closest('[data-supp-pick-action], [data-supx-pick-action]');
       if (!btn) return;
-      var id = btn.getAttribute('data-supp-pick-target');
+      var id = btn.getAttribute('data-supp-pick-target') ||
+               btn.getAttribute('data-supx-pick-target');
       if (id) resetEnabledOverride(id);
     }, true);
   }
