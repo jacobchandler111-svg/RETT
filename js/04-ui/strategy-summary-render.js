@@ -747,56 +747,28 @@
   // -----------------------------------------------------------------
   function _renderSupplementalLeftColumn(solverOut) {
     if (!solverOut || !solverOut.anyInterested) return '';
-    var rows = solverOut.supplementals.map(function (s) {
-      var pending = (!s.available)
-        ? '<span class="supp-row-pending" title="Configure on Page 4 to populate">awaiting input</span>'
-        : '';
-      var amt;
-      var amtClass = '';
-      var subnoteHtml = '';
-
-      if (!s.enabled || !s.available) {
-        // Toggle off or no Page-4 input yet — dim the row entirely.
-        amt = '$0';
-        amtClass = ' is-off';
-      } else if (s.rivalry && !s.rivalry.funded) {
-        // Rivalry rejected this Interested supp. Show $0 and a one-
-        // liner reason so the advisor isn't surprised when the row
-        // doesn't agree with the original Page-4 estimate. Keeps the
-        // page consistent with the Implementation panel + Fees Baked
-        // In: a rejected supp contributes nothing anywhere.
-        amt = '$0';
-        amtClass = ' is-off';
-        var reason = s.rivalry.reason;
-        var reasonText = '';
-        if (reason === 'brooklyn-beats') {
-          reasonText = 'Brooklyn yields more per dollar';
-        } else if (reason === 'capital-exhausted') {
-          reasonText = 'no capital left after higher-yield strategies';
-        } else if (reason === 'negative-net') {
-          reasonText = 'fees exceed savings';
-        } else if (reason === 'no-result-or-zero') {
-          reasonText = 'awaiting input';
-        }
-        if (reasonText) {
-          subnoteHtml = '<span class="supp-row-subnote">&mdash; ' + reasonText + '</span>';
-        }
-      } else {
-        // Funded by rivalry (incl. free-benefit). Show signed amount.
-        var sign = s.netBenefit >= 0 ? '+' : '';
-        amt = sign + _fmt(s.netBenefit);
-      }
-
+    // Only surface supps that actually contribute. Rivalry-rejected
+    // supps (Brooklyn-beats, capital-exhausted, negative-net) and
+    // pending / disabled rows are hidden — the advisor explains in
+    // conversation that some Interested picks didn't add benefit and
+    // were dropped. Keeps Page 5 focused on what the client gets.
+    var contributing = solverOut.supplementals.filter(function (s) {
+      if (!s.enabled || !s.available) return false;
+      if (s.rivalry && !s.rivalry.funded) return false;
+      return Number(s.netBenefit) > 0;
+    });
+    if (!contributing.length) return '';
+    var rows = contributing.map(function (s) {
+      var sign = s.netBenefit >= 0 ? '+' : '';
+      var amt = sign + _fmt(s.netBenefit);
       return '' +
         '<div class="supp-strat-row" data-supp-row="' + s.id + '">' +
           '<label class="supp-row-toggle">' +
-            '<input type="checkbox" data-supp-toggle="' + s.id + '"' +
-              (s.enabled ? ' checked' : '') +
-              (!s.available ? ' disabled' : '') + '>' +
+            '<input type="checkbox" data-supp-toggle="' + s.id + '" checked>' +
             '<span class="supp-row-switch" aria-hidden="true"></span>' +
           '</label>' +
-          '<div class="supp-strat-name">' + s.name + pending + subnoteHtml + '</div>' +
-          '<div class="supp-strat-amt' + amtClass + '">' + amt + '</div>' +
+          '<div class="supp-strat-name">' + s.name + '</div>' +
+          '<div class="supp-strat-amt">' + amt + '</div>' +
         '</div>';
     }).join('');
 
