@@ -40,11 +40,10 @@
       showIf:{ businessOwner: true }
     },
     {
-      id:    'rdActivity',
-      label: 'Does the business have R&D / engineering / new-product activity?',
-      helper:'Tech, manufacturing, biotech, software — any entity creating new processes or products.',
-      type:  'yesno',
-      showIf:{ businessOwner: true }
+      id:    'realEstate',
+      label: 'Does the client own or invest in real estate?',
+      helper:'Rental properties, commercial buildings, land — anything beyond the primary residence.',
+      type:  'yesno'
     },
     {
       id:    'charitable',
@@ -53,16 +52,9 @@
       type:  'yesno'
     },
     {
-      id:    'age705plus',
-      label: 'Is the client age 70½ or older?',
-      helper:'Required to use the Qualified Charitable Distribution path from an IRA.',
-      type:  'yesno',
-      showIf:{ charitable: true }
-    },
-    {
       id:    'altInvestments',
       label: 'Open to alternative-investment tax shelters?',
-      helper:'Oil & gas working interests, solar tax-equity partnerships, hedge funds, film production debt — accredited-investor products.',
+      helper:'Oil & gas working interests, hedge funds, equipment-leasing funds — accredited-investor products.',
       type:  'yesno'
     }
   ];
@@ -76,17 +68,19 @@
   // ----------------------------------------------------------------
   var STRATEGY_GATES = {
     // Existing core supplementals (registered in supplemental-defaults.js)
-    oilGas:     { altInvestments: true },
-    delphi:     { altInvestments: true },
+    oilGas:          { altInvestments: true },
+    delphi:          { altInvestments: true },
     // Extra supplementals (registered in supplemental-extra-render.js)
-    plan412e3:  { businessOwner: true },
-    ptet:       { businessOwner: true, passThrough: true },
-    qbi:        { businessOwner: true, passThrough: true },
-    rdCredit:   { businessOwner: true, rdActivity: true },
-    plan401h:   { businessOwner: true },
-    qcd:        { charitable:    true, age705plus: true },
-    solarITC:   { altInvestments: true },
-    film181:    { altInvestments: true }
+    ptet:            { businessOwner: true, passThrough: true },
+    charitableGifts: { charitable:    true },
+    slot05:          { realEstate:    true },                         // Cost Segregation
+    slot06:          { businessOwner: true },                         // Heavy Vehicle
+    slot07:          { altInvestments:true },                         // Equipment Leasing Fund
+    slot08:          { businessOwner: true },                         // Augusta Rule
+    slot09:          { businessOwner: true },                         // 401(k) + Profit Share
+    slot10:          { businessOwner: true },                         // Aircraft Purchase
+    slot11:          { realEstate:    true },                         // STR Loophole
+    slot12:          { businessOwner: true }                          // Farm / Business Equipment
   };
 
   function _answers() {
