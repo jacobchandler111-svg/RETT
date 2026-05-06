@@ -281,8 +281,8 @@
     {
       id: 'slot11',
       num: '11',
-      name: 'Short-Term Rental Loophole',
-      shortName: 'STR Loophole',
+      name: 'Short-Term Rental',
+      shortName: 'STR',
       keyaspect: 'Non-Passive Loss',
       descriptor: 'A short-term rental with ≤7-day average stays and material participation generates non-passive paper losses against W-2 income.',
       audience: 'STR investor',
