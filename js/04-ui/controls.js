@@ -5,7 +5,7 @@
 //   - 'projection' : multi-year results table
 //   - 'allocator'  : year-1 allocator suggestions
 
-const PAGE_IDS = ['page-pmq', 'page-inputs', 'page-strategies', 'page-projection', 'page-supplemental', 'page-allocator'];
+const PAGE_IDS = ['page-pmq', 'page-inputs', 'page-baseline', 'page-strategies', 'page-projection', 'page-supplemental', 'page-allocator'];
 const PROJECTION_SUBPAGE_IDS = ['subpage-summary', 'subpage-details'];
 
 function showProjectionSubpage(id) {
@@ -500,6 +500,14 @@ function showPage(id) {
     try {
       if (typeof renderStrategySummary === 'function') renderStrategySummary();
     } catch(e) { (window.reportFailure || console.warn)('Strategy Summary render failed', e); }
+  }
+  if (id === 'page-baseline') {
+    // Fresh render on entry so the table reflects the latest inputs.
+    // Otherwise an edit on Client Inputs followed by an immediate jump
+    // here can show stale numbers if the debounce hasn't fired yet.
+    try {
+      if (typeof window.renderBaselineTable === 'function') window.renderBaselineTable();
+    } catch (e) { (window.reportFailure || console.warn)('Baseline render failed', e); }
   }
 
   if (id === 'page-strategies') {
@@ -1050,9 +1058,23 @@ function bindControls() {
   }
   document.addEventListener('DOMContentLoaded', _syncPmqNameFromCase);
   if (navInputs)       navInputs.addEventListener('click', () => showPage('page-inputs'));
+  var navBaseline = document.getElementById('nav-baseline');
+  if (navBaseline)     navBaseline.addEventListener('click', () => showPage('page-baseline'));
   if (navStrategies)   navStrategies.addEventListener('click', () => showPage('page-strategies'));
   if (navProjection)   navProjection.addEventListener('click', () => showPage('page-projection'));
   if (navAllocator)    navAllocator.addEventListener('click', () => showPage('page-allocator'));
+
+  var baselineBackBtn = document.getElementById('baseline-back-btn');
+  if (baselineBackBtn) baselineBackBtn.addEventListener('click', () => showPage('page-inputs'));
+  var baselineContBtn = document.getElementById('baseline-continue-btn');
+  if (baselineContBtn) baselineContBtn.addEventListener('click', () => {
+    // Same pre-projection prep the Client-Inputs continue button runs
+    // — re-optimize so a return to the baseline + edits get a fresh
+    // recommendation when the user advances to Strategies.
+    if (typeof _recomputeAvailableCapital === 'function') _recomputeAvailableCapital();
+    window.__rettAutoPickEnabled = true;
+    showPage('page-strategies');
+  });
 
   // Native browser print (Cmd/Ctrl-P) — flip body.print-mode on
   // for the duration of the print so the print-mode CSS rules
@@ -1480,12 +1502,12 @@ function bindControls() {
     // means showPage('page-projection') → maybeAutoPick will run a
     // fresh search before runFullPipeline.
     window.__rettAutoPickEnabled = true;
-    // Route through the new Strategy Selection page so the user can
-    // mark each option Interested / Not Interested before the engine
-    // runs. The Projection engine still runs silently in the
-    // background when they continue from Strategies, so the
-    // recommended-card border can appear immediately on arrival.
-    showPage('page-strategies');
+    // Route through the Tax Baseline page (between Client Inputs and
+    // Strategies) so the advisor can walk the client through the
+    // "Total Tax If You Did Nothing" breakdown on its own screen
+    // before picking a strategy. The continue button on baseline
+    // takes them to page-strategies.
+    showPage('page-baseline');
   });
 
   const resetBtn = document.getElementById('reset-form');

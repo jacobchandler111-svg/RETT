@@ -2251,6 +2251,20 @@ body { font-size: 16px; }
 @media (max-width: 1100px) {
     .inputs-layout { grid-template-columns: 1fr; }
 }
+/* New 2-column layout for the Client Inputs form. Both columns are
+   vertical stacks of input-sections (no sticky baseline panel on the
+   right anymore — that lives on its own page now). Columns collapse
+   to a single stack below 1100px. */
+.inputs-2col {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 22px 24px;
+    align-items: start;
+    margin-top: 12px;
+}
+@media (max-width: 1100px) {
+    .inputs-2col { grid-template-columns: 1fr; }
+}
 .inputs-stack { display: flex; flex-direction: column; gap: 22px; }
 
 .input-section {
@@ -2384,13 +2398,20 @@ body { font-size: 16px; }
     width: 200px;
 }
 
-/* BASELINE TAX LIABILITY (right column) */
+/* BASELINE TAX LIABILITY — now on its own page (#page-baseline). The
+   sticky positioning that was useful on the old 2-col Client Inputs
+   layout would now stick to the top of the standalone page, which is
+   pointless when the table IS the page. Drop sticky and let it flow. */
 .baseline-table-wrapper {
     background: var(--paper);
     border: 1px solid var(--rule);
     box-shadow: var(--shadow);
-    position: sticky;
-    top: 16px;
+}
+/* Center the baseline table on its dedicated page and cap the width
+   so it reads as a focused report rather than a stretched panel. */
+.baseline-page-wrap {
+    max-width: 760px;
+    margin: 18px auto 28px;
 }
 .baseline-table {
     width: 100%;
