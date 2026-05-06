@@ -451,6 +451,8 @@
     if (t.id === 'supp-oilgas-max') {
       var v = (typeof parseUSD === 'function') ? parseUSD(t.value) : Number(t.value);
       s.oilGas.maxInvestment = Math.max(0, Number.isFinite(v) ? v : 0);
+      if (!s.oilGas._userTouched) s.oilGas._userTouched = {};
+      s.oilGas._userTouched.maxInvestment = true;
       _runOilGasMath();
       _persist();
       // Page-5 Strategy Summary depends on the supplemental allocator
@@ -471,6 +473,8 @@
     } else if (t.id === 'supp-delphi-inv') {
       var dv = (typeof parseUSD === 'function') ? parseUSD(t.value) : Number(t.value);
       s.delphi.investment = Math.max(0, Number.isFinite(dv) ? dv : 0);
+      if (!s.delphi._userTouched) s.delphi._userTouched = {};
+      s.delphi._userTouched.investment = true;
       // Auto-pick class from amount (advisor 2026-05-06): Class A at the
       // $5M minimum and above (1.75% fee), Class B otherwise (2% fee).
       // The picker UI is hidden — investment is the only knob the
@@ -533,8 +537,45 @@
     _scheduleP5Refresh();
   }
 
+  // Seed sale-derived defaults into oilGas / delphi state when the
+  // user hasn't manually entered a value. Runs each renderSupplementalPage
+  // tick — every change to sale-price / cost-basis re-fires this and
+  // updates the displayed defaults. Once the user types a value the
+  // _userTouched flag locks it in. (Per advisor: O&G ≈ 5% of sale,
+  // Delphi ≈ 25% of sale, but Delphi sits at $0 if 25% × sale doesn't
+  // clear the class B $1M minimum.)
+  function _seedFromSale() {
+    var s = _state();
+    var salePrice = 0;
+    if (typeof window.collectInputs === 'function') {
+      try {
+        var cfg = window.collectInputs();
+        salePrice = Math.max(0, Number(cfg && cfg.salePrice) || 0);
+      } catch (e) { return; }
+    }
+    if (salePrice <= 0) return;
+    if (!(s.oilGas._userTouched && s.oilGas._userTouched.maxInvestment)) {
+      s.oilGas.maxInvestment = Math.round(salePrice * 0.05);
+    }
+    if (!(s.delphi._userTouched && s.delphi._userTouched.investment)) {
+      var pct25 = salePrice * 0.25;
+      // Auto-pick: Class A min $5M; Class B min $1M. Set the class
+      // first so renderDelphiCard shows the matching min-warning.
+      if (pct25 >= 5000000) {
+        s.delphi.investment = Math.round(pct25);
+        s.delphi.classKey = 'classA';
+      } else if (pct25 >= 1000000) {
+        s.delphi.investment = Math.round(pct25);
+        s.delphi.classKey = 'classB';
+      } else {
+        s.delphi.investment = 0;
+      }
+    }
+  }
+
   function renderSupplementalPage() {
     if (!document.getElementById('supplemental-strategies-host')) return;
+    _seedFromSale();
     _renderHost();
     _runAllMath();
   }

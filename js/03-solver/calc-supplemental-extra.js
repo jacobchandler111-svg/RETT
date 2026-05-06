@@ -587,10 +587,76 @@
     return true;
   }
 
+  // Auto-seed sale-derived defaults into per-card detail state so the
+  // advisor doesn't have to retype values that are already known from
+  // Sections 03 (income) + 05 (appreciated assets). User edits stick:
+  // _seedField only writes when state[fieldId] is still at the spec
+  // default AND the user hasn't touched it.
+  function _seedField(id, fieldId, value) {
+    if (!root.__rettSupplementalExtra || !root.__rettSupplementalExtra[id]) return;
+    var actual = root.__rettSupplementalExtra[id];
+    if (actual._userTouched && actual._userTouched[fieldId]) return;
+    if (Number(actual[fieldId]) === Number(value)) return;
+    actual[fieldId] = value;
+    // Update the matching DOM input in place — preserves caret /
+    // focus on neighboring fields. Skip if the input is currently
+    // focused (the user is actively typing into THIS field).
+    if (typeof document === 'undefined') return;
+    var sel = '[data-supx-input="' + id + ':' + fieldId + '"]';
+    var inp = document.querySelector(sel);
+    if (!inp || inp === document.activeElement) return;
+    if (inp.type === 'number') {
+      inp.value = String(value);
+    } else {
+      inp.value = (typeof root.fmtUSD === 'function') ? root.fmtUSD(value) : ('$' + Math.round(value).toLocaleString('en-US'));
+    }
+  }
+
+  function _seedFromSale() {
+    var cfg = _cfg(); if (!cfg) return;
+    var salePrice = Math.max(0, _num(cfg.salePrice));
+    var costBasis = Math.max(0, _num(cfg.costBasis));
+    var saleGain  = Math.max(0, salePrice - costBasis);
+    // collectInputs returns: wages (W-2), baseOrdinaryIncome (sum of
+    // W-2 + biz + SE + rentals + retirement + dividends). No direct
+    // bizRevenue / seIncome fields — derive a pass-through proxy as
+    // (ordinary - wages), which captures biz revenue + SE + rental.
+    var ordIncome = Math.max(0, _num(cfg.baseOrdinaryIncome));
+    var w2        = Math.max(0, _num(cfg.wages));
+    var passThru  = Math.max(0, ordIncome - w2);
+
+    // charitableGifts: derive unrealized gain on the appreciated path
+    // proportionally from the sale (gain ratio = saleGain / salePrice).
+    // AGI proxy = ordinary + sale gain.
+    var cg = root.__rettSupplementalExtra && root.__rettSupplementalExtra.charitableGifts;
+    if (cg) {
+      var gift = Math.max(0, _num(cg.giftAmount));
+      if (cg.giftType === 'appreciated' && salePrice > 0 && gift > 0) {
+        _seedField('charitableGifts', 'appreciation', Math.round(gift * (saleGain / salePrice)));
+      }
+      if (ordIncome > 0 || saleGain > 0) {
+        _seedField('charitableGifts', 'agi', Math.round(ordIncome + saleGain));
+      }
+    }
+    // PTET: pass-through income proxy = ordinary - wages (biz + SE + rental).
+    if (passThru > 0) _seedField('ptet', 'taxableIncome', Math.round(passThru));
+    // 401(k) + Profit-Sharing: comp + prior-year wages from W-2 (or
+    // pass-through if no W-2, e.g. an S-corp owner-only plan).
+    var compProxy = w2 > 0 ? w2 : passThru;
+    if (compProxy > 0) {
+      _seedField('slot09', 'compensation',   Math.round(compProxy));
+      _seedField('slot09', 'priorYearWages', Math.round(w2 > 0 ? w2 : compProxy));
+    }
+    // Farm/business equipment: business taxable income proxy = pass-
+    // through × 50% margin (rough). User overrides if they have actuals.
+    if (passThru > 0) _seedField('slot12', 'bizTaxableIncome', Math.round(passThru * 0.5));
+  }
+
   // Driver — runs every registered calc, idempotent. Called on input
   // events (cfg or detail-panel changes) AND from the See Value
   // button so results are guaranteed fresh at click time.
   function recomputeAll() {
+    _seedFromSale();
     Object.keys(_CALCS).forEach(function (id) {
       try { _CALCS[id](); }
       catch (e) { (root.reportFailure || console.warn)('calc ' + id + ' failed', e); }

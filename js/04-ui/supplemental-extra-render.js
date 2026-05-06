@@ -665,6 +665,12 @@
           ? (root.parseUSD(raw) || 0)
           : Number(String(raw).replace(/[^\d.-]/g, '')) || 0;
       }
+      // Mark user-touched so the sale-derived auto-seeder doesn't
+      // overwrite a value the advisor explicitly typed in. Once
+      // touched, the field stays at the user's value even if sale
+      // price / cost basis change later.
+      if (!st._userTouched) st._userTouched = {};
+      st._userTouched[fieldId] = true;
       _persist();
     });
   }
