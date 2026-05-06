@@ -481,46 +481,18 @@
       brooklynFees = def.totalFees || 0;
       brookhavenTotal = def.totalBrookhavenFees || 0;
     } else {
-      // Immediate path. Use computeTaxComparison so the Y1 baseline
-      // INCLUDES the full property LT gain (via _flatRec's cfg-derived
-      // _totalLT). ProjectionEngine.run alone produces taxNoBrooklyn
-      // for ordinary income only — for scenarios with $0 ordinary
-      // income (e.g. retirees with a real-estate gain) that read of
-      // "do nothing" registers as ~zero, which made the auto-pick
-      // optimizer choose 0% short (no Brooklyn) since any positive
-      // leverage just added fees against a zero-savings baseline.
-      if (typeof computeTaxComparison !== 'function' ||
-          typeof recommendSale !== 'function' ||
-          typeof ProjectionEngine === 'undefined' ||
-          !ProjectionEngine.run) return null;
-      // recommendSale expects strategyKey + investedCapital — patch
-      // them on so it doesn't return zero capacity.
+      // Immediate path. Unified engine handles both modes — derives
+      // totalLT from cfg directly (salePrice − basis − depr) so the
+      // baseline correctly reflects the full property gain even when
+      // ordinary income is $0. ProjectionEngine.run is still required
+      // for the year-by-year fee accrual the dashboard Details table
+      // reads via _scenarioFullData.
+      if (typeof window === 'undefined' || typeof window.unifiedTaxComparison !== 'function' ||
+          typeof ProjectionEngine === 'undefined' || !ProjectionEngine.run) return null;
+      // Patch tierKey→strategyKey + investment→investedCapital aliases.
       cfg = _engineFlavoredCfg(cfg);
-      var recObj;
-      try { recObj = recommendSale(cfg); } catch (e) { return null; }
-      var lossGenIm = (recObj && recObj.summary && recObj.summary.lossByYear && recObj.summary.lossByYear[0]) || 0;
-      var scheduleIm = recObj && recObj.summary && Array.isArray(recObj.summary.gainByYear)
-        ? recObj.summary.gainByYear.map(function (g, i) {
-            return { year: i, gainTaken: g || 0,
-              lossGenerated: (recObj.summary.lossByYear && recObj.summary.lossByYear[i]) || 0 };
-          })
-        : null;
-      var normRecIm = {
-        recommendation: recObj ? recObj.recommendation : 'no-action',
-        longTermGain: (recObj && recObj.longTermGain) || 0,
-        lossGenerated: lossGenIm,
-        schedule: scheduleIm
-      };
       var compIm;
-      try {
-        // Unified engine is now the default. The unified engine doesn't
-        // take a recommendation arg — Y1 loss derives directly from cfg
-        // via tranches. Set window.__rettUseUnifiedEngine = false to
-        // route back to legacy as a rollback escape hatch.
-        compIm = (typeof window !== 'undefined' && window.__rettUseUnifiedEngine !== false && typeof window.unifiedTaxComparison === 'function')
-          ? window.unifiedTaxComparison(cfg)
-          : computeTaxComparison(cfg, normRecIm);
-      } catch (e) { return null; }
+      try { compIm = window.unifiedTaxComparison(cfg); } catch (e) { return null; }
       if (!compIm || !Array.isArray(compIm.rows)) return null;
       compIm.rows.forEach(function (r) {
         tax += r.withStrategy ? r.withStrategy.total : 0;
@@ -845,36 +817,15 @@
         };
       });
     } else {
-      // Immediate path. Use the same chain runRecommendation uses.
-      if (typeof ProjectionEngine === 'undefined' || !ProjectionEngine.run) return null;
-      // Patch tierKey→strategyKey and investment→investedCapital so
-      // recommendSale doesn't silently treat the position as zero.
+      // Immediate path. Unified engine handles both modes — derives
+      // totalLT from cfg directly. ProjectionEngine.run still needed
+      // for per-year fee/loss display in the Details table.
+      if (typeof window === 'undefined' || typeof window.unifiedTaxComparison !== 'function'
+          || typeof ProjectionEngine === 'undefined' || !ProjectionEngine.run) return null;
       cfg = _engineFlavoredCfg(cfg);
       try { result = ProjectionEngine.run(cfg); } catch (e) { return null; }
       if (!result || !Array.isArray(result.years)) return null;
-      var rec = (typeof recommendSale === 'function') ? recommendSale(cfg) : null;
-      var lossGen = 0;
-      var schedule = null;
-      if (rec && rec.summary) {
-        lossGen = (rec.summary.lossByYear && rec.summary.lossByYear[0]) || 0;
-        if (Array.isArray(rec.summary.gainByYear)) {
-          schedule = rec.summary.gainByYear.map(function (g, i) {
-            return { year: i, gainTaken: g || 0,
-              lossGenerated: (rec.summary.lossByYear && rec.summary.lossByYear[i]) || 0 };
-          });
-        }
-      }
-      var normRec = {
-        recommendation: rec ? rec.recommendation : 'no-action',
-        longTermGain: (rec && rec.longTermGain) || 0,
-        lossGenerated: lossGen,
-        schedule: schedule
-      };
-      try {
-        comp = (typeof window !== 'undefined' && window.__rettUseUnifiedEngine !== false && typeof window.unifiedTaxComparison === 'function')
-          ? window.unifiedTaxComparison(cfg)
-          : computeTaxComparison(cfg, normRec);
-      } catch (e) { return null; }
+      try { comp = window.unifiedTaxComparison(cfg); } catch (e) { return null; }
       if (!comp || !Array.isArray(comp.rows)) return null;
       years = comp.rows.map(function (r, idx) {
         var resYr = (result.years && result.years[idx]) || {};

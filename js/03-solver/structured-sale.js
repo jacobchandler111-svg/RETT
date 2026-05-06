@@ -196,27 +196,21 @@
   }
 
   // -------------------------------------------------------------------
-  // Scoring -- delegate to the multi-year tax-comparison engine.
+  // Scoring -- delegate to the unified tax-comparison engine.
+  //
+  // Each candidate has a different lossByYear schedule. The legacy
+  // engine read schedule[0].lossGenerated to differentiate candidates
+  // (Y2+ losses came from cfg.leverage's tranche curve, not the
+  // candidate's lossByYear[1+], so all that mattered for ranking was
+  // Y1 loss capacity). The unified engine accepts an explicit
+  // y1LossOverride parameter that injects the candidate's Y1 loss
+  // directly — same scoring fidelity, smaller API.
   // -------------------------------------------------------------------
   function _scoreSchedule(cfg, gainByYear, lossByYear, leverageByYear, recaptureY1) {
-    if (typeof root.computeTaxComparison !== 'function') {
+    if (typeof root.unifiedTaxComparison !== 'function') {
       return { totalWithStrategy: Infinity, totalBaseline: 0, totalSavings: 0, rows: [] };
     }
     var horizon = gainByYear.length;
-    var schedule = [];
-    for (var i = 0; i < horizon; i++) {
-      // Recapture (ordinary) is forced into Y1 only.  We model it by
-      // bumping ordinary income in Y1 by the recapture amount.
-      schedule.push({
-        year: i,
-        gainTaken: gainByYear[i] || 0,
-        gain: gainByYear[i] || 0,
-        lossGenerated: lossByYear[i] || 0,
-        loss: lossByYear[i] || 0,
-        leverage: (leverageByYear && leverageByYear[i] != null) ? leverageByYear[i] : null
-      });
-    }
-    var rec = { recommendation: 'multi-year', schedule: schedule, years: horizon };
 
     var defaultYear1 = (function () {
       if (cfg && cfg.year1) return Number(cfg.year1);
@@ -230,6 +224,13 @@
     })();
 
     // Build a per-year ordinary-income override that bumps Y1 by recapture.
+    // Mirrors the legacy hack: ensures the optimizer scores each candidate
+    // against a baseline that includes recapture in Y1 ordinary income.
+    // Note that _baseScenarioForYear ALSO reads cfg.acceleratedDepreciation
+    // for the separate depreciationRecapture field — this Y1 ordinary bump
+    // is in addition to that. All candidates inherit the same bump so
+    // their relative ranking is unaffected even if the absolute numbers
+    // shift; preserved verbatim from legacy for parity.
     var ordByYear = [];
     for (var oy = 0; oy < horizon; oy++) {
       var base = (cfg && cfg.ordinaryByYear && cfg.ordinaryByYear[oy] != null)
@@ -244,7 +245,7 @@
       ordinaryByYear: ordByYear
     });
 
-    var cmp = root.computeTaxComparison(scoreCfg, rec);
+    var cmp = root.unifiedTaxComparison(scoreCfg, { y1LossOverride: lossByYear[0] || 0 });
     return {
       totalWithStrategy: cmp.totalWithStrategy,
       totalBaseline: cmp.totalBaseline,
@@ -414,7 +415,7 @@
     // balloon recognition the year after horizon for transparency.
     var shortfallGain = Math.max(0, chosen.leftoverGain);
     var shortfallTax = 0;
-    if (shortfallGain > 0 && typeof root.computeTaxComparison === 'function') {
+    if (shortfallGain > 0 && typeof root.unifiedTaxComparison === 'function') {
       try {
         var balloonY = year1 + horizon;
         var balloonOrd = _num(cfg && cfg.baseOrdinaryIncome, 0);
@@ -422,19 +423,21 @@
         // when cfg.wages is undefined uses the full ordinaryIncome,
         // which would over-charge Additional Medicare on rental /
         // dividend / interest portions in this throw-away balloon
-        // calculation.
-        var balloonCfg = { year1: balloonY, horizonYears: 1,
+        // calculation. The unified engine derives Y1 LT gain from
+        // (salePrice − costBasis − acceleratedDepreciation), so we
+        // inject the shortfall by setting salePrice and zeroing the
+        // others; the second balloon (no shortfall) leaves them all
+        // at 0 so totalLT = 0.
+        var balloonBase = { year1: balloonY, horizonYears: 1,
             filingStatus: (cfg && cfg.filingStatus) || 'mfj',
             state: (cfg && cfg.state) || 'NY',
-            baseOrdinaryIncome: balloonOrd, wages: 0 };
-        var ts = root.computeTaxComparison(
-          balloonCfg,
-          { recommendation: 'single-year', longTermGain: shortfallGain, lossGenerated: 0 }
-        );
-        var bts = root.computeTaxComparison(
-          balloonCfg,
-          { recommendation: 'single-year', longTermGain: 0, lossGenerated: 0 }
-        );
+            baseOrdinaryIncome: balloonOrd, wages: 0,
+            costBasis: 0, acceleratedDepreciation: 0,
+            recognitionStartYearIndex: 0 };
+        var balloonWith = Object.assign({}, balloonBase, { salePrice: shortfallGain });
+        var balloonWithout = Object.assign({}, balloonBase, { salePrice: 0 });
+        var ts = root.unifiedTaxComparison(balloonWith);
+        var bts = root.unifiedTaxComparison(balloonWithout);
         var w = (ts && ts.rows && ts.rows[0] && ts.rows[0].withStrategy) ? _num(ts.rows[0].withStrategy.total, 0) : 0;
         var n = (bts && bts.rows && bts.rows[0] && bts.rows[0].withStrategy) ? _num(bts.rows[0].withStrategy.total, 0) : 0;
         shortfallTax = Math.max(0, w - n);

@@ -226,42 +226,12 @@
         if (multiCfg.costBasis == null) multiCfg.costBasis = inputs.costBasis;
         if (multiCfg.acceleratedDepreciation == null) multiCfg.acceleratedDepreciation = inputs.acceleratedDepreciation;
 
-        var comparison;
-        var deferred = (multiCfg.recognitionStartYearIndex || 0) >= 1;
-        // Unified engine handles both immediate and deferred. Legacy
-        // computeDeferredTaxComparison was deleted after the parity
-        // sweep verified $0 delta. Legacy computeTaxComparison stays
-        // for now (the optimizer's _scoreSchedule still calls it for
-        // candidate scoring — Session B migration), so the rollback
-        // flag on the immediate path remains as an escape hatch.
-        var useUnifiedImmediate = (typeof window !== 'undefined' && window.__rettUseUnifiedEngine !== false
-              && typeof window.unifiedTaxComparison === 'function');
-        if (deferred || useUnifiedImmediate) {
-          comparison = window.unifiedTaxComparison(multiCfg);
-        } else {
-          // Legacy immediate-path rollback. Synthesize a normalized
-          // recommendation shape the legacy engine expects.
-          var lossGen = (result.summary && result.summary.loss) || (result.stage1 && result.stage1.loss) || 0;
-          var normRec = {
-                recommendation: result.recommendation,
-                longTermGain: result.longTermGain || 0,
-                lossGenerated: lossGen,
-                schedule: (function () {
-          if (result.stage2 && Array.isArray(result.stage2.schedule)) return result.stage2.schedule;
-          if (result.stage2 && Array.isArray(result.stage2.gainByYear)) {
-            return result.stage2.gainByYear.map(function (g, i) {
-              return {
-                year: i,
-                gainTaken: g || 0,
-                lossGenerated: (result.stage2.lossByYear && result.stage2.lossByYear[i]) || 0
-              };
-            });
-          }
-          return null;
-        })()
-          };
-          comparison = computeTaxComparison(multiCfg, normRec);
-        }
+        // Unified engine handles both immediate and deferred. Both
+        // legacy comparison engines were deleted in the engine-collapse
+        // work — unified is the only remaining path.
+        var comparison = (typeof window !== 'undefined' && typeof window.unifiedTaxComparison === 'function')
+              ? window.unifiedTaxComparison(multiCfg)
+              : null;
         window.__lastComparison = comparison;
         var panel = document.getElementById('recommendation-panel');
         if (panel && comparison) {
