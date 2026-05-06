@@ -4193,12 +4193,47 @@ body { font-size: 16px; }
     margin: 0 0 4px 0;
     letter-spacing: -0.01em;
 }
+/* Tax Savings hero band — sits at the top of the section so the
+   user sees the principal being grown before reading the inputs. */
+.growth-savings-hero {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin: 6px 0 10px;
+    padding: 10px 14px;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: var(--paper-cool);
+}
+.growth-savings-label {
+    font-family: var(--font-mono);
+    font-size: 0.78em;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+}
+.growth-savings-amt {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 500;
+    font-size: 28px;
+    color: var(--bh-trusted);
+    line-height: 1.05;
+}
 .growth-projection .growth-desc {
     font-size: 0.93em;
     color: var(--ink-soft);
     line-height: 1.5;
     margin: 0 0 18px 0;
     max-width: 760px;
+}
+.growth-input-help {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    margin-top: 2px;
 }
 .growth-input-row {
     display: flex;
@@ -4268,26 +4303,50 @@ body { font-size: 16px; }
 .growth-chart-svg {
     width: 100%;
     height: auto;
-    max-height: 320px;
+    max-height: 420px;
     display: block;
 }
-.growth-summary {
-    font-size: 1.05em;
-    line-height: 1.6;
-    color: var(--ink);
+/* Per-year hover dots: subtle by default, scale on hover. The hit
+   target is a transparent 14px circle so the tooltip is easy to
+   trigger; the visible 3.5px circle is purely cosmetic. */
+.growth-chart-svg .growth-dot-group:hover .growth-dot {
+    r: 5.5;
+    fill: var(--bh-trusted);
+}
+.growth-chart-svg .growth-dot-hit { cursor: default; }
+
+/* "What we grew to" hero — replaces the prior summary sentence. */
+.growth-final {
     padding-top: 14px;
     border-top: 1px solid var(--rule-soft);
+    text-align: center;
 }
-.growth-summary:empty {
+.growth-final:empty {
     border-top: 0;
     padding-top: 0;
 }
-.growth-summary strong {
-    font-weight: 700;
-    color: var(--bh-trusted);
+.growth-final-label {
+    font-family: var(--font-mono);
+    font-size: 0.78em;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 4px;
 }
-.growth-summary .growth-gain {
-    color: var(--green);
+.growth-final-amt {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 500;
+    font-size: 56px;
+    line-height: 1.05;
+    color: var(--bh-trusted);
+    letter-spacing: -0.015em;
+}
+.growth-final-sub {
+    font-size: 0.92em;
+    color: var(--ink-soft);
+    margin-top: 4px;
 }
 @media (max-width: 720px) {
     .growth-input-row { flex-direction: column; gap: 16px; }
