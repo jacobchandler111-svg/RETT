@@ -309,7 +309,12 @@ function _belowMinForLifecycle(cfg) {
       if (typeof window === 'undefined' || typeof window.getMinInvestment !== 'function') return false;
       const custodianId = cfg.custodian;
       if (!custodianId) return false;
-      const stratKey = cfg.tierKey || cfg.strategyKey;
+      // G6: when tierKey/strategyKey are absent, derive the strategy from
+      // the comboId prefix (e.g. 'beta1_200_100' → 'beta1'). Production
+      // dashboard always sets tierKey, so this only matters for
+      // programmatic callers that pass comboId alone.
+      const stratKey = cfg.tierKey || cfg.strategyKey
+            || (cfg.comboId ? String(cfg.comboId).split('_')[0] : null);
       if (!stratKey) return false;
       // Pass cfg.comboId so Schwab returns the combo-specific minimum
       // (145/45 = $1M, 200/100 = $3M) instead of the strategy-wide floor.
@@ -319,7 +324,10 @@ function _belowMinForLifecycle(cfg) {
       // STG is now an independent income item (not carved from sale).
       const ltGain = Math.max(0, (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0));
       const recapture = Math.max(0, cfg.acceleratedDepreciation || 0);
-      const fromSale = (cfg.salePrice || 0) > 0 && basis > 0
+      // G6: a $0-basis sale (gift, fully-depreciated property) still
+      // produces deposit-able cash equal to the gain plus recapture, so
+      // basis=0 should not zero out fromSale.
+      const fromSale = (cfg.salePrice || 0) > 0
             ? (basis + ltGain + recapture)
             : 0;
       const fromIntent = Number(cfg.investment || 0);
