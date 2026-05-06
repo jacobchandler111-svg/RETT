@@ -141,13 +141,187 @@
     // defaults, detailRows) and add the matching calc fn + registry
     // entry. No layout work required at swap-in.
     // ----------------------------------------------------------------
-    { id: 'slot05', num: '05', name: 'Strategy &mdash; Coming Soon', keyaspect: '—', descriptor: 'Reserved placeholder. Strategy details land when the next research module ships.', audience: '—', placeholder: true, defaults: {}, detailRows: [] },
-    { id: 'slot06', num: '06', name: 'Strategy &mdash; Coming Soon', keyaspect: '—', descriptor: 'Reserved placeholder. Strategy details land when the next research module ships.', audience: '—', placeholder: true, defaults: {}, detailRows: [] },
-    { id: 'slot07', num: '07', name: 'Strategy &mdash; Coming Soon', keyaspect: '—', descriptor: 'Reserved placeholder. Strategy details land when the next research module ships.', audience: '—', placeholder: true, defaults: {}, detailRows: [] },
-    { id: 'slot08', num: '08', name: 'Strategy &mdash; Coming Soon', keyaspect: '—', descriptor: 'Reserved placeholder. Strategy details land when the next research module ships.', audience: '—', placeholder: true, defaults: {}, detailRows: [] },
-    { id: 'slot09', num: '09', name: 'Strategy &mdash; Coming Soon', keyaspect: '—', descriptor: 'Reserved placeholder. Strategy details land when the next research module ships.', audience: '—', placeholder: true, defaults: {}, detailRows: [] },
-    { id: 'slot10', num: '10', name: 'Strategy &mdash; Coming Soon', keyaspect: '—', descriptor: 'Reserved placeholder. Strategy details land when the next research module ships.', audience: '—', placeholder: true, defaults: {}, detailRows: [] },
-    { id: 'slot11', num: '11', name: 'Strategy &mdash; Coming Soon', keyaspect: '—', descriptor: 'Reserved placeholder. Strategy details land when the next research module ships.', audience: '—', placeholder: true, defaults: {}, detailRows: [] }
+    {
+      id: 'slot05',
+      num: '05',
+      name: 'Cost Segregation Study',
+      shortName: 'Cost Seg',
+      keyaspect: 'Accelerated Depreciation',
+      descriptor: 'Engineering study reclassifies 5/7/15-year personal property and land improvements out of 27.5/39-year shell &mdash; year-1 deduction multiplied by 100% bonus depreciation (OBBBA permanent post-1/19/2025).',
+      audience: 'Real estate owner',
+      bucket: 'capital',
+      investmentField: 'purchasePrice',
+      defaults: {
+        purchasePrice: 2000000,
+        landPct:       20,
+        propertyType:  'apartment',
+        newlyAcquired: true
+      },
+      detailRows: [
+        { id: 'purchasePrice', label: 'Property purchase price',        kind: 'usd', placeholder: '2,000,000' },
+        { id: 'landPct',       label: 'Land allocation (%)',            kind: 'pct', placeholder: '20' },
+        { id: 'propertyType',  label: 'Property type',                  kind: 'select', options: [
+            { value: 'apartment',     label: 'Apartment / Multifamily (~25%)' },
+            { value: 'hotel',         label: 'Hotel (~30%)' },
+            { value: 'office',        label: 'Office (~22%)' },
+            { value: 'retail',        label: 'Retail (~26%)' },
+            { value: 'industrial',    label: 'Manufacturing / Industrial (~35%)' },
+            { value: 'restaurant',    label: 'Restaurant (~35%)' },
+            { value: 'medical',       label: 'Medical / Dental (~30%)' },
+            { value: 'selfStorage',   label: 'Self-Storage (~35%)' },
+            { value: 'shortTerm',     label: 'STR / Vacation Rental (~30%)' }
+        ] },
+        { id: 'newlyAcquired', label: 'Newly acquired this year?',      kind: 'yesno' }
+      ]
+    },
+    {
+      id: 'slot06',
+      num: '06',
+      name: 'Heavy Vehicle Deduction',
+      shortName: 'Heavy Vehicle',
+      keyaspect: '§179 + 100% Bonus',
+      descriptor: 'Business vehicle &gt;6,000 lb GVWR. SUVs capped at $32,000 §179 (2026); heavy pickups (6-ft bed), cargo vans, and &gt;14,000 lb vehicles take full §179 + 100% bonus on residual.',
+      audience: 'Business owner',
+      bucket: 'ordinary',
+      defaults: {
+        vehicleCost:  120000,
+        vehicleClass: 'suvHeavy',
+        bizUsePct:    100
+      },
+      detailRows: [
+        { id: 'vehicleCost',  label: 'Vehicle cost',                  kind: 'usd', placeholder: '120,000' },
+        { id: 'vehicleClass', label: 'Vehicle class',                 kind: 'select', options: [
+            { value: 'lightAuto',   label: 'Light auto / truck (≤6,000 lb GVWR)' },
+            { value: 'suvHeavy',    label: 'Heavy SUV (6,001-14,000 lb)' },
+            { value: 'heavyPickup', label: 'Heavy pickup w/ ≥6-ft bed' },
+            { value: 'cargoVan',    label: 'Cargo van (no rear seats)' },
+            { value: 'over14000',   label: 'Vehicle &gt;14,000 lb GVWR' }
+        ] },
+        { id: 'bizUsePct',    label: 'Business use (%)',              kind: 'pct', placeholder: '100' }
+      ]
+    },
+    {
+      id: 'slot07',
+      num: '07',
+      name: 'Equipment Leasing Fund',
+      shortName: 'Equip Leasing',
+      keyaspect: 'Bonus Depreciation Pass-Through',
+      descriptor: 'Partnership/LLC owns leased equipment. 100% bonus depreciation on placement; year-1 K-1 loss flows to investor if material participation under Reg. §1.469-5T(a). Subject to §465 at-risk + §461(l) excess-business-loss caps.',
+      audience: 'Active investor',
+      bucket: 'capital',
+      investmentField: 'investmentAmount',
+      defaults: {
+        investmentAmount:  500000,
+        depreciablePct:    90,
+        materialPart:      false
+      },
+      detailRows: [
+        { id: 'investmentAmount', label: 'Investment amount',                kind: 'usd', placeholder: '500,000' },
+        { id: 'depreciablePct',   label: 'Depreciable basis (% of capital)', kind: 'pct', placeholder: '90' },
+        { id: 'materialPart',     label: 'Material participation (§469)?',   kind: 'yesno' }
+      ]
+    },
+    {
+      id: 'slot08',
+      num: '08',
+      name: 'Augusta Rule &mdash; §280A(g)',
+      shortName: 'Augusta Rule',
+      keyaspect: '14-Day Home Rental Exclusion',
+      descriptor: 'Owner&apos;s entity rents owner&apos;s residence for legitimate business meetings (≤14 days/yr). Rent deductible to entity at FMV; income excluded from owner under §280A(g). Requires arm&apos;s-length FMV substantiation post-Sinopoli.',
+      audience: 'S-corp / partnership owner',
+      bucket: 'ordinary',
+      defaults: {
+        daysRented:  14,
+        fmvPerDay:   1500
+      },
+      detailRows: [
+        { id: 'daysRented', label: 'Days rented (max 14)', kind: 'num', placeholder: '14' },
+        { id: 'fmvPerDay',  label: 'FMV rental per day',   kind: 'usd', placeholder: '1,500' }
+      ]
+    },
+    {
+      id: 'slot09',
+      num: '09',
+      name: '401(k) + Profit Sharing',
+      shortName: '401(k) + PS',
+      keyaspect: 'Retirement Deferral',
+      descriptor: '2026 limits: $24,500 elective + $8,000 age-50 catch-up + $11,250 super-catch-up (60-63) + 25%-of-comp employer share. §415(c) cap $72,000 (or $80,000 / $83,250 with catch-ups). Roth-mandatory if 2025 FICA wages &gt;$150,000.',
+      audience: 'Business owner',
+      bucket: 'ordinary',
+      defaults: {
+        compensation:  300000,
+        ownerAge:      55,
+        priorYearWages: 200000
+      },
+      detailRows: [
+        { id: 'compensation',   label: 'Eligible compensation / SE earnings', kind: 'usd', placeholder: '300,000' },
+        { id: 'ownerAge',       label: 'Owner age',                            kind: 'num', placeholder: '55' },
+        { id: 'priorYearWages', label: 'Prior-year FICA wages',                kind: 'usd', placeholder: '200,000' }
+      ]
+    },
+    {
+      id: 'slot10',
+      num: '10',
+      name: 'Aircraft Purchase',
+      shortName: 'Aircraft',
+      keyaspect: 'Business Aviation Bonus',
+      descriptor: '100% bonus on qualified aircraft acquired post-1/19/2025 if QBU &gt;50% (§280F predominant-use). Failure forces ADS straight-line, no bonus. §274 entertainment + commuting flights 100% disallowed; SIFL imputation on personal use.',
+      audience: 'Business aviation user',
+      bucket: 'capital',
+      investmentField: 'aircraftCost',
+      defaults: {
+        aircraftCost: 3000000,
+        qbuPct:       75
+      },
+      detailRows: [
+        { id: 'aircraftCost', label: 'Aircraft acquisition cost',     kind: 'usd', placeholder: '3,000,000' },
+        { id: 'qbuPct',       label: 'Qualified business use (%)',    kind: 'pct', placeholder: '75' }
+      ]
+    },
+    {
+      id: 'slot11',
+      num: '11',
+      name: 'Short-Term Rental Loophole',
+      shortName: 'STR Loophole',
+      keyaspect: 'Non-Passive Bonus + Cost Seg',
+      descriptor: 'Avg guest stay ≤7 days + material participation (Reg. §1.469-1T(e)(3)(ii)) → activity is non-passive. Stack with cost segregation + 100% bonus to offset W-2 / active income with year-1 paper loss.',
+      audience: 'STR investor',
+      bucket: 'capital',
+      investmentField: 'propertyCost',
+      defaults: {
+        propertyCost:    1500000,
+        landPct:         20,
+        avgUseDays:      5,
+        materialPart:    true
+      },
+      detailRows: [
+        { id: 'propertyCost', label: 'Property cost',                       kind: 'usd', placeholder: '1,500,000' },
+        { id: 'landPct',      label: 'Land allocation (%)',                 kind: 'pct', placeholder: '20' },
+        { id: 'avgUseDays',   label: 'Avg guest stay (days)',               kind: 'num', placeholder: '5' },
+        { id: 'materialPart', label: 'Material participation (any test)?', kind: 'yesno' }
+      ]
+    },
+    {
+      id: 'slot12',
+      num: '12',
+      name: 'Farm / Business Equipment',
+      shortName: 'Equipment',
+      keyaspect: '§179 + 100% Bonus',
+      descriptor: 'Equipment placed in service post-1/19/2025. §179 cap $2,560,000 (phase-out begins $4,090,000); 100% bonus on residual. §179 limited by business taxable income; carryforward unlimited.',
+      audience: 'Farm / business operator',
+      bucket: 'capital',
+      investmentField: 'equipmentCost',
+      defaults: {
+        equipmentCost:    1000000,
+        bizTaxableIncome: 500000,
+        isFarm:           false
+      },
+      detailRows: [
+        { id: 'equipmentCost',    label: 'Equipment cost',           kind: 'usd', placeholder: '1,000,000' },
+        { id: 'bizTaxableIncome', label: 'Business taxable income',  kind: 'usd', placeholder: '500,000' },
+        { id: 'isFarm',           label: 'Schedule F farm?',         kind: 'yesno' }
+      ]
+    }
   ];
 
   function _state() {

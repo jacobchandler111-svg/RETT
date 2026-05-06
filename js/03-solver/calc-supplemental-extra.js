@@ -275,9 +275,261 @@
   // append `_CALCS.slotNN = function () { ... };` and the strategy
   // is fully wired into the rivalry / hero / See Value pipeline.
   // ----------------------------------------------------------------
+  // ----------------------------------------------------------------
+  // Strategy slot05 — Cost Segregation Study
+  // Year-1 deduction = (cost - land) × accelPct × 100% bonus
+  //   + shell × MACRS yr1 factor (~2.56% mid-month avg for 39-yr)
+  // netBenefit = total deduction × (fed + state)
+  // investment = purchasePrice IF newlyAcquired, else 0
+  // ----------------------------------------------------------------
+  var COST_SEG_PCT = {
+    apartment: 0.25, hotel: 0.30, office: 0.22, retail: 0.26,
+    industrial: 0.35, restaurant: 0.35, medical: 0.30,
+    selfStorage: 0.35, shortTerm: 0.30
+  };
+  function _calcCostSeg() {
+    var cfg = _cfg(); if (!cfg) return _writeResult('slot05', null);
+    var st = _state('slot05');
+    var cost = Math.max(0, _num(st.purchasePrice));
+    if (cost <= 0) return _writeResult('slot05', null);
+    var landPct = Math.min(0.5, Math.max(0, _num(st.landPct) / 100));
+    var depreciableBasis = cost * (1 - landPct);
+    var accelPct = COST_SEG_PCT[st.propertyType] || 0.25;
+    var year1Accel = depreciableBasis * accelPct;
+    var shellBasis = depreciableBasis * (1 - accelPct);
+    var shellYr1 = shellBasis * 0.0256;
+    var totalDeduction = year1Accel + shellYr1;
+    var marginal = _fedMarginal(cfg) + _stateMarginal(cfg);
+    var netBenefit = totalDeduction * marginal;
+    _writeResult('slot05', {
+      netBenefit: Math.max(0, Math.round(netBenefit)),
+      investment: st.newlyAcquired ? Math.round(cost) : 0,
+      marginalRate: marginal,
+      detail: {
+        depreciableBasis: Math.round(depreciableBasis),
+        accelPct: accelPct,
+        year1Deduction: Math.round(totalDeduction)
+      }
+    });
+  }
+
+  // ----------------------------------------------------------------
+  // Strategy slot06 — Heavy Vehicle (G-Wagon)
+  // SUV-heavy: §179 capped at $32,000; residual at 100% bonus
+  // Heavy pickup / cargo van / >14,000 lb: full §179 + bonus residual
+  // Light passenger: §280F luxury cap $20,300 yr1 (with bonus)
+  // ----------------------------------------------------------------
+  function _calcHeavyVehicle() {
+    var cfg = _cfg(); if (!cfg) return _writeResult('slot06', null);
+    var st = _state('slot06');
+    var cost = Math.max(0, _num(st.vehicleCost));
+    if (cost <= 0) return _writeResult('slot06', null);
+    var bizUse = Math.min(1, Math.max(0, _num(st.bizUsePct) / 100));
+    if (bizUse <= 0.5 && st.vehicleClass !== 'lightAuto') {
+      return _writeResult('slot06', { netBenefit: 0, investment: 0,
+        detail: { reason: 'Business use must exceed 50% (§280F predominant-use)' } });
+    }
+    var bizBasis = cost * bizUse;
+    var yr1Deduction = 0;
+    var cls = st.vehicleClass || 'suvHeavy';
+    if (cls === 'lightAuto') {
+      yr1Deduction = Math.min(bizBasis, 20300);
+    } else if (cls === 'suvHeavy') {
+      var sec179 = Math.min(bizBasis, 32000);
+      yr1Deduction = sec179 + (bizBasis - sec179);
+    } else {
+      var sec179f = Math.min(bizBasis, 2560000);
+      yr1Deduction = sec179f + (bizBasis - sec179f);
+    }
+    var marginal = _fedMarginal(cfg) + _stateMarginal(cfg);
+    _writeResult('slot06', {
+      netBenefit: Math.max(0, Math.round(yr1Deduction * marginal)),
+      investment: 0,
+      marginalRate: marginal,
+      detail: { yr1Deduction: Math.round(yr1Deduction), bizUse: bizUse, vehicleClass: cls }
+    });
+  }
+
+  // ----------------------------------------------------------------
+  // Strategy slot07 — Equipment Leasing Fund
+  // Year-1 K-1 loss = investment × depreciablePct × 100% bonus
+  // Non-passive only if material participation (Reg. §1.469-5T(a)).
+  // §461(l) excess-business-loss cap not modeled (advisory layer).
+  // ----------------------------------------------------------------
+  function _calcEquipmentLeasing() {
+    var cfg = _cfg(); if (!cfg) return _writeResult('slot07', null);
+    var st = _state('slot07');
+    var amount = Math.max(0, _num(st.investmentAmount));
+    if (amount <= 0) return _writeResult('slot07', null);
+    var deprPct = Math.min(1, Math.max(0, _num(st.depreciablePct) / 100));
+    var yr1Loss = amount * deprPct;
+    var nonPassive = st.materialPart ? yr1Loss : 0;
+    var marginal = _fedMarginal(cfg) + _stateMarginal(cfg);
+    _writeResult('slot07', {
+      netBenefit: Math.max(0, Math.round(nonPassive * marginal)),
+      investment: Math.round(amount),
+      marginalRate: marginal,
+      detail: {
+        yr1Loss: Math.round(yr1Loss),
+        nonPassive: Math.round(nonPassive),
+        suspended: st.materialPart ? 0 : Math.round(yr1Loss)
+      }
+    });
+  }
+
+  // ----------------------------------------------------------------
+  // Strategy slot08 — Augusta Rule §280A(g)
+  // businessRent = min(days, 14) × fmvPerDay
+  // netBenefit = businessRent × marginal (deduct at entity, exclude at owner)
+  // ----------------------------------------------------------------
+  function _calcAugusta() {
+    var cfg = _cfg(); if (!cfg) return _writeResult('slot08', null);
+    var st = _state('slot08');
+    var days = Math.min(14, Math.max(0, _num(st.daysRented)));
+    var fmv = Math.max(0, _num(st.fmvPerDay));
+    if (days <= 0 || fmv <= 0) return _writeResult('slot08', null);
+    var businessRent = days * fmv;
+    var marginal = _fedMarginal(cfg) + _stateMarginal(cfg);
+    _writeResult('slot08', {
+      netBenefit: Math.max(0, Math.round(businessRent * marginal)),
+      investment: 0,
+      marginalRate: marginal,
+      detail: { days: days, fmv: fmv, businessRent: Math.round(businessRent) }
+    });
+  }
+
+  // ----------------------------------------------------------------
+  // Strategy slot09 — 401(k) + Profit-Sharing (2026 limits)
+  // 415(c) cap $72,000; +$8,000 catch-up (50+); +$11,250 super (60-63)
+  // Employer share ≤ 25% × eligible comp (cap $360,000)
+  // ----------------------------------------------------------------
+  function _calc401k() {
+    var cfg = _cfg(); if (!cfg) return _writeResult('slot09', null);
+    var st = _state('slot09');
+    var comp = Math.max(0, _num(st.compensation));
+    if (comp <= 0) return _writeResult('slot09', null);
+    var age = _num(st.ownerAge);
+    var compCapped = Math.min(comp, 360000);
+    var elective = Math.min(compCapped, 24500);
+    var catchup = (age >= 60 && age <= 63) ? 11250 : (age >= 50 ? 8000 : 0);
+    var employer = Math.min(0.25 * compCapped, 25 * 360000 / 100);
+    var cap415c = 72000 + catchup;
+    var total = Math.min(elective + catchup + employer, cap415c);
+    var marginal = _fedMarginal(cfg) + _stateMarginal(cfg);
+    _writeResult('slot09', {
+      netBenefit: Math.max(0, Math.round(total * marginal)),
+      investment: 0,
+      marginalRate: marginal,
+      detail: {
+        elective: elective, catchup: catchup,
+        employer: Math.round(employer), totalContribution: Math.round(total)
+      }
+    });
+  }
+
+  // ----------------------------------------------------------------
+  // Strategy slot10 — Aircraft Purchase
+  // QBU > 50% required; bonus = cost × bizUse × 100%.
+  // QBU ≤ 50% → ADS straight-line, no bonus, no §179.
+  // §274 entertainment / commuting disallowance not modeled here.
+  // ----------------------------------------------------------------
+  function _calcAircraft() {
+    var cfg = _cfg(); if (!cfg) return _writeResult('slot10', null);
+    var st = _state('slot10');
+    var cost = Math.max(0, _num(st.aircraftCost));
+    if (cost <= 0) return _writeResult('slot10', null);
+    var qbu = Math.min(1, Math.max(0, _num(st.qbuPct) / 100));
+    var yr1Deduction;
+    if (qbu > 0.50) {
+      yr1Deduction = cost * qbu;
+    } else {
+      yr1Deduction = (cost * qbu) / 6;
+    }
+    var marginal = _fedMarginal(cfg) + _stateMarginal(cfg);
+    _writeResult('slot10', {
+      netBenefit: Math.max(0, Math.round(yr1Deduction * marginal)),
+      investment: Math.round(cost),
+      marginalRate: marginal,
+      detail: {
+        qbu: qbu, yr1Deduction: Math.round(yr1Deduction),
+        method: qbu > 0.50 ? 'MACRS + 100% bonus' : 'ADS (no bonus)'
+      }
+    });
+  }
+
+  // ----------------------------------------------------------------
+  // Strategy slot11 — STR Loophole + Cost Seg
+  // Qualifies if avgUse ≤ 7 days AND material participation.
+  // year1 = (cost - land) × 30% × 100% bonus + shell × MACRS yr1.
+  // Non-passive when qualified → offsets W-2/active income.
+  // ----------------------------------------------------------------
+  function _calcStrLoophole() {
+    var cfg = _cfg(); if (!cfg) return _writeResult('slot11', null);
+    var st = _state('slot11');
+    var cost = Math.max(0, _num(st.propertyCost));
+    if (cost <= 0) return _writeResult('slot11', null);
+    var qualifies = (_num(st.avgUseDays) <= 7) && !!st.materialPart;
+    if (!qualifies) {
+      return _writeResult('slot11', { netBenefit: 0, investment: Math.round(cost),
+        detail: { reason: 'Requires avg stay ≤7 days AND material participation' } });
+    }
+    var landPct = Math.min(0.5, Math.max(0, _num(st.landPct) / 100));
+    var depreciable = cost * (1 - landPct);
+    var year1Accel = depreciable * 0.30;
+    var shellYr1 = depreciable * 0.70 * 0.0256;
+    var total = year1Accel + shellYr1;
+    var marginal = _fedMarginal(cfg) + _stateMarginal(cfg);
+    _writeResult('slot11', {
+      netBenefit: Math.max(0, Math.round(total * marginal)),
+      investment: Math.round(cost),
+      marginalRate: marginal,
+      detail: { qualifies: true, year1Deduction: Math.round(total) }
+    });
+  }
+
+  // ----------------------------------------------------------------
+  // Strategy slot12 — Farm / Business Equipment (§179 + 100% bonus)
+  // §179 cap $2,560,000; phase-out begins $4,090,000 (dollar-for-dollar)
+  // §179 capped by business taxable income; carryforward unlimited
+  // 100% bonus on residual (cost - §179 used)
+  // ----------------------------------------------------------------
+  function _calcFarmEquipment() {
+    var cfg = _cfg(); if (!cfg) return _writeResult('slot12', null);
+    var st = _state('slot12');
+    var cost = Math.max(0, _num(st.equipmentCost));
+    if (cost <= 0) return _writeResult('slot12', null);
+    var bizIncome = Math.max(0, _num(st.bizTaxableIncome));
+    var sec179Cap = 2560000;
+    var phaseOut = Math.max(0, cost - 4090000);
+    sec179Cap = Math.max(0, sec179Cap - phaseOut);
+    var sec179 = Math.min(cost, sec179Cap, bizIncome);
+    var residual = cost - sec179;
+    var bonus = residual;
+    var total = sec179 + bonus;
+    var marginal = _fedMarginal(cfg) + _stateMarginal(cfg);
+    _writeResult('slot12', {
+      netBenefit: Math.max(0, Math.round(total * marginal)),
+      investment: Math.round(cost),
+      marginalRate: marginal,
+      detail: {
+        sec179: Math.round(sec179),
+        bonus: Math.round(bonus),
+        total: Math.round(total)
+      }
+    });
+  }
+
   var _CALCS = {
     ptet:            _calcPtet,
-    charitableGifts: _calcCharitableGifts
+    charitableGifts: _calcCharitableGifts,
+    slot05:          _calcCostSeg,
+    slot06:          _calcHeavyVehicle,
+    slot07:          _calcEquipmentLeasing,
+    slot08:          _calcAugusta,
+    slot09:          _calc401k,
+    slot10:          _calcAircraft,
+    slot11:          _calcStrLoophole,
+    slot12:          _calcFarmEquipment
   };
 
   // Public registration API for late-arriving calc modules. Pattern:
