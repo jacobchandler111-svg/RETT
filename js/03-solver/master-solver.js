@@ -148,7 +148,14 @@
     var list = listSupplementals();
     var candidates = list
       .filter(function (spec) {
-        return typeof spec.getInterest === 'function' && spec.getInterest() === true;
+        // Page-4 Interested gate: skip strategies the user hasn't opted into.
+        if (typeof spec.getInterest !== 'function' || spec.getInterest() !== true) return false;
+        // Page-5 enable toggle: when the advisor flips a strategy off mid-
+        // meeting, its dollars must free up immediately and flow back to
+        // Brooklyn (or to the next-best supp). Without this check, the
+        // rivalry would still fund a Page-5-disabled strategy.
+        if (!isSupplementalEnabled(spec.id)) return false;
+        return true;
       })
       .map(function (spec) {
         var result = (typeof spec.getResult === 'function') ? spec.getResult() : null;

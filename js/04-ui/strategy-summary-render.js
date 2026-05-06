@@ -586,12 +586,33 @@
     rows += '<div class="impl-row"><span class="impl-name">Total available capital</span>' +
             '<span class="impl-amt">' + _fmt(alloc.totalAvailable) + '</span></div>';
     alloc.supplementals.forEach(function (s) {
-      var note = s.enabled && s.available ? '' :
-                 (!s.enabled ? ' (disabled on Page 5)' :
-                  !s.available ? ' (awaiting Page 4 input)' : '');
+      var note = '';
+      if (!s.enabled) {
+        note = ' (disabled on Page 5)';
+      } else if (!s.available) {
+        note = ' (awaiting Page 4 input)';
+      } else if (s.rivalry && !s.rivalry.funded) {
+        // Rivalry zeroed this supp. Show the reason so the advisor
+        // understands why $0 even though the strategy is Interested.
+        if (s.rivalry.reason === 'brooklyn-beats') {
+          note = ' (Brooklyn yields more $/$ &mdash; dollars stay with Brooklyn)';
+        } else if (s.rivalry.reason === 'capital-exhausted') {
+          note = ' (no capital left after higher-yield strategies funded)';
+        } else if (s.rivalry.reason === 'no-result-or-zero') {
+          note = ' (no committed investment)';
+        }
+      }
+      // Show requested amount alongside funded when they differ, so
+      // the advisor can see both the user-dialed claim and the
+      // rivalry-decided allocation.
+      var amtDisplay = _fmt(s.investment);
+      if (s.rivalry && !s.rivalry.funded && s.requested > 0) {
+        amtDisplay = _fmt(0) +
+          ' <em style="opacity:0.55;font-size:0.85em;font-style:italic;">(card requested ' + _fmt(s.requested) + ')</em>';
+      }
       rows += '<div class="impl-row impl-row-supp">' +
               '<span class="impl-name">&rarr; ' + s.name + note + '</span>' +
-              '<span class="impl-amt">' + _fmt(s.investment) + '</span></div>';
+              '<span class="impl-amt">' + amtDisplay + '</span></div>';
     });
     rows += '<div class="impl-row impl-row-brooklyn">' +
             '<span class="impl-name">&rarr; Brooklyn (remaining)</span>' +
