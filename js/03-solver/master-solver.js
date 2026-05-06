@@ -452,7 +452,7 @@
   // until the broader fee + scale-aware engine pass lands. Callers can
   // apply the recommendation by setting Available Capital to the
   // returned recommendedInvestment.
-  function runBrooklynOptimizer(cfg, brooklynCumulativeLoss) {
+  function runBrooklynOptimizer(cfg, brooklynCumulativeLoss, brooklynNetAtFull) {
     var c = cfg || {};
     var availCap = Math.max(0, Number(c.availableCapital) || 0);
     var currentLT = Math.max(0,
@@ -502,6 +502,55 @@
       reason = 'loss-within-absorbable-gain';
     }
 
+    var recommendedInvestment = Math.round(availCap * scale);
+
+    // Positive-net gate (advisor principle 2026-05-06):
+    //   "A dollar only deploys — Brooklyn OR any supplemental — if its
+    //    marginal net-of-fee benefit is strictly > 0."
+    // The absorbable-gain check above only verifies CAPACITY (loss fits
+    // within available gain). It does NOT verify ECONOMICS (savings >
+    // fees). When availableCapital is small relative to the Brookhaven
+    // flat-fee floor (or when ordinary income is low so the marginal
+    // tax-savings rate is small), Brooklyn can pass the absorbable check
+    // and still produce negative net — fees > savings. The rivalry's
+    // 'negative-net' rule already prevents supplementals from deploying
+    // into a fee trap; this is the symmetric Brooklyn-side rule.
+    //
+    // Probe order: caller-supplied `brooklynNetAtFull` (already known to
+    // runFullPipeline from its first-pass projection) is used when scale
+    // is 1 (no dial-back). Otherwise we run a targeted unifiedTaxComparison
+    // at the dial-back amount — one extra engine call only when dial-back
+    // is in play. Skip entirely when there's nothing to deploy.
+    if (recommendedInvestment > 0) {
+      var netAtRec = null;
+      if (scale === 1 && Number.isFinite(brooklynNetAtFull)) {
+        netAtRec = brooklynNetAtFull;
+      } else if (typeof root.unifiedTaxComparison === 'function') {
+        try {
+          var probe = Object.assign({}, c, {
+            availableCapital: recommendedInvestment,
+            investment:       recommendedInvestment,
+            investedCapital:  recommendedInvestment
+          });
+          if (typeof root.rettFlavorEngineCfg === 'function') {
+            probe = root.rettFlavorEngineCfg(probe);
+          }
+          var pr = root.unifiedTaxComparison(probe) || {};
+          var prFees = Number(pr.totalAllFees);
+          if (!Number.isFinite(prFees)) {
+            prFees = (Number(pr.totalFees) || 0) + (Number(pr.totalBrookhavenFees) || 0);
+          }
+          netAtRec = (Number(pr.totalSavings) || 0) - prFees;
+        } catch (e) { /* probe failed — leave the recommendation alone */ }
+      }
+      if (netAtRec !== null && netAtRec <= 0) {
+        recommendedInvestment = 0;
+        scale = 0;
+        dialBack = true;
+        reason = 'brooklyn-marginal-net-negative';
+      }
+    }
+
     return {
       availableCapital:        availCap,
       currentLTGain:           currentLT,
@@ -514,7 +563,7 @@
       brooklynLossAtFull:      lossAtFull,
       dialBack:                dialBack,
       recommendedScale:        scale,
-      recommendedInvestment:   Math.round(availCap * scale),
+      recommendedInvestment:   recommendedInvestment,
       excessLossAtFull:        Math.max(0, lossAtFull - absorbable),
       reason:                  reason
     };

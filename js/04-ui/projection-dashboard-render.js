@@ -2154,7 +2154,16 @@
       var override = root.__rettBrooklynInvestmentOverride;
       var hasOverride = (typeof override === 'number' && override >= 0);
       entries.forEach(function (e) {
-        var opt = root.runBrooklynOptimizer(currentCfg, e.loss || 0);
+        // Pass the entry's pre-scaling net (computed by _scenarioMetrics
+        // at the auto-picked combo) so the optimizer's positive-net gate
+        // measures the same value the display will show. Without this,
+        // the gate would probe at the GLOBAL cfg's combo, which can
+        // differ from the strategy's per-section auto-pick (e.g. Strategy
+        // A often picks horizon=1 to minimize Brookhaven, while cfg
+        // defaults to horizon=5) — false positives possible.
+        var entryNetAtFull = (e.metrics && Number.isFinite(e.metrics.net))
+          ? e.metrics.net : null;
+        var opt = root.runBrooklynOptimizer(currentCfg, e.loss || 0, entryNetAtFull);
         // Scale resolution: user's slider override > optimizer cap > full.
         // Override is clamped to [0, 1] of available capital — past 100%
         // doesn't make engineering sense (can't invest more than you have).
@@ -2178,7 +2187,19 @@
         // with the unabsorbed gain.
         var fullSavings = Math.max(0, (e.metrics.doNothing || 0) - (e.metrics.tax || 0));
         e.metrics._savingsAtFull = fullSavings;
-        if (scale < 1) {
+        if (scale === 0) {
+          // Optimizer recommends NO deployment — Brooklyn's marginal net
+          // would be negative (positive-net gate in master-solver.js), or
+          // an explicit slider override forced 0. No engagement ⇒ no
+          // Brooklyn AM fees AND no Brookhaven fees: the planning fee
+          // ties to the engagement, not to bare interest. Display reads
+          // a clean "$0 net, capital free" instead of a fee-only loss.
+          e.metrics.brooklynFees   = 0;
+          e.metrics.brookhavenFees = 0;
+          e.metrics.fees           = 0;
+          e.metrics.savings        = 0;
+          e.metrics.net            = 0;
+        } else if (scale < 1) {
           var effectiveBF = (e.metrics.brooklynFees || 0) * scale;
           var newFees = effectiveBF + (e.metrics.brookhavenFees || 0);
           var sav = fullSavings;

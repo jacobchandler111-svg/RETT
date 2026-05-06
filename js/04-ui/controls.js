@@ -845,20 +845,16 @@ function runFullPipeline() {
         var firstLoss = (firstPass && firstPass.years)
           ? firstPass.years.reduce(function (s, y) { return s + (y.grossLoss || 0); }, 0)
           : 0;
-        // First-pass cumulative net (savings − all fees) at the requested
-        // investment. The optimizer's positive-net gate uses this to skip
-        // a redundant engine probe when scale=1 (no absorbable-gain dial-
-        // back). It still probes if scale<1 since the dial-back amount
-        // doesn't match what firstPass measured.
-        var firstNet = (firstPass && firstPass.totals
-          && Number.isFinite(firstPass.totals.cumulativeNetSavings))
-          ? firstPass.totals.cumulativeNetSavings : null;
         // Run the optimizer whenever there's any deployment to evaluate.
         // The positive-net gate (master-solver.js) needs to fire even when
         // firstLoss=0, because that case has fees with no offsetting
         // savings — a guaranteed negative net the gate must catch.
+        // Don't pass firstPass.totals.cumulativeNetSavings as a shortcut:
+        // ProjectionEngine excludes Brookhaven from cumulativeFees, so
+        // its net would over-state vs. the optimizer's full-fee model.
+        // Let the optimizer probe via unifiedTaxComparison.
         if (typeof window.runBrooklynOptimizer === 'function' && Number(cfg.investment) > 0) {
-          var opt = window.runBrooklynOptimizer(cfg, firstLoss, firstNet);
+          var opt = window.runBrooklynOptimizer(cfg, firstLoss);
           // The optimizer doesn't see the rivalry's allocation — it
           // sizes a recommendation against availableCapital. Cap the
           // recommendation at brooklynPool so the dial-back path can't
