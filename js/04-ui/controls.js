@@ -845,8 +845,20 @@ function runFullPipeline() {
         var firstLoss = (firstPass && firstPass.years)
           ? firstPass.years.reduce(function (s, y) { return s + (y.grossLoss || 0); }, 0)
           : 0;
-        if (typeof window.runBrooklynOptimizer === 'function' && firstLoss > 0) {
-          var opt = window.runBrooklynOptimizer(cfg, firstLoss);
+        // First-pass cumulative net (savings − all fees) at the requested
+        // investment. The optimizer's positive-net gate uses this to skip
+        // a redundant engine probe when scale=1 (no absorbable-gain dial-
+        // back). It still probes if scale<1 since the dial-back amount
+        // doesn't match what firstPass measured.
+        var firstNet = (firstPass && firstPass.totals
+          && Number.isFinite(firstPass.totals.cumulativeNetSavings))
+          ? firstPass.totals.cumulativeNetSavings : null;
+        // Run the optimizer whenever there's any deployment to evaluate.
+        // The positive-net gate (master-solver.js) needs to fire even when
+        // firstLoss=0, because that case has fees with no offsetting
+        // savings — a guaranteed negative net the gate must catch.
+        if (typeof window.runBrooklynOptimizer === 'function' && Number(cfg.investment) > 0) {
+          var opt = window.runBrooklynOptimizer(cfg, firstLoss, firstNet);
           // The optimizer doesn't see the rivalry's allocation — it
           // sizes a recommendation against availableCapital. Cap the
           // recommendation at brooklynPool so the dial-back path can't
@@ -1196,6 +1208,39 @@ function bindControls() {
     showPage('page-allocator');
   });
 
+  // Page-4 Reset Selections button — clears every Interested /
+  // Not Interested pick on the supplemental rail (oilGas + delphi
+  // via resetSupplementalCore, slot05..slot12 + ptet/charitable via
+  // resetSupplementalExtra) and zeroes the dollar inputs. Rate-style
+  // factory defaults (depreciation %, AGI cap %) survive because the
+  // reset functions seed from spec.defaults but only zero kind:'usd'
+  // fields. Persists immediately so refresh reflects the cleared
+  // state.
+  var suppResetBtn = document.getElementById('supp-reset-selections-btn');
+  if (suppResetBtn) suppResetBtn.addEventListener('click', function () {
+    if (!window.confirm('Reset all supplemental strategy selections on this page? Dollar inputs will be cleared (rate defaults preserved).')) return;
+    if (typeof window.resetSupplementalExtra === 'function') {
+      try { window.resetSupplementalExtra(); } catch (e) { /* */ }
+    }
+    if (typeof window.resetSupplementalCore === 'function') {
+      try { window.resetSupplementalCore(); } catch (e) { /* */ }
+    }
+    if (typeof window.resetSupplementalEnabledOverride === 'function') {
+      try { window.resetSupplementalEnabledOverride(); } catch (e) { /* */ }
+    }
+    if (typeof window.runFullPipeline === 'function') {
+      try { window.runFullPipeline(); } catch (e) { /* */ }
+    }
+    if (window.RETTCaseStorage) {
+      var s = window.RETTCaseStorage;
+      if (typeof s.autoSaveCurrent === 'function') {
+        try { s.autoSaveCurrent(); } catch (e) { /* */ }
+      } else if (typeof s.saveWorkingState === 'function') {
+        try { s.saveWorkingState(); } catch (e) { /* */ }
+      }
+    }
+  });
+
   // Strategy Implementation Date can't legally precede the Sale /
   // Closing Date — proceeds don't exist to deploy yet. Mirror the sale
   // date into the strategy-date input's `min` attribute so the
@@ -1390,9 +1435,16 @@ function bindControls() {
       // Persist to localStorage so the strategy-pick visual state
       // survives a page refresh / browser tab switch / saved-client
       // round-trip. (P1-3.) Skip while applying restored state.
-      if (!window.__rettApplyingState && window.RETTCaseStorage &&
-          typeof window.RETTCaseStorage.saveWorkingState === 'function') {
-        try { window.RETTCaseStorage.saveWorkingState(); } catch (e) { /* */ }
+      // autoSaveCurrent routes to the active named case (or draft);
+      // saveWorkingState would only update the un-named draft and the
+      // named case would load stale on refresh.
+      if (!window.__rettApplyingState && window.RETTCaseStorage) {
+        var s = window.RETTCaseStorage;
+        if (typeof s.autoSaveCurrent === 'function') {
+          try { s.autoSaveCurrent(); } catch (e) { /* */ }
+        } else if (typeof s.saveWorkingState === 'function') {
+          try { s.saveWorkingState(); } catch (e) { /* */ }
+        }
       }
     });
   });
@@ -1409,9 +1461,13 @@ function bindControls() {
     var type = btn.getAttribute('data-use-strategy');
     if (!type) return;
     window.__rettChosenStrategy = type;
-    if (!window.__rettApplyingState && window.RETTCaseStorage &&
-        typeof window.RETTCaseStorage.saveWorkingState === 'function') {
-      try { window.RETTCaseStorage.saveWorkingState(); } catch (e) { /* */ }
+    if (!window.__rettApplyingState && window.RETTCaseStorage) {
+      var s = window.RETTCaseStorage;
+      if (typeof s.autoSaveCurrent === 'function') {
+        try { s.autoSaveCurrent(); } catch (e) { /* */ }
+      } else if (typeof s.saveWorkingState === 'function') {
+        try { s.saveWorkingState(); } catch (e) { /* */ }
+      }
     }
     showPage('page-supplemental');
   });

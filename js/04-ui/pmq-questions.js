@@ -90,8 +90,15 @@
 
   function _persist() {
     if (root.__rettApplyingState) return;
-    if (root.RETTCaseStorage && typeof root.RETTCaseStorage.saveWorkingState === 'function') {
-      try { root.RETTCaseStorage.saveWorkingState(); } catch (e) { /* */ }
+    var s = root.RETTCaseStorage;
+    if (!s) return;
+    // Route to active named case (if any) instead of always writing to
+    // the un-named draft slot — otherwise PMQ answers don't survive a
+    // refresh when a named client is loaded.
+    if (typeof s.autoSaveCurrent === 'function') {
+      try { s.autoSaveCurrent(); } catch (e) { /* */ }
+    } else if (typeof s.saveWorkingState === 'function') {
+      try { s.saveWorkingState(); } catch (e) { /* */ }
     }
   }
 

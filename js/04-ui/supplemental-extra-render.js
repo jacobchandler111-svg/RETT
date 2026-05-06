@@ -858,8 +858,16 @@
 
   function _persist() {
     if (root.__rettApplyingState) return;
-    if (root.RETTCaseStorage && typeof root.RETTCaseStorage.saveWorkingState === 'function') {
-      try { root.RETTCaseStorage.saveWorkingState(); } catch (e) { /* */ }
+    var s = root.RETTCaseStorage;
+    if (!s) return;
+    // autoSaveCurrent routes to the active named case (if any) so that
+    // Page-4 Interested clicks land in the right slot. saveWorkingState
+    // would only update the un-named draft and the named case would
+    // load stale on refresh.
+    if (typeof s.autoSaveCurrent === 'function') {
+      try { s.autoSaveCurrent(); } catch (e) { /* */ }
+    } else if (typeof s.saveWorkingState === 'function') {
+      try { s.saveWorkingState(); } catch (e) { /* */ }
     }
   }
 
