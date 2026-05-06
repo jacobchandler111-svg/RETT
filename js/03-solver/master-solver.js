@@ -176,6 +176,12 @@
         decisions[c.id] = { funded: false, reason: 'no-result-or-zero',
           granted: 0, rate: c.rate, brooklynRate: brooklynYieldRate,
           netBenefit: c.netBenefit, requested: c.investment };
+      } else if (c.rate <= 0) {
+        // Hard rule (advisor 2026-05-06): never deploy a dollar whose
+        // marginal net-of-fee yield is non-positive. Money sits free.
+        decisions[c.id] = { funded: false, reason: 'negative-net',
+          granted: 0, rate: c.rate, brooklynRate: brooklynYieldRate,
+          netBenefit: c.netBenefit, requested: c.investment };
       } else if (c.rate <= brooklynYieldRate) {
         decisions[c.id] = { funded: false, reason: 'brooklyn-beats',
           granted: 0, rate: c.rate, brooklynRate: brooklynYieldRate,
@@ -381,8 +387,16 @@
     // could have shielded it.
     var currentRecap = Math.max(0, Number(c.acceleratedDepreciation) || 0);
     var future = (c.futureSale && c.futureSale.enabled) ? c.futureSale : null;
-    var futureLT = future ? Math.max(0, Number(future.longTermGain) || 0) : 0;
-    var futureRecap = future
+    // Future-sale absorption is OPT-IN (advisor 2026-05-06). By default
+    // Brooklyn sizes only for the current sale's absorbable gain. The
+    // user clicks Apply on the Future Sale callout (Page 5) to flip
+    // __rettAbsorbFutureSale, which adds future LT + recapture into the
+    // cap and triggers a pipeline rerun. Without the flag, today's "I
+    // already include future-sale" behavior would over-deploy Brooklyn
+    // for clients who haven't agreed to absorb the future sale yet.
+    var absorbFuture = !!root.__rettAbsorbFutureSale;
+    var futureLT = (future && absorbFuture) ? Math.max(0, Number(future.longTermGain) || 0) : 0;
+    var futureRecap = (future && absorbFuture)
       ? Math.max(0, Number(future.acceleratedDepreciation) || 0) : 0;
     var absorbable = currentLT + currentRecap + futureLT + futureRecap;
 
@@ -414,6 +428,7 @@
       futureLTGain:            futureLT,
       futureRecapture:         futureRecap,
       futureSaleEnabled:       !!future,
+      futureSaleAbsorbing:     !!(future && absorbFuture),
       totalAbsorbableGain:     absorbable,
       brooklynLossAtFull:      lossAtFull,
       dialBack:                dialBack,

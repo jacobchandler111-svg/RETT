@@ -1004,6 +1004,49 @@
     });
   }
 
+  // Future-Sale Apply / Undo button. One delegated handler covers both
+  // states. On click: flip the global absorption flag, persist to
+  // localStorage, rerun the pipeline (so Brooklyn resizes), re-render
+  // Page 5, and scroll to the Net Benefit hero so the advisor sees the
+  // updated total.
+  if (typeof root !== 'undefined' && root.document && !root.__rettFsApplyListenerWired) {
+    root.__rettFsApplyListenerWired = true;
+    // Restore prior choice on page load.
+    try {
+      if (root.localStorage && root.localStorage.getItem('_absorbFutureSale') === '1') {
+        root.__rettAbsorbFutureSale = true;
+      }
+    } catch (e) { /* localStorage unavailable */ }
+    root.document.addEventListener('click', function (e) {
+      var btn = e.target && e.target.closest && e.target.closest('[data-fs-apply]');
+      if (!btn) return;
+      var action = btn.getAttribute('data-fs-apply');
+      if (action === 'apply') {
+        root.__rettAbsorbFutureSale = true;
+      } else if (action === 'undo') {
+        root.__rettAbsorbFutureSale = false;
+      } else {
+        return;
+      }
+      try {
+        if (root.localStorage) {
+          root.localStorage.setItem('_absorbFutureSale',
+            root.__rettAbsorbFutureSale ? '1' : '0');
+        }
+      } catch (err) { /* localStorage unavailable */ }
+      if (typeof root.runFullPipeline === 'function') {
+        try { root.runFullPipeline(); } catch (err) { /* */ }
+      }
+      if (typeof root.renderStrategySummary === 'function') {
+        try { root.renderStrategySummary(); } catch (err) { /* */ }
+      }
+      var hero = root.document.querySelector('.forward-net-hero');
+      if (hero && typeof hero.scrollIntoView === 'function') {
+        hero.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
+  }
+
   function _renderFutureSaleOption(entry, opt, cfg) {
     // Per advisor spec: only render the section when there's REAL
     // future-sale coverage to discuss. Three early-out cases:
@@ -1135,6 +1178,7 @@
     var fullCoverage   = (coverageFraction >= 0.999);
     var noCoverage     = (coverageFraction <= 0);
     var coveragePctLabel = Math.round(coverageFraction * 100) + '%';
+    var absorbingNow   = !!root.__rettAbsorbFutureSale;
 
     // Per advisor: if there is NO coverage (Brooklyn can't even
     // partially absorb the future-sale gain), suppress the callout
@@ -1145,9 +1189,9 @@
 
     var headerTitle;
     var headerCopy;
-    if (noCoverage) {
-      headerTitle = 'Future Sale Needs More Capital';
-      headerCopy  = 'Available Capital is fully consumed by the current sale, so there&rsquo;s no leftover Asset Manager loss to carry forward against your planned <strong>' + _fmt(futureLT) + '</strong> long-term gain in ' + saleYear + '. Increasing Available Capital on Page 1 would unlock future-sale offset.';
+    if (absorbingNow) {
+      headerTitle = 'Future Sale Offset Active';
+      headerCopy  = 'Asset Manager is sized to absorb <strong>' + coveragePctLabel + '</strong> of your planned <strong>' + _fmt(futureLT) + '</strong> long-term gain in ' + saleYear + '. The Net additional benefit below shows what the future-sale offset adds on top of the current-sale Net Benefit.';
     } else if (!hasHeadroom) {
       headerTitle = 'Bonus: Your Future Sale Is Already Covered';
       headerCopy  = 'Asset Manager is already fully deployed for your current sale. The leftover loss carries forward and absorbs <strong>' + coveragePctLabel + '</strong> of your planned <strong>' + _fmt(futureLT) + '</strong> long-term gain in ' + saleYear + ' at no additional cost.';
@@ -1199,6 +1243,23 @@
       '<div class="fs-amt ' + benefitClass + '">' + _fmt(netAdditionalBenefit) + '</div>' +
     '</div>';
 
+    // Apply / Undo button. Only renders when there's something to
+    // act on:
+    //   - absorbingNow → Undo (revert to current-sale-only Brooklyn)
+    //   - !absorbingNow + hasHeadroom + positive net additional benefit →
+    //       Apply (grow Brooklyn to absorb both). Hidden when net is
+    //       non-positive per the positive-net hard rule (advisor 2026-05-06).
+    var btnHtml = '';
+    if (absorbingNow) {
+      btnHtml = '<div class="fs-apply-row">' +
+        '<button type="button" class="fs-apply-btn fs-apply-undo" data-fs-apply="undo">Undo: Stop Absorbing Future Sale</button>' +
+      '</div>';
+    } else if (hasHeadroom && netAdditionalBenefit > 0) {
+      btnHtml = '<div class="fs-apply-row">' +
+        '<button type="button" class="fs-apply-btn" data-fs-apply="apply">Apply: Offset Future Sale</button>' +
+      '</div>';
+    }
+
     // Tag the wrapper so the print stylesheet can hide the callout
     // when there's no real future-sale benefit to print: noCoverage
     // ("can't even cover current sale, can't help future") just adds
@@ -1206,9 +1267,11 @@
     // version still shows it so the advisor sees the bottleneck.
     var wrapperClasses = 'future-sale-option';
     if (noCoverage) wrapperClasses += ' fs-no-coverage no-print';
+    if (absorbingNow) wrapperClasses += ' fs-absorbing';
     return '<div class="' + wrapperClasses + '">' +
       headerHtml +
       '<div class="fs-grid">' + rowsHtml + '</div>' +
+      btnHtml +
     '</div>';
   }
 

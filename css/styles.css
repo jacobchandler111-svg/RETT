@@ -4621,8 +4621,49 @@ body { font-size: 16px; }
     border-style: dashed;
 }
 .future-sale-option.fs-hint .fs-desc { margin-bottom: 0; }
+.future-sale-option.fs-absorbing {
+    border-color: var(--bh-trusted, #1e7d4a);
+    background: linear-gradient(0deg, rgba(30, 125, 74, 0.04), rgba(30, 125, 74, 0.04)), var(--paper);
+}
+.future-sale-option .fs-apply-row {
+    margin-top: 18px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+.future-sale-option .fs-apply-btn {
+    font-family: var(--font-mono);
+    font-size: 0.82em;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    background: var(--bh-blue-deep, #1a3a6e);
+    color: #ffffff;
+    border: 1px solid var(--bh-blue-deep, #1a3a6e);
+    padding: 12px 22px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.future-sale-option .fs-apply-btn:hover {
+    background: var(--bh-trusted, #2c5aa0);
+    border-color: var(--bh-trusted, #2c5aa0);
+}
+.future-sale-option .fs-apply-btn:active { transform: translateY(1px); }
+.future-sale-option .fs-apply-btn.fs-apply-undo {
+    background: transparent;
+    color: var(--ink-soft, #444);
+    border-color: var(--rule);
+}
+.future-sale-option .fs-apply-btn.fs-apply-undo:hover {
+    border-color: var(--ink, #222);
+    color: var(--ink, #222);
+    background: var(--paper-warm, #f7f3ec);
+}
 @media (max-width: 720px) {
     .future-sale-option .fs-row { flex-direction: column; align-items: flex-start; gap: 6px; }
+    .future-sale-option .fs-apply-row { justify-content: stretch; }
+    .future-sale-option .fs-apply-btn { flex: 1; }
 }
 
 /* Grow Your Net Benefit — projection card at the very bottom of Page 5 */
