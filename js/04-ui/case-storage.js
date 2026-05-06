@@ -96,7 +96,12 @@
   // advisor's "Interested" picks (Oil & Gas, Delphi) and any details
   // overrides (max investment, IDC%, Delphi class, etc.) survive a
   // hard refresh / saved-case round-trip.
-  var SCHEMA_VERSION = 3;
+  // v4 extends the same survival to the 10 placeholder-rail strategies
+  // (PTET, Charitable Gifts, slot05..slot12) AND the Pre-Meeting
+  // questionnaire answers. Without this, a refresh wipes every
+  // Interested click on the new strategies and the PMQ resets to
+  // empty — the advisor's setup work disappears.
+  var SCHEMA_VERSION = 4;
 
   function captureFormState() {
     var state = { _schemaVersion: SCHEMA_VERSION };
@@ -139,6 +144,35 @@
           } : null
         }
       : null;
+
+    // v4: Page-4 placeholder-rail (PTET, Charitable Gifts, slot05..slot12)
+    // interest map + per-card detail state. lastResult is excluded —
+    // it's recomputed on load from the inputs. detailsOpen / valueOpen
+    // travel so the advisor's expanded panels stay open across refresh.
+    state._supplementalExtraInterest =
+      (root.__rettSupplementalExtraInterest && typeof root.__rettSupplementalExtraInterest === 'object')
+        ? Object.assign({}, root.__rettSupplementalExtraInterest)
+        : {};
+    var supExtra = root.__rettSupplementalExtra;
+    if (supExtra && typeof supExtra === 'object') {
+      var cfg = {};
+      Object.keys(supExtra).forEach(function (id) {
+        var s = supExtra[id]; if (!s || typeof s !== 'object') return;
+        var copy = {};
+        Object.keys(s).forEach(function (k) {
+          if (k === 'lastResult') return;
+          copy[k] = s[k];
+        });
+        cfg[id] = copy;
+      });
+      state._supplementalExtraConfig = cfg;
+    }
+
+    // v4: Pre-Meeting questionnaire answers — { businessOwner, passThrough,
+    // realEstate, charitable, altInvestments } : true | false | null.
+    state._pmqAnswers = (root.__rettPMQAnswers && typeof root.__rettPMQAnswers === 'object')
+      ? Object.assign({}, root.__rettPMQAnswers)
+      : {};
 
     return state;
   }
@@ -255,10 +289,48 @@
         if (typeof dl.detailsOpen === 'boolean') root.__rettSupplemental.delphi.detailsOpen  = dl.detailsOpen;
       }
     }
+    // v4: placeholder-rail interest + detail state.
+    if (state._supplementalExtraInterest && typeof state._supplementalExtraInterest === 'object') {
+      if (!root.__rettSupplementalExtraInterest) root.__rettSupplementalExtraInterest = {};
+      var sxi = state._supplementalExtraInterest;
+      Object.keys(sxi).forEach(function (k) {
+        var v = sxi[k];
+        root.__rettSupplementalExtraInterest[k] = (v === true || v === false) ? v : null;
+      });
+    }
+    if (state._supplementalExtraConfig && typeof state._supplementalExtraConfig === 'object') {
+      if (!root.__rettSupplementalExtra) root.__rettSupplementalExtra = {};
+      var sxc = state._supplementalExtraConfig;
+      Object.keys(sxc).forEach(function (id) {
+        var saved = sxc[id]; if (!saved || typeof saved !== 'object') return;
+        if (!root.__rettSupplementalExtra[id]) root.__rettSupplementalExtra[id] = {};
+        Object.keys(saved).forEach(function (k) {
+          root.__rettSupplementalExtra[id][k] = saved[k];
+        });
+      });
+    }
+
+    // v4: Pre-Meeting questionnaire answers.
+    if (state._pmqAnswers && typeof state._pmqAnswers === 'object') {
+      root.__rettPMQAnswers = Object.assign({}, state._pmqAnswers);
+    }
+
     // Repaint Page 4 so the restored interest + config show up
     // immediately. Safe no-op if the supp module hasn't loaded yet.
     if (typeof root.renderSupplementalPage === 'function') {
       try { root.renderSupplementalPage(); } catch (e) { /* */ }
+    }
+    if (typeof root.renderSupplementalExtra === 'function') {
+      try { root.renderSupplementalExtra(); } catch (e) { /* */ }
+    }
+    if (typeof root.renderPMQQuestions === 'function') {
+      try { root.renderPMQQuestions(); } catch (e) { /* */ }
+    }
+    // Recompute calc results so the See Value rows (and Page 5) show
+    // populated numbers immediately after restore — without this the
+    // user has to click into a detail field to trigger the calc tick.
+    if (typeof root.recomputeSupplementalExtra === 'function') {
+      try { root.recomputeSupplementalExtra(); } catch (e) { /* */ }
     }
 
     root.__rettApplyingState = false;
