@@ -39,6 +39,16 @@
   function _scheduleP5Refresh() {
     clearTimeout(_p5Timer);
     _p5Timer = setTimeout(function () {
+      // Conservation (advisor 2026-05-06): toggling Interested or
+      // changing a max-investment input changes the rivalry-funded
+      // supplemental total, which changes Brooklyn's effective pool.
+      // Run the full pipeline first so __lastResult / cfg.investment
+      // reflect the new allocation BEFORE Page 5 reads from it.
+      // Without this, the displayed Brooklyn deployment lags behind
+      // the supp toggle until another input change kicks the pipeline.
+      if (typeof root.runFullPipeline === 'function') {
+        try { root.runFullPipeline(); } catch (e) { /* */ }
+      }
       if (typeof root.renderStrategySummary === 'function') {
         try { root.renderStrategySummary(); } catch (e) { /* */ }
       }

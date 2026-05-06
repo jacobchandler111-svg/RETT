@@ -86,7 +86,24 @@
         { id: 'appreciation', label: 'Unrealized gain (appreciated only)', kind: 'usd',   placeholder: '0' },
         { id: 'agi',          label: 'Donor AGI (for AGI cap, optional)',  kind: 'usd',   placeholder: '0' }
       ]
-    }
+    },
+    // ----------------------------------------------------------------
+    // Reserved placeholder slots — names land here as the research
+    // report delivers them. Each placeholder renders the same shell
+    // (numbered badge + name + key-aspect + descriptor + interest
+    // buttons + value chevron) so the grid layout doesn't shift when
+    // a real strategy slots in. To activate one: replace placeholder:
+    // true with the real config (name, keyaspect, descriptor, audience,
+    // defaults, detailRows) and add the matching calc fn + registry
+    // entry. No layout work required at swap-in.
+    // ----------------------------------------------------------------
+    { id: 'slot05', num: '05', name: 'Strategy &mdash; Coming Soon', keyaspect: '—', descriptor: 'Reserved placeholder. Strategy details land when the next research module ships.', audience: '—', placeholder: true, defaults: {}, detailRows: [] },
+    { id: 'slot06', num: '06', name: 'Strategy &mdash; Coming Soon', keyaspect: '—', descriptor: 'Reserved placeholder. Strategy details land when the next research module ships.', audience: '—', placeholder: true, defaults: {}, detailRows: [] },
+    { id: 'slot07', num: '07', name: 'Strategy &mdash; Coming Soon', keyaspect: '—', descriptor: 'Reserved placeholder. Strategy details land when the next research module ships.', audience: '—', placeholder: true, defaults: {}, detailRows: [] },
+    { id: 'slot08', num: '08', name: 'Strategy &mdash; Coming Soon', keyaspect: '—', descriptor: 'Reserved placeholder. Strategy details land when the next research module ships.', audience: '—', placeholder: true, defaults: {}, detailRows: [] },
+    { id: 'slot09', num: '09', name: 'Strategy &mdash; Coming Soon', keyaspect: '—', descriptor: 'Reserved placeholder. Strategy details land when the next research module ships.', audience: '—', placeholder: true, defaults: {}, detailRows: [] },
+    { id: 'slot10', num: '10', name: 'Strategy &mdash; Coming Soon', keyaspect: '—', descriptor: 'Reserved placeholder. Strategy details land when the next research module ships.', audience: '—', placeholder: true, defaults: {}, detailRows: [] },
+    { id: 'slot11', num: '11', name: 'Strategy &mdash; Coming Soon', keyaspect: '—', descriptor: 'Reserved placeholder. Strategy details land when the next research module ships.', audience: '—', placeholder: true, defaults: {}, detailRows: [] }
   ];
 
   function _state() {
@@ -232,23 +249,52 @@
 
   function _renderCard(spec) {
     var st = _state()[spec.id];
-    var interestCls = _interestClassFor(spec.id);
-    var detailsOpenCls = st.detailsOpen ? ' is-open' : '';
-    var valueOpenCls   = st.valueOpen   ? ' is-open' : '';
-    var detailRows = (spec.detailRows || []).map(function (r) {
+    var isPlaceholder   = !!spec.placeholder;
+    var interestCls     = isPlaceholder ? 'is-placeholder' : _interestClassFor(spec.id);
+    var detailsOpenCls  = st.detailsOpen ? ' is-open' : '';
+    var valueOpenCls    = st.valueOpen   ? ' is-open' : '';
+    var detailRows      = (spec.detailRows || []).map(function (r) {
       return _renderDetailRow(spec.id, st, r);
     }).join('');
     var iState = _interestState();
-    // The See Value button only makes sense once the user has marked
-    // Interested (so the solver actually evaluates the strategy).
-    // Disabled+muted state otherwise — the button stays in place so
-    // the card height doesn't jump when interest changes.
-    var seeValueDisabled = (iState[spec.id] !== true);
+    var seeValueDisabled = isPlaceholder || (iState[spec.id] !== true);
+    var interestDisabled = isPlaceholder;
+
+    // Interest buttons: disabled-attr stops clicks; aria-disabled for AT.
+    var disAttrInt = interestDisabled ? ' disabled aria-disabled="true"' : '';
+    var disAttrVal = seeValueDisabled ? ' disabled aria-disabled="true" title="Mark Interested first to see the projected value"' : '';
+
+    // Details arrow only shown when there are rows OR the card is
+    // active. Placeholder cards skip details entirely.
+    var detailsBlock = '';
+    if (!isPlaceholder && (spec.detailRows || []).length) {
+      detailsBlock =
+        '<button type="button" class="supp-details-arrow' + detailsOpenCls + '" data-supx-details-target="' + spec.id + '" aria-expanded="' + (st.detailsOpen ? 'true' : 'false') + '" title="' + (st.detailsOpen ? 'Hide details' : 'Show details') + '">' +
+          '<span class="supp-details-arrow-chev" aria-hidden="true">&#9662;</span>' +
+          '<span class="supp-details-arrow-label">Details</span>' +
+        '</button>' +
+        '<div class="supp-details-panel"' + (st.detailsOpen ? '' : ' hidden') + '>' +
+          detailRows +
+        '</div>';
+    }
+
+    // Value chevron — same visual treatment as the Details chevron
+    // and as the oilGas / delphi "Value Added" arrow on the
+    // existing supplemental cards. Replaces the prior heavy
+    // .supx-see-value-btn pill button per advisor spec.
+    var valueArrow =
+      '<button type="button" class="supp-details-arrow supx-value-arrow' + valueOpenCls + '"' +
+        disAttrVal +
+        ' data-supx-value-target="' + spec.id + '" aria-expanded="' + (st.valueOpen ? 'true' : 'false') + '" title="' + (st.valueOpen ? 'Hide value' : 'See value') + '">' +
+        '<span class="supp-details-arrow-chev" aria-hidden="true">&#9662;</span>' +
+        '<span class="supp-details-arrow-label">' + (st.valueOpen ? 'Hide value' : 'See value') + '</span>' +
+      '</button>';
 
     return '' +
       '<div class="strategy-pick-card supp-strategy-card ' + interestCls + '" data-supx-strategy="' + spec.id + '">' +
         '<div class="strategy-pick-card-header">' +
           '<div class="strategy-pick-num">SUPPLEMENTAL <span class="num-big">' + spec.num + '</span></div>' +
+          (isPlaceholder ? '<span class="supx-placeholder-tag">Coming Soon</span>' : '') +
         '</div>' +
         '<h3 class="strategy-pick-name">' + spec.name + '</h3>' +
         '<div class="strategy-keyaspect">' +
@@ -262,21 +308,11 @@
           '</div>' +
         '</div>' +
         '<div class="strategy-pick-buttons">' +
-          '<button type="button" class="strategy-pick-btn supp-pick-btn' + _btnActiveClass(spec.id, 'interested') + '" data-supx-pick-action="interested" data-supx-pick-target="' + spec.id + '">&#10003; Interested</button>' +
-          '<button type="button" class="strategy-pick-btn supp-pick-btn' + _btnActiveClass(spec.id, 'not-interested') + '" data-supx-pick-action="not-interested" data-supx-pick-target="' + spec.id + '">Not Interested</button>' +
+          '<button type="button" class="strategy-pick-btn supp-pick-btn' + _btnActiveClass(spec.id, 'interested') + '"' + disAttrInt + ' data-supx-pick-action="interested" data-supx-pick-target="' + spec.id + '">&#10003; Interested</button>' +
+          '<button type="button" class="strategy-pick-btn supp-pick-btn' + _btnActiveClass(spec.id, 'not-interested') + '"' + disAttrInt + ' data-supx-pick-action="not-interested" data-supx-pick-target="' + spec.id + '">Not Interested</button>' +
         '</div>' +
-        '<button type="button" class="supp-details-arrow' + detailsOpenCls + '" data-supx-details-target="' + spec.id + '" aria-expanded="' + (st.detailsOpen ? 'true' : 'false') + '" title="' + (st.detailsOpen ? 'Hide details' : 'Show details') + '">' +
-          '<span class="supp-details-arrow-chev" aria-hidden="true">&#9662;</span>' +
-          '<span class="supp-details-arrow-label">Details</span>' +
-        '</button>' +
-        '<div class="supp-details-panel"' + (st.detailsOpen ? '' : ' hidden') + '>' +
-          detailRows +
-        '</div>' +
-        '<button type="button" class="supx-see-value-btn' + valueOpenCls + '"' +
-          (seeValueDisabled ? ' disabled aria-disabled="true" title="Mark Interested first to see the projected value"' : '') +
-          ' data-supx-value-target="' + spec.id + '">' +
-          (st.valueOpen ? 'Hide value' : 'See Value') +
-        '</button>' +
+        detailsBlock +
+        valueArrow +
         _renderResultRow(spec, st) +
       '</div>';
   }
@@ -314,6 +350,15 @@
         iState[target] = (iState[target] === newVal) ? null : newVal;
         _renderHost();
         _persist();
+        // Conservation: toggling Interested changes the rivalry-funded
+        // supplemental total, which changes Brooklyn's effective pool.
+        // Run the full pipeline first so __lastResult / cfg.investment
+        // reflect the new allocation, THEN re-render Page 5. Without
+        // this, Page 5 would surface stale Brooklyn deployment numbers
+        // until another input change triggered a pipeline rerun.
+        if (typeof root.runFullPipeline === 'function') {
+          try { root.runFullPipeline(); } catch (e) { /* */ }
+        }
         if (typeof root.renderStrategySummary === 'function') {
           try { root.renderStrategySummary(); } catch (e) { /* */ }
         }
