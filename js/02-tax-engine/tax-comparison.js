@@ -535,8 +535,9 @@ function _estimateGainTaxRate(cfg) {
 //     surface is intentionally Y1-only — same scoring fidelity, no
 //     extra API surface.)
 function unifiedTaxComparison(cfg, opts) {
+      cfg = cfg || {};
       opts = opts || {};
-      const isDeferred = (cfg && (cfg.recognitionStartYearIndex || 0) >= 1);
+      const isDeferred = ((cfg.recognitionStartYearIndex || 0) >= 1);
       const _y1LossOverride = (!isDeferred && typeof opts.y1LossOverride === 'number')
             ? Math.max(0, opts.y1LossOverride)
             : null;
@@ -836,19 +837,48 @@ function unifiedTaxComparison(cfg, opts) {
             totalBrookhaven += (r.brookhavenFee || 0);
       });
 
-      // Conservation guard (deferred-mode invariant). Immediate mode
-      // forces all gain in Y1 so the invariant always holds trivially.
-      if (isDeferred && typeof console !== 'undefined' && typeof console.warn === 'function') {
-            const _sumRec = recognitionSchedule.reduce(function (s, r) {
+      // G2 invariant guard. Three checks, fire loudly if violated —
+      // they catch the regression patterns that surfaced F12/F14 in the
+      // post-collapse audit. Cheap to compute, dev-only signal.
+      //
+      //   (a) Gain conservation: sumRecognized + unrecognizedGain ===
+      //       totalGainBucket. Already required for deferred; immediate
+      //       holds trivially (forced lump at maturityIdx=0) but we
+      //       still verify so a future regression can't silently violate.
+      //   (b) Savings sign: totalWithStrategy must not exceed
+      //       totalBaseline (Brooklyn never makes things worse). F12
+      //       had this firing on ~2.3% of MC scenarios.
+      //   (c) Finite outputs: totals + per-row totals must be finite
+      //       numbers. F14 had _zeroDeferredComparison emit undefined
+      //       totals that NaN-propagated.
+      if (typeof console !== 'undefined' && typeof console.warn === 'function') {
+            var _sumRec = recognitionSchedule.reduce(function (s, r) {
                   return s + (r.gainRecognized || 0);
             }, 0);
-            const _accountedGain = _sumRec + Math.max(0, gainRemaining);
+            var _accountedGain = _sumRec + Math.max(0, gainRemaining);
             if (Math.abs(_accountedGain - totalGainBucket) > 1) {
-                  console.warn('[RETT engine] unifiedTaxComparison gain conservation broken: ' +
-                        'totalGainBucket=' + totalGainBucket +
+                  console.warn('[RETT engine] gain conservation broken: ' +
+                        'mode=' + (isDeferred ? 'deferred' : 'immediate') +
+                        ' totalGainBucket=' + totalGainBucket +
                         ' sumRecognized=' + _sumRec +
                         ' unrecognized=' + gainRemaining +
                         ' delta=' + (_accountedGain - totalGainBucket));
+            }
+            if (totalWith > totalBaseline + 1) {
+                  console.warn('[RETT engine] withStrategy > totalBaseline: ' +
+                        'mode=' + (isDeferred ? 'deferred' : 'immediate') +
+                        ' totalBaseline=' + totalBaseline +
+                        ' totalWithStrategy=' + totalWith +
+                        ' delta=' + (totalWith - totalBaseline));
+            }
+            if (!isFinite(totalBaseline) || !isFinite(totalWith) ||
+                !isFinite(totalFees) || !isFinite(totalBrookhaven)) {
+                  console.warn('[RETT engine] non-finite total: ' +
+                        'mode=' + (isDeferred ? 'deferred' : 'immediate') +
+                        ' totalBaseline=' + totalBaseline +
+                        ' totalWithStrategy=' + totalWith +
+                        ' totalFees=' + totalFees +
+                        ' totalBrookhavenFees=' + totalBrookhaven);
             }
       }
 
