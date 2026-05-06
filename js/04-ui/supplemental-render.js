@@ -555,7 +555,8 @@
     }
     if (salePrice <= 0) return;
     if (!(s.oilGas._userTouched && s.oilGas._userTouched.maxInvestment)) {
-      s.oilGas.maxInvestment = Math.round(salePrice * 0.05);
+      // 10% of sale price — typical sizing per advisor (was 5%).
+      s.oilGas.maxInvestment = Math.round(salePrice * 0.10);
     }
     if (!(s.delphi._userTouched && s.delphi._userTouched.investment)) {
       var pct25 = salePrice * 0.25;

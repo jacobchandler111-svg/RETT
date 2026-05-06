@@ -65,6 +65,89 @@
   var STATE_KEY    = '__rettSupplementalExtra';
   var INTEREST_KEY = '__rettSupplementalExtraInterest';
 
+  // Quick-pick chip presets per strategy. Shown inline on the card
+  // when the user clicks Interested AND the primary dollar field is
+  // still $0. Provides a one-click "ballpark" so the advisor doesn't
+  // have to dig into the Details panel mid-meeting. Picking a chip
+  // populates the field, marks it user-touched, and fires the calc.
+  // Strategies whose primary input auto-fills from sale data
+  // (oilGas, delphi, ptet, slot09) are NOT in this map — they don't
+  // need a prompt because warm-up handles them.
+  var CHIPS_CONFIG = {
+    charitableGifts: {
+      primaryField: 'giftAmount',
+      prompt:       'Approximate annual giving',
+      picks: [
+        { label: '$10K',  value: 10000 },
+        { label: '$25K',  value: 25000 },
+        { label: '$100K', value: 100000 }
+      ]
+    },
+    slot05: {
+      primaryField: 'purchasePrice',
+      prompt:       'Real estate basis',
+      picks: [
+        { label: '$500K', value: 500000 },
+        { label: '$1M',   value: 1000000 },
+        { label: '$2M',   value: 2000000 }
+      ]
+    },
+    slot06: {
+      primaryField: 'vehicleCost',
+      prompt:       'Vehicle cost',
+      picks: [
+        { label: '$80K',  value: 80000 },
+        { label: '$120K', value: 120000 },
+        { label: '$200K', value: 200000 }
+      ]
+    },
+    slot07: {
+      primaryField: 'investmentAmount',
+      prompt:       'Investment amount',
+      picks: [
+        { label: '$250K', value: 250000 },
+        { label: '$500K', value: 500000 },
+        { label: '$1M',   value: 1000000 }
+      ]
+    },
+    slot08: {
+      primaryField: 'fmvPerDay',
+      prompt:       'Daily FMV rent',
+      picks: [
+        { label: '$1,000', value: 1000 },
+        { label: '$1,500', value: 1500 },
+        { label: '$2,500', value: 2500 }
+      ]
+    },
+    slot10: {
+      primaryField: 'aircraftCost',
+      prompt:       'Aircraft acquisition cost',
+      picks: [
+        { label: '$2M', value: 2000000 },
+        { label: '$3M', value: 3000000 },
+        { label: '$5M', value: 5000000 }
+      ]
+    },
+    slot11: {
+      primaryField: 'propertyCost',
+      prompt:       'Property cost',
+      picks: [
+        { label: '$1M',   value: 1000000 },
+        { label: '$1.5M', value: 1500000 },
+        { label: '$2.5M', value: 2500000 }
+      ]
+    },
+    slot12: {
+      primaryField: 'equipmentCost',
+      prompt:       'Equipment cost',
+      picks: [
+        { label: '$250K', value: 250000 },
+        { label: '$1M',   value: 1000000 },
+        { label: '$2.5M', value: 2500000 }
+      ]
+    }
+  };
+
   // --------------------------------------------------------------
   // Strategy specs. Order = display order. `defaults` populates
   // the Details dropdown placeholder inputs. `descriptor` is the
@@ -539,6 +622,28 @@
         '<span class="supp-details-arrow-label">' + (st.valueOpen ? 'Hide value' : 'See value') + '</span>' +
       '</button>';
 
+    // Quick-pick chips: shown inline when Interested AND the primary
+    // dollar input is still $0. Click a chip to set the field +
+    // mark user-touched + recompute. "Custom" opens Details.
+    var chipsBlock = '';
+    var chipsCfg = CHIPS_CONFIG[spec.id];
+    if (!isPlaceholder && chipsCfg && iState[spec.id] === true) {
+      var primaryVal = Number(st[chipsCfg.primaryField]) || 0;
+      if (primaryVal === 0) {
+        var chipsHtml = chipsCfg.picks.map(function (p) {
+          return '<button type="button" class="supx-chip" data-supx-chip-target="' + spec.id + '" data-supx-chip-field="' + chipsCfg.primaryField + '" data-supx-chip-value="' + p.value + '">' + p.label + '</button>';
+        }).join('');
+        chipsBlock =
+          '<div class="supx-chips-row">' +
+            '<span class="supx-chips-prompt">' + chipsCfg.prompt + ':</span>' +
+            '<div class="supx-chips">' +
+              chipsHtml +
+              '<button type="button" class="supx-chip supx-chip-custom" data-supx-chip-custom="' + spec.id + '">Custom</button>' +
+            '</div>' +
+          '</div>';
+      }
+    }
+
     return '' +
       '<div class="strategy-pick-card supp-strategy-card ' + interestCls + '" data-supx-strategy="' + spec.id + '">' +
         '<div class="strategy-pick-card-header">' +
@@ -560,6 +665,7 @@
           '<button type="button" class="strategy-pick-btn supp-pick-btn' + _btnActiveClass(spec.id, 'interested') + '"' + disAttrInt + ' data-supx-pick-action="interested" data-supx-pick-target="' + spec.id + '">&#10003; Interested</button>' +
           '<button type="button" class="strategy-pick-btn supp-pick-btn' + _btnActiveClass(spec.id, 'not-interested') + '"' + disAttrInt + ' data-supx-pick-action="not-interested" data-supx-pick-target="' + spec.id + '">Not Interested</button>' +
         '</div>' +
+        chipsBlock +
         detailsBlock +
         valueArrow +
         _renderResultRow(spec, st) +
@@ -608,9 +714,13 @@
         if (iState[target] === true) {
           var st = _state()[target];
           var spec = SPECS.filter(function (s) { return s.id === target; })[0];
+          var chipsCfg = CHIPS_CONFIG[target];
           if (st && spec) {
             (spec.detailRows || []).forEach(function (row) {
               if (row.kind !== 'usd') return;
+              // Skip the chip-managed primary field — chips show when
+              // it's $0 and let the advisor pick a value explicitly.
+              if (chipsCfg && chipsCfg.primaryField === row.id) return;
               var current = Number(st[row.id]) || 0;
               var defaultVal = Number((spec.defaults || {})[row.id]) || 0;
               var touched = st._userTouched && st._userTouched[row.id];
@@ -664,6 +774,41 @@
           if (typeof root.recomputeSupplementalExtra === 'function') {
             try { root.recomputeSupplementalExtra(); } catch (e) { /* */ }
           }
+          _renderHost();
+          _persist();
+        }
+        return;
+      }
+
+      // Quick-pick chip (preset value)
+      var chipBtn = t.closest('[data-supx-chip-target]');
+      if (chipBtn) {
+        var cTarget = chipBtn.getAttribute('data-supx-chip-target');
+        var cField  = chipBtn.getAttribute('data-supx-chip-field');
+        var cValue  = Number(chipBtn.getAttribute('data-supx-chip-value')) || 0;
+        var cSt = _state()[cTarget];
+        if (cSt) {
+          cSt[cField] = cValue;
+          if (!cSt._userTouched) cSt._userTouched = {};
+          cSt._userTouched[cField] = true;
+          if (typeof root.recomputeSupplementalExtra === 'function') {
+            try { root.recomputeSupplementalExtra(); } catch (e) { /* */ }
+          }
+          if (typeof root.runFullPipeline === 'function') {
+            try { root.runFullPipeline(); } catch (e) { /* */ }
+          }
+          _renderHost();
+          _persist();
+        }
+        return;
+      }
+      // Custom chip — opens Details panel for direct entry
+      var chipCustom = t.closest('[data-supx-chip-custom]');
+      if (chipCustom) {
+        var custId = chipCustom.getAttribute('data-supx-chip-custom');
+        var custSt = _state()[custId];
+        if (custSt) {
+          custSt.detailsOpen = true;
           _renderHost();
           _persist();
         }

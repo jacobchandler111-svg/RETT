@@ -3907,6 +3907,51 @@ body { font-size: 16px; }
     border-color: var(--ink-soft);
     color: var(--ink);
 }
+/* Quick-pick chip row — appears under Interested button when primary
+   $ field is still $0. Lets advisor click a ballpark amount instead
+   of opening Details mid-meeting. */
+.supx-chips-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 12px;
+    padding: 10px 12px;
+    background: var(--paper-warm);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+}
+.supx-chips-prompt {
+    font-size: 0.82em;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+}
+.supx-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.supx-chip {
+    border: 1px solid var(--ink-soft);
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 0.92em;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.12s;
+}
+.supx-chip:hover {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: var(--paper);
+}
+.supx-chip-custom {
+    border-style: dashed;
+    color: var(--muted);
+}
 
 .strategy-pick-actions {
     display: flex;
