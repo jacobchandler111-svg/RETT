@@ -148,6 +148,7 @@
           if (typeof s[spec.id][k] === 'undefined') s[spec.id][k] = spec.defaults[k];
         });
         if (typeof s[spec.id].detailsOpen === 'undefined') s[spec.id].detailsOpen = false;
+        if (typeof s[spec.id].valueOpen   === 'undefined') s[spec.id].valueOpen   = false;
       }
     });
     return s;
@@ -215,13 +216,75 @@
     return html;
   }
 
+  // Read the master-solver output for a single supplemental id and
+  // turn it into one of three display states for the "See Value"
+  // result row:
+  //   - 'value':    a positive netBenefit was computed and the allocator
+  //                 routed capital to it (interested + enabled +
+  //                 result available + investment > 0).
+  //   - 'crowded':  interested but the allocator gave $0 because better
+  //                 options consumed available capital. Surfaces as
+  //                 "Other strategies utilized."
+  //   - 'pending':  interested but result is null (calc not yet wired
+  //                 in for this strategy, or details haven't been
+  //                 entered). Surfaces as "Math pending."
+  //   - 'none':     not Interested — the row stays hidden.
+  function _readResultState(id) {
+    var iState = _interestState();
+    if (iState[id] !== true) return { state: 'none' };
+    var solverOut = (typeof root.runMasterSolver === 'function')
+      ? root.runMasterSolver(0) : null;
+    var allocOut  = (typeof root.runAllocator    === 'function')
+      ? root.runAllocator((root.collectInputs && root.collectInputs().availableCapital) || 0)
+      : null;
+    var solverEntry = solverOut && solverOut.supplementals
+      ? solverOut.supplementals.filter(function (s) { return s.id === id; })[0]
+      : null;
+    var allocEntry  = allocOut && allocOut.supplementals
+      ? allocOut.supplementals.filter(function (s) { return s.id === id; })[0]
+      : null;
+    if (!solverEntry || !solverEntry.available) {
+      return { state: 'pending' };
+    }
+    var benefit = Number(solverEntry.netBenefit) || 0;
+    var invested = allocEntry ? (Number(allocEntry.investment) || 0) : 0;
+    if (benefit > 0 && invested > 0) {
+      return { state: 'value', netBenefit: benefit, investment: invested };
+    }
+    return { state: 'crowded' };
+  }
+
+  function _renderResultRow(spec, st) {
+    if (!st.valueOpen) return '';
+    var r = _readResultState(spec.id);
+    var body;
+    if (r.state === 'value') {
+      body = '<div class="supx-result-amt">' + _fmtUSD(r.netBenefit) + '</div>' +
+             '<div class="supx-result-sub">net tax benefit &middot; ' + _fmtUSD(r.investment) + ' invested</div>';
+    } else if (r.state === 'crowded') {
+      body = '<div class="supx-result-msg">Other strategies utilized</div>' +
+             '<div class="supx-result-sub">Interested noted &mdash; the allocator routed capital to higher-ROI options for this scenario.</div>';
+    } else {
+      body = '<div class="supx-result-msg supx-result-pending">Math pending</div>' +
+             '<div class="supx-result-sub">Calculation lands when the engine work for this strategy is wired in.</div>';
+    }
+    return '<div class="supx-result-row" data-state="' + r.state + '">' + body + '</div>';
+  }
+
   function _renderCard(spec) {
     var st = _state()[spec.id];
     var interestCls = _interestClassFor(spec.id);
     var detailsOpenCls = st.detailsOpen ? ' is-open' : '';
+    var valueOpenCls   = st.valueOpen   ? ' is-open' : '';
     var detailRows = (spec.detailRows || []).map(function (r) {
       return _renderDetailRow(spec.id, st, r);
     }).join('');
+    var iState = _interestState();
+    // The See Value button only makes sense once the user has marked
+    // Interested (so the solver actually evaluates the strategy).
+    // Disabled+muted state otherwise — the button stays in place so
+    // the card height doesn't jump when interest changes.
+    var seeValueDisabled = (iState[spec.id] !== true);
 
     return '' +
       '<div class="strategy-pick-card supp-strategy-card ' + interestCls + '" data-supx-strategy="' + spec.id + '">' +
@@ -249,8 +312,13 @@
         '</button>' +
         '<div class="supp-details-panel"' + (st.detailsOpen ? '' : ' hidden') + '>' +
           detailRows +
-          '<p class="supp-details-note">Math placeholder &mdash; coming with the engine work.</p>' +
         '</div>' +
+        '<button type="button" class="supx-see-value-btn' + valueOpenCls + '"' +
+          (seeValueDisabled ? ' disabled aria-disabled="true" title="Mark Interested first to see the projected value"' : '') +
+          ' data-supx-value-target="' + spec.id + '">' +
+          (st.valueOpen ? 'Hide value' : 'See Value') +
+        '</button>' +
+        _renderResultRow(spec, st) +
       '</div>';
   }
 
@@ -299,6 +367,18 @@
         var s = _state()[dTarget];
         if (s) {
           s.detailsOpen = !s.detailsOpen;
+          _renderHost();
+          _persist();
+        }
+        return;
+      }
+
+      var valueBtn = t.closest('[data-supx-value-target]');
+      if (valueBtn && !valueBtn.disabled) {
+        var vTarget = valueBtn.getAttribute('data-supx-value-target');
+        var sv = _state()[vTarget];
+        if (sv) {
+          sv.valueOpen = !sv.valueOpen;
           _renderHost();
           _persist();
         }

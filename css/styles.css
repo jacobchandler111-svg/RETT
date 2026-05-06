@@ -5485,6 +5485,86 @@ body { font-size: 16px; }
 .supp-details-arrow-label { display: none; }
 .supp-details-arrow.is-open .supp-details-arrow-label { display: inline; }
 
+/* "See Value" button — appears beneath the Details arrow on each
+   placeholder card. Disabled until the user marks Interested so the
+   solver actually evaluates the strategy. Style matches the primary
+   strategy buttons but slimmer so the card stays compact. */
+.supx-see-value-btn {
+    display: block;
+    width: 100%;
+    margin: 8px 0 0;
+    padding: 8px 12px;
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 0.78em;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.supx-see-value-btn:hover:not(:disabled) {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: var(--paper);
+}
+.supx-see-value-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+.supx-see-value-btn.is-open {
+    border-color: var(--ink);
+}
+
+/* Result row — three states: value (green), crowded (muted), pending
+   (italic muted). All three share padding and rounded corners. */
+.supx-result-row {
+    margin-top: 6px;
+    padding: 10px 12px;
+    border-radius: 3px;
+    border: 1px solid var(--rule-soft);
+    background: var(--paper-warm);
+    font-family: var(--font-body);
+    line-height: 1.35;
+}
+.supx-result-row[data-state="value"] {
+    background: #eef8f2;
+    border-color: #a8d4bc;
+}
+.supx-result-row[data-state="crowded"] {
+    background: #f6f4ee;
+    border-color: var(--rule);
+}
+.supx-result-row[data-state="pending"] {
+    background: var(--paper-warm);
+    border-color: var(--rule-soft);
+}
+.supx-result-amt {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 1.4em;
+    color: #1e5c38;
+    line-height: 1.1;
+}
+.supx-result-msg {
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 2px;
+}
+.supx-result-msg.supx-result-pending {
+    font-style: italic;
+    color: var(--muted);
+    font-weight: 500;
+}
+.supx-result-sub {
+    font-size: 0.85em;
+    color: var(--muted);
+    margin-top: 2px;
+}
+
 /* Details panel content — 2 simple rows: label + input */
 .supp-details-panel {
     margin-top: 4px;
