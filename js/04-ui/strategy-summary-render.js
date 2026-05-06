@@ -632,40 +632,30 @@
 
   function _renderImplementationPanel(cfg, brooklynCumulativeLoss, precomputedOpt) {
     if (typeof root.runAllocator !== 'function') return '';
-    var totalAvailable = (cfg && Number(cfg.availableCapital)) || 0;
+    // The cfg passed in here has already been reduced by buildInterestedSummary
+    // to "availableCapital after rivalry consumed supps" — Brooklyn's slice.
+    // The panel needs the ORIGINAL pre-rivalry capital so we can show
+    // dollars flowing both to supps AND to Brooklyn.
+    var rawCfg = (typeof root.collectInputs === 'function') ? root.collectInputs() : null;
+    var totalAvailable = (rawCfg && Number(rawCfg.availableCapital)) ||
+                         (cfg && Number(cfg.availableCapital)) || 0;
     var alloc = root.runAllocator(totalAvailable);
     var rows = '';
     rows += '<div class="impl-row"><span class="impl-name">Total available capital</span>' +
             '<span class="impl-amt">' + _fmt(alloc.totalAvailable) + '</span></div>';
-    alloc.supplementals.forEach(function (s) {
-      var note = '';
-      if (!s.enabled) {
-        note = ' (disabled on Page 5)';
-      } else if (!s.available) {
-        note = ' (awaiting Page 4 input)';
-      } else if (s.rivalry && !s.rivalry.funded) {
-        // Rivalry zeroed this supp. Show the reason so the advisor
-        // understands why $0 even though the strategy is Interested.
-        if (s.rivalry.reason === 'brooklyn-beats') {
-          note = ' (Brooklyn yields more $/$ &mdash; dollars stay with Brooklyn)';
-        } else if (s.rivalry.reason === 'capital-exhausted') {
-          note = ' (no capital left after higher-yield strategies funded)';
-        } else if (s.rivalry.reason === 'no-result-or-zero') {
-          note = ' (no committed investment)';
-        }
-      }
-      // Show requested amount alongside funded when they differ, so
-      // the advisor can see both the user-dialed claim and the
-      // rivalry-decided allocation.
-      var amtDisplay = _fmt(s.investment);
-      if (s.rivalry && !s.rivalry.funded && s.requested > 0) {
-        amtDisplay = _fmt(0) +
-          ' <em style="opacity:0.55;font-size:0.85em;font-style:italic;">(card requested ' + _fmt(s.requested) + ')</em>';
-      }
-      rows += '<div class="impl-row impl-row-supp">' +
-              '<span class="impl-name">&rarr; ' + s.name + note + '</span>' +
-              '<span class="impl-amt">' + amtDisplay + '</span></div>';
-    });
+    // Only show supplementals that actually receive dollars. Tax-side
+    // strategies (PTET, Augusta, 401(k), heavy vehicle, charitable
+    // gifts) deploy $0 of sale-proceed capital — they belong on the
+    // Page-5 supplemental row list, not in the dollar-allocation
+    // panel. Rivalry-rejected supps also drop out (they didn't get
+    // capital). The panel's job is showing where dollars flow.
+    alloc.supplementals
+      .filter(function (s) { return Number(s.investment) > 0; })
+      .forEach(function (s) {
+        rows += '<div class="impl-row impl-row-supp">' +
+                '<span class="impl-name">&rarr; ' + s.name + '</span>' +
+                '<span class="impl-amt">' + _fmt(s.investment) + '</span></div>';
+      });
     rows += '<div class="impl-row impl-row-brooklyn">' +
             '<span class="impl-name">&rarr; Brooklyn (remaining)</span>' +
             '<span class="impl-amt">' + _fmt(alloc.brooklynRemaining) + '</span></div>';
