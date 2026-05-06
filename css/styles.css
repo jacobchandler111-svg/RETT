@@ -5718,6 +5718,64 @@ body { font-size: 16px; }
     justify-content: flex-end;
     margin-top: 14px;
 }
+
+/* Pre-Meeting page titlebar = title on the left + small "Collapse"
+   button on the right. The button hides the entire Pre-Meeting tab
+   in the workflow nav, replaced by a tiny restore dash next to the
+   Client Inputs tab. State persists in localStorage. */
+.pmq-page-titlebar {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 12px;
+}
+.pmq-page-titlebar .page-inputs-title {
+    margin-bottom: 0;
+}
+.pmq-collapse-btn {
+    font-family: var(--font-mono);
+    font-size: 0.72em;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.pmq-collapse-btn:hover {
+    border-color: var(--ink);
+    color: var(--ink);
+    background: var(--paper-warm);
+}
+
+/* Restore dash that lives in the workflow nav. Tiny minus sign,
+   thin border, positioned exactly where the collapsed Pre-Meeting
+   tab used to sit (between left edge and Client Inputs). Hover
+   widens slightly so the click target is forgiving. */
+.nav-pmq-restore {
+    font-family: var(--font-mono);
+    font-size: 1.1em;
+    line-height: 1;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: 6px 10px;
+    margin-right: 4px;
+    cursor: pointer;
+    align-self: center;
+    transition: border-color 0.15s, color 0.15s, background 0.15s, padding 0.15s;
+}
+.nav-pmq-restore:hover {
+    border-color: var(--bh-blue-deep);
+    color: var(--bh-blue-deep);
+    background: var(--paper-warm);
+    padding: 6px 14px;
+}
 .pmq-q-reset {
     font-family: var(--font-body);
     font-size: 0.82em;

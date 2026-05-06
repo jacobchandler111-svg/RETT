@@ -906,6 +906,43 @@ function bindControls() {
   const navAllocator = document.getElementById('nav-allocator');
   const navSupplemental = document.getElementById('nav-supplemental');
   if (navPmq)          navPmq.addEventListener('click', () => showPage('page-pmq'));
+
+  // Pre-Meeting collapse / restore. Click "Collapse —" on the
+  // Pre-Meeting page hides #nav-pmq from the workflow nav and
+  // reveals a tiny "—" button (#nav-pmq-restore) in its place.
+  // Clicking that dash reopens Pre-Meeting and restores the tab.
+  // Persists across reloads via localStorage so a "filled out
+  // already" client doesn't see Pre-Meeting on their next session.
+  const PMQ_COLLAPSED_KEY = 'rett_pmq_collapsed';
+  function _setPmqCollapsed(collapsed) {
+    document.body.classList.toggle('pmq-collapsed', !!collapsed);
+    var navTab     = document.getElementById('nav-pmq');
+    var restoreBtn = document.getElementById('nav-pmq-restore');
+    if (navTab)     navTab.hidden     = !!collapsed;
+    if (restoreBtn) restoreBtn.hidden = !collapsed;
+    try { localStorage.setItem(PMQ_COLLAPSED_KEY, collapsed ? '1' : '0'); } catch (e) { /* */ }
+  }
+  // Restore prior state on load.
+  try {
+    if (localStorage.getItem(PMQ_COLLAPSED_KEY) === '1') _setPmqCollapsed(true);
+  } catch (e) { /* */ }
+  var pmqCollapseBtn = document.getElementById('pmq-collapse-btn');
+  if (pmqCollapseBtn) {
+    pmqCollapseBtn.addEventListener('click', function () {
+      _setPmqCollapsed(true);
+      // Drop the user on Client Inputs after collapsing — staying
+      // on a hidden tab would be confusing. The page itself stays
+      // intact behind the scenes; restore brings it right back.
+      showPage('page-inputs');
+    });
+  }
+  var pmqRestoreBtn = document.getElementById('nav-pmq-restore');
+  if (pmqRestoreBtn) {
+    pmqRestoreBtn.addEventListener('click', function () {
+      _setPmqCollapsed(false);
+      showPage('page-pmq');
+    });
+  }
   if (navInputs)       navInputs.addEventListener('click', () => showPage('page-inputs'));
   if (navStrategies)   navStrategies.addEventListener('click', () => showPage('page-strategies'));
   if (navProjection)   navProjection.addEventListener('click', () => showPage('page-projection'));
