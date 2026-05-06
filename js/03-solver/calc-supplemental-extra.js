@@ -153,8 +153,17 @@
     var creditPct = Math.max(0, Math.min(100, _num(st.creditPct) || 100)) / 100;
 
     // Gross federal benefit: PTET deductible at entity → reduces
-    // K-1 income → fed × PTET. QBI haircut applies.
-    var fedBenefit = fed * ptet * (1 - 0.20 * qbi);
+    // K-1 income → fed × PTET. QBI haircut applies — reducing K-1
+    // income by PTET also reduces the §199A QBI deduction by the
+    // SAME PTET amount × 20% (the QBI rate). The lost deduction
+    // costs the owner that × fed at the margin.
+    //
+    // _qbiHaircut() already returns 0.20 (the QBI rate) when the
+    // deduction applies, 0 otherwise — so the factor is simply
+    // (1 - qbi), NOT (1 - 0.20 × qbi). The earlier code multiplied
+    // 0.20 twice and only haircut 4% instead of 20%, overstating
+    // PTET net by ~16 percentage points.
+    var fedBenefit = fed * ptet * (1 - qbi);
 
     // SALT-capacity opportunity cost: any unused individual SALT
     // headroom that the owner could have used for the SAME state
