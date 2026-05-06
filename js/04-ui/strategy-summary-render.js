@@ -736,17 +736,15 @@
   // raises Available Capital on Page 2 to honor the larger investment.
   // -----------------------------------------------------------------
   function _renderFutureSaleOption(entry, opt, cfg) {
-    if (!cfg || !cfg.futureSale || !cfg.futureSale.enabled) {
-      // Friendly hint when no future sale is configured — encourages
-      // the advisor to use Section 07 if another sale is on the horizon.
-      if (entry && entry.metrics && entry.metrics._lossAtFull > 0) {
-        return '<div class="future-sale-option fs-hint">' +
-          '<div class="fs-head"><h2>Another Sale Coming Up?</h2></div>' +
-          '<p class="fs-desc">If the client has another appreciated-asset sale planned, add it on <strong>Page 1 (Client Inputs) &rarr; Section 07 (Future Appreciated Asset Sale)</strong>. We&rsquo;ll then show how additional Asset Manager investment could offset that gain too.</p>' +
-        '</div>';
-      }
-      return '';
-    }
+    // Per advisor spec: only render the section when there's REAL
+    // future-sale coverage to discuss. Three early-out cases:
+    //   1) No future sale configured at all (Section 07 = No)
+    //   2) Future sale configured but futureLT = 0 (no gain to cover)
+    //   3) coverageFraction === 0 (gated below — Brooklyn loss can't
+    //      reach the future-sale gain)
+    // The earlier "Another Sale Coming Up?" hint was removed; the
+    // advisor opens Section 07 directly when there's a future sale.
+    if (!cfg || !cfg.futureSale || !cfg.futureSale.enabled) return '';
 
     var futureLT = Math.max(0, Number(cfg.futureSale.longTermGain) || 0);
     if (futureLT <= 0) return '';
@@ -868,6 +866,13 @@
     var fullCoverage   = (coverageFraction >= 0.999);
     var noCoverage     = (coverageFraction <= 0);
     var coveragePctLabel = Math.round(coverageFraction * 100) + '%';
+
+    // Per advisor: if there is NO coverage (Brooklyn can't even
+    // partially absorb the future-sale gain), suppress the callout
+    // entirely — surfacing it would only confuse the client. Only
+    // show the block when there's some real benefit (or full coverage
+    // potential) to discuss.
+    if (noCoverage) return '';
 
     var headerTitle;
     var headerCopy;
