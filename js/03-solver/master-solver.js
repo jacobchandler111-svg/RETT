@@ -101,6 +101,93 @@
     _enabledState()[id] = !!on;
   }
 
+  // Rivalry optimizer — for each Interested supplemental, compare its
+  // net-benefit-per-dollar against Brooklyn's net-benefit-per-dollar at
+  // full Available Capital. Greedy-allocate from highest rate down,
+  // capped at availableCapital. Strategies that lose to Brooklyn (or
+  // run out of remaining capital, or have no computed result) get
+  // granted: 0 — i.e., the dollar stays in Brooklyn rather than chasing
+  // a worse marginal return.
+  //
+  // Why this exists: the advisor model is "every dollar belongs in the
+  // strategy with the highest tax-savings yield." Without rivalry the
+  // page summed Brooklyn-net + each supp's gross-tax-savings, which
+  // displayed positive net benefit even when the supplemental lost to
+  // Brooklyn dollar-for-dollar — flipping a "don't fund" decision into
+  // a "looks like a small win" presentation bug.
+  //
+  // Brooklyn's yield is computed from a one-shot engine call at full
+  // availCap (no supp deduction). The supp's yield is netBenefit (now
+  // properly net of management fees per supplemental-defaults.js fix)
+  // divided by its committed investment. Both rates are roughly linear
+  // within their useful ranges, so a single-rate comparison is correct.
+  function _computeRivalryDecisions(cfg) {
+    cfg = cfg || {};
+    var avail = Math.max(0, Number(cfg.availableCapital) || 0);
+
+    var brooklynYieldRate = 0;
+    if (avail > 0 && typeof root.unifiedTaxComparison === 'function') {
+      try {
+        var bCfg = Object.assign({}, cfg);
+        bCfg.availableCapital = avail;
+        bCfg.investment = avail;
+        bCfg.investedCapital = avail;
+        if (typeof root.rettFlavorEngineCfg === 'function') {
+          bCfg = root.rettFlavorEngineCfg(bCfg);
+        }
+        var b = root.unifiedTaxComparison(bCfg) || {};
+        var bSavings = Number(b.totalSavings) || 0;
+        var bFees = Number(b.totalAllFees);
+        if (!Number.isFinite(bFees)) {
+          bFees = (Number(b.totalFees) || 0) + (Number(b.totalBrookhavenFees) || 0);
+        }
+        brooklynYieldRate = (bSavings - bFees) / avail;
+      } catch (e) { /* fall through to 0 */ }
+    }
+
+    var list = listSupplementals();
+    var candidates = list
+      .filter(function (spec) {
+        return typeof spec.getInterest === 'function' && spec.getInterest() === true;
+      })
+      .map(function (spec) {
+        var result = (typeof spec.getResult === 'function') ? spec.getResult() : null;
+        var net = (typeof spec.getNetBenefit === 'function')
+          ? Number(spec.getNetBenefit(result)) || 0 : 0;
+        var inv = (typeof spec.getInvestment === 'function')
+          ? Number(spec.getInvestment(result)) || 0 : 0;
+        var rate = (inv > 0) ? net / inv : 0;
+        return { id: spec.id, available: !!result, investment: inv, netBenefit: net, rate: rate };
+      });
+
+    candidates.sort(function (a, b) { return b.rate - a.rate; });
+
+    var decisions = {};
+    var remaining = avail;
+    candidates.forEach(function (c) {
+      if (!c.available || c.investment <= 0) {
+        decisions[c.id] = { funded: false, reason: 'no-result-or-zero',
+          granted: 0, rate: c.rate, brooklynRate: brooklynYieldRate,
+          netBenefit: c.netBenefit, requested: c.investment };
+      } else if (c.rate <= brooklynYieldRate) {
+        decisions[c.id] = { funded: false, reason: 'brooklyn-beats',
+          granted: 0, rate: c.rate, brooklynRate: brooklynYieldRate,
+          netBenefit: c.netBenefit, requested: c.investment };
+      } else if (c.investment > remaining) {
+        decisions[c.id] = { funded: false, reason: 'capital-exhausted',
+          granted: 0, rate: c.rate, brooklynRate: brooklynYieldRate,
+          netBenefit: c.netBenefit, requested: c.investment };
+      } else {
+        decisions[c.id] = { funded: true, reason: 'beats-brooklyn',
+          granted: c.investment, rate: c.rate, brooklynRate: brooklynYieldRate,
+          netBenefit: c.netBenefit, requested: c.investment };
+        remaining -= c.investment;
+      }
+    });
+
+    return { decisions: decisions, brooklynRate: brooklynYieldRate, capitalRemaining: remaining };
+  }
+
   // Walks the registry and produces a combined view for the strategy
   // summary. Caller passes the chosen-strategy net benefit (from Page-3
   // _scenarioMetrics.net). Returns:
@@ -113,14 +200,21 @@
   //       available:    bool,    // getResult() returned a non-null
   //       netBenefit:   number,  // per-strategy savings (0 when unavailable)
   //       result:       object,  // raw spec.getResult() output
+  //       rivalry:      object,  // { funded, reason, granted, rate, brooklynRate }
   //     }, ...],
-  //     totalSupplementalBenefit:    number,  // sum of enabled & available
+  //     totalSupplementalBenefit:    number,  // sum of FUNDED & enabled supps
   //     totalCombinedNetBenefit:     number,  // primary + total supplemental
-  //     anyInterested:               bool
+  //     anyInterested:               bool,
+  //     rivalry: { decisions, brooklynRate, capitalRemaining }
   //   }
   function runMasterSolver(primaryNetBenefit) {
     var primary = Number(primaryNetBenefit) || 0;
     var list = listSupplementals();
+
+    // Pull live cfg so the rivalry can compute Brooklyn's yield rate.
+    var cfg = (typeof root.collectInputs === 'function') ? root.collectInputs() : null;
+    var rivalry = _computeRivalryDecisions(cfg || {});
+
     var supplementals = list
       .map(function (spec) {
         var interest = (typeof spec.getInterest === 'function') ? spec.getInterest() : null;
@@ -129,6 +223,7 @@
           ? Number(spec.getNetBenefit(result)) || 0
           : 0;
         var enabled  = isSupplementalEnabled(spec.id);
+        var rDecision = rivalry.decisions[spec.id] || null;
         return {
           id:           spec.id,
           name:         spec.name,
@@ -139,13 +234,19 @@
           enabled:      enabled,
           available:    !!result,
           netBenefit:   benefit,
-          result:       result
+          result:       result,
+          rivalry:      rDecision
         };
       })
       .filter(function (s) { return s.interested; });
 
+    // Combined net only counts FUNDED supps. Strategies that lose to
+    // Brooklyn (rivalry says brooklyn-beats) contribute zero — the
+    // dollar stays with Brooklyn instead.
     var totalSupp = supplementals
-      .filter(function (s) { return s.enabled && s.available; })
+      .filter(function (s) {
+        return s.enabled && s.available && s.rivalry && s.rivalry.funded;
+      })
       .reduce(function (sum, s) { return sum + s.netBenefit; }, 0);
 
     return {
@@ -153,7 +254,8 @@
       supplementals:            supplementals,
       totalSupplementalBenefit: totalSupp,
       totalCombinedNetBenefit:  primary + totalSupp,
-      anyInterested:            supplementals.length > 0
+      anyInterested:            supplementals.length > 0,
+      rivalry:                  rivalry
     };
   }
 
@@ -178,21 +280,37 @@
   //                           the advisor can spot a broken rule.
   function runAllocator(totalAvailable) {
     var avail = Math.max(0, Number(totalAvailable) || 0);
+
+    // Build a cfg snapshot that the rivalry optimizer can use to
+    // compute Brooklyn's per-dollar yield. collectInputs is the same
+    // reader buildInterestedSummary uses — lives on window.
+    var cfg = (typeof root.collectInputs === 'function') ? root.collectInputs() : null;
+    if (cfg) cfg.availableCapital = avail;
+    var rivalry = _computeRivalryDecisions(cfg || { availableCapital: avail });
+
     var list = listSupplementals();
     var supps = list
       .map(function (spec) {
         var enabled = isSupplementalEnabled(spec.id);
         var result  = (typeof spec.getResult === 'function') ? spec.getResult() : null;
-        var inv = (typeof spec.getInvestment === 'function')
+        var requested = (typeof spec.getInvestment === 'function')
           ? Number(spec.getInvestment(result)) || 0
           : 0;
+        var rDecision = rivalry.decisions[spec.id] || null;
+        // Allocator's "investment" is the FUNDED amount post-rivalry.
+        // If rivalry zeros the supp, no dollars come out of Brooklyn's
+        // pool for it — Brooklyn keeps its full availCap.
+        var fundedInv = (enabled && result && rDecision && rDecision.funded)
+          ? rDecision.granted : 0;
         return {
           id:         spec.id,
           name:       spec.name,
           shortName:  spec.shortName || spec.name,
           enabled:    enabled,
           available:  !!result,
-          investment: enabled && result ? inv : 0
+          investment: fundedInv,
+          requested:  requested,
+          rivalry:    rDecision
         };
       })
       .filter(function (s) {
@@ -207,7 +325,8 @@
       allocatedToSupplementals: alloc,
       brooklynRemaining:        Math.max(0, avail - alloc),
       overAllocated:            alloc > avail,
-      overage:                  Math.max(0, alloc - avail)
+      overage:                  Math.max(0, alloc - avail),
+      rivalry:                  rivalry
     };
   }
 

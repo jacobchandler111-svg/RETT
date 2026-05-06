@@ -35,10 +35,25 @@
       var s = root.__rettSupplemental && root.__rettSupplemental.oilGas;
       return s ? s.lastResult : null;
     },
+    // Oil & Gas calc has no product-level management fee — the IDC
+    // deduction is the entire mechanism, and the investment dollar
+    // funds the working interest itself (Y2+ production income is not
+    // modeled). totalSaved is already net of any fees we model today.
     getNetBenefit: function (result) {
       if (!result) return 0;
       var v = Number(result.totalSaved);
       return Number.isFinite(v) ? v : 0;
+    },
+    // The multi-year shape totals investment via totalInvestment; the
+    // single-year shape uses investment. Read whichever is present so
+    // the rivalry optimizer sees the dollars committed across the
+    // configured horizon.
+    getInvestment: function (result) {
+      if (!result) return 0;
+      var v = Number(result.totalInvestment);
+      if (Number.isFinite(v) && v > 0) return v;
+      v = Number(result.investment);
+      return Number.isFinite(v) ? Math.max(0, v) : 0;
     }
   });
 
@@ -68,10 +83,31 @@
       var s = root.__rettSupplemental && root.__rettSupplemental.delphi;
       return s ? s.lastResult : null;
     },
+    // Net benefit = gross tax saved minus the fund's management fee.
+    // The calc returns totalSaved (gross) and mgmtFeeDollars separately;
+    // failing to net the fee was inflating Delphi's apparent value by
+    // 1.75–2.0% × invested capital ($20K on a $1M Class B at 2%) — at
+    // top-bracket rates, that flipped Delphi from "loses to Brooklyn"
+    // to "narrowly beats Brooklyn" on canonical scenarios. Same fix
+    // applies to any future fund-style supplemental that returns its
+    // mgmtFeeDollars separately.
     getNetBenefit: function (result) {
       if (!result) return 0;
-      var v = Number(result.totalSaved);
-      return Number.isFinite(v) ? v : 0;
+      var saved = Number(result.totalSaved) || 0;
+      var fee   = Number(result.mgmtFeeDollars) || 0;
+      var net = saved - fee;
+      return Number.isFinite(net) ? net : 0;
+    },
+    // Investment for the allocator + rivalry optimizer reads the user's
+    // dialed amount on the Delphi card. The K-1 allocations scale
+    // linearly off this, so the supplemental's per-dollar rate is
+    // constant — comparing it against Brooklyn's per-dollar rate is
+    // a clean rate-rank.
+    getInvestment: function (result) {
+      if (result && Number.isFinite(Number(result.investment))) {
+        return Math.max(0, Number(result.investment));
+      }
+      return 0;
     }
   });
 })(window);
