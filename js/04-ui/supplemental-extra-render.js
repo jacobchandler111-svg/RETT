@@ -441,8 +441,40 @@
     _attach();
   }
 
+  // Refresh ONLY the .supx-result-row content for cards that have
+  // valueOpen=true, leaving inputs / focus / DOM identity intact.
+  // Called from the calc-supplemental-extra debounced listener after
+  // recomputeAll, so the displayed dollar amount stays in sync with
+  // the latest input values without losing the user's caret in
+  // whatever field they were typing in.
+  function _refreshOpenValueRows() {
+    var host = document.getElementById('supplemental-extra-host');
+    if (!host) return;
+    var s = _state();
+    SPECS.forEach(function (spec) {
+      var st = s[spec.id];
+      if (!st || !st.valueOpen) return;
+      var card = host.querySelector('[data-supx-strategy="' + spec.id + '"]');
+      if (!card) return;
+      var existing = card.querySelector('.supx-result-row');
+      var fresh = _renderResultRow(spec, st);
+      if (existing) {
+        // Replace in place so the outer card structure (with inputs)
+        // doesn't get rebuilt — preserves focus on whatever input
+        // the user is typing in.
+        var wrap = document.createElement('div');
+        wrap.innerHTML = fresh;
+        if (wrap.firstChild) existing.replaceWith(wrap.firstChild);
+        else existing.remove();
+      } else if (fresh) {
+        card.insertAdjacentHTML('beforeend', fresh);
+      }
+    });
+  }
+
   // Expose for case-storage / debugging.
   root.renderSupplementalExtra = _renderHost;
+  root.refreshSupplementalExtraValueRows = _refreshOpenValueRows;
   root.__SUPPLEMENTAL_EXTRA_SPECS = SPECS;
 
 })(window);

@@ -274,22 +274,50 @@
   // Wire to input events: the supplemental-extra-render.js panel
   // dispatches plain "input" events on its currency / pct / yes-no
   // controls, and the rest of the form (cfg side) does too. We
-  // listen broadly and recompute on any input / change. Debounced
-  // so rapid keystrokes don't thrash the engine.
+  // listen broadly, recompute on any input / change, then refresh
+  // any UI surface that's currently displaying derived numbers so
+  // the user doesn't see stale figures.
+  //
+  // Debounced 120ms so rapid keystrokes don't thrash the engine.
+  // Re-renders only the .supx-result-row blocks on Page 4 (preserves
+  // the user's caret in whatever field they're typing in) and the
+  // full Page 5 summary when it's the active page.
   if (typeof document !== 'undefined' && !root.__rettSupplementalExtraListenerWired) {
     root.__rettSupplementalExtraListenerWired = true;
     var t = null;
+    function _afterRecompute() {
+      // Page 4 — refresh open result rows in place (no input
+      // re-render → no focus loss).
+      if (typeof root.refreshSupplementalExtraValueRows === 'function') {
+        try { root.refreshSupplementalExtraValueRows(); } catch (e) { /* */ }
+      }
+      // Page 5 — if it's the active page, re-render so the hero
+      // numbers reflect the new input. Skipped when Page 5 isn't
+      // visible to avoid wasted work.
+      var active = document.querySelector('.page.active');
+      if (active && active.id === 'page-allocator' &&
+          typeof root.renderStrategySummary === 'function') {
+        try { root.renderStrategySummary(); } catch (e) { /* */ }
+      }
+    }
     function _scheduleRecompute() {
       if (t) clearTimeout(t);
-      t = setTimeout(function () { t = null; recomputeAll(); }, 120);
+      t = setTimeout(function () {
+        t = null;
+        recomputeAll();
+        _afterRecompute();
+      }, 120);
     }
     document.addEventListener('input',  _scheduleRecompute, true);
     document.addEventListener('change', _scheduleRecompute, true);
     // Initial pass once collectInputs is available.
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', recomputeAll);
+      document.addEventListener('DOMContentLoaded', function () {
+        recomputeAll();
+        _afterRecompute();
+      });
     } else {
-      setTimeout(recomputeAll, 0);
+      setTimeout(function () { recomputeAll(); _afterRecompute(); }, 0);
     }
   }
 })(window);
