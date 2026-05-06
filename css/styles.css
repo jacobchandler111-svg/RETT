@@ -5515,6 +5515,18 @@ body { font-size: 16px; }
     vertical-align: middle;
 }
 
+/* Reason note for an Interested supp that the rivalry rejected.
+   Sits inline next to the supp name; the amount column shows $0. */
+.supp-row-subnote {
+    display: inline-block;
+    margin-left: 8px;
+    font-size: 0.85em;
+    color: var(--muted);
+    font-style: italic;
+    font-weight: 400;
+    vertical-align: middle;
+}
+
 /* Page-5 Implementation panel — hidden by default, expanded by clicking
    the tiny triangle on a trailing dash. Advisor audit view, NOT for
    client presentation. Shows the dollar allocation across Brooklyn +

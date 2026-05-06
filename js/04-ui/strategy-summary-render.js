@@ -142,21 +142,29 @@
     var primaryNet = (typeof m.net === 'number')
       ? m.net
       : (primarySavings - fees);
-    // Pull supplementals through the master solver so the hero numbers
-    // (Net Benefit, You Save, ROI) reflect everything the client opted
-    // in to. Each enabled supplemental's netBenefit is post-its-own-fees,
-    // so adding them to primarySavings gives the actual dollar the
-    // client keeps. Fees stay equal to primary fees (Brookhaven +
-    // Brooklyn) — supplemental product fees are wrapped into their own
-    // netBenefit, not double-counted in the planning fee bucket.
+    // Pull supplementals through the master solver. The rivalry has
+    // already decided which Interested supps actually get funded —
+    // anything rejected (brooklyn-beats, capital-exhausted, negative-net)
+    // contributes zero to the client's plan because no dollars deploy
+    // to it. master-solver's totalSupplementalBenefit is the
+    // rivalry-filtered sum (FUNDED supps only), so the hero numbers
+    // stay consistent with the Implementation panel and the per-supp
+    // rows below: a rejected supp shows $0 everywhere and is excluded
+    // from totals everywhere.
     var solverOut = (typeof root.runMasterSolver === 'function')
       ? root.runMasterSolver(primaryNet) : null;
-    var enabledSupplements = (solverOut && solverOut.supplementals)
-      ? solverOut.supplementals.filter(function (s) { return s.enabled && s.available; })
+    var supplementalBenefit = (solverOut && Number.isFinite(solverOut.totalSupplementalBenefit))
+      ? solverOut.totalSupplementalBenefit
+      : 0;
+    // For print iteration / per-supp rows: only the FUNDED supps
+    // surface as contributing. Rejected supps still appear in
+    // _renderSupplementalLeftColumn (so the advisor sees the toggle)
+    // but with $0 + a reason note, not a positive number.
+    var fundedSupplements = (solverOut && solverOut.supplementals)
+      ? solverOut.supplementals.filter(function (s) {
+          return s.enabled && s.available && s.rivalry && s.rivalry.funded;
+        })
       : [];
-    var supplementalBenefit = enabledSupplements.reduce(function (sum, s) {
-      return sum + (Number(s.netBenefit) || 0);
-    }, 0);
     var savings = primarySavings + supplementalBenefit;
     var net = primaryNet + supplementalBenefit;
     var roi = fees > 0 ? (savings / fees) : 0;
@@ -221,7 +229,7 @@
           : (Number(currentCfg.leverage) || 1) * 100);
     var longPct = (currentCfg.tierKey === 'beta0') ? shortPct : 100 + shortPct;
     var leverageLabel = Math.round(longPct) + '/' + Math.round(shortPct);
-    var hasSupps = !!(enabledSupplements.length || (solverOut && solverOut.anyInterested));
+    var hasSupps = !!(fundedSupplements.length || (solverOut && solverOut.anyInterested));
     var selectedStrategyHtml = '<div class="input-section forward-strategy-card">' +
       '<div class="section-heading">' +
         '<h2>Selected Strategy</h2>' +
@@ -324,24 +332,26 @@
     // if there's a planned future sale — pivot to "if you size up,
     // here's what additional fees buy you." Tied chronologically.
     // Capital-consuming supps that carry a management fee (Delphi-style
-    // mgmtFeeDollars in their result). Per advisor 2026-05-06, surface
-    // these whenever a supp is SELECTED (Interested), not just when the
-    // rivalry happens to fund it — the advisor's mental model is "I
-    // picked Delphi, so its fees are part of my client's plan." Rivalry
-    // funding is a separate engine concern. All selected supp fees
-    // aggregate into a single "Supplemental Strategy Fees" line ordered
-    // between Asset Manager and Brookhaven.
-    var selectedSuppFees = (solverOut && solverOut.supplementals
+    // mgmtFeeDollars in their result). Filter on rivalry.funded — not
+    // mere interest — so a supp the rivalry rejected (no actual dollars
+    // deployed) doesn't surface a fee the client never pays. Keeps the
+    // page consistent: a supp shows up either as a real contribution
+    // (with its fee in this section) or as $0 with a reason note in
+    // the Supplemental Strategies row above and the Implementation
+    // panel below.
+    var fundedSuppFees = (solverOut && solverOut.supplementals
       ? solverOut.supplementals : [])
-      .filter(function (s) { return s.interested === true; })
+      .filter(function (s) {
+        return s.rivalry && s.rivalry.funded && (s.rivalry.granted || 0) > 0;
+      })
       .map(function (s) {
         var fee = Number(s.result && s.result.mgmtFeeDollars) || 0;
         return { id: s.id, fee: fee };
       })
       .filter(function (x) { return x.fee > 0; });
-    var suppFeesTotal = selectedSuppFees.reduce(function (sum, s) { return sum + s.fee; }, 0);
+    var suppFeesTotal = fundedSuppFees.reduce(function (sum, s) { return sum + s.fee; }, 0);
     var suppFeeBullet = suppFeesTotal > 0
-      ? _bullet('Supplemental Strategy Fees<span class="strat-savings-line">Fund management fees on selected supplemental strategies</span>', suppFeesTotal)
+      ? _bullet('Supplemental Strategy Fees<span class="strat-savings-line">Fund management fees on funded supplemental strategies</span>', suppFeesTotal)
       : '';
     var totalFeesAll = fees + suppFeesTotal;
 
@@ -417,7 +427,7 @@
       dur:            dur,
       recYr:          recYr,
       year1:          year1,
-      supplements:    enabledSupplements,
+      supplements:    fundedSupplements,
       supplementalBenefit: supplementalBenefit
     });
 
@@ -748,11 +758,45 @@
   function _renderSupplementalLeftColumn(solverOut) {
     if (!solverOut || !solverOut.anyInterested) return '';
     var rows = solverOut.supplementals.map(function (s) {
-      var sign = s.netBenefit >= 0 ? '+' : '';
-      var amt  = sign + _fmt(s.netBenefit);
       var pending = (!s.available)
         ? '<span class="supp-row-pending" title="Configure on Page 4 to populate">awaiting input</span>'
         : '';
+      var amt;
+      var amtClass = '';
+      var subnoteHtml = '';
+
+      if (!s.enabled || !s.available) {
+        // Toggle off or no Page-4 input yet — dim the row entirely.
+        amt = '$0';
+        amtClass = ' is-off';
+      } else if (s.rivalry && !s.rivalry.funded) {
+        // Rivalry rejected this Interested supp. Show $0 and a one-
+        // liner reason so the advisor isn't surprised when the row
+        // doesn't agree with the original Page-4 estimate. Keeps the
+        // page consistent with the Implementation panel + Fees Baked
+        // In: a rejected supp contributes nothing anywhere.
+        amt = '$0';
+        amtClass = ' is-off';
+        var reason = s.rivalry.reason;
+        var reasonText = '';
+        if (reason === 'brooklyn-beats') {
+          reasonText = 'Brooklyn yields more per dollar';
+        } else if (reason === 'capital-exhausted') {
+          reasonText = 'no capital left after higher-yield strategies';
+        } else if (reason === 'negative-net') {
+          reasonText = 'fees exceed savings';
+        } else if (reason === 'no-result-or-zero') {
+          reasonText = 'awaiting input';
+        }
+        if (reasonText) {
+          subnoteHtml = '<span class="supp-row-subnote">&mdash; ' + reasonText + '</span>';
+        }
+      } else {
+        // Funded by rivalry (incl. free-benefit). Show signed amount.
+        var sign = s.netBenefit >= 0 ? '+' : '';
+        amt = sign + _fmt(s.netBenefit);
+      }
+
       return '' +
         '<div class="supp-strat-row" data-supp-row="' + s.id + '">' +
           '<label class="supp-row-toggle">' +
@@ -761,8 +805,8 @@
               (!s.available ? ' disabled' : '') + '>' +
             '<span class="supp-row-switch" aria-hidden="true"></span>' +
           '</label>' +
-          '<div class="supp-strat-name">' + s.name + pending + '</div>' +
-          '<div class="supp-strat-amt' + (s.enabled && s.available ? '' : ' is-off') + '">' + amt + '</div>' +
+          '<div class="supp-strat-name">' + s.name + pending + subnoteHtml + '</div>' +
+          '<div class="supp-strat-amt' + amtClass + '">' + amt + '</div>' +
         '</div>';
     }).join('');
 
