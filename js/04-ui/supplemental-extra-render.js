@@ -428,24 +428,27 @@
     if (iState[id] !== true) return { state: 'none' };
     var solverOut = (typeof root.runMasterSolver === 'function')
       ? root.runMasterSolver(0) : null;
-    var allocOut  = (typeof root.runAllocator    === 'function')
-      ? root.runAllocator((root.collectInputs && root.collectInputs().availableCapital) || 0)
-      : null;
     var solverEntry = solverOut && solverOut.supplementals
       ? solverOut.supplementals.filter(function (s) { return s.id === id; })[0]
-      : null;
-    var allocEntry  = allocOut && allocOut.supplementals
-      ? allocOut.supplementals.filter(function (s) { return s.id === id; })[0]
       : null;
     if (!solverEntry || !solverEntry.available) {
       return { state: 'pending' };
     }
     var benefit = Number(solverEntry.netBenefit) || 0;
-    var invested = allocEntry ? (Number(allocEntry.investment) || 0) : 0;
-    if (benefit > 0 && invested > 0) {
+    var rivalry = solverEntry.rivalry || {};
+    // Single source of truth for "is this supp contributing": the rivalry
+    // decision. Funded supps (incl. free-benefit, where granted=0 but
+    // funded=true) show 'value'. Rejected supps show 'crowded' with the
+    // reason carried so the messaging can be specific. Earlier the code
+    // gated on `invested > 0` and mis-classified free-benefit supps
+    // (PTET, Charitable Gifts, Heavy Vehicle, Augusta, 401k) as
+    // "crowded out" even though they were actually contributing real
+    // net benefit.
+    if (rivalry.funded && benefit > 0) {
+      var invested = Number(rivalry.granted) || 0;
       return { state: 'value', netBenefit: benefit, investment: invested };
     }
-    return { state: 'crowded' };
+    return { state: 'crowded', reason: rivalry.reason };
   }
 
   function _renderResultRow(spec, st) {
@@ -453,11 +456,29 @@
     var r = _readResultState(spec.id);
     var body;
     if (r.state === 'value') {
+      var subline = (r.investment > 0)
+        ? 'net tax benefit &middot; ' + _fmtUSD(r.investment) + ' invested'
+        : 'net tax benefit &middot; no Brooklyn capital deployed';
       body = '<div class="supx-result-amt">' + _fmtUSD(r.netBenefit) + '</div>' +
-             '<div class="supx-result-sub">net tax benefit &middot; ' + _fmtUSD(r.investment) + ' invested</div>';
+             '<div class="supx-result-sub">' + subline + '</div>';
     } else if (r.state === 'crowded') {
-      body = '<div class="supx-result-msg">Other strategies utilized</div>' +
-             '<div class="supx-result-sub">Interested noted &mdash; the allocator routed capital to higher-ROI options for this scenario.</div>';
+      // Reason-specific copy so the advisor and client see WHY this
+      // supp didn't end up in the funded plan, instead of a generic
+      // "other strategies utilized" line that doesn't distinguish
+      // brooklyn-beats from capital-exhausted from negative-net.
+      var msg = 'Not funded in this scenario';
+      var sub = '';
+      if (r.reason === 'brooklyn-beats') {
+        sub = 'Brooklyn yields more per dollar &mdash; dollars stay with Brooklyn.';
+      } else if (r.reason === 'capital-exhausted') {
+        sub = 'No capital left after higher-yield strategies funded.';
+      } else if (r.reason === 'negative-net') {
+        sub = 'Fees exceed savings at the current configuration.';
+      } else {
+        sub = 'Allocator routed capital to higher-ROI options for this scenario.';
+      }
+      body = '<div class="supx-result-msg">' + msg + '</div>' +
+             '<div class="supx-result-sub">' + sub + '</div>';
     } else {
       body = '<div class="supx-result-msg supx-result-pending">Math pending</div>' +
              '<div class="supx-result-sub">Calculation lands when the engine work for this strategy is wired in.</div>';
