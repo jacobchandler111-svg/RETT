@@ -1664,6 +1664,34 @@ function bindControls() {
   // dropdown changes.
   const _lcSel = document.getElementById('leverage-cap-select');
   if (_lcSel) _lcSel.addEventListener('change', _onCustodianChange);
+  // Bug fix 2026-05-06 (verified by parallel-Claude scenario sweep):
+  // the dropdown was being silently ignored because #custom-short-pct
+  // defaults to "100" in HTML, and inputs-collector.js's Schwab-combo
+  // resolver tries custom-short-pct FIRST (it's where the Page-2 pill
+  // picker writes). Result: dropdown set to "145/45" produced
+  // byte-identical engine output to "200/100" because the engine
+  // always resolved comboId=beta1_200_100 from the unchanged csp=100.
+  //
+  // Fix: when the user explicitly changes the leverage dropdown, parse
+  // the trailing short% from the value (e.g. "145/45" → 45, "200/100"
+  // → 100) and write it to #custom-short-pct so inputs-collector picks
+  // the matching combo. Also disable auto-pick — an explicit user choice
+  // shouldn't be reverted on the next pipeline run.
+  if (_lcSel) _lcSel.addEventListener('change', function () {
+    var v = _lcSel.value || '';
+    var m = v.match(/\/(\d+(?:\.\d+)?)\s*$/);
+    if (m) {
+      var csp = document.getElementById('custom-short-pct');
+      if (csp) {
+        csp.value = m[1];
+        csp.dispatchEvent(new Event('input', { bubbles: true }));
+        csp.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }
+    if (typeof window !== 'undefined') {
+      window.__rettAutoPickEnabled = false;
+    }
+  });
   // For invested-capital input, ONLY refresh the Schwab below-min
   // warning — don't run the full custodian-change flow. The previous
   // wiring rebuilt leverage-cap-select on every keystroke, which
