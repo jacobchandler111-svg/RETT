@@ -5,27 +5,49 @@
    the bottom of this file. */
 
 :root {
-  /* BrookHaven Brand Palette */
-  --bh-trusted: #231F55;
-  --bh-trusted-soft: #2d2868;
-  --bh-blue: #41B9EA;
-  --bh-blue-deep: #2d97c7;
-  --bh-powder: #8ED4F0;
-  --bh-yellow: #F0CA17;
+  /* RETT Brand Palette (Phase 1 uplift, sampled from the printed
+     trade-booth + leave-behind visual baseline). The legacy
+     --bh-* tokens still resolve so existing components don't break;
+     they're remapped to the RETT-branded equivalents.
 
-  --ink: #231F55;
-  --ink-soft: #3d3970;
-  --paper: #fbfcfe;
-  --paper-cool: #f1f5fa;
-  --paper-warm: #eef3f9;
-  --rule: #d4dde8;
-  --rule-soft: #e4ebf3;
-  --muted: #6b7390;
-  --green: #2d8659;
+     --rett-navy      — dominant card/heading background (replaces
+                         the prior purple-navy #231F55 with the
+                         true blue-navy from the booth wall).
+     --rett-navy-soft — hover/highlight tier of the navy.
+     --rett-blue      — saturated chart-icon / CTA accent.
+     --rett-cyan      — light-blue chart accent (used in the wordmark
+                         glyph + secondary chart bars).
+     --rett-amber     — gold of the numbered step circles + chart bars.
+                         Use sparingly for "this matters" moments. */
+  --rett-navy:       #0e2240;
+  --rett-navy-soft:  #173159;
+  --rett-blue:       #2563eb;
+  --rett-cyan:       #5cc7e6;
+  --rett-amber:      #f1a83a;
+  --rett-amber-soft: #f7c66e;
+
+  /* Legacy BrookHaven aliases — kept so existing rules keep
+     compiling. Each maps to the closest RETT brand counterpart. */
+  --bh-trusted:      var(--rett-navy);
+  --bh-trusted-soft: var(--rett-navy-soft);
+  --bh-blue:         var(--rett-blue);
+  --bh-blue-deep:    var(--rett-blue);
+  --bh-powder:       var(--rett-cyan);
+  --bh-yellow:       var(--rett-amber);
+
+  --ink:        var(--rett-navy);
+  --ink-soft:   #1d3460;
+  --paper:      #fbfcfe;
+  --paper-cool: #f0f4fa;
+  --paper-warm: #e9eff8;
+  --rule:       #cfdae8;
+  --rule-soft:  #e2e9f2;
+  --muted:      #5b6680;
+  --green:      #2d8659;
   --green-soft: #4ba376;
-  --red: #c44545;
-  --shadow: 0 1px 3px rgba(35,31,85,0.06), 0 8px 24px rgba(35,31,85,0.05);
-  --shadow-lg: 0 4px 12px rgba(35,31,85,0.08), 0 20px 50px rgba(35,31,85,0.1);
+  --red:        #c44545;
+  --shadow:    0 1px 3px rgba(14,34,64,0.07),  0 8px 24px rgba(14,34,64,0.06);
+  --shadow-lg: 0 4px 12px rgba(14,34,64,0.10), 0 20px 50px rgba(14,34,64,0.12);
 
   --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-display: 'Fraunces', Georgia, serif;
@@ -1765,34 +1787,66 @@ body {
     font-family: var(--font-body);
     background: var(--paper);
     background-image:
-        radial-gradient(circle at 0% 0%, rgba(65,185,234,0.05) 0%, transparent 45%),
-        radial-gradient(circle at 100% 100%, rgba(35,31,85,0.04) 0%, transparent 45%);
+        radial-gradient(circle at 0% 0%,   rgba(92,199,230,0.05) 0%, transparent 45%),
+        radial-gradient(circle at 100% 100%, rgba(14,34,64,0.04) 0%, transparent 45%);
     color: var(--ink);
 }
 
-/* HEADER */
+/* HEADER — restyled to read as the RETT brand bar (deep navy
+   panel, white wordmark, italic small-caps subtitle). The chart-
+   icon glyph from the brand visuals is recreated as inline SVG
+   bars so the header doesn't need an image asset. */
 .header {
-    background: var(--paper);
-    border-bottom: 2px solid var(--ink);
-    box-shadow: none;
-    padding: 22px 48px;
+    background: var(--rett-navy);
+    border-bottom: 0;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 4px 12px rgba(14,34,64,0.18);
+    padding: 18px 48px 16px;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+}
+.header::before {
+    content: "";
+    flex: 0 0 auto;
+    width: 36px;
+    height: 36px;
+    background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 36'><rect x='3'  y='14' width='6' height='18' fill='%232563eb'/><rect x='13' y='8'  width='6' height='24' fill='%232563eb'/><rect x='23' y='4'  width='6' height='28' fill='%235cc7e6'/></svg>") center/contain no-repeat;
+    margin-right: 4px;
 }
 .header h1 {
+    font-family: var(--font-body);
+    font-style: normal;
+    font-weight: 800;
+    font-size: 28px;
+    color: #fff;
+    letter-spacing: -0.01em;
+    line-height: 1;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+}
+.header h1 .rett-tm {
+    color: var(--rett-cyan);
+    font-size: 0.42em;
+    font-weight: 600;
+    margin-left: 2px;
+    vertical-align: super;
+}
+.header h2 {
     font-family: var(--font-display);
     font-style: italic;
+    font-size: 13px;
     font-weight: 500;
-    color: var(--ink);
-    letter-spacing: -0.01em;
+    letter-spacing: 0.04em;
+    text-transform: none;
+    color: rgba(255,255,255,0.78);
+    line-height: 1.1;
+    margin-top: 2px;
 }
-.header h1 .rett-tm { color: var(--bh-blue); }
-.header h2 {
-    font-family: var(--font-mono);
-    font-size: 0.7em;
-    font-weight: 500;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--muted);
-}
+/* Add a stacked block to the right of the wordmark via flow:
+   the H1 + H2 stack vertically inside their natural flow. */
+.header > div.header-text { display: flex; flex-direction: column; }
 
 /* NAV TABS */
 .nav {
