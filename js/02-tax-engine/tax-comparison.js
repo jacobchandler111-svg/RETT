@@ -342,7 +342,11 @@ function _zeroDeferredComparison(cfg) {
             (cfg && cfg.salePrice || 0) - (cfg && cfg.costBasis || 0)
             - (cfg && cfg.acceleratedDepreciation || 0));
       const _recap = Math.max(0, cfg && cfg.acceleratedDepreciation || 0);
-      const _totalGainBucket = _ltGain + _recap;
+      // Conservation invariant: sumRecognized + unrecognizedGain === totalLT.
+      // Recapture is recognized in Y1 separately (§453(i)) and is NOT in
+      // the LT bucket — keep it out of unrecognizedGain so the invariant
+      // matches the main engine's convention. F14 fix.
+      const _totalGainBucket = _ltGain;
       const rows = [];
       for (let i = 0; i < horizon; i++) {
             const year = year1 + i;
@@ -371,14 +375,26 @@ function _zeroDeferredComparison(cfg) {
                   savings: 0
             });
       }
+      // Build totals from rows. Without these, the engine returned
+      // undefined for totalBaseline / totalWithStrategy and downstream
+      // consumers got NaN propagation — F14 surfaced this in 0.09% of
+      // 10K Monte Carlo trials.
+      let _totalBaseline = 0, _totalWith = 0;
+      rows.forEach(function (r) {
+            _totalBaseline += (r.baseline && r.baseline.total) || 0;
+            _totalWith     += (r.withStrategy && r.withStrategy.total) || 0;
+      });
       return {
             deferred: true,
             rows: rows,
             recognitionSchedule: rows.map(function (r) { return { year: r.year, gainRecognized: 0 }; }),
             unrecognizedGain: _totalGainBucket,
+            totalBaseline: _totalBaseline,
+            totalWithStrategy: _totalWith,
             totalSavings: 0,
             totalFees: 0,
             totalBrookhavenFees: 0,
+            totalAllFees: 0,
             durationYears: 0
       };
 }
