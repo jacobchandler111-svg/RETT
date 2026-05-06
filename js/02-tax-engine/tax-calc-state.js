@@ -121,6 +121,14 @@ function computeStateTax(income, year, stateCode, status, opts) {
           const stateLtcg = (node && node.stateLtcg) || null;
           const disconformLossOffset = !!(stateLtcg && stateLtcg.disconformLossOffset);
           const effectiveLossOff = disconformLossOffset ? 0 : lossOff;
+          // For disconforming states (NJ): the caller's `income` arg
+          // has already had the federal §1211 ordinary-offset baked in
+          // (the upstream loss-netting reduces scenario.ordinaryIncome
+          // before it reaches us). NJ doesn't conform to that offset
+          // — capital losses can't offset ordinary income in NJ — so
+          // we ADD BACK the federal offset to the ordinary base before
+          // running state brackets. Conforming states leave income as-is.
+          const _addBackForDisconform = disconformLossOffset ? lossOff : 0;
 
           // Decide how much of the LT gain feeds the ordinary stack
           // versus a separate preferential calc.
@@ -164,7 +172,7 @@ function computeStateTax(income, year, stateCode, status, opts) {
           // preferential tax separately. (NB: callers that DIDN'T add LT
           // to `income` will see this as a no-op subtraction, which is
           // safe; the engine never "doubles" gains it didn't see.)
-          const adjIncome = Math.max(0, income - (lt - ltOrdinaryPortion));
+          const adjIncome = Math.max(0, income - (lt - ltOrdinaryPortion) + _addBackForDisconform);
           const taxable   = Math.max(0, adjIncome - deduction - effectiveLossOff);
 
           const brackets = getStateBrackets(year, stateCode, status);

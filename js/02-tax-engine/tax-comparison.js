@@ -187,10 +187,16 @@ function _yearTaxes(scenario) {
       // State tax sees recapture as ordinary income — most states do
       // NOT honor the federal §1250 25% cap. Pass recapture into the
       // ordinary base for state calc so state revenue is right.
+      // Pass _ordOffsetApplied so disconforming states (NJ) can add
+      // back the federal §1211 ordinary offset that was already baked
+      // into _ord — they don't conform to the federal $3K offset rule
+      // (NJSA 54A:5-2 categorizes income; capital losses can't offset
+      // ordinary in NJ).
+      const _ordOffApplied = Number(_s._ordOffsetApplied) || 0;
       const stateTax = computeStateTax(
             _ord + _st + _rcp + _lt + _qd,
             _yr, _state, _stat,
-            { itemized: _itm, longTermGain: _lt });
+            { itemized: _itm, longTermGain: _lt, lossOrdOffsetApplied: _ordOffApplied });
       // Schema convention (don't drift):
       //   ordinaryTax / recapTax / ltTax / amt — components of the
       //     income-tax calculation (Form 1040 line 16-equivalent).
@@ -272,16 +278,24 @@ function _applyLossesWithSTCfCap(scenario, lossAvailable, capOrdinary) {
       }
 
       // Step 4: ordinary income, capped at $3,000 (or $1,500 for MFS).
+      // Track the actual amount applied to ordinary so the state tax
+      // engine can add it back for disconforming states (NJ): NJSA
+      // 54A:5-2 categorizes income, and capital losses can't offset
+      // ordinary in NJ. Without _ordOffsetApplied, the federal-baked-in
+      // reduction silently propagates to NJ state tax (audit F13).
+      let _ordOffsetApplied = 0;
       if (loss > 0) {
             const cap = Math.min(out.ordinaryIncome || 0, capOrdinary);
             const offsetOrd = Math.min(cap, loss);
             out.ordinaryIncome = (out.ordinaryIncome || 0) - offsetOrd;
             // Wages are unchanged — see note in _applyLossesToScenario.
             loss -= offsetOrd;
+            _ordOffsetApplied = offsetOrd;
       }
 
       out._lossUsed = lossAvailable - loss;
       out._lossUnused = loss;
+      out._ordOffsetApplied = _ordOffsetApplied;
       return out;
 }
 
