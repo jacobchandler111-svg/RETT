@@ -1050,9 +1050,24 @@ function bindControls() {
             status.className = 'pmq-client-status is-loaded';
           }
         } else {
-          // Create a new named case — populate the canonical name
-          // field on Client Inputs and let the existing input/blur
-          // handlers promote the draft to a saved case.
+          // No existing case with this name. Implicit "New Client"
+          // FIRST — detach from whatever case was active and clear
+          // the form so the new name doesn't rename or leak data
+          // into the prior case. Without this, dispatching the
+          // input event below would trigger the case-name input's
+          // rename-in-place handler and silently overwrite the
+          // previously-loaded client. (Bug reported 2026-05-06.)
+          window.__rettSuppressAutoSave = true;
+          if (typeof store.startNewCase === 'function') {
+            store.startNewCase();
+          }
+          if (typeof resetAllInputs === 'function') {
+            try { resetAllInputs(true); } catch (e) { /* */ }
+          }
+
+          // Now set the canonical name + dispatch events so the
+          // existing input/blur handlers promote the fresh draft
+          // to a new saved case.
           var nameInput = document.getElementById('case-name-input');
           if (nameInput) {
             nameInput.value = fullName;
@@ -1062,6 +1077,11 @@ function bindControls() {
           } else if (typeof store.activateCaseName === 'function') {
             store.activateCaseName(fullName);
           }
+          // Release the autosave suppressor on the next tick — long
+          // enough that the input/blur handlers finish their work
+          // (matches the New Client button's 600ms window).
+          setTimeout(function () { window.__rettSuppressAutoSave = false; }, 600);
+
           if (status) {
             status.textContent = 'New client created: ' + fullName;
             status.className = 'pmq-client-status is-new';
