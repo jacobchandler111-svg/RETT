@@ -346,6 +346,13 @@
     // buy on the future sale." Only renders when futureSale.enabled.
     html += _renderFutureSaleOption(entry, opt, currentCfg);
 
+    // ============ Grow-your-net-benefit projection ============
+    // Sits at the very bottom — below the Future Sale callout when it
+    // renders, takes that slot when it's hidden. Empty inputs by
+    // design (no defaults — advisor enters years and assumed return
+    // live in the meeting based on client risk profile).
+    html += _renderGrowthProjection(net);
+
     // Engagement Notes section removed per advisor spec — the
     // information lives in the Implementation panel (audit) and on
     // Page 1 already; no need to repeat it on the client-facing
@@ -753,6 +760,163 @@
   // recommendation (already applied via the optimizer dial-back) or
   // raises Available Capital on Page 2 to honor the larger investment.
   // -----------------------------------------------------------------
+  // -----------------------------------------------------------------
+  // Grow-your-net-benefit projection. Sits at the bottom of Page 5;
+  // renders ONLY when net benefit > 0. Two empty inputs (no defaults
+  // — advisor enters years + assumed return live, calibrated to the
+  // client's risk profile). Chart populates on input.
+  // -----------------------------------------------------------------
+  function _renderGrowthProjection(net) {
+    var principal = Math.round(Number(net) || 0);
+    if (principal <= 0) return '';
+    return '<div class="growth-projection" data-net-benefit="' + principal + '">' +
+      '<div class="growth-head">' +
+        '<h2>Grow Your Net Benefit</h2>' +
+        '<p class="growth-desc">Project the tax savings forward at an assumed annual return for the client&rsquo;s investment horizon.</p>' +
+      '</div>' +
+      '<div class="growth-input-row">' +
+        '<label class="growth-input-cell">' +
+          '<span class="growth-input-label">Time Horizon</span>' +
+          '<span class="growth-input-wrap">' +
+            '<input type="number" id="growth-years" class="growth-input" min="1" max="50" step="1" inputmode="numeric" autocomplete="off">' +
+            '<span class="growth-input-suffix">years</span>' +
+          '</span>' +
+        '</label>' +
+        '<label class="growth-input-cell">' +
+          '<span class="growth-input-label">Assumed Annual Return</span>' +
+          '<span class="growth-input-wrap">' +
+            '<input type="number" id="growth-return" class="growth-input" min="0" max="50" step="0.1" inputmode="decimal" autocomplete="off">' +
+            '<span class="growth-input-suffix">%</span>' +
+          '</span>' +
+        '</label>' +
+      '</div>' +
+      '<div class="growth-chart-host" id="growth-chart-host" aria-hidden="true"></div>' +
+      '<div class="growth-summary" id="growth-summary"></div>' +
+    '</div>';
+  }
+
+  function _fmtUSDShort(n) {
+    n = Math.round(Number(n) || 0);
+    if (n >= 1e9) return '$' + (n / 1e9).toFixed(2).replace(/\.?0+$/, '') + 'B';
+    if (n >= 1e6) return '$' + (n / 1e6).toFixed(2).replace(/\.?0+$/, '') + 'M';
+    if (n >= 1e3) return '$' + (n / 1e3).toFixed(0) + 'K';
+    return '$' + n.toLocaleString('en-US');
+  }
+
+  function _refreshGrowthChart() {
+    var card = document.querySelector('.growth-projection');
+    if (!card) return;
+    var principal = Number(card.getAttribute('data-net-benefit')) || 0;
+    var chartHost = document.getElementById('growth-chart-host');
+    var summaryHost = document.getElementById('growth-summary');
+    if (!chartHost || !summaryHost) return;
+    var yearsEl = document.getElementById('growth-years');
+    var returnEl = document.getElementById('growth-return');
+    // Number('') === 0, so check the raw string is non-empty before
+    // accepting the numeric coercion. Without this, an empty Return
+    // field would render a flat 0% line instead of hiding the chart.
+    var rawYears  = yearsEl  ? String(yearsEl.value).trim()  : '';
+    var rawReturn = returnEl ? String(returnEl.value).trim() : '';
+    var years = Number(rawYears);
+    var ret   = Number(rawReturn);
+    var hasYears  = rawYears  !== '' && Number.isFinite(years) && years >= 1 && years <= 50;
+    var hasReturn = rawReturn !== '' && Number.isFinite(ret)   && ret   >= 0 && ret   <= 50;
+    if (!hasYears || !hasReturn || principal <= 0) {
+      chartHost.innerHTML = '';
+      summaryHost.innerHTML = '';
+      chartHost.setAttribute('aria-hidden', 'true');
+      return;
+    }
+    chartHost.setAttribute('aria-hidden', 'false');
+    var n = Math.round(years);
+    var r = ret / 100;
+    var pts = [];
+    for (var i = 0; i <= n; i++) pts.push(principal * Math.pow(1 + r, i));
+    var finalVal = pts[pts.length - 1];
+
+    var W = 760, H = 280;
+    var padL = 70, padR = 24, padT = 28, padB = 36;
+    var innerW = W - padL - padR;
+    var innerH = H - padT - padB;
+    var vmin = pts[0];
+    var vmax = pts[pts.length - 1];
+    var range = vmax - vmin;
+    function xAt(i) { return padL + (i / Math.max(1, n)) * innerW; }
+    function yAt(v) {
+      if (range <= 0) return padT + innerH / 2;
+      return padT + innerH - ((v - vmin) / range) * innerH;
+    }
+
+    var svg = '';
+    svg += '<svg class="growth-chart-svg" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Growth projection chart">';
+    svg += '<defs><linearGradient id="growthFill" x1="0" x2="0" y1="0" y2="1">' +
+           '<stop offset="0" stop-color="var(--bh-blue)" stop-opacity="0.28"/>' +
+           '<stop offset="1" stop-color="var(--bh-blue)" stop-opacity="0.02"/>' +
+           '</linearGradient></defs>';
+
+    for (var g = 0; g <= 4; g++) {
+      var gy = padT + (g / 4) * innerH;
+      var gv = vmax - (g / 4) * range;
+      svg += '<line x1="' + padL + '" x2="' + (W - padR) + '" y1="' + gy + '" y2="' + gy +
+             '" stroke="var(--rule-soft)" stroke-width="1" stroke-dasharray="2 4"/>';
+      svg += '<text x="' + (padL - 10) + '" y="' + (gy + 4) +
+             '" text-anchor="end" font-size="11" fill="var(--muted)" font-family="var(--font-mono)">' +
+             _fmtUSDShort(gv) + '</text>';
+    }
+
+    var step = (n <= 10) ? 1 : (n <= 20 ? 2 : Math.ceil(n / 8));
+    for (var k = 0; k <= n; k += step) {
+      var tx = xAt(k);
+      svg += '<text x="' + tx + '" y="' + (H - padB + 18) +
+             '" text-anchor="middle" font-size="11" fill="var(--muted)" font-family="var(--font-mono)">Y' + k + '</text>';
+    }
+    if ((n % step) !== 0) {
+      var lx = xAt(n);
+      svg += '<text x="' + lx + '" y="' + (H - padB + 18) +
+             '" text-anchor="middle" font-size="11" fill="var(--muted)" font-family="var(--font-mono)">Y' + n + '</text>';
+    }
+
+    var areaPath = 'M ' + xAt(0) + ' ' + yAt(pts[0]);
+    var linePath = 'M ' + xAt(0) + ' ' + yAt(pts[0]);
+    for (var p = 1; p <= n; p++) {
+      areaPath += ' L ' + xAt(p) + ' ' + yAt(pts[p]);
+      linePath += ' L ' + xAt(p) + ' ' + yAt(pts[p]);
+    }
+    areaPath += ' L ' + xAt(n) + ' ' + (padT + innerH) + ' L ' + xAt(0) + ' ' + (padT + innerH) + ' Z';
+    svg += '<path d="' + areaPath + '" fill="url(#growthFill)" stroke="none"/>';
+    svg += '<path d="' + linePath + '" fill="none" stroke="var(--bh-blue-deep)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>';
+
+    svg += '<circle cx="' + xAt(0) + '" cy="' + yAt(pts[0]) + '" r="4" fill="var(--bh-blue-deep)"/>';
+    svg += '<circle cx="' + xAt(n) + '" cy="' + yAt(pts[n]) + '" r="5" fill="var(--bh-blue-deep)" stroke="var(--paper)" stroke-width="2"/>';
+
+    var labelX = xAt(n);
+    var labelY = yAt(pts[n]) - 12;
+    if (labelY < padT + 12) labelY = yAt(pts[n]) + 22;
+    svg += '<text x="' + labelX + '" y="' + labelY +
+           '" text-anchor="end" font-size="14" font-weight="600" fill="var(--bh-trusted)" font-family="var(--font-body)">' +
+           _fmtUSDShort(finalVal) + '</text>';
+
+    svg += '</svg>';
+    chartHost.innerHTML = svg;
+
+    var growthAmount = finalVal - principal;
+    summaryHost.innerHTML = 'Reinvested at <strong>' + ret + '%</strong> over <strong>' + n +
+      ' year' + (n === 1 ? '' : 's') + '</strong>, your <strong>' + _fmt(principal) +
+      '</strong> in tax savings grows to <strong>' + _fmt(Math.round(finalVal)) +
+      '</strong> &mdash; an additional <strong class="growth-gain">' +
+      _fmt(Math.round(growthAmount)) + '</strong>.';
+  }
+
+  if (typeof root !== 'undefined' && root.document && !root.__rettGrowthListenerWired) {
+    root.__rettGrowthListenerWired = true;
+    root.document.addEventListener('input', function (e) {
+      var t = e.target;
+      if (t && (t.id === 'growth-years' || t.id === 'growth-return')) {
+        _refreshGrowthChart();
+      }
+    });
+  }
+
   function _renderFutureSaleOption(entry, opt, cfg) {
     // Per advisor spec: only render the section when there's REAL
     // future-sale coverage to discuss. Three early-out cases:
