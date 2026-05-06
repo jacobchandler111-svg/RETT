@@ -2982,7 +2982,8 @@
         "standardDeduction": {
           "single": 15000,
           "married_joint": 30000
-        }
+        },
+        "_TODO_millionaireSurtax": "Maine 2026+ millionaire's tax: 2% surcharge on Maine taxable income exceeding $1M (single) / $1.5M (MFJ, HOH). Source: 2025 Maine State Budget (signed mid-2025). Engine + tax-calc-state.js do NOT yet apply this surtax (similar pattern to MA millionaireSurcharge but with status-dependent threshold). High-ME-income clients get state tax understated by 2% on slice over $1M / $1.5M. Implementation note: extend MA-style millionaireSurcharge handler to support per-status thresholds, then add 'millionaireSurtax' field here with single $1M / mfj $1.5M / hoh $1.5M."
       },
       "MD": {
         "brackets": {
@@ -3249,7 +3250,8 @@
         "standardDeduction": {
           "single": 15000,
           "married_joint": 30000
-        }
+        },
+        "_TODO_netInvestmentSurtax": "Minnesota 2024+ surtax: 1% on net investment income exceeding $1M (single, MFJ, estates, trusts; threshold not indexed). Source: 2023 Minn. Sess. Laws ch. 64, art. 1, §6 — codified at MN Stat 290.033. Engine + tax-calc-state.js do NOT yet apply this surtax; high-MN-income clients with sale-driven LT/ST gains over $1M will see state tax understated by 1% on the slice over $1M. Implementation: add 'netInvestmentSurtax' field handler alongside CA mentalHealthSurcharge and MA millionaireSurcharge in tax-calc-state.js."
       },
       "MS": {
         "brackets": {
@@ -3992,13 +3994,13 @@
           "single": [
             [
               999999999,
-              0.045
+              0.0445
             ]
           ],
           "married_joint": [
             [
               999999999,
-              0.045
+              0.0445
             ]
           ]
         },
@@ -4006,7 +4008,8 @@
         "standardDeduction": {
           "single": 0,
           "married_joint": 0
-        }
+        },
+        "_source": "Utah HB 106 (signed March 2025) reduced flat rate from 4.55% to 4.5% retroactive to Jan 1 2025, then to 4.45% beginning tax year 2026. Prior file value 4.5% was the 2025 rate; corrected 2026-05-06."
       },
       "VT": {
         "brackets": {
