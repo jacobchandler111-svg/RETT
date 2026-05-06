@@ -379,6 +379,11 @@
         var sv = _state()[vTarget];
         if (sv) {
           sv.valueOpen = !sv.valueOpen;
+          // Force a fresh calc before rendering so the result row
+          // reflects whatever the user just typed in Details.
+          if (typeof root.recomputeSupplementalExtra === 'function') {
+            try { root.recomputeSupplementalExtra(); } catch (e) { /* */ }
+          }
           _renderHost();
           _persist();
         }
