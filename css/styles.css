@@ -1931,9 +1931,21 @@ body { font-size: 16px; }
     margin-bottom: 16px;
 }
 .pmq-toprow .pmq-compact-host { margin: 0; flex: 0 0 auto; }
-.pmq-client-section {
-    flex: 0 1 460px;
+/* Left column wraps the standalone Collapse button above the
+   Client section. Width tuned so the section extends most of the
+   way toward the CLIENT FORM dock without overlapping its open
+   popup. */
+.pmq-left-col {
+    flex: 0 1 720px;
     min-width: 320px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+}
+.pmq-left-col .pmq-collapse-btn { align-self: flex-start; }
+.pmq-client-section {
+    width: 100%;
 }
 /* Pack first/last on the same row inside .section-body. The default
    .input-row is a 2-column grid (label | input); the half variants
@@ -1979,6 +1991,7 @@ body { font-size: 16px; }
 .pmq-client-status.is-new    { color: #2d3f7d; opacity: 1; }
 @media (max-width: 720px) {
     .pmq-toprow { flex-direction: column-reverse; align-items: stretch; }
+    .pmq-left-col { flex: 1 1 auto; }
     .pmq-client-section { flex: 1 1 auto; }
 }
 .pmq-compact {
@@ -4159,6 +4172,124 @@ body { font-size: 16px; }
 .future-sale-option.fs-hint .fs-desc { margin-bottom: 0; }
 @media (max-width: 720px) {
     .future-sale-option .fs-row { flex-direction: column; align-items: flex-start; gap: 6px; }
+}
+
+/* Grow Your Net Benefit — projection card at the very bottom of Page 5 */
+.growth-projection {
+    margin: 56px 0 28px;
+    padding: 22px 24px 26px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+}
+.growth-projection .growth-head h2 {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 500;
+    font-size: 24px;
+    color: var(--ink);
+    margin: 0 0 4px 0;
+    letter-spacing: -0.01em;
+}
+.growth-projection .growth-desc {
+    font-size: 0.93em;
+    color: var(--ink-soft);
+    line-height: 1.5;
+    margin: 0 0 18px 0;
+    max-width: 760px;
+}
+.growth-input-row {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 22px;
+    flex-wrap: wrap;
+}
+.growth-input-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1 1 220px;
+    min-width: 200px;
+}
+.growth-input-label {
+    font-size: 0.78em;
+    font-weight: 600;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+.growth-input-wrap {
+    display: flex;
+    align-items: center;
+    background: var(--paper-cool);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 0 14px;
+    height: 52px;
+    transition: border-color 0.15s, background 0.15s;
+}
+.growth-input-wrap:focus-within {
+    border-color: var(--bh-blue-deep);
+    background: var(--paper);
+}
+.growth-input {
+    flex: 1;
+    border: 0;
+    background: transparent;
+    font-family: var(--font-body);
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--ink);
+    outline: none;
+    width: 100%;
+    -moz-appearance: textfield;
+}
+.growth-input::-webkit-outer-spin-button,
+.growth-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.growth-input-suffix {
+    font-family: var(--font-body);
+    font-size: 14px;
+    color: var(--muted);
+    margin-left: 8px;
+    white-space: nowrap;
+}
+.growth-chart-host {
+    margin: 8px 0 18px;
+    min-height: 0;
+}
+.growth-chart-host[aria-hidden="true"] {
+    display: none;
+}
+.growth-chart-svg {
+    width: 100%;
+    height: auto;
+    max-height: 320px;
+    display: block;
+}
+.growth-summary {
+    font-size: 1.05em;
+    line-height: 1.6;
+    color: var(--ink);
+    padding-top: 14px;
+    border-top: 1px solid var(--rule-soft);
+}
+.growth-summary:empty {
+    border-top: 0;
+    padding-top: 0;
+}
+.growth-summary strong {
+    font-weight: 700;
+    color: var(--bh-trusted);
+}
+.growth-summary .growth-gain {
+    color: var(--green);
+}
+@media (max-width: 720px) {
+    .growth-input-row { flex-direction: column; gap: 16px; }
+    .growth-projection .growth-head h2 { font-size: 22px; }
 }
 
 /* Return on Planning row — 2-col grid:
