@@ -1835,24 +1835,24 @@
     if (variant === 'A') {
       // 4-slice: kept | net benefit | fees | tax due
       slicesData = [
-        { value: keptOriginal,    fill: 'rett-donut-kept',    label: 'Original income kept', amt: keptOriginal },
-        { value: netBenefit,      fill: 'rett-donut-benefit', label: 'Net benefit',          amt: netBenefit },
-        { value: fees,            fill: 'rett-donut-fees',    label: 'Fees',                 amt: fees },
-        { value: taxWithStrategy, fill: 'rett-donut-owed',    label: 'Tax due',              amt: taxWithStrategy }
+        { value: keptOriginal,    fill: 'rett-donut-kept',    label: 'Original income kept', shortLabel: 'Original income', amt: keptOriginal },
+        { value: netBenefit,      fill: 'rett-donut-benefit', label: 'Net benefit',          shortLabel: 'Money gained',    amt: netBenefit },
+        { value: fees,            fill: 'rett-donut-fees',    label: 'Fees',                 shortLabel: 'Fees',            amt: fees },
+        { value: taxWithStrategy, fill: 'rett-donut-owed',    label: 'Tax due',              shortLabel: 'Taxes',           amt: taxWithStrategy }
       ];
     } else if (variant === 'B') {
       // 3-slice: kept | net benefit | tax+fees combined
       slicesData = [
-        { value: keptOriginal,             fill: 'rett-donut-kept',    label: 'Original income kept', amt: keptOriginal },
-        { value: netBenefit,               fill: 'rett-donut-benefit', label: 'Net benefit',          amt: netBenefit },
-        { value: taxWithStrategy + fees,   fill: 'rett-donut-owed',    label: 'Tax + fees',           amt: taxWithStrategy + fees }
+        { value: keptOriginal,             fill: 'rett-donut-kept',    label: 'Original income kept', shortLabel: 'Original income', amt: keptOriginal },
+        { value: netBenefit,               fill: 'rett-donut-benefit', label: 'Net benefit',          shortLabel: 'Money gained',    amt: netBenefit },
+        { value: taxWithStrategy + fees,   fill: 'rett-donut-owed',    label: 'Tax + fees',           shortLabel: 'Taxes',           amt: taxWithStrategy + fees }
       ];
     } else {
       // C: 3-slice with savings (gross) green + fees as separate callout
       slicesData = [
-        { value: keptOriginal,    fill: 'rett-donut-kept',    label: 'Original income kept', amt: keptOriginal },
-        { value: savings,         fill: 'rett-donut-benefit', label: 'Savings (gross)',      amt: savings },
-        { value: taxWithStrategy, fill: 'rett-donut-owed',    label: 'Tax due',              amt: taxWithStrategy }
+        { value: keptOriginal,    fill: 'rett-donut-kept',    label: 'Original income kept', shortLabel: 'Original income', amt: keptOriginal },
+        { value: savings,         fill: 'rett-donut-benefit', label: 'Savings (gross)',      shortLabel: 'Money gained',    amt: savings },
+        { value: taxWithStrategy, fill: 'rett-donut-owed',    label: 'Tax due',              shortLabel: 'Taxes',           amt: taxWithStrategy }
       ];
       feesCallout = '<div class="rett-donut-fees-callout">Less fees: <strong>&minus;' + _fmt(fees) +
                     '</strong> <span class="muted">(net benefit ' + _fmt(netBenefit) + ')</span></div>';
@@ -1882,10 +1882,35 @@
     }
     var startA = -Math.PI / 2;
     var slices = '';
+    var callouts = '';
     var cursor = startA;
     slicesData.forEach(function (s) {
       var sweep = (s.value / saleGain) * twoPi;
       slices += _slice(cursor, sweep, s.fill);
+      // Callout line + label for slices large enough to warrant one
+      // (skip slivers under ~6° to avoid label collisions).
+      if (sweep > 0.10 && s.shortLabel) {
+        var midA = cursor + sweep / 2;
+        var p1x = cx + r * Math.cos(midA);
+        var p1y = cy + r * Math.sin(midA);
+        var p2x = cx + (r + 18) * Math.cos(midA);
+        var p2y = cy + (r + 18) * Math.sin(midA);
+        var rightSide = Math.cos(midA) >= 0;
+        var p3x = rightSide ? (p2x + 22) : (p2x - 22);
+        var p3y = p2y;
+        var anchor = rightSide ? 'start' : 'end';
+        var tx = rightSide ? (p3x + 4) : (p3x - 4);
+        callouts +=
+          '<polyline class="rett-donut-leader" points="' +
+            p1x.toFixed(2) + ',' + p1y.toFixed(2) + ' ' +
+            p2x.toFixed(2) + ',' + p2y.toFixed(2) + ' ' +
+            p3x.toFixed(2) + ',' + p3y.toFixed(2) +
+          '"></polyline>' +
+          '<text class="rett-donut-leader-label" x="' + tx.toFixed(2) +
+            '" y="' + (p3y + 4).toFixed(2) + '" text-anchor="' + anchor + '">' +
+            s.shortLabel +
+          '</text>';
+      }
       cursor += sweep;
     });
 
@@ -1912,8 +1937,9 @@
     // so the function can be reused if a legend variant is needed later.
     void legendRows; void feesCallout;
     return '<div class="rett-donut-wrap rett-donut-wrap-centered">' +
-      '<svg class="rett-donut" viewBox="0 0 220 220" role="img" aria-label="Sale tax breakdown">' +
+      '<svg class="rett-donut" viewBox="-90 -10 400 240" role="img" aria-label="Sale tax breakdown">' +
         slices +
+        callouts +
         '<text x="110" y="120" text-anchor="middle" class="rett-donut-center-pct">' + pctKept + '</text>' +
       '</svg>' +
     '</div>';
@@ -1994,14 +2020,27 @@
   // the date can't be parsed. Mirrors the helper in controls.js so the
   // Page-3 Lockup line and the Page-2 Closing Window value agree.
   function _bMonthsUntilJan1(cfg) {
-    if (!cfg || !cfg.implementationDate) return null;
+    if (!cfg) return null;
+    // Lockup is driven by when Brooklyn actually opens the position
+    // (strategy implementation date), not the sale closing date. Fall
+    // back to the closing date for legacy cfgs that lack the strategy
+    // field. Mirrors the helper in controls.js.
+    var iso = cfg.strategyImplementationDate || cfg.implementationDate;
+    if (!iso) return null;
     var d = (typeof window !== 'undefined' && typeof window.parseLocalDate === 'function')
-      ? window.parseLocalDate(cfg.implementationDate)
-      : new Date(cfg.implementationDate);
+      ? window.parseLocalDate(iso)
+      : new Date(iso);
     if (!d || isNaN(d.getTime())) return null;
-    var target = new Date(d.getFullYear() + 1, 0, 1);
-    var ms = target - d;
-    return Math.max(1, Math.min(12, Math.ceil(ms / (1000 * 60 * 60 * 24 * 30.4375))));
+    // Month-based diff: March 1 → Jan 1 next year = 10 months (not 11
+    // as ceil(days/30.4375) would round). Whole-month gap from d's
+    // month to month 12, minus a fractional adjustment when d.day > 1.
+    var months = 12 - d.getMonth();
+    var day = d.getDate();
+    if (day > 1) {
+      var dim = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      months -= (day - 1) / dim;
+    }
+    return Math.max(1, Math.min(12, Math.round(months)));
   }
 
   // Build the per-scenario summary data shared by Page 3 (Interested

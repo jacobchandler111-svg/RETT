@@ -424,7 +424,7 @@ function _refreshStrategyLockupDisplays() {
 
   var bEl = document.querySelector('[data-lockup-display="B"]');
   if (bEl) {
-    var months = _monthsUntilNextJan1(cfg && cfg.implementationDate);
+    var months = _monthsUntilNextJan1(cfg && (cfg.strategyImplementationDate || cfg.implementationDate));
     bEl.textContent = (months != null) ? (months + ' Month Window') : 'Closing Window';
   }
 
@@ -455,9 +455,13 @@ function _monthsUntilNextJan1(isoDate) {
     ? window.parseLocalDate(isoDate)
     : new Date(isoDate);
   if (!d || isNaN(d.getTime())) return null;
-  var target = new Date(d.getFullYear() + 1, 0, 1);
-  var ms = target - d;
-  return Math.max(1, Math.min(12, Math.ceil(ms / (1000 * 60 * 60 * 24 * 30.4375))));
+  var months = 12 - d.getMonth();
+  var day = d.getDate();
+  if (day > 1) {
+    var dim = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    months -= (day - 1) / dim;
+  }
+  return Math.max(1, Math.min(12, Math.round(months)));
 }
 
 function _debounce(fn, ms) {
@@ -943,6 +947,100 @@ function bindControls() {
       showPage('page-pmq');
     });
   }
+
+  // Pre-Meeting "Reset Form" button — clears the four PMQ fields
+  // and the status line. Does NOT touch saved cases.
+  var pmqResetBtn = document.getElementById('pmq-reset-btn');
+  if (pmqResetBtn) {
+    pmqResetBtn.addEventListener('click', function () {
+      ['pmq-first-name','pmq-last-name','pmq-email','pmq-phone'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+      var s = document.getElementById('pmq-client-status');
+      if (s) { s.textContent = ''; s.className = 'pmq-client-status'; }
+      window.__rettCaseEmail = '';
+      window.__rettCasePhone = '';
+    });
+  }
+
+  // Pre-Meeting "Continue" button — combines first/last name into a
+  // case key, then either loads an existing case with that name or
+  // creates a new one. Email + phone are stashed on window for the
+  // print-view to pick up; persistence will follow once those fields
+  // exist in case-storage's FIELD_IDS.
+  var pmqContinueBtn = document.getElementById('pmq-continue-btn');
+  if (pmqContinueBtn) {
+    pmqContinueBtn.addEventListener('click', function () {
+      var first = ((document.getElementById('pmq-first-name') || {}).value || '').trim();
+      var last  = ((document.getElementById('pmq-last-name')  || {}).value || '').trim();
+      var email = ((document.getElementById('pmq-email')      || {}).value || '').trim();
+      var phone = ((document.getElementById('pmq-phone')      || {}).value || '').trim();
+      var fullName = (first + ' ' + last).replace(/\s+/g, ' ').trim();
+      // Apply the same sanitization the case-name input uses so the
+      // key we look up matches what would be saved by the input.
+      fullName = fullName.replace(/[^A-Za-z0-9 ,.'\-]/g, '').slice(0, 80);
+
+      window.__rettCaseEmail = email;
+      window.__rettCasePhone = phone;
+
+      var status = document.getElementById('pmq-client-status');
+      var store = (window.RETTCaseStorage) ? window.RETTCaseStorage : null;
+
+      if (fullName && store) {
+        var existing = store.getCase(fullName);
+        if (existing) {
+          store.loadCase(fullName);
+          // case-name-input is not in FIELD_IDS, so applyFormState
+          // doesn't touch it — sync it manually so the Client Inputs
+          // page reflects which case is active.
+          var nameInputEl = document.getElementById('case-name-input');
+          if (nameInputEl) nameInputEl.value = fullName;
+          if (typeof _refreshCaseDropdown === 'function') _refreshCaseDropdown(fullName);
+          if (typeof _refreshCaseStatus === 'function') _refreshCaseStatus();
+          if (status) {
+            status.textContent = 'Loaded existing client: ' + fullName;
+            status.className = 'pmq-client-status is-loaded';
+          }
+        } else {
+          // Create a new named case — populate the canonical name
+          // field on Client Inputs and let the existing input/blur
+          // handlers promote the draft to a saved case.
+          var nameInput = document.getElementById('case-name-input');
+          if (nameInput) {
+            nameInput.value = fullName;
+            nameInput.dispatchEvent(new Event('input',  { bubbles: true }));
+            nameInput.dispatchEvent(new Event('change', { bubbles: true }));
+            nameInput.dispatchEvent(new Event('blur',   { bubbles: true }));
+          } else if (typeof store.activateCaseName === 'function') {
+            store.activateCaseName(fullName);
+          }
+          if (status) {
+            status.textContent = 'New client created: ' + fullName;
+            status.className = 'pmq-client-status is-new';
+          }
+        }
+      }
+      showPage('page-inputs');
+    });
+  }
+
+  // When the user revisits an existing case from Client Inputs, mirror
+  // the name back into the PMQ first/last fields so the top-left card
+  // reflects the active client. Best-effort: split on the first space.
+  function _syncPmqNameFromCase() {
+    var nameInput = document.getElementById('case-name-input');
+    var first = document.getElementById('pmq-first-name');
+    var last  = document.getElementById('pmq-last-name');
+    if (!nameInput || !first || !last) return;
+    var v = (nameInput.value || '').trim();
+    if (!v) return;
+    if (first.value || last.value) return; // don't clobber user input
+    var sp = v.indexOf(' ');
+    if (sp > 0) { first.value = v.slice(0, sp); last.value = v.slice(sp + 1); }
+    else { first.value = v; }
+  }
+  document.addEventListener('DOMContentLoaded', _syncPmqNameFromCase);
   if (navInputs)       navInputs.addEventListener('click', () => showPage('page-inputs'));
   if (navStrategies)   navStrategies.addEventListener('click', () => showPage('page-strategies'));
   if (navProjection)   navProjection.addEventListener('click', () => showPage('page-projection'));
@@ -970,69 +1068,20 @@ function bindControls() {
   // Filename pattern: "<Client Name> - Strategy Summary.pdf",
   // falling back to "RETT Strategy Summary.pdf" when no client
   // name is set.
+  // Print / Save as PDF — opens the browser's native print dialog,
+  // where the destination dropdown lets the user pick "Save as PDF"
+  // or any installed printer. This replaced the html2pdf path so
+  // the user gets one well-known UI rather than two competing flows.
+  // beforeprint/afterprint listeners (above) handle print-mode and
+  // re-render so the .print-view block is fresh at print time.
   var printBtn = document.getElementById('print-summary-btn');
   if (printBtn) {
     printBtn.addEventListener('click', function () {
-      // Make sure we're on the allocator page so the target
-      // exists in the layout — otherwise its bounding box is 0.
       if (typeof showPage === 'function') showPage('page-allocator');
-      // Re-render so the print-header text is fresh.
       if (typeof window.renderStrategySummary === 'function') {
         try { window.renderStrategySummary(); } catch (e) { /* */ }
       }
-      var target = document.getElementById('page-allocator');
-      if (!target) return;
-
-      // Build filename from client name (sanitized) — fallback to
-      // a generic name if blank.
-      var rawName = (document.getElementById('case-name-input') || {}).value || '';
-      var safeName = rawName.replace(/[^A-Za-z0-9 ,.'\-]/g, '').trim();
-      var filename = (safeName ? (safeName + ' - ') : '')
-        + 'Strategy Summary.pdf';
-
-      // No html2pdf? Fall back to native print so the user still
-      // gets a usable export path.
-      if (typeof window.html2pdf !== 'function') {
-        if (typeof window !== 'undefined' && typeof console !== 'undefined') {
-          console.warn('html2pdf.js not loaded — falling back to window.print()');
-        }
-        document.body.classList.add('print-mode');
-        try { window.print(); }
-        finally { setTimeout(function () { document.body.classList.remove('print-mode'); }, 100); }
-        return;
-      }
-
-      // Apply print-mode for the snapshot, then flip it off when
-      // html2pdf finishes (or errors out — the .finally is paranoid
-      // because html2canvas occasionally throws on cross-origin
-      // resources we may have included).
-      document.body.classList.add('print-mode');
-      var opts = {
-        margin: [0.4, 0.45, 0.4, 0.45], // inches: top, left, bottom, right
-        filename: filename,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          // Background color rather than transparent so the white
-          // card surfaces don't render as gray.
-          backgroundColor: '#ffffff'
-        },
-        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
-        pagebreak: { mode: ['avoid-all', 'css'] }
-      };
-
-      window.html2pdf()
-        .set(opts)
-        .from(target)
-        .save()
-        .then(function () {
-          document.body.classList.remove('print-mode');
-        })
-        .catch(function (err) {
-          (window.reportFailure || console.warn)('PDF export failed', err);
-          document.body.classList.remove('print-mode');
-        });
+      window.print();
     });
   }
   if (navSupplemental) navSupplemental.addEventListener('click', () => showPage('page-supplemental'));

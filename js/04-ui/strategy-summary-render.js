@@ -416,12 +416,30 @@
     var taxWith   = m.tax || 0;
     var saving    = Math.max(0, doNothing - taxWith);
 
-    // Header
-    var h = '<div class="print-view">';
+    // Email field will eventually pull from the Pre-Meeting
+    // Questionnaire. Until that's wired up, we render a muted
+    // placeholder so the row still renders proportionally.
+    var clientEmail = (typeof root.__rettCaseEmail !== 'undefined' && root.__rettCaseEmail)
+      ? root.__rettCaseEmail
+      : ((document.getElementById('case-email-input') || {}).value || '');
+
+    // Outer .print-doc-frame draws the bordered "leave-behind" card.
+    // Header lays out the Brookhaven & RETT brand on the left and
+    // client name + email on the right.
+    var h = '<div class="print-view"><div class="print-doc-frame">';
     h += '<div class="print-header">' +
-      '<div class="print-header-brand">Brookhaven</div>' +
+      '<div class="print-header-brand">' +
+        '<span class="print-brand-bh">Brookhaven</span>' +
+        '<span class="print-brand-amp">&amp;</span>' +
+        '<span class="print-brand-rett">The RETT Strategy<sup>&trade;</sup></span>' +
+      '</div>' +
       '<div class="print-header-meta">' +
-        (clientName ? '<span class="print-client-name">' + clientName + '</span>' : '') +
+        '<span class="print-client-name">' + (clientName || 'Client Name') + '</span>' +
+        '<span class="print-client-email">' +
+          (clientEmail
+            ? clientEmail
+            : '<span class="print-email-placeholder">email pending</span>') +
+        '</span>' +
         '<span class="print-date">Prepared ' + dateStr + '</span>' +
       '</div>' +
     '</div>';
@@ -543,7 +561,7 @@
       'Results are projections based on current tax law and the inputs provided; actual outcomes may vary.' +
     '</div>';
 
-    h += '</div>'; // /print-view
+    h += '</div></div>'; // /print-doc-frame /print-view
     return h;
   }
 

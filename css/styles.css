@@ -1920,6 +1920,67 @@ body { font-size: 16px; }
     justify-content: flex-end;
     margin: 0 0 12px 0;
 }
+/* Pre-Meeting top row: client identity section on the left (uses
+   the same dark-header / white-body .input-section pattern as
+   Client Inputs), compact import dock on the right. */
+.pmq-toprow {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+.pmq-toprow .pmq-compact-host { margin: 0; flex: 0 0 auto; }
+.pmq-client-section {
+    flex: 0 1 460px;
+    min-width: 320px;
+}
+/* Pack first/last on the same row inside .section-body. The default
+   .input-row is a 2-column grid (label | input); the half variants
+   sit side-by-side in a 2-column outer grid. */
+.pmq-client-section .section-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 18px;
+    row-gap: 14px;
+}
+.pmq-client-section .input-row { margin-bottom: 0; }
+.pmq-client-section .input-row:not(.pmq-input-row-half) { grid-column: 1 / -1; }
+.pmq-client-section .input-row > input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    font: inherit;
+    background: #fff;
+    color: var(--ink);
+}
+.pmq-client-section .input-row > input:focus {
+    outline: none;
+    border-color: var(--ink);
+}
+/* For half rows the label sits above the input rather than left-of,
+   to fit two fields side-by-side without crushing the label width. */
+.pmq-input-row-half {
+    display: flex !important;
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 4px !important;
+}
+.pmq-input-row-half .label { font-size: 0.95em; }
+.pmq-client-status {
+    grid-column: 1 / -1;
+    font-size: 12px;
+    color: var(--ink);
+    opacity: 0.75;
+    min-height: 14px;
+}
+.pmq-client-status.is-loaded { color: #1e5c38; opacity: 1; }
+.pmq-client-status.is-new    { color: #2d3f7d; opacity: 1; }
+@media (max-width: 720px) {
+    .pmq-toprow { flex-direction: column-reverse; align-items: stretch; }
+    .pmq-client-section { flex: 1 1 auto; }
+}
 .pmq-compact {
     margin: 0;
     border: 1px solid var(--rule);
@@ -3701,12 +3762,24 @@ body { font-size: 16px; }
     padding: 18px 0 8px;
 }
 .rett-donut-wrap-centered .rett-donut {
-    max-width: 320px;
+    max-width: 380px;
 }
 .rett-donut {
     width: 100%;
-    max-width: 220px;
+    max-width: 320px;
     height: auto;
+}
+.rett-donut .rett-donut-leader {
+    fill: none;
+    stroke: var(--ink);
+    stroke-width: 1;
+    opacity: 0.55;
+}
+.rett-donut .rett-donut-leader-label {
+    font-family: var(--font-display, inherit);
+    font-size: 13px;
+    fill: var(--ink);
+    opacity: 0.85;
 }
 /* Slice 1 — what the client KEPT (would have kept doing nothing).
    Uses a soft neutral-blue so the eye reads it as the "default" /
@@ -4810,20 +4883,29 @@ body { font-size: 16px; }
    @media print — hides all screen UI, shows only .print-view
    ================================================================ */
 @media print {
-    /* Show only the print view */
-    body * { visibility: hidden; }
-    .print-view,
-    .print-view * { visibility: visible; }
+    /* Show ONLY the print view. Using display:none (not
+       visibility:hidden) so hidden elements don't reserve layout
+       space and create blank trailing pages. We collapse the entire
+       ancestor chain down to .print-view and let it occupy the page
+       naturally. */
+    html, body {
+        background: #fff !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    body > *:not(main) { display: none !important; }
+    main { padding: 0 !important; margin: 0 !important; }
+    main > section:not(#page-allocator) { display: none !important; }
+    #page-allocator { display: block !important; padding: 0 !important; margin: 0 !important; }
+    #page-allocator > *:not(.print-view) { display: none !important; }
     .print-view {
         display: block !important;
-        position: absolute;
-        top: 0;
-        left: 0;
+        position: static !important;
         width: 100%;
     }
 
     @page {
-        margin: 0.65in 0.75in;
+        margin: 0.5in 0.55in;
         size: letter portrait;
     }
 
@@ -4835,19 +4917,61 @@ body { font-size: 16px; }
         background: #fff;
         line-height: 1.5;
     }
+    /* Bordered "leave-behind" frame so the printed sheet reads as a
+       single professional document rather than a loose page. Tight
+       padding so the frame + content fit one Letter page. */
+    .print-doc-frame {
+        border: 1.5pt solid #231F55;
+        border-radius: 6pt;
+        padding: 12pt 14pt 10pt;
+        background: #fff;
+        page-break-inside: avoid;
+    }
+    /* Force the whole .print-view onto a single page. */
+    .print-view { page-break-inside: avoid; }
     .print-header {
         display: flex;
         justify-content: space-between;
-        align-items: flex-end;
+        align-items: flex-start;
         margin-bottom: 6pt;
+        gap: 14pt;
     }
     .print-header-brand {
+        display: flex;
+        flex-direction: column;
         font-family: 'Fraunces', Georgia, serif;
+        color: #231F55;
+        letter-spacing: -0.01em;
+        line-height: 1.05;
+    }
+    .print-brand-bh {
         font-size: 18pt;
         font-weight: 500;
         font-style: italic;
-        color: #231F55;
-        letter-spacing: -0.02em;
+    }
+    .print-brand-amp {
+        font-size: 11pt;
+        font-style: italic;
+        color: #6b7a99;
+        margin: 1pt 0;
+    }
+    .print-brand-rett {
+        font-size: 13pt;
+        font-weight: 500;
+        font-style: italic;
+        color: #2d3f7d;
+    }
+    .print-brand-rett sup {
+        font-size: 0.55em;
+        vertical-align: super;
+    }
+    .print-client-email {
+        font-size: 8.5pt;
+        color: #444;
+    }
+    .print-email-placeholder {
+        color: #999;
+        font-style: italic;
     }
     .print-header-meta {
         display: flex;
@@ -4865,15 +4989,15 @@ body { font-size: 16px; }
         color: #666;
     }
     .print-rule {
-        border-top: 2px solid #231F55;
-        margin-bottom: 10pt;
+        border-top: 1.5px solid #231F55;
+        margin-bottom: 7pt;
     }
     .print-title-block {
-        margin-bottom: 12pt;
+        margin-bottom: 8pt;
     }
     .print-title {
         font-family: 'Fraunces', Georgia, serif;
-        font-size: 20pt;
+        font-size: 17pt;
         font-weight: 500;
         font-style: italic;
         color: #231F55;
@@ -4889,14 +5013,14 @@ body { font-size: 16px; }
     /* Hero boxes */
     .print-hero-row {
         display: flex;
-        gap: 8pt;
-        margin-bottom: 14pt;
+        gap: 7pt;
+        margin-bottom: 10pt;
     }
     .print-hero-box {
         flex: 1;
         border: 1px solid #c8d4e0;
-        border-radius: 5pt;
-        padding: 8pt 10pt;
+        border-radius: 4pt;
+        padding: 6pt 8pt;
         background: #f8fafc;
     }
     .print-hero-net {
@@ -4915,7 +5039,7 @@ body { font-size: 16px; }
         margin-bottom: 2pt;
     }
     .print-hero-value {
-        font-size: 16pt;
+        font-size: 14pt;
         font-weight: 700;
         color: #111;
         line-height: 1.1;
@@ -4929,7 +5053,7 @@ body { font-size: 16px; }
     /* Body columns */
     .print-body {
         display: flex;
-        gap: 18pt;
+        gap: 14pt;
     }
     .print-col {
         flex: 1;
@@ -4938,7 +5062,7 @@ body { font-size: 16px; }
 
     /* Sections */
     .print-section {
-        margin-bottom: 10pt;
+        margin-bottom: 7pt;
     }
     .print-section-head {
         font-size: 7pt;
@@ -5013,13 +5137,14 @@ body { font-size: 16px; }
 
     /* Footer */
     .print-footer {
-        margin-top: 14pt;
-        padding-top: 6pt;
+        margin-top: 8pt;
+        padding-top: 5pt;
         border-top: 1px solid #c8d4e0;
-        font-size: 7pt;
+        font-size: 6.5pt;
         color: #888;
-        line-height: 1.5;
+        line-height: 1.4;
     }
+    .print-roi-num { font-size: 22pt !important; }
 
     /* Page break control */
     .print-hero-row { page-break-inside: avoid; }
@@ -5693,13 +5818,14 @@ body { font-size: 16px; }
     margin: 24px 0;
 }
 .pmq-empty {
-    background: var(--paper-warm);
+    background: var(--paper);
     border: 1px dashed var(--rule);
     border-radius: 2px;
     padding: 48px 32px;
     text-align: center;
     max-width: 560px;
     margin: 0 auto;
+    box-shadow: var(--shadow);
 }
 .pmq-empty-icon {
     font-size: 2.4em;
