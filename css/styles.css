@@ -3030,6 +3030,32 @@ body { font-size: 16px; }
     letter-spacing: 0.04em;
     margin-left: 8px;
 }
+/* Lock the Case Actions row to a single line + fixed height regardless
+   of how long the "Saved as <name>" / "Saved ✓ — <name>" status text
+   gets. Previously the status sat IN this row with flex-wrap:wrap,
+   which meant the auto-save flash (text length jumping between two
+   states) sometimes wrapped the status to a 2nd row, sometimes not.
+   Every shift pushed Sections 01..07 below it down a few px. The
+   status is now its own input-row, so this row only holds the two
+   buttons and stays a stable height. */
+.case-actions-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: nowrap;
+    min-height: 38px;
+}
+/* The status row's value cell is just the span — give it a stable
+   line height so the auto-save flash text changes don't bump
+   neighbors as the text grows or shrinks. */
+.input-row > #case-status {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    align-self: center;
+    line-height: 1.6;
+    min-height: 1.6em;
+}
 
 /* PILL TOGGLES (Page 2 controls — repurposed for per-section dashboards) */
 .pill-toggle-row,
