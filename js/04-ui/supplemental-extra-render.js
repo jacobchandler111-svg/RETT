@@ -711,9 +711,34 @@
     });
   }
 
+  // New Client reset: re-seed every spec's state from defaults, then
+  // ZERO any kind:'usd' field so the next client starts with blank
+  // dollar inputs (max investment, gift amount, vehicle cost, etc.).
+  // Percentages, selects, yes/no defaults survive — the advisor
+  // wanted the depreciation %s and similar rate factory defaults to
+  // remain (e.g. equipment-leasing depreciablePct=90, cost-seg
+  // landPct=20). Interest state also clears so the cards revert
+  // to neutral.
+  function _resetState() {
+    root[STATE_KEY]    = {};
+    root[INTEREST_KEY] = {};
+    var s = root[STATE_KEY];
+    var i = root[INTEREST_KEY];
+    SPECS.forEach(function (spec) {
+      s[spec.id] = Object.assign({ detailsOpen: false, valueOpen: false }, spec.defaults || {});
+      (spec.detailRows || []).forEach(function (row) {
+        if (row.kind === 'usd') s[spec.id][row.id] = 0;
+      });
+      s[spec.id].lastResult = null;
+      i[spec.id] = null;
+    });
+    _renderHost();
+  }
+
   // Expose for case-storage / debugging.
   root.renderSupplementalExtra = _renderHost;
   root.refreshSupplementalExtraValueRows = _refreshOpenValueRows;
+  root.resetSupplementalExtra = _resetState;
   root.__SUPPLEMENTAL_EXTRA_SPECS = SPECS;
 
 })(window);

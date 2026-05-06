@@ -593,7 +593,27 @@
     _attach();
   }
 
+  // New Client reset: clear interest, zero max-investment (and
+  // delphi.investment), but KEEP rate defaults — oil & gas
+  // depreciationPct stays at 0.95, delphi classKey stays at the
+  // default class. Mirrors the advisor's instruction that dollar
+  // inputs blank but the depreciation percent (95% O&G, etc.)
+  // survives.
+  function _resetState() {
+    root[STATE_KEY] = {
+      oilGas: { interest: null, maxInvestment: 0, depreciationPct: DEFAULTS.oilGas.depreciationPct,
+                detailsOpen: false, valueOpen: false, lastResult: null },
+      delphi: { interest: null, classKey: DEFAULTS.delphi.classKey, investment: 0,
+                detailsOpen: false, valueOpen: false, lastResult: null }
+    };
+    root[INTEREST_KEY] = { oilGas: null, delphi: null };
+    if (typeof renderSupplementalPage === 'function') {
+      try { renderSupplementalPage(); } catch (e) { /* */ }
+    }
+  }
+
   root.renderSupplementalPage   = renderSupplementalPage;
   root.getOilGasConfiguredYears = getOilGasConfiguredYears;
   root.getDelphiConfiguration   = getDelphiConfiguration;
+  root.resetSupplementalCore    = _resetState;
 })(window);

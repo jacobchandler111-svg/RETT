@@ -358,6 +358,21 @@ function resetAllInputs(skipConfirm) {
   if (typeof window.resetSupplementalEnabledOverride === 'function') {
     try { window.resetSupplementalEnabledOverride(); } catch (e) { /* */ }
   }
+  // Supplemental cards: clear Interested/Not-Interested picks AND zero
+  // dollar inputs (max investment, gift amount, vehicle cost, etc.).
+  // Rate defaults (depreciation %, AGI cap %) survive.
+  if (typeof window.resetSupplementalExtra === 'function') {
+    try { window.resetSupplementalExtra(); } catch (e) { /* */ }
+  }
+  if (typeof window.resetSupplementalCore === 'function') {
+    try { window.resetSupplementalCore(); } catch (e) { /* */ }
+  }
+  // Pre-Meeting questionnaire: clear all answers so the next client
+  // starts with no auto-gated supplementals.
+  window.__rettPMQAnswers = {};
+  if (typeof window.renderPMQQuestions === 'function') {
+    try { window.renderPMQQuestions(); } catch (e) { /* */ }
+  }
   // Clear the Brooklyn investment slider override as well so the new
   // client's Strategy Summary starts at the optimizer's recommendation,
   // not whatever the prior client had dialed.
