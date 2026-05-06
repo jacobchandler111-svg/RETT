@@ -862,6 +862,8 @@
 
     var chartHost  = document.getElementById('growth-chart-host');
     var finalHost  = document.getElementById('growth-final');
+    var heroAmt    = card.querySelector('.growth-savings-amt');
+    var heroLabel  = card.querySelector('.growth-savings-label');
     if (!chartHost || !finalHost) return;
     var endEl    = document.getElementById('growth-end-date');
     var returnEl = document.getElementById('growth-return');
@@ -877,6 +879,8 @@
       chartHost.innerHTML = '';
       finalHost.innerHTML = '';
       chartHost.setAttribute('aria-hidden', 'true');
+      if (heroAmt)   heroAmt.textContent = _fmt(principal);
+      if (heroLabel) heroLabel.textContent = 'Tax Savings';
       return;
     }
     chartHost.setAttribute('aria-hidden', 'false');
@@ -977,13 +981,12 @@
     svg += '</svg>';
     chartHost.innerHTML = svg;
 
-    // "What we grew to" hero — replaces the prior sentence form. Big
-    // italic display number, with a smaller label above and a tiny
-    // sub-line showing the date and rate.
+    // The grown value lives in the top hero now. Bottom block carries
+    // only the date + rate context as a quiet caption.
     var endLabel = endDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    if (heroAmt)   heroAmt.textContent = _fmt(Math.round(finalVal));
+    if (heroLabel) heroLabel.textContent = 'Grown To';
     finalHost.innerHTML =
-      '<div class="growth-final-label">What we grew to</div>' +
-      '<div class="growth-final-amt">' + _fmt(Math.round(finalVal)) + '</div>' +
       '<div class="growth-final-sub">' + endLabel + ' &middot; ' + ret + '% annual return</div>';
   }
 
