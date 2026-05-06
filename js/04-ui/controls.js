@@ -1499,14 +1499,33 @@ function bindControls() {
     const taxCarveOut = wantsCoverTaxes ? _estimatedSaleTax() : 0;
 
     // Drive available-capital from sale - keep - tax (if covering)
-    // whenever there's a sale price and no validation error. The user
-    // can still override on Page 2.
+    // whenever there's a sale price and no validation error.
+    //
+    // BUT: don't clobber a user's manual override. The advisor often
+    // dials Available Capital down to a planned investment amount
+    // (e.g., $4M of a $48M sale). Without the guards below, ANY edit
+    // to a watched income field — wages, biz revenue, etc. — would
+    // recompute Available Capital back to (saleVal - keep - tax),
+    // which equals saleVal when cover-taxes is OFF and no keep is set.
+    // That silently overwrites the advisor's $4M with $48M.
+    //
+    // Auto-fill rules:
+    //   1. If the field is EMPTY (initial paint after sale-price entry),
+    //      always fill with the computed value.
+    //   2. If there's a meaningful SUBTRACTION (keep > 0 or covering
+    //      taxes > 0), the user is explicitly opting into the auto-
+    //      compute — overwrite even a manual value so the math stays
+    //      tied to "Amount to keep" / "Cover taxes" toggles.
+    //   3. Otherwise, leave the field alone — the manual value wins.
     if (!hasError && saleVal > 0) {
       const newAvailNum = Math.max(0, saleVal - keep - taxCarveOut);
       const newAvail = (typeof fmtUSD === 'function')
         ? fmtUSD(newAvailNum)
         : String(newAvailNum);
-      if (parseUSD(availEl.value) !== newAvailNum) {
+      const currentNum = parseUSD(availEl.value) || 0;
+      const isEmpty = !availEl.value || currentNum === 0;
+      const hasSubtraction = (keep > 0) || (taxCarveOut > 0);
+      if ((isEmpty || hasSubtraction) && currentNum !== newAvailNum) {
         availEl.value = newAvail;
         availEl.dispatchEvent(new Event('input',  { bubbles: true }));
         availEl.dispatchEvent(new Event('change', { bubbles: true }));
