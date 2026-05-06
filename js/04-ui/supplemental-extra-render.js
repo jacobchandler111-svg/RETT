@@ -42,10 +42,21 @@
       keyaspect: 'Maximum Deduction',
       descriptor: 'A defined-benefit plan funded with insurance contracts. Allows business owners to deduct $300K&ndash;$1M+ per year &mdash; the largest annual deduction available.',
       audience: 'Business owner',
-      defaults: { contribution: 350000, ageOwner: 55 },
+      defaults: {
+        contribution:       350000,
+        ageOwner:           55,
+        ownerComp:          360000,   // §401(a)(17) cap, 2026
+        nra:                65,        // normal retirement age
+        yearsParticipation: 10,        // for §415(b)(5) reduction
+        creditingRate:      3.5        // insurer guaranteed rate
+      },
       detailRows: [
-        { id: 'contribution', label: 'Annual contribution', kind: 'usd', placeholder: '350,000' },
-        { id: 'ageOwner',     label: 'Owner age',           kind: 'num', placeholder: '55' }
+        { id: 'contribution',       label: 'Annual contribution',           kind: 'usd', placeholder: '350,000' },
+        { id: 'ownerComp',          label: 'Owner W-2 / SE earnings',       kind: 'usd', placeholder: '360,000' },
+        { id: 'ageOwner',           label: 'Owner age',                     kind: 'num', placeholder: '55' },
+        { id: 'nra',                label: 'Normal retirement age',         kind: 'num', placeholder: '65' },
+        { id: 'yearsParticipation', label: 'Years of participation/service', kind: 'num', placeholder: '10' },
+        { id: 'creditingRate',      label: 'Insurer crediting rate (%)',    kind: 'pct', placeholder: '3.5' }
       ]
     },
     {
@@ -55,10 +66,17 @@
       keyaspect: 'SALT Cap Workaround',
       descriptor: 'Pass-through entity elects to pay state income tax at the entity level, deductible as a federal business expense &mdash; bypasses the $40K SALT cap.',
       audience: 'Pass-through owner',
-      defaults: { stateRate: 5.49, taxableIncome: 1000000 },
+      defaults: {
+        taxableIncome:        1000000,
+        stateRate:            5.49,
+        saltCapacityRemaining: 0,         // unused individual SALT cap headroom
+        creditPct:            100         // % of PTET creditable on owner state return (MA = 90)
+      },
       detailRows: [
-        { id: 'taxableIncome', label: 'Pass-through income',  kind: 'usd', placeholder: '1,000,000' },
-        { id: 'stateRate',     label: 'State tax rate (%)',   kind: 'pct', placeholder: '5.49' }
+        { id: 'taxableIncome',         label: 'Pass-through income',                 kind: 'usd', placeholder: '1,000,000' },
+        { id: 'stateRate',             label: 'State PTET rate (%)',                 kind: 'pct', placeholder: '5.49' },
+        { id: 'saltCapacityRemaining', label: 'Unused individual SALT cap',          kind: 'usd', placeholder: '0' },
+        { id: 'creditPct',             label: 'PTET-to-owner credit (%)',            kind: 'pct', placeholder: '100' }
       ]
     },
     {
@@ -68,10 +86,17 @@
       keyaspect: '20% Deduction',
       descriptor: 'A 20% deduction on qualified business income from pass-through entities. Phases out for high-earning service-business owners.',
       audience: 'Pass-through owner',
-      defaults: { qbiIncome: 500000, isSSTB: false },
+      defaults: {
+        qbiIncome: 500000,
+        isSSTB:    false,
+        w2Wages:   100000,    // entity W-2 wages — drives the W-2 limit
+        ubia:      0           // unadjusted basis of qualified property
+      },
       detailRows: [
-        { id: 'qbiIncome', label: 'Qualified business income', kind: 'usd', placeholder: '500,000' },
-        { id: 'isSSTB',    label: 'Specified service business?', kind: 'yesno' }
+        { id: 'qbiIncome', label: 'Qualified business income',          kind: 'usd',   placeholder: '500,000' },
+        { id: 'w2Wages',   label: 'Entity W-2 wages',                   kind: 'usd',   placeholder: '100,000' },
+        { id: 'ubia',      label: 'UBIA of qualified property',         kind: 'usd',   placeholder: '0' },
+        { id: 'isSSTB',    label: 'Specified service business?',        kind: 'yesno' }
       ]
     },
     {
@@ -81,9 +106,19 @@
       keyaspect: 'Credit & Deduction',
       descriptor: 'Dollar-for-dollar federal credit on qualified research expenses, paired with OBBBA&rsquo;s immediate expensing of domestic R&amp;D costs.',
       audience: 'Tech / manufacturing',
-      defaults: { rdSpend: 500000 },
+      defaults: {
+        rdSpend:        500000,
+        priorYrAvgQRE:  0,         // avg QRE prior 3 yrs — empty → ASC start-up 6%
+        isQSB:          false,      // gross receipts < $5M, no receipts > 5 yrs back
+        elect280C:      true,       // §280C(c)(2) reduced-credit (×0.79); preserves §174A
+        ssWages:        0           // SS wages for $250K OASDI offset cap
+      },
       detailRows: [
-        { id: 'rdSpend', label: 'Annual R&D spend', kind: 'usd', placeholder: '500,000' }
+        { id: 'rdSpend',       label: 'Current-year QRE',                kind: 'usd',   placeholder: '500,000' },
+        { id: 'priorYrAvgQRE', label: 'Prior 3-yr avg QRE',              kind: 'usd',   placeholder: '0 = start-up' },
+        { id: 'isQSB',         label: 'QSB (payroll offset eligible)?',  kind: 'yesno' },
+        { id: 'ssWages',       label: 'Social Security wages',           kind: 'usd',   placeholder: '0' },
+        { id: 'elect280C',     label: '§280C(c)(2) reduced-credit?',     kind: 'yesno' }
       ]
     },
     {
@@ -93,9 +128,17 @@
       keyaspect: 'Triple Tax Benefit',
       descriptor: 'Add-on to a defined-benefit plan: contributions are deductible, growth is tax-free, and withdrawals for retiree medical expenses are tax-free.',
       audience: 'Business owner',
-      defaults: { medContribution: 50000 },
+      defaults: {
+        medContribution:       50000,
+        cumulativeDBContrib:   1000000,  // total DB contribs since 401(h) adoption
+        cumulative401hPrior:   0,         // running total of prior 401(h) + life-ins
+        isKeyEmployee:         false       // §415(c) annual-additions cap applies if true
+      },
       detailRows: [
-        { id: 'medContribution', label: 'Annual medical contribution', kind: 'usd', placeholder: '50,000' }
+        { id: 'medContribution',     label: 'Annual medical contribution',         kind: 'usd',   placeholder: '50,000' },
+        { id: 'cumulativeDBContrib', label: 'Cumulative DB contribs (since 401(h))', kind: 'usd', placeholder: '1,000,000' },
+        { id: 'cumulative401hPrior', label: 'Prior 401(h) + life-ins contribs',    kind: 'usd',   placeholder: '0' },
+        { id: 'isKeyEmployee',       label: 'Owner is a key employee?',            kind: 'yesno' }
       ]
     },
     {
@@ -105,9 +148,17 @@
       keyaspect: 'Charitable RMD Bypass',
       descriptor: 'Direct transfer from an IRA to a charity at age 70.5+. Counts toward the RMD but never enters taxable income &mdash; cleanest charitable lever for retirees.',
       audience: 'Retiree (70.5+)',
-      defaults: { qcdAmount: 100000 },
+      defaults: {
+        qcdAmount:         100000,
+        donorAge:          75,
+        isSplitInterest:   false,    // one-time CGA/CRT election, $55K cap
+        post705IraContrib: 0          // post-70.5 deductible IRA contribs
+      },
       detailRows: [
-        { id: 'qcdAmount', label: 'QCD amount', kind: 'usd', placeholder: '100,000' }
+        { id: 'qcdAmount',         label: 'QCD amount',                            kind: 'usd',   placeholder: '100,000' },
+        { id: 'donorAge',          label: 'Donor age',                              kind: 'num',   placeholder: '75' },
+        { id: 'isSplitInterest',   label: 'One-time split-interest CGA/CRT?',      kind: 'yesno' },
+        { id: 'post705IraContrib', label: 'Post-70.5 deductible IRA contribs',     kind: 'usd',   placeholder: '0' }
       ]
     },
     {
@@ -117,9 +168,27 @@
       keyaspect: 'Federal Credit + MACRS',
       descriptor: 'Tax-equity partnership in a solar project: 30% Investment Tax Credit plus 5-year MACRS depreciation. Combines a credit and a deduction.',
       audience: 'Passive investor',
-      defaults: { solarInvestment: 250000 },
+      defaults: {
+        solarInvestment:  250000,
+        mwSize:           1,        // <1 MW exempt from PWA
+        pwaCompliant:     true,
+        domesticContent:  false,
+        energyCommunity:  false,
+        lowIncomeAdder:   'none',   // 'none' | 'lic-10' | 'lic-20'
+        isPassive:        true       // §469 trap default — most retail investors
+      },
       detailRows: [
-        { id: 'solarInvestment', label: 'Investment amount', kind: 'usd', placeholder: '250,000' }
+        { id: 'solarInvestment', label: 'Investment amount',               kind: 'usd',   placeholder: '250,000' },
+        { id: 'mwSize',          label: 'Facility size (MW AC)',           kind: 'num',   placeholder: '1' },
+        { id: 'pwaCompliant',    label: 'PWA-compliant?',                  kind: 'yesno' },
+        { id: 'domesticContent', label: 'Domestic-content adder met?',     kind: 'yesno' },
+        { id: 'energyCommunity', label: 'Energy-community adder?',         kind: 'yesno' },
+        { id: 'lowIncomeAdder',  label: 'Low-income community',            kind: 'select', options: [
+            { value: 'none',   label: 'None' },
+            { value: 'lic-10', label: '+10% LIC / Indian land' },
+            { value: 'lic-20', label: '+20% LIC residential / economic' }
+        ] },
+        { id: 'isPassive',       label: 'Passive investor (§469)?',        kind: 'yesno' }
       ]
     },
     {
@@ -129,9 +198,26 @@
       keyaspect: 'Section 181 Expensing',
       descriptor: 'Investment in film production debt. Section 181 allows immediate expensing of the full cost in Y1 for qualified domestic productions.',
       audience: 'HNW investor',
-      defaults: { filmInvestment: 250000 },
+      defaults: {
+        filmInvestment:    250000,
+        commencedBy2025:   true,    // production started ≤ 12/31/2025 → §181 alive
+        productionType:    'film',  // film | tv | theatrical | sound
+        lowIncomeArea:     false,    // raises §181 cap to $20M
+        usServicesPct:     90,       // must be ≥ 75% for §181 eligibility
+        isPassive:         false     // §469 trap — gates benefit if true
+      },
       detailRows: [
-        { id: 'filmInvestment', label: 'Investment amount', kind: 'usd', placeholder: '250,000' }
+        { id: 'filmInvestment',  label: 'Investment / production cost',     kind: 'usd',   placeholder: '250,000' },
+        { id: 'productionType',  label: 'Production type',                  kind: 'select', options: [
+            { value: 'film',       label: 'Feature film' },
+            { value: 'tv',         label: 'TV series' },
+            { value: 'theatrical', label: 'Live theatrical' },
+            { value: 'sound',      label: 'Sound recording ($150K cap)' }
+        ] },
+        { id: 'commencedBy2025', label: 'Production commenced by 12/31/25?', kind: 'yesno' },
+        { id: 'lowIncomeArea',   label: 'Low-income area ($20M cap)?',      kind: 'yesno' },
+        { id: 'usServicesPct',   label: 'U.S. services compensation (%)',   kind: 'pct',   placeholder: '90' },
+        { id: 'isPassive',       label: 'Passive investor (§469)?',         kind: 'yesno' }
       ]
     }
   ];
@@ -211,6 +297,12 @@
         '<option value="no"' + (!val ? ' selected' : '') + '>No</option>' +
         '<option value="yes"' + (val ? ' selected' : '') + '>Yes</option>' +
         '</select>';
+    } else if (row.kind === 'select') {
+      var opts = (row.options || []).map(function (o) {
+        var sel = (String(val) === String(o.value)) ? ' selected' : '';
+        return '<option value="' + o.value + '"' + sel + '>' + o.label + '</option>';
+      }).join('');
+      html += '<select data-supx-input="' + specId + ':' + row.id + '" class="yes-no">' + opts + '</select>';
     }
     html += '</div></div>';
     return html;
@@ -401,7 +493,10 @@
       var raw = t.value;
       // Coerce based on the input type — currency/number/yesno.
       if (t.tagName === 'SELECT') {
-        st[fieldId] = (raw === 'yes');
+        // Yes/no selects coerce to bool; arbitrary-value selects
+        // (kind: 'select') store the string verbatim.
+        if (raw === 'yes' || raw === 'no') st[fieldId] = (raw === 'yes');
+        else st[fieldId] = raw;
       } else if (t.type === 'number') {
         st[fieldId] = Number(raw) || 0;
       } else {
