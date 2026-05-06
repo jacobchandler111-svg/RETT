@@ -3188,11 +3188,14 @@ body { font-size: 16px; }
 }
 .strategy-pick-num {
     font-family: var(--font-mono);
-    font-size: 0.8em;
+    font-size: 1em;
     letter-spacing: 0.18em;
     color: var(--bh-blue-deep);
     font-weight: 600;
     text-transform: uppercase;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
 }
 .strategy-pick-num .num-big {
     font-family: var(--font-display);
@@ -3200,7 +3203,6 @@ body { font-size: 16px; }
     font-size: 2em;
     font-weight: 500;
     color: var(--ink);
-    margin-left: 6px;
     letter-spacing: -0.02em;
 }
 .strategy-pick-recommended-tag {

@@ -474,6 +474,14 @@ function _debounce(fn, ms) {
 }
 
 function showPage(id) {
+  // Persist the active page id so a refresh lands the user back
+  // where they were instead of bouncing to PMQ. Only writes for
+  // valid page ids; failures (private mode, quota) are silent.
+  try {
+    if (id && typeof localStorage !== 'undefined') {
+      localStorage.setItem('rett_lastPage', id);
+    }
+  } catch (e) { /* */ }
   PAGE_IDS.forEach(p => {
     const el = document.getElementById(p);
     if (el) {
@@ -1518,7 +1526,16 @@ function bindControls() {
   // already has its options populated when we re-apply persisted values.
   try { _bindCaseControls(); } catch (e) { (window.reportFailure || console.warn)('Case management UI failed to wire', e, { level: 'error' }); }
 
-  showPage('page-inputs');
+  // Restore the last page the user was on across reloads. Falls back
+  // to Client Inputs when nothing is saved (or the saved id isn't a
+  // valid page — guards against stale localStorage from an older app
+  // version that named pages differently).
+  var startPage = 'page-inputs';
+  try {
+    var saved = (typeof localStorage !== 'undefined') ? localStorage.getItem('rett_lastPage') : null;
+    if (saved && PAGE_IDS.indexOf(saved) !== -1) startPage = saved;
+  } catch (e) { /* */ }
+  showPage(startPage);
 }
 
 document.addEventListener('DOMContentLoaded', bindControls);
