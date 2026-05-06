@@ -290,10 +290,10 @@
     var invDisplay = _fmtUSD(st.investment);
     var minNotMet = st.investment > 0 && st.investment < meta.minInvestment;
 
-    var classOptions =
-      '<option value="classA"' + (st.classKey === 'classA' ? ' selected' : '') + '>Class A &mdash; $5M min, 1.75% fee</option>' +
-      '<option value="classB"' + (st.classKey === 'classB' ? ' selected' : '') + '>Class B &mdash; $1M min, 2% fee</option>';
-
+    // Class picker hidden per advisor 2026-05-06 — class is auto-picked
+    // from investment (Class A at $5M+, Class B otherwise; A wins on
+    // lower fee). Kept the change handler in place for back-compat with
+    // any saved state the user may load with a class explicitly set.
     var minWarning = minNotMet
       ? '<p class="supp-min-warning">Below the ' + _fmtUSD(meta.minInvestment) + ' minimum for ' + meta.name + '. Math runs proportionally; fund won&rsquo;t accept the subscription as-is.</p>'
       : '';
@@ -324,11 +324,7 @@
         '</button>' +
         '<div class="supp-details-panel" id="supp-details-delphi"' + (st.detailsOpen ? '' : ' hidden') + '>' +
           '<div class="supp-details-row">' +
-            '<div class="supp-details-rowlabel">Class</div>' +
-            '<div class="supp-details-cell"><select id="supp-delphi-class" class="supp-select">' + classOptions + '</select></div>' +
-          '</div>' +
-          '<div class="supp-details-row">' +
-            '<div class="supp-details-rowlabel">Investment</div>' +
+            '<div class="supp-details-rowlabel">Max Investment</div>' +
             '<div class="supp-details-cell"><div class="currency-input"><input type="text" id="supp-delphi-inv" inputmode="numeric" autocomplete="off" value="' + invDisplay + '"></div></div>' +
           '</div>' +
           minWarning +
@@ -475,6 +471,12 @@
     } else if (t.id === 'supp-delphi-inv') {
       var dv = (typeof parseUSD === 'function') ? parseUSD(t.value) : Number(t.value);
       s.delphi.investment = Math.max(0, Number.isFinite(dv) ? dv : 0);
+      // Auto-pick class from amount (advisor 2026-05-06): Class A at the
+      // $5M minimum and above (1.75% fee), Class B otherwise (2% fee).
+      // The picker UI is hidden — investment is the only knob the
+      // advisor turns and the lower-fee class wins whenever the
+      // minimum is met.
+      s.delphi.classKey = s.delphi.investment >= 5000000 ? 'classA' : 'classB';
       _runDelphiMath();
       // Re-render only the Delphi card body to reflect the min-warning
       // and the lockup sub label without losing input focus. Easiest:

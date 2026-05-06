@@ -323,6 +323,41 @@
     // first ("here's what you'd spend on the current sale"), then —
     // if there's a planned future sale — pivot to "if you size up,
     // here's what additional fees buy you." Tied chronologically.
+    // Funded capital-consuming supps (Delphi-style) carry their own
+    // management fee. Per advisor 2026-05-06, surface those in the
+    // Fees Baked In section under generic ordinal labels ("2nd
+    // Supplemental Asset Manager", "3rd ...") so the page stays
+    // product-agnostic. The fee dollar comes from result.mgmtFeeDollars
+    // — supps without one (e.g., Oil & Gas, where the working interest
+    // IS the investment) drop out of the list silently.
+    var _ordSuffix = function (n) {
+      var mod100 = n % 100;
+      if (mod100 >= 11 && mod100 <= 13) return 'th';
+      switch (n % 10) {
+        case 1: return 'st';
+        case 2: return 'nd';
+        case 3: return 'rd';
+        default: return 'th';
+      }
+    };
+    var fundedSuppFees = (solverOut && solverOut.supplementals
+      ? solverOut.supplementals : [])
+      .filter(function (s) {
+        return s.rivalry && s.rivalry.funded && (s.rivalry.granted || 0) > 0;
+      })
+      .map(function (s) {
+        var fee = Number(s.result && s.result.mgmtFeeDollars) || 0;
+        return { id: s.id, fee: fee };
+      })
+      .filter(function (x) { return x.fee > 0; });
+    var suppFeeBullets = fundedSuppFees.map(function (sf, i) {
+      var ordinalNum = i + 2;  // primary AM is the 1st; supps start at 2.
+      var label = ordinalNum + _ordSuffix(ordinalNum) + ' Supplemental Asset Manager';
+      return _bullet(label + '<span class="strat-savings-line">Fund management fee on the supplemental allocation</span>', sf.fee);
+    }).join('');
+    var suppFeesTotal = fundedSuppFees.reduce(function (sum, s) { return sum + s.fee; }, 0);
+    var totalFeesAll = fees + suppFeesTotal;
+
     html += '<div class="input-section" id="fee-strategies-section">' +
       '<div class="section-heading">' +
         '<h2>Fees Baked In</h2>' +
@@ -333,9 +368,10 @@
           (opt && opt.dialBack ? ' &mdash; scaled to ' + _fmt(opt.recommendedInvestment) + ' invested' : '') +
           '</span>', effectiveBrooklynFees) +
         _bullet('Brookhaven fees<span class="strat-savings-line">Planning engagement + ongoing service (flat schedule)</span>', m.brookhavenFees || 0) +
+        suppFeeBullets +
         '<div class="fee-summary-row">' +
           '<div class="fee-summary-label">Total Fees</div>' +
-          '<div class="fee-summary-amt">' + _fmt(fees) + '</div>' +
+          '<div class="fee-summary-amt">' + _fmt(totalFeesAll) + '</div>' +
         '</div>' +
       '</div>' +
     '</div>';
