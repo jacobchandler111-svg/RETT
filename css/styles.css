@@ -3261,24 +3261,39 @@ body { font-size: 16px; }
     padding-bottom: 14px;
     margin-bottom: 4px;
 }
+/* Step-number badge — uplifted to mirror the numbered step circles
+   from the RETT brand visuals (booth wall + leave-behind). The
+   number sits inside an amber circle with a white digit; the
+   "STRATEGY" / "SUPPLEMENTAL" label runs beneath in mono caps so
+   the same .strategy-pick-num element keeps working on Pages 2/4. */
 .strategy-pick-num {
     font-family: var(--font-mono);
-    font-size: 1em;
-    letter-spacing: 0.18em;
-    color: var(--bh-blue-deep);
-    font-weight: 600;
+    font-size: 0.74em;
+    letter-spacing: 0.16em;
+    color: var(--muted);
+    font-weight: 700;
     text-transform: uppercase;
     display: inline-flex;
-    align-items: baseline;
-    gap: 8px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
 }
 .strategy-pick-num .num-big {
-    font-family: var(--font-display);
-    font-style: italic;
-    font-size: 2em;
-    font-weight: 500;
-    color: var(--ink);
-    letter-spacing: -0.02em;
+    font-family: var(--font-body);
+    font-style: normal;
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--rett-amber);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    box-shadow: 0 2px 6px rgba(241,168,58,0.35), inset 0 -2px 0 rgba(0,0,0,0.06);
 }
 .strategy-pick-recommended-tag {
     background: var(--ink);
@@ -3370,8 +3385,9 @@ body { font-size: 16px; }
 .strategy-keyaspect {
     margin-top: 14px;
     padding: 18px 22px;
-    background: var(--paper-warm);
+    background: var(--paper-cool);
     border: 1px solid var(--rule-soft);
+    border-left: 4px solid var(--rett-blue);
     border-radius: 2px;
     /* Sized to absorb the longest body copy (Seller Finance) so all
        three keyaspect blocks align horizontally across the three cards.
