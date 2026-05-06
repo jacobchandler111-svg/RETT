@@ -354,8 +354,14 @@
     _writeResult('slot06', {
       netBenefit: Math.max(0, Math.round(yr1Deduction * marginal)),
       investment: 0,
+      assetCost: Math.round(cost),
       marginalRate: marginal,
-      detail: { yr1Deduction: Math.round(yr1Deduction), bizUse: bizUse, vehicleClass: cls }
+      detail: {
+        yr1Deduction: Math.round(yr1Deduction),
+        bizUse: bizUse,
+        vehicleClass: cls,
+        assetCost: Math.round(cost)
+      }
     });
   }
 
@@ -372,7 +378,16 @@
     if (amount <= 0) return _writeResult('slot07', null);
     var deprPct = Math.min(1, Math.max(0, _num(st.depreciablePct) / 100));
     var yr1Loss = amount * deprPct;
-    var nonPassive = st.materialPart ? yr1Loss : 0;
+    // Active-investor gate: 100 hours/year is the §469-5T(a)(3) test
+    // ("the individual's participation constitutes substantially all
+    // of the participation by all individuals"). The yes/no toggle
+    // captures whether the client is willing to commit those hours;
+    // without it the K-1 loss is passive and suspended (no net benefit).
+    // (Field renamed from materialPart → commitHours per advisor
+    // 2026-05-06; old saved cases with materialPart=true still pass
+    // through via the back-compat read below.)
+    var active = !!(st.commitHours || st.materialPart);
+    var nonPassive = active ? yr1Loss : 0;
     var marginal = _fedMarginal(cfg) + _stateMarginal(cfg);
     _writeResult('slot07', {
       netBenefit: Math.max(0, Math.round(nonPassive * marginal)),
@@ -381,7 +396,7 @@
       detail: {
         yr1Loss: Math.round(yr1Loss),
         nonPassive: Math.round(nonPassive),
-        suspended: st.materialPart ? 0 : Math.round(yr1Loss)
+        suspended: active ? 0 : Math.round(yr1Loss)
       }
     });
   }
@@ -441,6 +456,12 @@
   // QBU > 50% required; bonus = cost × bizUse × 100%.
   // QBU ≤ 50% → ADS straight-line, no bonus, no §179.
   // §274 entertainment / commuting disallowance not modeled here.
+  //
+  // Rivalry: investment = 0 per advisor 2026-05-06. The aircraft is a
+  // physical-asset purchase the client wants anyway — it doesn't
+  // compete with Brooklyn for sale-proceed capital. The depreciation
+  // deduction's tax savings flow into net benefit; the asset itself
+  // is tracked separately in the Page-5 "physical-asset" bucket.
   // ----------------------------------------------------------------
   function _calcAircraft() {
     var cfg = _cfg(); if (!cfg) return _writeResult('slot10', null);
@@ -457,11 +478,13 @@
     var marginal = _fedMarginal(cfg) + _stateMarginal(cfg);
     _writeResult('slot10', {
       netBenefit: Math.max(0, Math.round(yr1Deduction * marginal)),
-      investment: Math.round(cost),
+      investment: 0,
+      assetCost: Math.round(cost),
       marginalRate: marginal,
       detail: {
         qbu: qbu, yr1Deduction: Math.round(yr1Deduction),
-        method: qbu > 0.50 ? 'MACRS + 100% bonus' : 'ADS (no bonus)'
+        method: qbu > 0.50 ? 'MACRS + 100% bonus' : 'ADS (no bonus)',
+        assetCost: Math.round(cost)
       }
     });
   }
@@ -507,7 +530,15 @@
     var st = _state('slot12');
     var cost = Math.max(0, _num(st.equipmentCost));
     if (cost <= 0) return _writeResult('slot12', null);
-    var bizIncome = Math.max(0, _num(st.bizTaxableIncome));
+    // Business taxable income: pulled from Page-1 biz revenue when the
+    // user hasn't manually overridden the strategy-card value (advisor
+    // 2026-05-06 — single source of truth, no double-entry). The user
+    // can still override on the card to model a forecast; a non-zero
+    // st.bizTaxableIncome wins. This mirrors the behavior the advisor
+    // wants: the card defaults from the form but lets them dial it.
+    var stBiz = _num(st.bizTaxableIncome);
+    var cfgBiz = _num(cfg.bizRevenue) || _num(cfg.baseOrdinaryIncome);
+    var bizIncome = Math.max(0, stBiz > 0 ? stBiz : cfgBiz);
     var sec179Cap = 2560000;
     var phaseOut = Math.max(0, cost - 4090000);
     sec179Cap = Math.max(0, sec179Cap - phaseOut);
@@ -518,12 +549,16 @@
     var marginal = _fedMarginal(cfg) + _stateMarginal(cfg);
     _writeResult('slot12', {
       netBenefit: Math.max(0, Math.round(total * marginal)),
-      investment: Math.round(cost),
+      investment: 0,
+      assetCost: Math.round(cost),
       marginalRate: marginal,
       detail: {
-        sec179: Math.round(sec179),
-        bonus: Math.round(bonus),
-        total: Math.round(total)
+        sec179:    Math.round(sec179),
+        bonus:     Math.round(bonus),
+        total:     Math.round(total),
+        bizIncome: Math.round(bizIncome),
+        bizSource: stBiz > 0 ? 'card override' : 'Page-1 business revenue',
+        assetCost: Math.round(cost)
       }
     });
   }

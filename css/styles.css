@@ -4967,6 +4967,68 @@ body { font-size: 16px; }
     letter-spacing: 0;
 }
 
+/* Net Benefit hero is double-click to expand. Hint that to the
+   advisor with a soft cursor change. */
+.forward-net-hero[data-net-hero] {
+    cursor: zoom-in;
+    user-select: none;
+}
+.forward-net-hero.is-expanded {
+    cursor: zoom-out;
+}
+
+/* 3-part breakdown panel under the hero (cash / charity / asset).
+   Hidden by default; double-click on the hero toggles [hidden]. */
+.net-hero-breakdown {
+    margin-top: 18px;
+    padding: 14px 18px;
+    background: rgba(255,255,255,0.85);
+    border-top: 1px solid var(--rule-soft);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    text-align: left;
+}
+.net-hero-breakdown[hidden] {
+    display: none;
+}
+.net-hero-breakdown-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--rule-soft);
+}
+.net-hero-breakdown-row:last-child {
+    border-bottom: 0;
+}
+.net-hero-breakdown-label {
+    font-family: var(--font-mono);
+    font-size: 0.78em;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+}
+.net-hero-breakdown-sub {
+    font-family: var(--font-body);
+    font-size: 0.85em;
+    font-weight: 400;
+    color: var(--muted);
+    text-transform: none;
+    letter-spacing: 0.02em;
+    margin-top: 2px;
+}
+.net-hero-breakdown-amt {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 500;
+    font-size: 1.4em;
+    color: var(--bh-trusted);
+    font-variant-numeric: tabular-nums;
+}
+
 /* Compact walkaway tiles. The hero takes the focus now; these two
    small white cards are context — "here's where that net benefit
    came from." Reduced size so they don't compete with the hero. */

@@ -111,7 +111,7 @@
       keyaspect: 'Charitable Deduction',
       descriptor: 'Gifts of cash or appreciated assets unlock a §170 deduction and avoid capital gains on the appreciation.',
       audience: 'Any donor',
-      bucket: 'ordinary',
+      bucket: 'charity',
       // No investmentField — gifts leave the estate but don't
       // compete with Brooklyn for sale-proceed capital (tax-side).
       defaults: {
@@ -182,7 +182,7 @@
       keyaspect: 'Vehicle Expensing',
       descriptor: 'A business vehicle over 6,000 lb GVWR fully expenses under §179 plus 100% bonus on the residual.',
       audience: 'Business owner',
-      bucket: 'ordinary',
+      bucket: 'asset',
       defaults: {
         vehicleCost:  120000,
         vehicleClass: 'suvHeavy',
@@ -206,19 +206,25 @@
       name: 'Equipment Leasing Fund',
       shortName: 'Equip Leasing',
       keyaspect: 'Bonus Pass-Through',
-      descriptor: 'A partnership invests in leased equipment; year-1 bonus depreciation flows through as a K-1 loss with material participation.',
+      descriptor: 'A partnership invests in leased equipment; year-1 bonus depreciation flows through as a K-1 loss when the investor is active.',
       audience: 'Active investor',
       bucket: 'capital',
       investmentField: 'investmentAmount',
       defaults: {
         investmentAmount:  500000,
         depreciablePct:    90,
-        materialPart:      false
+        commitHours:       false
       },
       detailRows: [
         { id: 'investmentAmount', label: 'Investment amount',                kind: 'usd', placeholder: '500,000' },
         { id: 'depreciablePct',   label: 'Depreciable basis (% of capital)', kind: 'pct', placeholder: '90' },
-        { id: 'materialPart',     label: 'Material participation (§469)?',   kind: 'yesno' }
+        // Material participation is a strict requirement under §469
+        // (otherwise the loss is suspended as passive). The simplest
+        // §469-5T(a) test for active investors is 100 hours/year + at
+        // least as many as anyone else. Asking the user this directly
+        // captures the binding constraint without requiring them to
+        // self-classify under multi-prong tests.
+        { id: 'commitHours',      label: 'Will commit ≥100 hours/year?',     kind: 'yesno' }
       ]
     },
     {
@@ -267,8 +273,11 @@
       keyaspect: 'Business Aviation Bonus',
       descriptor: 'A business aircraft with majority qualified business use unlocks 100% bonus depreciation on acquisition.',
       audience: 'Business aviation user',
-      bucket: 'capital',
-      investmentField: 'aircraftCost',
+      bucket: 'asset',
+      // No investmentField — aircraft is a physical-asset purchase the
+      // client wants anyway; doesn't compete with Brooklyn for capital.
+      // The depreciation tax savings flow into net benefit; the asset
+      // cost surfaces in the Page-5 physical-asset breakdown.
       defaults: {
         aircraftCost: 3000000,
         qbuPct:       75
@@ -309,17 +318,18 @@
       keyaspect: 'Equipment Expensing',
       descriptor: 'Equipment placed in service this year expenses under §179 up to $2.56M plus 100% bonus on the residual.',
       audience: 'Farm / business operator',
-      bucket: 'capital',
-      investmentField: 'equipmentCost',
+      bucket: 'asset',
+      // No investmentField — equipment is a physical-asset purchase the
+      // operator needs anyway; doesn't compete with Brooklyn for capital.
+      // Business taxable income is pulled from the Page-1 biz revenue
+      // field rather than re-entered here (advisor 2026-05-06).
       defaults: {
-        equipmentCost:    1000000,
-        bizTaxableIncome: 500000,
-        isFarm:           false
+        equipmentCost: 1000000,
+        isFarm:        false
       },
       detailRows: [
-        { id: 'equipmentCost',    label: 'Equipment cost',           kind: 'usd', placeholder: '1,000,000' },
-        { id: 'bizTaxableIncome', label: 'Business taxable income',  kind: 'usd', placeholder: '500,000' },
-        { id: 'isFarm',           label: 'Schedule F farm?',         kind: 'yesno' }
+        { id: 'equipmentCost', label: 'Equipment cost',   kind: 'usd', placeholder: '1,000,000' },
+        { id: 'isFarm',        label: 'Schedule F farm?', kind: 'yesno' }
       ]
     }
   ];

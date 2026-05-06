@@ -313,9 +313,16 @@
             '</div>' +
           '</div>' +
         '</div>' +
-        '<div class="forward-net-hero">' +
+        '<div class="forward-net-hero" data-net-hero title="Double-click to see how this benefit breaks down">' +
           '<div class="net-hero-label">Net Benefit</div>' +
           '<div class="net-hero-amt"><span class="currency">$</span>' + Math.round(net).toLocaleString('en-US') + '</div>' +
+          // 3-part breakdown of the net benefit, hidden by default;
+          // double-clicking the hero toggles .is-expanded and reveals
+          // it. Cash / charity / asset categorization comes from the
+          // master-solver supplementals' incomeBucket field (mapped
+          // from spec.bucket at registration time). Brooklyn's primary
+          // net is always 'cash'.
+          _renderNetBenefitBreakdown(primaryNet, solverOut) +
         '</div>' +
       '</div>' +
       '<div class="forward-rop-square">' +
@@ -745,6 +752,82 @@
   // the combined picture, so this section's job is just letting the
   // advisor dial supplementals on/off mid-meeting.
   // -----------------------------------------------------------------
+
+  // 3-part breakdown of the Net Benefit hero. Categorizes each
+  // contributing strategy's net into cash / charity / physical-asset
+  // buckets so the advisor can show the client where the savings
+  // landed (advisor 2026-05-06): "you walk away with $X cash, donated
+  // $Y to charity, bought $Z of physical assets." Hidden by default;
+  // double-clicking the hero reveals it.
+  //
+  // Categorization comes from the supp's `incomeBucket` field
+  // (registry maps it from spec.bucket). 'charity' → charity bucket,
+  // 'asset' → physical-asset bucket, anything else → cash bucket.
+  // Brooklyn's primary net is always cash.
+  function _renderNetBenefitBreakdown(primaryNet, solverOut) {
+    var cashNet = Number(primaryNet) || 0;
+    var charityNet = 0;
+    var assetNet = 0;
+    var charitySpend = 0;
+    var assetSpend = 0;
+    if (solverOut && Array.isArray(solverOut.supplementals)) {
+      solverOut.supplementals.forEach(function (s) {
+        if (!(s.enabled && s.available && s.rivalry && s.rivalry.funded)) return;
+        var net = Number(s.netBenefit) || 0;
+        var bucket = String(s.incomeBucket || 'cash').toLowerCase();
+        if (bucket === 'charity') {
+          charityNet += net;
+          // Track the gift amount for context.
+          var gift = Number(s.result && s.result.detail && s.result.detail.giftAmount) || 0;
+          charitySpend += gift;
+        } else if (bucket === 'asset') {
+          assetNet += net;
+          var assetCost = Number(s.result && s.result.assetCost) || 0;
+          if (!assetCost && s.result && s.result.detail) {
+            assetCost = Number(s.result.detail.assetCost) || 0;
+          }
+          assetSpend += assetCost;
+        } else {
+          cashNet += net;
+        }
+      });
+    }
+    var totalNet = cashNet + charityNet + assetNet;
+    if (totalNet === 0) return '';
+    var rows = [
+      { label: 'Cash savings', value: cashNet, sub: 'Tax-only strategies + Brooklyn position' }
+    ];
+    if (charityNet > 0 || charitySpend > 0) {
+      rows.push({
+        label: 'Charitable giving',
+        value: charityNet,
+        sub: charitySpend > 0
+          ? 'You donated ' + _fmt(charitySpend) + '; tax savings shown'
+          : 'Tax savings from gift deduction'
+      });
+    }
+    if (assetNet > 0 || assetSpend > 0) {
+      rows.push({
+        label: 'Physical-asset purchases',
+        value: assetNet,
+        sub: assetSpend > 0
+          ? 'Asset acquisitions of ' + _fmt(assetSpend) + '; tax savings shown'
+          : 'Depreciation tax savings on asset purchases'
+      });
+    }
+    var html = '<div class="net-hero-breakdown" hidden>';
+    rows.forEach(function (r) {
+      html += '<div class="net-hero-breakdown-row">' +
+        '<div class="net-hero-breakdown-label">' + r.label +
+          '<div class="net-hero-breakdown-sub">' + r.sub + '</div>' +
+        '</div>' +
+        '<div class="net-hero-breakdown-amt">' + _fmt(r.value) + '</div>' +
+      '</div>';
+    });
+    html += '</div>';
+    return html;
+  }
+
   function _renderSupplementalLeftColumn(solverOut) {
     if (!solverOut || !solverOut.anyInterested) return '';
     // Only surface supps that actually contribute. Rivalry-rejected
@@ -1046,6 +1129,23 @@
     root.document.addEventListener('change', function (e) {
       var t = e.target;
       if (t && t.id === 'growth-end-date') _refreshGrowthChart();
+    });
+  }
+
+  // Net Benefit hero double-click: toggles the 3-part breakdown
+  // (cash / charity / physical-asset) so the advisor can show the
+  // client where the savings landed without crowding the Page-5
+  // summary view by default.
+  if (typeof root !== 'undefined' && root.document && !root.__rettNetHeroBreakdownWired) {
+    root.__rettNetHeroBreakdownWired = true;
+    root.document.addEventListener('dblclick', function (e) {
+      var t = e.target;
+      var hero = t && t.closest && t.closest('[data-net-hero]');
+      if (!hero) return;
+      var panel = hero.querySelector('.net-hero-breakdown');
+      if (!panel) return;
+      panel.hidden = !panel.hidden;
+      hero.classList.toggle('is-expanded', !panel.hidden);
     });
   }
 
