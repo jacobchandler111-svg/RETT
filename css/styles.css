@@ -11,7 +11,7 @@
      they're remapped to the RETT-branded equivalents.
 
      --rett-navy      — dominant card/heading background (replaces
-                         the prior purple-navy #231F55 with the
+                         the prior purple-navy #0a1d3d with the
                          true blue-navy from the booth wall).
      --rett-navy-soft — hover/highlight tier of the navy.
      --rett-blue      — saturated chart-icon / CTA accent.
@@ -19,12 +19,17 @@
                          glyph + secondary chart bars).
      --rett-amber     — gold of the numbered step circles + chart bars.
                          Use sparingly for "this matters" moments. */
-  --rett-navy:       #0e2240;
-  --rett-navy-soft:  #173159;
-  --rett-blue:       #2563eb;
-  --rett-cyan:       #5cc7e6;
-  --rett-amber:      #f1a83a;
-  --rett-amber-soft: #f7c66e;
+  /* Re-sampled from the printed visuals (booth wall + leave-behind):
+     navy is deeper and slightly cooler than the prior take; the
+     amber pulls toward orange-gold rather than pure yellow; blue
+     reads as a saturated cobalt rather than the prior bright royal. */
+  --rett-navy:       #0a1d3d;
+  --rett-navy-soft:  #142a52;
+  --rett-blue:       #1e4f9a;
+  --rett-blue-soft:  #356cba;
+  --rett-cyan:       #6dc5e8;
+  --rett-amber:      #f29c2c;
+  --rett-amber-soft: #f7bf6a;
 
   /* Legacy BrookHaven aliases — kept so existing rules keep
      compiling. Each maps to the closest RETT brand counterpart. */
@@ -1792,61 +1797,152 @@ body {
     color: var(--ink);
 }
 
-/* HEADER — restyled to read as the RETT brand bar (deep navy
-   panel, white wordmark, italic small-caps subtitle). The chart-
-   icon glyph from the brand visuals is recreated as inline SVG
-   bars so the header doesn't need an image asset. */
+/* HEADER — RETT brand bar. Two-zone layout: wordmark + tagline on
+   the LEFT, BrookHaven 3-line attribution on the RIGHT. The chart-
+   icon glyph is inline SVG so no image asset is needed. */
 .header {
     background: var(--rett-navy);
     border-bottom: 0;
-    box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 4px 12px rgba(14,34,64,0.18);
-    padding: 18px 48px 16px;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 4px 12px rgba(10,29,61,0.20);
+    padding: 18px 48px 18px;
     color: #fff;
     display: flex;
     align-items: center;
-    gap: 18px;
+    justify-content: space-between;
+    gap: 24px;
 }
 .header::before {
     content: "";
     flex: 0 0 auto;
-    width: 36px;
-    height: 36px;
-    background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 36'><rect x='3'  y='14' width='6' height='18' fill='%232563eb'/><rect x='13' y='8'  width='6' height='24' fill='%232563eb'/><rect x='23' y='4'  width='6' height='28' fill='%235cc7e6'/></svg>") center/contain no-repeat;
+    width: 40px;
+    height: 40px;
+    background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><rect x='4'  y='16' width='7' height='20' fill='%231e4f9a'/><rect x='15' y='8'  width='7' height='28' fill='%231e4f9a'/><rect x='26' y='3'  width='7' height='33' fill='%236dc5e8'/></svg>") center/contain no-repeat;
     margin-right: 4px;
+    align-self: center;
+}
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex: 1 1 auto;
+    min-width: 0;
 }
 .header h1 {
     font-family: var(--font-body);
     font-style: normal;
     font-weight: 800;
-    font-size: 28px;
+    font-size: 44px;
     color: #fff;
-    letter-spacing: -0.01em;
-    line-height: 1;
+    letter-spacing: -0.02em;
+    line-height: 0.95;
     display: inline-flex;
     align-items: baseline;
-    gap: 4px;
+    gap: 2px;
+    flex: 0 0 auto;
 }
 .header h1 .rett-tm {
     color: var(--rett-cyan);
-    font-size: 0.42em;
+    font-size: 0.34em;
     font-weight: 600;
     margin-left: 2px;
     vertical-align: super;
 }
-.header h2 {
-    font-family: var(--font-display);
-    font-style: italic;
-    font-size: 13px;
-    font-weight: 500;
-    letter-spacing: 0.04em;
-    text-transform: none;
-    color: rgba(255,255,255,0.78);
-    line-height: 1.1;
+.header-dash {
+    font-size: 32px;
+    font-weight: 300;
+    color: rgba(255,255,255,0.5);
+    line-height: 1;
     margin-top: 2px;
 }
-/* Add a stacked block to the right of the wordmark via flow:
-   the H1 + H2 stack vertically inside their natural flow. */
-.header > div.header-text { display: flex; flex-direction: column; }
+.header-tagline {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    line-height: 1.15;
+}
+.header-line-1 {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 18px;
+    font-weight: 500;
+    color: #fff;
+    letter-spacing: 0.01em;
+}
+.header-line-2 {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.68);
+}
+
+/* RIGHT: BrookHaven 3-line attribution, stacked, right-aligned. */
+.header-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 1px;
+    flex: 0 0 auto;
+    border-left: 1px solid rgba(255,255,255,0.12);
+    padding-left: 22px;
+    line-height: 1.15;
+}
+.header-bh-mark {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 500;
+    font-size: 19px;
+    color: #fff;
+    letter-spacing: -0.005em;
+}
+.header-bh-sub {
+    font-family: var(--font-body);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: var(--rett-amber-soft);
+}
+.header-bh-tag {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.55);
+    margin-top: 2px;
+}
+@media (max-width: 820px) {
+    .header { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .header-right { align-items: flex-start; border-left: 0; padding-left: 0; border-top: 1px solid rgba(255,255,255,0.12); padding-top: 10px; }
+}
+
+/* Compliance footer — small-print disclosure slot at the bottom of
+   every page. Final copy pending; placeholder reminds the team
+   that the slot exists. Sits just above the page bottom in a muted
+   warm-cool surface so it doesn't compete with the navy header. */
+.app-compliance {
+    margin-top: 36px;
+    padding: 14px 48px 22px;
+    background: var(--paper-cool);
+    border-top: 1px solid var(--rule);
+    text-align: center;
+}
+.app-compliance .compliance-line {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    line-height: 1.55;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    margin: 0 0 4px 0;
+}
+.app-compliance .compliance-attrib {
+    font-family: var(--font-body);
+    font-size: 10px;
+    color: var(--muted);
+    margin: 0;
+    opacity: 0.75;
+}
 
 /* NAV TABS */
 .nav {
@@ -5204,7 +5300,7 @@ body { font-size: 16px; }
        single professional document rather than a loose page. Tight
        padding so the frame + content fit one Letter page. */
     .print-doc-frame {
-        border: 1.5pt solid #231F55;
+        border: 1.5pt solid #0a1d3d;
         border-radius: 6pt;
         padding: 12pt 14pt 10pt;
         background: #fff;
@@ -5219,34 +5315,47 @@ body { font-size: 16px; }
         margin-bottom: 6pt;
         gap: 14pt;
     }
+    /* Header brand: 3-bar glyph + RETT wordmark stacked over the
+       italic "Real Estate Transition Trust" subtitle, mirroring the
+       trade-booth wordmark layout. */
     .print-header-brand {
         display: flex;
+        align-items: center;
+        gap: 8pt;
+        color: #0a1d3d;
+    }
+    .print-brand-glyph {
+        width: 22pt;
+        height: 22pt;
+        flex: 0 0 22pt;
+    }
+    .print-brand-text {
+        display: flex;
         flex-direction: column;
-        font-family: 'Fraunces', Georgia, serif;
-        color: #231F55;
-        letter-spacing: -0.01em;
-        line-height: 1.05;
+        line-height: 1;
     }
-    .print-brand-bh {
-        font-size: 18pt;
-        font-weight: 500;
-        font-style: italic;
+    .print-brand-rett-line {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-weight: 800;
+        font-size: 22pt;
+        letter-spacing: -0.015em;
+        color: #0a1d3d;
+        line-height: 0.95;
     }
-    .print-brand-amp {
-        font-size: 11pt;
-        font-style: italic;
-        color: #6b7a99;
-        margin: 1pt 0;
-    }
-    .print-brand-rett {
-        font-size: 13pt;
-        font-weight: 500;
-        font-style: italic;
-        color: #2d3f7d;
-    }
-    .print-brand-rett sup {
-        font-size: 0.55em;
+    .print-brand-rett-line sup {
+        font-size: 0.36em;
+        font-weight: 600;
+        color: #6dc5e8;
+        margin-left: 1pt;
         vertical-align: super;
+    }
+    .print-brand-sub {
+        font-family: 'Fraunces', Georgia, serif;
+        font-style: italic;
+        font-size: 9pt;
+        color: #355281;
+        margin-top: 2pt;
+        letter-spacing: 0.005em;
     }
     .print-client-email {
         font-size: 8.5pt;
@@ -5265,15 +5374,18 @@ body { font-size: 16px; }
     .print-client-name {
         font-size: 11pt;
         font-weight: 700;
-        color: #231F55;
+        color: #0a1d3d;
     }
     .print-date {
         font-size: 8pt;
         color: #666;
     }
     .print-rule {
-        border-top: 1.5px solid #231F55;
+        height: 3pt;
+        border: none;
+        background: linear-gradient(90deg, #0a1d3d 0%, #0a1d3d 60%, #f29c2c 60%, #f29c2c 100%);
         margin-bottom: 7pt;
+        border-radius: 1pt;
     }
     .print-title-block {
         margin-bottom: 8pt;
@@ -5283,7 +5395,7 @@ body { font-size: 16px; }
         font-size: 17pt;
         font-weight: 500;
         font-style: italic;
-        color: #231F55;
+        color: #0a1d3d;
         margin: 0 0 2pt;
     }
     .print-strategy-tag {
@@ -5306,13 +5418,17 @@ body { font-size: 16px; }
         padding: 6pt 8pt;
         background: #f8fafc;
     }
+    /* Net Benefit hero: highlight with the brand amber so it draws
+       the eye as the takeaway number on the page. */
     .print-hero-net {
-        background: #eef8f2;
-        border-color: #a8d4bc;
+        background: #fdf3e3;
+        border-color: #f29c2c;
+        border-width: 1.2pt;
     }
+    .print-hero-net .print-hero-value { color: #b06b08; }
     .print-hero-fees {
-        background: #fdf6f0;
-        border-color: #d4c0a8;
+        background: #f3f6fb;
+        border-color: #c0cee0;
     }
     .print-hero-label {
         font-size: 7pt;
@@ -5351,7 +5467,7 @@ body { font-size: 16px; }
         font-size: 7pt;
         letter-spacing: 0.1em;
         text-transform: uppercase;
-        color: #231F55;
+        color: #0a1d3d;
         font-weight: 700;
         border-bottom: 1px solid #c8d4e0;
         padding-bottom: 2pt;
@@ -5408,7 +5524,7 @@ body { font-size: 16px; }
         font-family: 'Fraunces', Georgia, serif;
         font-size: 28pt;
         font-weight: 500;
-        color: #231F55;
+        color: #0a1d3d;
         line-height: 1;
     }
     .print-roi-label {
@@ -5418,14 +5534,43 @@ body { font-size: 16px; }
         line-height: 1.4;
     }
 
-    /* Footer */
+    /* Footer: BrookHaven attribution (italic display, mid weight)
+       on the left, compliance disclaimer in tiny mono running
+       across the full width. Amber accent rule sits above. */
     .print-footer {
         margin-top: 8pt;
         padding-top: 5pt;
-        border-top: 1px solid #c8d4e0;
+        border-top: 1.5pt solid #f29c2c;
         font-size: 6.5pt;
+        color: #555;
+        line-height: 1.4;
+    }
+    .print-footer-attrib {
+        display: flex;
+        align-items: baseline;
+        gap: 6pt;
+        margin-bottom: 3pt;
+    }
+    .print-footer-bh {
+        font-family: 'Fraunces', Georgia, serif;
+        font-style: italic;
+        font-weight: 500;
+        font-size: 10pt;
+        color: #0a1d3d;
+    }
+    .print-footer-bh-sub {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-size: 6.5pt;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #355281;
+    }
+    .print-footer-disclaimer {
+        font-size: 6pt;
         color: #888;
         line-height: 1.4;
+        margin: 0;
     }
     .print-roi-num { font-size: 22pt !important; }
 

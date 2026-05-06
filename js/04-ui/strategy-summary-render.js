@@ -437,14 +437,22 @@
       : ((document.getElementById('case-email-input') || {}).value || '');
 
     // Outer .print-doc-frame draws the bordered "leave-behind" card.
-    // Header lays out the Brookhaven & RETT brand on the left and
-    // client name + email on the right.
+    // Header mirrors the trade-booth wall: RETT wordmark + 3-bar
+    // glyph on the LEFT, client name/email/date stacked on the
+    // RIGHT, with an amber rule beneath.
+    var glyphSVG = '<svg class="print-brand-glyph" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">' +
+      '<rect x="4"  y="16" width="7" height="20" fill="#1e4f9a"/>' +
+      '<rect x="15" y="8"  width="7" height="28" fill="#1e4f9a"/>' +
+      '<rect x="26" y="3"  width="7" height="33" fill="#6dc5e8"/>' +
+    '</svg>';
     var h = '<div class="print-view"><div class="print-doc-frame">';
     h += '<div class="print-header">' +
       '<div class="print-header-brand">' +
-        '<span class="print-brand-bh">Brookhaven</span>' +
-        '<span class="print-brand-amp">&amp;</span>' +
-        '<span class="print-brand-rett">The RETT Strategy<sup>&trade;</sup></span>' +
+        glyphSVG +
+        '<div class="print-brand-text">' +
+          '<div class="print-brand-rett-line">RETT<sup>&trade;</sup></div>' +
+          '<div class="print-brand-sub">Real Estate Transition Trust</div>' +
+        '</div>' +
       '</div>' +
       '<div class="print-header-meta">' +
         '<span class="print-client-name">' + (clientName || 'Client Name') + '</span>' +
@@ -570,8 +578,15 @@
     h += '</div>'; // /print-body
 
     h += '<div class="print-footer">' +
-      'This document was prepared by Brookhaven for discussion purposes only and does not constitute tax or legal advice. ' +
-      'Results are projections based on current tax law and the inputs provided; actual outcomes may vary.' +
+      '<div class="print-footer-attrib">' +
+        '<span class="print-footer-bh">BrookHaven</span>' +
+        '<span class="print-footer-bh-sub">Integrated Wealth Solutions &middot; A Multi-Family Office</span>' +
+      '</div>' +
+      '<p class="print-footer-disclaimer">' +
+        'This document was prepared by BrookHaven for discussion purposes only and does not constitute tax or legal advice. ' +
+        'Results are projections based on current tax law and the inputs provided; actual outcomes may vary. ' +
+        '[ Compliance line goes here &mdash; final copy pending ]' +
+      '</p>' +
     '</div>';
 
     h += '</div></div>'; // /print-doc-frame /print-view
