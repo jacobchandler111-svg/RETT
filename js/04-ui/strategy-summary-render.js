@@ -323,39 +323,26 @@
     // first ("here's what you'd spend on the current sale"), then —
     // if there's a planned future sale — pivot to "if you size up,
     // here's what additional fees buy you." Tied chronologically.
-    // Funded capital-consuming supps (Delphi-style) carry their own
-    // management fee. Per advisor 2026-05-06, surface those in the
-    // Fees Baked In section under generic ordinal labels ("2nd
-    // Supplemental Asset Manager", "3rd ...") so the page stays
-    // product-agnostic. The fee dollar comes from result.mgmtFeeDollars
-    // — supps without one (e.g., Oil & Gas, where the working interest
-    // IS the investment) drop out of the list silently.
-    var _ordSuffix = function (n) {
-      var mod100 = n % 100;
-      if (mod100 >= 11 && mod100 <= 13) return 'th';
-      switch (n % 10) {
-        case 1: return 'st';
-        case 2: return 'nd';
-        case 3: return 'rd';
-        default: return 'th';
-      }
-    };
-    var fundedSuppFees = (solverOut && solverOut.supplementals
+    // Capital-consuming supps that carry a management fee (Delphi-style
+    // mgmtFeeDollars in their result). Per advisor 2026-05-06, surface
+    // these whenever a supp is SELECTED (Interested), not just when the
+    // rivalry happens to fund it — the advisor's mental model is "I
+    // picked Delphi, so its fees are part of my client's plan." Rivalry
+    // funding is a separate engine concern. All selected supp fees
+    // aggregate into a single "Supplemental Strategy Fees" line ordered
+    // between Asset Manager and Brookhaven.
+    var selectedSuppFees = (solverOut && solverOut.supplementals
       ? solverOut.supplementals : [])
-      .filter(function (s) {
-        return s.rivalry && s.rivalry.funded && (s.rivalry.granted || 0) > 0;
-      })
+      .filter(function (s) { return s.interested === true; })
       .map(function (s) {
         var fee = Number(s.result && s.result.mgmtFeeDollars) || 0;
         return { id: s.id, fee: fee };
       })
       .filter(function (x) { return x.fee > 0; });
-    var suppFeeBullets = fundedSuppFees.map(function (sf, i) {
-      var ordinalNum = i + 2;  // primary AM is the 1st; supps start at 2.
-      var label = ordinalNum + _ordSuffix(ordinalNum) + ' Supplemental Asset Manager';
-      return _bullet(label + '<span class="strat-savings-line">Fund management fee on the supplemental allocation</span>', sf.fee);
-    }).join('');
-    var suppFeesTotal = fundedSuppFees.reduce(function (sum, s) { return sum + s.fee; }, 0);
+    var suppFeesTotal = selectedSuppFees.reduce(function (sum, s) { return sum + s.fee; }, 0);
+    var suppFeeBullet = suppFeesTotal > 0
+      ? _bullet('Supplemental Strategy Fees<span class="strat-savings-line">Fund management fees on selected supplemental strategies</span>', suppFeesTotal)
+      : '';
     var totalFeesAll = fees + suppFeesTotal;
 
     html += '<div class="input-section" id="fee-strategies-section">' +
@@ -367,8 +354,8 @@
         _bullet('Asset Manager fees<span class="strat-savings-line">Borrow + fund + short-side carry over the position' +
           (opt && opt.dialBack ? ' &mdash; scaled to ' + _fmt(opt.recommendedInvestment) + ' invested' : '') +
           '</span>', effectiveBrooklynFees) +
+        suppFeeBullet +
         _bullet('Brookhaven fees<span class="strat-savings-line">Planning engagement + ongoing service (flat schedule)</span>', m.brookhavenFees || 0) +
-        suppFeeBullets +
         '<div class="fee-summary-row">' +
           '<div class="fee-summary-label">Total Fees</div>' +
           '<div class="fee-summary-amt">' + _fmt(totalFeesAll) + '</div>' +
@@ -436,6 +423,10 @@
 
     host.innerHTML = html;
     _bindSupplementalToggleEvents();
+    // Repopulate the growth chart from the preserved input values
+    // immediately after a re-render so the user doesn't see an empty
+    // chart between re-render and their next keystroke.
+    try { _refreshGrowthChart(); } catch (e) { /* */ }
   }
 
   function _renderPrintView(d) {
@@ -849,6 +840,18 @@
     if (principal <= 0) return '';
     var sy = Number(startYear) || (new Date()).getFullYear();
     var startISO = sy + '-01-01';
+
+    // Preserve any in-progress values across Page-5 re-renders.
+    // Without this, ANY trigger that re-renders the strategy
+    // summary (input event elsewhere, toggle change, etc.) would
+    // blow the user's typed End Date / Return back to empty.
+    var prevEndEl = document.getElementById('growth-end-date');
+    var prevRetEl = document.getElementById('growth-return');
+    var prevEnd = prevEndEl ? (prevEndEl.value || '') : '';
+    var prevRet = prevRetEl ? (prevRetEl.value || '') : '';
+    var endValAttr = prevEnd ? ' value="' + prevEnd + '"' : '';
+    var retValAttr = prevRet ? ' value="' + prevRet + '"' : '';
+
     return '<div class="growth-projection" data-net-benefit="' + principal +
               '" data-start-year="' + sy + '" data-start-iso="' + startISO + '">' +
       '<div class="growth-head">' +
@@ -863,14 +866,14 @@
         '<label class="growth-input-cell">' +
           '<span class="growth-input-label">End Date</span>' +
           '<span class="growth-input-wrap">' +
-            '<input type="date" id="growth-end-date" class="growth-input" min="' + startISO + '" autocomplete="off">' +
+            '<input type="date" id="growth-end-date" class="growth-input" min="' + startISO + '" autocomplete="off"' + endValAttr + '>' +
           '</span>' +
           '<span class="growth-input-help">Growth starts Jan 1, ' + sy + '</span>' +
         '</label>' +
         '<label class="growth-input-cell">' +
           '<span class="growth-input-label">Assumed Annual Return</span>' +
           '<span class="growth-input-wrap">' +
-            '<input type="number" id="growth-return" class="growth-input" min="0" max="50" step="0.1" inputmode="decimal" autocomplete="off">' +
+            '<input type="number" id="growth-return" class="growth-input" min="0" max="50" step="0.1" inputmode="decimal" autocomplete="off"' + retValAttr + '>' +
             '<span class="growth-input-suffix">%</span>' +
           '</span>' +
         '</label>' +
