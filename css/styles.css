@@ -6087,34 +6087,39 @@ body { font-size: 16px; }
    placeholder card. Disabled until the user marks Interested so the
    solver actually evaluates the strategy. Style matches the primary
    strategy buttons but slimmer so the card stays compact. */
-.supx-see-value-btn {
-    display: block;
-    width: 100%;
-    margin: 8px 0 0;
-    padding: 8px 12px;
-    border: 1px solid var(--rule);
-    border-radius: 3px;
-    background: var(--paper);
-    color: var(--ink);
-    font-family: var(--font-mono);
-    font-size: 0.78em;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: border-color 0.15s, background 0.15s, color 0.15s;
-}
-.supx-see-value-btn:hover:not(:disabled) {
-    border-color: var(--ink);
-    background: var(--ink);
-    color: var(--paper);
-}
-.supx-see-value-btn:disabled {
-    opacity: 0.45;
+/* "See value" chevron — matches the oilGas / delphi value-arrow
+   pattern so all supplemental cards share one affordance. The
+   underlying .supp-details-arrow rules (rotation on .is-open,
+   muted color, mono uppercase label) carry over via the compound
+   class. Adds disabled-state styling for placeholder cards and
+   "Interested" gating. */
+.supp-details-arrow.supx-value-arrow:disabled,
+.supp-details-arrow.supx-value-arrow[aria-disabled="true"] {
+    opacity: 0.40;
     cursor: not-allowed;
 }
-.supx-see-value-btn.is-open {
-    border-color: var(--ink);
+
+/* Placeholder card treatment — reserved slots awaiting real
+   strategy data. Greyed out at the card level and the small
+   "Coming Soon" tag in the header makes the state explicit. */
+.supp-strategy-card.is-placeholder {
+    opacity: 0.55;
+    background: var(--paper-cool);
+}
+.supp-strategy-card.is-placeholder:hover { opacity: 0.78; }
+.supx-placeholder-tag {
+    display: inline-block;
+    margin-left: auto;
+    padding: 2px 8px;
+    background: var(--paper-warm);
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: 0.62em;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
 }
 
 /* Result row — three states: value (green), crowded (muted), pending
