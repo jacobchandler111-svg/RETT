@@ -376,16 +376,56 @@
       '</div>';
   }
 
+  // True when the bracket data the engine needs is loaded.
+  function _taxDataReady() {
+    return !!(root.TAX_DATA && Array.isArray(root.TAX_DATA.years) && root.TAX_DATA.years.length);
+  }
+
+  // One-shot promise chain so a hard refresh on Tab 7 paints once
+  // brackets are live. Set ONCE on first render() that finds data
+  // missing — never re-armed, so we can't loop even if the promise
+  // resolves with TAX_DATA still incomplete.
+  var _taxWaitArmed = false;
+
+  function _armTaxDataWait() {
+    if (_taxWaitArmed) return;
+    _taxWaitArmed = true;
+    if (typeof root.loadTaxData !== 'function') return;
+    try {
+      root.loadTaxData().then(function () {
+        // Defer the pipeline + paint to the next tick so any sibling
+        // listeners (defaults.js's then-handler that repopulates the
+        // year dropdown) finish first. Avoids a partial-state read.
+        setTimeout(function () {
+          if (typeof root.runFullPipeline === 'function') {
+            try { root.runFullPipeline(); } catch (e) { /* */ }
+          }
+          render();
+        }, 0);
+      }, function () { /* swallow rejection */ });
+    } catch (e) { /* */ }
+  }
+
   function render() {
     var host = document.getElementById('temp-baselines');
     var badge = document.getElementById('temp-strategy-badge');
     if (!host) return;
-    // Force a fresh pipeline run before reading the engine state. On a
-    // post-refresh load, restored form values can race the auto-pick /
-    // optimizer pipeline so the engine row[0].baseline is left at $0
-    // for ord and LT tax even when the income side correctly reads
-    // $400K ord + $10M LT. Kicking runFullPipeline here guarantees the
-    // engine recomputes against the current form before we read.
+
+    // Tab 7 isn't currently visible — skip the pipeline run + DOM
+    // build entirely. Avoids the post-refresh path where the
+    // showPage-temp hook fires while the page is hidden behind a
+    // modal/panel and rebuilding while invisible just churns CPU.
+    var pageEl = document.getElementById('page-temp');
+    var pageVisible = pageEl && pageEl.classList.contains('active');
+    if (!pageVisible) return;
+
+    if (!_taxDataReady()) {
+      _renderBadge(badge, null);
+      host.innerHTML = '<div class="temp-empty">Loading tax brackets&hellip;</div>';
+      _armTaxDataWait();
+      return;
+    }
+
     if (typeof root.runFullPipeline === 'function') {
       try { root.runFullPipeline(); } catch (e) { /* */ }
     }
