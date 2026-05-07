@@ -1620,43 +1620,26 @@ function bindControls() {
 
     const taxCarveOut = wantsCoverTaxes ? _estimatedSaleTax() : 0;
 
-    // Drive available-capital from sale - keep - tax (if covering)
-    // whenever there's a sale price and no validation error.
-    //
-    // BUT: don't clobber a user's manual override. The advisor often
-    // dials Available Capital down to a planned investment amount
-    // (e.g., $4M of a $48M sale). Without the guards below, ANY edit
-    // to a watched income field — wages, biz revenue, etc. — would
-    // recompute Available Capital back to (saleVal - keep - tax),
-    // which equals saleVal when cover-taxes is OFF and no keep is set.
-    // That silently overwrites the advisor's $4M with $48M.
-    //
-    // Auto-fill rules:
-    //   1. If the field is EMPTY (initial paint after sale-price entry),
-    //      always fill with the computed value.
-    //   2. If there's a meaningful SUBTRACTION (keep > 0 or covering
-    //      taxes > 0), the user is explicitly opting into the auto-
-    //      compute — overwrite even a manual value so the math stays
-    //      tied to "Amount to keep" / "Cover taxes" toggles.
-    //   3. Otherwise, leave the field alone — the manual value wins.
+    // Drive available-capital from sale - keep - tax-carve-out always.
+    // Available Capital is a fully-derived field — no UI for the user to
+    // edit it directly (the input lives hidden inside
+    // #full-projection-region as an engine-only field). The model is:
+    //   • "Investing everything?" = Yes  →  avail = sale (keep=0)
+    //   • "Investing everything?" = No   →  avail = sale − amount-to-keep
+    //   • "Cover taxes from sale?" = Yes →  additionally subtract est. tax
+    // Re-derive on every watched-field change so the value tracks the
+    // toggles without going stale. Earlier code gated this on (empty OR
+    // hasSubtraction) to "protect a manual override," but the field has
+    // no edit UI now — the gate just trapped saved cases at stale or
+    // glitched values (e.g. "jared smith" stuck at $1 → Page 3 showed $0
+    // across all strategies with no recovery).
     if (!hasError && saleVal > 0) {
       const newAvailNum = Math.max(0, saleVal - keep - taxCarveOut);
       const newAvail = (typeof fmtUSD === 'function')
         ? fmtUSD(newAvailNum)
         : String(newAvailNum);
       const currentNum = parseUSD(availEl.value) || 0;
-      // Treat very-small avail values as "empty" for auto-fill purposes.
-      // The available-capital input is hidden inside #full-projection-region
-      // so the user has no UI way to fix a stuck $1 / $0.01 value (saw this
-      // on a saved case "jared smith" where avail=$1 produced $0 net
-      // benefit across all three strategies on Page 3 with no recovery
-      // path). The threshold is min($1000, 1% of sale) — small enough that
-      // legitimate small allocations relative to a small sale aren't
-      // clobbered, but large enough to catch the typo/glitch range.
-      const stuckTinyThreshold = Math.min(1000, saleVal * 0.01);
-      const isEmpty = !availEl.value || currentNum < stuckTinyThreshold;
-      const hasSubtraction = (keep > 0) || (taxCarveOut > 0);
-      if ((isEmpty || hasSubtraction) && currentNum !== newAvailNum) {
+      if (currentNum !== newAvailNum) {
         availEl.value = newAvail;
         availEl.dispatchEvent(new Event('input',  { bubbles: true }));
         availEl.dispatchEvent(new Event('change', { bubbles: true }));
