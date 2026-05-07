@@ -366,9 +366,30 @@
   //   allocatedToSupplementals — sum of supplemental investments.
   //   brooklynRemaining     — totalAvailable − allocatedToSupplementals.
   //                           This is the dollar Brooklyn is ENTITLED
-  //                           to deploy under correct accounting; the
-  //                           engine still uses cfg.availableCapital
-  //                           for now (no enforcement, just visibility).
+  //                           to deploy AFTER supps reserve their share —
+  //                           it is NOT the post-optimizer deployment.
+  //                           runFullPipeline (controls.js) feeds this
+  //                           value into the engine as cfg.investment, and
+  //                           runBrooklynOptimizer THEN dials it back when
+  //                           cumulative Brooklyn loss exceeds absorbable
+  //                           gain or marginal net would be negative.
+  //                           The actual deployment lives at
+  //                           __lastResult.config.investment (Path 2)
+  //                           after the optimizer has run. The Page-5
+  //                           hero reads from the per-strategy entry's
+  //                           metrics (Path 1, set in
+  //                           buildInterestedSummary), which can pick a
+  //                           different optimizer-applied combo than
+  //                           Path 2 — that divergence is documented in
+  //                           project-rett-audit-findings.md.
+  //
+  //                           DO NOT use brooklynRemaining as a proxy for
+  //                           "how much Brooklyn actually deployed" — it
+  //                           is the PRE-OPTIMIZER capacity. To check
+  //                           actual deployment in a probe, read
+  //                           __lastResult.config.investment or
+  //                           buildInterestedSummary().entries[i]._opt
+  //                           .recommendedInvestment.
   //   overAllocated         — true if supplementals exceed totalAvailable.
   //                           Surfaces in the Implementation panel so
   //                           the advisor can spot a broken rule.
