@@ -269,66 +269,54 @@
       '</table>';
   }
 
-  // ACTIVITY column — what was done in this year. Brooklyn rows come
-  // from the engine row; supplemental rows surface in Y0 only since
-  // most supps fire in the deployment year. If the year has no
-  // activity (Not Relevant), show a muted placeholder so the column
-  // still occupies its grid cell visually.
+  // ACTIVITY column — three summed concepts the CPA can verify against
+  // the income side. No per-supp breakdown; sums roll up Brooklyn +
+  // every funded supp.
+  //
+  //   ST loss generated     — Brooklyn lossGenerated + supp ST loss
+  //                           (Delphi's shortTermLoss allocation)
+  //   Ordinary income offset — Brooklyn loss applied to ordinary
+  //                            (capped at $3K/yr per §1211(b)) +
+  //                            every supp's ordinary deduction
+  //                            (Oil & Gas IDC, Charitable §170,
+  //                             PTET, Cost Seg, Heavy Vehicle, etc.)
+  //   LT gain added         — supp LT gain added (Delphi mainly)
+  //
+  // Supplementals fire in Y0 only (deployment year). Brooklyn loss
+  // generation can land in any year per the engine row.
   function _renderActivityCell(row, displayedI, chosen, cfg, fundedSupps) {
-    var lossGen = Number(row && row.lossGenerated) || 0;
-    var lossApp = Number(row && row.lossApplied)   || 0;
-    var gain    = Number(row && row.gainRecognized)|| 0;
-    var inv     = Number(row && row.investmentThisYear) || 0;
-    var bhFee   = Number(row && row.brookhavenFee) || 0;
-    var bkFee   = Number(row && row.fee)           || 0;
-
-    var dateLabel = '';
-    if (cfg && (cfg.implementationDate || cfg.strategyImplementationDate)) {
-      dateLabel = String(cfg.strategyImplementationDate || cfg.implementationDate);
+    var stLossBrooklyn = Math.max(0, Number(row && row.lossGenerated) || 0);
+    var ordOffsetBrooklyn = 0;
+    // Brooklyn applies losses across LT/recap/ord buckets; only the
+    // ordinary slice is §1211(b)-capped at $3K. The engine surfaces
+    // it on the row's withStrategy as `lossOrdOffsetApplied` when set;
+    // if not present, treat Brooklyn ordinary contribution as 0
+    // (Brooklyn's loss is overwhelmingly used to offset LT gain, not
+    // ordinary, so this is the right default).
+    var withStrat = row && row.withStrategy;
+    if (withStrat && Number.isFinite(Number(withStrat._ordOffsetApplied))) {
+      ordOffsetBrooklyn = Math.max(0, Number(withStrat._ordOffsetApplied) || 0);
+    } else if (row && Number.isFinite(Number(row.ordOffsetApplied))) {
+      ordOffsetBrooklyn = Math.max(0, Number(row.ordOffsetApplied) || 0);
     }
 
-    var rows = [];
-    if (inv > 0) {
-      rows.push(['Brooklyn investment', _fmt(inv) + (dateLabel && displayedI === 0 ? ' &nbsp;<span class="temp-act-meta">(' + dateLabel + ')</span>' : '')]);
-    }
-    if (lossGen > 0) rows.push(['Brooklyn ST loss generated', _fmt(lossGen)]);
-    if (lossApp > 0) rows.push(['Brooklyn loss applied (offset)', '&minus;' + _fmt(lossApp)]);
-    if (gain    > 0) rows.push(['LT gain recognized', _fmt(gain)]);
-    if (bkFee   > 0) rows.push(['Brooklyn AM fee', _fmt(bkFee)]);
-    if (bhFee   > 0) rows.push(['Brookhaven fee', _fmt(bhFee)]);
-
-    // Supplemental activity — fire in Y0 only (deployment year). Use
-    // each supp's lastResult to pull headline effects; show ordinary
-    // offset / LT gain added / investment / net benefit lines that
-    // are actually populated.
-    var suppHtml = '';
-    if (displayedI === 0 && Array.isArray(fundedSupps) && fundedSupps.length) {
-      var suppRows = fundedSupps.map(function (s) {
-        var name = s.name || s.id;
-        // Two stores: core supps (oilGas, delphi) live under
-        // __rettSupplemental, extra supps under __rettSupplementalExtra.
+    // Sum supp activity (Y0 only).
+    var stLossSupp = 0;
+    var ordOffsetSupp = 0;
+    var ltGainAddedSupp = 0;
+    if (displayedI === 0 && Array.isArray(fundedSupps)) {
+      fundedSupps.forEach(function (s) {
         var extraSpec = (root.__rettSupplementalExtra && root.__rettSupplementalExtra[s.id]) || null;
         var coreSpec  = (root.__rettSupplemental      && root.__rettSupplemental[s.id])      || null;
         var last      = (extraSpec && extraSpec.lastResult)
-                     || (coreSpec  && coreSpec.lastResult)
-                     || null;
-        var detail      = (last && last.detail)      || {};
-        var allocations = (last && last.allocations) || {};
-        // Oil & Gas keeps Y1 numbers under perYear[0]; pull from there
-        // when the top-level 'investment'/'deduction' aren't on `last`.
-        var perY0 = (last && Array.isArray(last.perYear) && last.perYear[0]) ? last.perYear[0] : {};
-
-        var detailHtml = '';
-        // Investment (capital deployed)
-        var invAmt = Number(
-          (last && last.investment)
-          || perY0.investment
-          || s.investment
-          || 0
-        );
-        if (invAmt > 0) detailHtml += '<div class="temp-supp-line"><span>Capital invested</span><span class="temp-amt">' + _fmt(invAmt) + '</span></div>';
-        // Ordinary offset / deduction
-        var ordOff = Number(
+                     || (coreSpec  && coreSpec.lastResult) || null;
+        if (!last) return;
+        var detail      = last.detail      || {};
+        var allocations = last.allocations || {};
+        var perY0       = (Array.isArray(last.perYear) && last.perYear[0]) || {};
+        // Ordinary income offset (Oil & Gas IDC deduction, Delphi
+        // ordinaryExpense, Charitable deductibleAmount, etc.)
+        ordOffsetSupp += Number(
           allocations.ordinaryExpense
           || perY0.deduction
           || detail.deductibleAmount
@@ -336,42 +324,32 @@
           || detail.deduction
           || detail.expense
           || 0
-        );
-        if (ordOff > 0) detailHtml += '<div class="temp-supp-line"><span>Ordinary income offset</span><span class="temp-amt">&minus;' + _fmt(ordOff) + '</span></div>';
-        // LT gain added (Delphi)
-        var ltAdd = Number(allocations.longTermGainAdded || detail.longTermGainAdded || 0);
-        if (ltAdd > 0) detailHtml += '<div class="temp-supp-line"><span>LT gain added</span><span class="temp-amt">+' + _fmt(ltAdd) + '</span></div>';
-        // ST loss (Delphi)
-        var stLoss = Number(allocations.shortTermLoss || detail.shortTermLoss || 0);
-        if (stLoss > 0) detailHtml += '<div class="temp-supp-line"><span>ST loss generated</span><span class="temp-amt">+' + _fmt(stLoss) + '</span></div>';
-        // Cap-gain avoided (Charitable, appreciated-asset path)
-        var cgAvoid = Number(detail.capGainAvoided || 0);
-        if (cgAvoid > 0) detailHtml += '<div class="temp-supp-line"><span>Cap-gain avoided</span><span class="temp-amt">' + _fmt(cgAvoid) + '</span></div>';
-        // Net benefit
-        var net = Number(s.netBenefit || (last && last.netBenefit) || (last && last.totalSaved) || 0);
-        if (net > 0) detailHtml += '<div class="temp-supp-line temp-supp-net"><span>Net tax benefit</span><span class="temp-amt">' + _fmt(net) + '</span></div>';
-        if (!detailHtml) return '';
-        return '<div class="temp-supp-block"><div class="temp-supp-name">' + name + '</div>' + detailHtml + '</div>';
-      }).filter(Boolean).join('');
-      if (suppRows) {
-        suppHtml = '<div class="temp-supp-section"><div class="temp-act-subhead">Supplemental strategies</div>' + suppRows + '</div>';
-      }
+        ) || 0;
+        // LT gain added (Delphi alpha layer)
+        ltGainAddedSupp += Number(allocations.longTermGainAdded || detail.longTermGainAdded || 0) || 0;
+        // ST loss added (Delphi short leg)
+        stLossSupp += Number(allocations.shortTermLoss || detail.shortTermLoss || 0) || 0;
+      });
     }
 
-    if (!rows.length && !suppHtml) {
+    var stLoss      = stLossBrooklyn + stLossSupp;
+    var ordOffset   = ordOffsetBrooklyn + ordOffsetSupp;
+    var ltGainAdded = ltGainAddedSupp;
+
+    if (stLoss === 0 && ordOffset === 0 && ltGainAdded === 0) {
       return '<div class="temp-activity-empty">No strategy activity this year.</div>';
     }
 
-    var brooklynHtml = rows.length
-      ? '<div class="temp-act-subhead">Brooklyn (sale-side)</div>' +
-        '<table class="temp-activity-table"><tbody>' +
-        rows.map(function (r) {
-          return '<tr><td>' + r[0] + '</td><td class="temp-amt">' + r[1] + '</td></tr>';
-        }).join('') +
-        '</tbody></table>'
-      : '';
+    var rows = [];
+    if (stLoss > 0)      rows.push(['ST loss generated',     _fmt(stLoss)]);
+    if (ordOffset > 0)   rows.push(['Ordinary income offset', '&minus;' + _fmt(ordOffset)]);
+    if (ltGainAdded > 0) rows.push(['LT gain added',          '+' + _fmt(ltGainAdded)]);
 
-    return brooklynHtml + suppHtml;
+    return '<table class="temp-activity-table"><tbody>' +
+      rows.map(function (r) {
+        return '<tr><td>' + r[0] + '</td><td class="temp-amt">' + r[1] + '</td></tr>';
+      }).join('') +
+      '</tbody></table>';
   }
 
   function _renderYearCard(row, i, chosen, cfg, fundedSupps, stateCode) {
@@ -402,6 +380,15 @@
     var host = document.getElementById('temp-baselines');
     var badge = document.getElementById('temp-strategy-badge');
     if (!host) return;
+    // Force a fresh pipeline run before reading the engine state. On a
+    // post-refresh load, restored form values can race the auto-pick /
+    // optimizer pipeline so the engine row[0].baseline is left at $0
+    // for ord and LT tax even when the income side correctly reads
+    // $400K ord + $10M LT. Kicking runFullPipeline here guarantees the
+    // engine recomputes against the current form before we read.
+    if (typeof root.runFullPipeline === 'function') {
+      try { root.runFullPipeline(); } catch (e) { /* */ }
+    }
     var ctx = _resolveChosen();
     _renderBadge(badge, ctx);
     if (!ctx) {
