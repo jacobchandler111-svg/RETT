@@ -932,31 +932,52 @@
     var stratKey = baseCfg.tierKey || 'beta1';
     var custId = baseCfg.custodian || '';
     var pcts = _candidateShortPctsLocal(stratKey, custId);
-    var horizons = [1, 3, 5, 7];
-    // Structured-sale duration: 48 months is the regulatory minimum
-    // (was 18 historically; bumped 2026-05-07 per advisor — Brooklyn
-    // structured-sale product now requires 4 years of yearly Jan-1
-    // payments, so the duration sweep is in 12-month buckets starting
-    // at 48). Upper bound is the horizon's full calendar span — past
-    // that there's no projection room for additional payment years.
+    // Horizons set updated 2026-05-07 from the legacy odd-year sweep
+    // [1, 3, 5, 7]. Year-aligned with the new yearly-Jan-1-payment model:
+    //   • horizon=1 — Strategy A (Sell-Now lump-sum, position closes Y1)
+    //   • horizon=2 — Strategy B (Seller-Finance §453, Y0 recap +
+    //                              Y1 LT recognition + 1 buffer)
+    //   • horizon=5 — Strategy C with 48mo dur (recognition Y1-Y4)
+    //   • horizon=6 — Strategy C with up to 60mo dur
+    //   • horizon=7 — Strategy C with up to 72mo dur
+    // 72mo is the carrier's effective ceiling (anything longer is too
+    // long for the client and rarely helps net benefit).
+    var horizons = [1, 2, 5, 6, 7];
+    // Structured-sale duration: 48-month minimum (MetLife regulatory
+    // floor), 72-month ceiling, year-aligned 12-month buckets.
+    // Returns [] when the horizon physically can't fit a 48mo recognition
+    // window past Y0 — auto-picker then naturally skips Strategy C at
+    // that horizon. Recognition starts Y1 (sale year is Y0), so a
+    // 48mo window needs maturity at Y4 → horizon=5 minimum.
     function _durationsForHorizon(hor) {
-      var maxMo = Math.max(48, (hor || 5) * 12);
+      // Y0 reserved for sale-year tax events; Y1+ available for
+      // recognition. Maturity year-index = duration_months/12. So
+      // horizon must be >= 1 (Y0) + duration/12 (recognition years).
+      var availableRecYears = Math.max(0, (hor || 5) - 1);
+      var maxByHor = availableRecYears * 12;
+      if (maxByHor < 48) return [];
+      var maxMo = Math.min(72, maxByHor);
       var arr = [];
       for (var m = 48; m <= maxMo; m += 12) arr.push(m);
-      // Always include the explicit max so we don't truncate just below it.
-      if (arr[arr.length - 1] !== maxMo) arr.push(maxMo);
       return arr;
     }
     var userDurationFallback = baseCfg.structuredSaleDurationMonths || 48;
     var best = null;
     horizons.forEach(function (hor) {
-      // Both B (Seller Finance §453 installment) and C (Structured Sale)
-      // need horizon >= 2 because the deferred path uses Y0 for recap-
-      // only / sale-year ordinary tax events and Y1+ for the actual
-      // gain recognition. With horizon=1 there's no Y1 row, so the
-      // engine collapses recap + LT into the same year — which is
-      // exactly the §453(i) violation the B fix removes.
-      if (hor < 2 && (type === 'C' || type === 'B')) return;
+      // Strategy-specific minimum horizons:
+      //   • B (Seller-Finance §453 installment): hor >= 2 — engine deferred
+      //     path uses Y0 for recap-only / sale-year ordinary tax and Y1+
+      //     for LT gain recognition. With hor=1 there's no Y1 row, so the
+      //     engine collapses recap + LT back into the same year (the §453(i)
+      //     violation the B fix removes).
+      //   • C (Structured Sale): hor >= 5 — minimum 48mo duration is 4
+      //     yearly recognition payments; with sale year Y0 + recognition
+      //     Y1-Y4 = 5 years total horizon required. Skipping hor < 5
+      //     prevents the auto-picker from generating infeasible
+      //     (startIdx == maturityIdx) shapes that collapse all gain
+      //     into a single year and bypass MetLife caps.
+      if (type === 'C' && hor < 5) return;
+      if (type === 'B' && hor < 2) return;
       pcts.forEach(function (p) {
         var cfgSection = Object.assign({}, baseCfg, {
           horizonYears: hor,
