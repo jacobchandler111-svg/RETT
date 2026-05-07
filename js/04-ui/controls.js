@@ -1645,7 +1645,16 @@ function bindControls() {
         ? fmtUSD(newAvailNum)
         : String(newAvailNum);
       const currentNum = parseUSD(availEl.value) || 0;
-      const isEmpty = !availEl.value || currentNum === 0;
+      // Treat very-small avail values as "empty" for auto-fill purposes.
+      // The available-capital input is hidden inside #full-projection-region
+      // so the user has no UI way to fix a stuck $1 / $0.01 value (saw this
+      // on a saved case "jared smith" where avail=$1 produced $0 net
+      // benefit across all three strategies on Page 3 with no recovery
+      // path). The threshold is min($1000, 1% of sale) — small enough that
+      // legitimate small allocations relative to a small sale aren't
+      // clobbered, but large enough to catch the typo/glitch range.
+      const stuckTinyThreshold = Math.min(1000, saleVal * 0.01);
+      const isEmpty = !availEl.value || currentNum < stuckTinyThreshold;
       const hasSubtraction = (keep > 0) || (taxCarveOut > 0);
       if ((isEmpty || hasSubtraction) && currentNum !== newAvailNum) {
         availEl.value = newAvail;
