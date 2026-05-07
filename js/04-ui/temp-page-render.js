@@ -376,9 +376,26 @@
       '</div>';
   }
 
-  // True when the bracket data the engine needs is loaded.
+  // True when the bracket data the engine needs is loaded. tax-data.js
+  // declares TAX_DATA as a top-level `const` in a classic script, so
+  // it lives on the global lexical scope but does NOT attach to window.
+  // Read it through the exported isTaxDataLoaded() probe instead of
+  // root.TAX_DATA (which is always undefined).
   function _taxDataReady() {
-    return !!(root.TAX_DATA && Array.isArray(root.TAX_DATA.years) && root.TAX_DATA.years.length);
+    if (typeof root.isTaxDataLoaded === 'function') {
+      try { return !!root.isTaxDataLoaded(); } catch (e) { /* */ }
+    }
+    // Fallback: the engine functions hang on the global scope, so if
+    // computeFederalTaxBreakdown produces a non-zero ord-tax for a
+    // probe income, brackets are loaded. Used only when isTaxDataLoaded
+    // isn't exported (older builds).
+    if (typeof root.computeFederalTaxBreakdown === 'function') {
+      try {
+        var probe = root.computeFederalTaxBreakdown(500000, 2026, 'mfj', {});
+        return !!(probe && Number(probe.ordinaryTax) > 0);
+      } catch (e) { /* */ }
+    }
+    return false;
   }
 
   // One-shot promise chain so a hard refresh on Tab 7 paints once
