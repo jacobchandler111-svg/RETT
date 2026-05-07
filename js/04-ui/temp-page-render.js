@@ -124,14 +124,13 @@
     var stGain = Math.max(0, _readNum('short-term-gain'));
     var lt = Math.max(0, Number(row && row.gainRecognized) || 0);
     var recap = 0;
-    if (chosen === 'A' && displayedI === 0) {
-      recap = Math.max(0, Number(cfg && cfg.acceleratedDepreciation) || 0);
-    } else if (chosen === 'C' && displayedI === 0) {
-      recap = Math.max(0, Number(cfg && cfg.acceleratedDepreciation) || 0);
-    } else if (chosen === 'B' && displayedI === 1) {
-      // Engine bundles recap + gain into row[0] for B (= displayed Y1
-      // here). Tab-7 also surfaces recap on Y0 synthesized as a CPA
-      // §453(i) check; flag pending engine fix in the prompt.
+    // Recapture lands in the year-of-sale for all three strategies:
+    //   A — row[0] (sale year, immediate)
+    //   B — row[0] (sale year, ordinary §453(i); LT gain comes in row[1])
+    //   C — row[0] (sale year; LT gain spreads across later rows)
+    // displayedI === 0 maps to engine row[0] for all three under the
+    // new (post-§453-update) rendering path.
+    if (displayedI === 0 && (chosen === 'A' || chosen === 'B' || chosen === 'C')) {
       recap = Math.max(0, Number(cfg && cfg.acceleratedDepreciation) || 0);
     }
     return { ordinary: ord, longTermGain: lt, shortTermGain: stGain, recapture: recap };
@@ -177,11 +176,14 @@
   function _isRelevant(row, i, chosen, cfg) {
     var gain = Number(row && row.gainRecognized) || 0;
     var loss = Number(row && row.lossApplied) || 0;
-    var stackedRecap = Number(row && row.baseline && row.baseline._recapStacked) || 0;
-    if (gain > 0 || loss > 0 || stackedRecap > 0) return true;
+    if (gain > 0 || loss > 0) return true;
+    // Y0 always relevant when the strategy has recapture, regardless
+    // of whether the engine row picked it up — recap is recognized in
+    // year of sale for every strategy (A/B/C immediate, B/C deferred
+    // pay through §453(i)).
     if (i === 0) {
       var recap = Number(cfg && (cfg.depreciationRecapture || cfg.acceleratedDepreciation)) || 0;
-      if (recap > 0 && chosen === 'C') return true;
+      if (recap > 0) return true;
     }
     return false;
   }
@@ -452,48 +454,32 @@
       host.innerHTML = '<div class="temp-empty">Choose a strategy on Tab 4 (Projection) and load supplemental selections on Tab 5 to populate this view.</div>';
       return;
     }
+    // Engine routes A / B / C correctly now. As of the §453 update:
+    //   A — single-row immediate sale at year1
+    //   B — TWO rows: row[0]=year1 (recap year, ordinary rates per
+    //       §453(i)), row[1]=year1+1 (LT gain when buyer pays)
+    //   C — multi-row deferred (recap row[0], gain spread over rows)
+    // Use engine rows[0..] directly; fill any horizon-trailing slots
+    // with recurring-income baselines so the card grid stays at 6 rows.
     var engineRows = ctx.comp.rows || [];
     var inputYear1 = parseInt(_readVal('year1','2026'), 10) || 2026;
-    var saleRecap = Math.max(0, _readNum('accelerated-depreciation'));
     var stateCode = _readVal('state-code', '');
-    var year0;
-    var engineRowOffset;
-    if (ctx.chosen === 'B') {
-      // B reframe: synthesize Y0 with recap-as-ordinary so the CPA
-      // sees the §453(i) view. Engine row[0] = displayed Y1.
-      // (Engine fix pending — see prompt.)
-      year0 = inputYear1;
-      engineRowOffset = 1;
-    } else {
-      year0 = engineRows.length ? Number(engineRows[0].year) : inputYear1;
-      engineRowOffset = 0;
-    }
+    var year0 = engineRows.length ? Number(engineRows[0].year) : inputYear1;
 
     var html = '';
     for (var i = 0; i < TOTAL_YEARS; i++) {
       var yr = year0 + i;
-      var row;
-      if (ctx.chosen === 'B' && i === 0) {
+      var row = engineRows[i] || null;
+      if (row) {
+        if (row.baseline && !row.baseline._incomes) {
+          row.baseline._incomes = _deriveIncomesForEngineRow(row, i, ctx.chosen, ctx.entry.cfg);
+        }
+      } else {
         row = {
           year: yr,
-          baseline: _recurringBaselineForYear(yr, { recap: saleRecap }),
+          baseline: _recurringBaselineForYear(yr),
           gainRecognized: 0, lossApplied: 0, lossGenerated: 0, investmentThisYear: 0
         };
-      } else {
-        var src = engineRows[i - engineRowOffset] || null;
-        if (src) {
-          // Engine row — decorate baseline with derived income side.
-          row = src;
-          if (row.baseline && !row.baseline._incomes) {
-            row.baseline._incomes = _deriveIncomesForEngineRow(row, i, ctx.chosen, ctx.entry.cfg);
-          }
-        } else {
-          row = {
-            year: yr,
-            baseline: _recurringBaselineForYear(yr),
-            gainRecognized: 0, lossApplied: 0, lossGenerated: 0, investmentThisYear: 0
-          };
-        }
       }
       html += _renderYearCard(row, i, ctx.chosen, ctx.entry.cfg, ctx.fundedSupps, stateCode);
     }
