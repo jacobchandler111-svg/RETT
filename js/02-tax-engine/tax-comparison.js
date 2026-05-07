@@ -13,17 +13,24 @@
 // code path.
 //
 // Term-specific rules (yearly Jan-1 payments):
-//   • 3-year (36mo): first payment <= 40%, last >= 20%
-//                    e.g. 40/40/20 split is the canonical example.
-//   • 4-year+ (48mo, 60mo, 72mo): first <= 50%, last >= 10%
-//                    e.g. 50/30/10/10 or 40/30/20/10 splits are valid.
-// 36mo is the new minimum (was 48mo per the prior MetLife approval).
-// 72mo is the practical ceiling — anything longer is too long for the
-// client to commit to.
+//   • 3-year (36mo): first ≤ 40%, last ≥ 20%
+//                    canonical: 40/40/20 split.
+//   • 4-year+ (48mo, 60mo, 72mo): first ≤ 50%, last ≥ 10%
+//                    canonical: 50/30/10/10 split.
+//
+// Universal rule (applies to BOTH terms):
+//   • First two payments combined ≤ 80% of total gain.
+// Both canonical examples respect this naturally (40+40=80, 50+30=80) —
+// the carrier added it as the third-rail constraint to ensure the back
+// half of the contract still carries meaningful gain.
+//
+// 36mo is the floor (per MetLife's 2026-05-08 approval, was 48mo prior).
+// 72mo is the practical ceiling.
 //
 // The engine enforces these inside the deferred-path recognition loop:
-//   - Caps the first recognition year at firstPaymentMaxPct × totalGain
-//   - Reserves at least lastPaymentMinPct × totalGain for maturity year
+//   - Caps year 1 at firstPaymentMaxPct × totalGain
+//   - Caps year 2 such that Y1+Y2 ≤ firstTwoPaymentsMaxPct × totalGain
+//   - Reserves ≥ lastPaymentMinPct × totalGain for the maturity year
 //
 // Applies only when cfg.structuredSaleDurationMonths is set AND
 // cfg.maxRecognitionYearIndex is absent. Strategy A (immediate) and
@@ -33,21 +40,31 @@
 var METLIFE_RULES = {
       // Default rule (used when term-years can't be determined). Matches
       // the looser 4-yr+ caps so it doesn't accidentally over-constrain.
-      firstPaymentMaxPct: 0.50,
-      lastPaymentMinPct:  0.10
+      firstPaymentMaxPct:        0.50,
+      firstTwoPaymentsMaxPct:    0.80,
+      lastPaymentMinPct:         0.10
 };
 
 // Returns the rule object for a given structured-sale duration in months.
-// 36mo → 3-yr rule, 48+ → 4-yr+ rule.
+// 36mo → 3-yr rule, 48+ → 4-yr+ rule. The 80% combined Y1+Y2 cap is
+// universal (same for both terms).
 function _metlifeRulesForTerm(durationMonths) {
       var months = Number(durationMonths) || 0;
       if (months > 0 && months < 48) {
-            // 3-year (36mo) — tighter caps because there are only 3
-            // payments to absorb 100% of gain.
-            return { firstPaymentMaxPct: 0.40, lastPaymentMinPct: 0.20 };
+            // 3-year (36mo) — tighter Y1 cap + higher last-floor because
+            // there are only 3 payments to absorb 100% of gain.
+            return {
+                  firstPaymentMaxPct:     0.40,
+                  firstTwoPaymentsMaxPct: 0.80,
+                  lastPaymentMinPct:      0.20
+            };
       }
       // 4-year and longer terms.
-      return { firstPaymentMaxPct: 0.50, lastPaymentMinPct: 0.10 };
+      return {
+            firstPaymentMaxPct:     0.50,
+            firstTwoPaymentsMaxPct: 0.80,
+            lastPaymentMinPct:      0.10
+      };
 }
 
 // --- Module-local helpers -----------------------------------------------
@@ -800,6 +817,17 @@ function unifiedTaxComparison(cfg, opts) {
                         if (i === startIdx) {
                               const firstCap = totalGainBucket * _metlifeRules.firstPaymentMaxPct;
                               cap = Math.min(cap, firstCap);
+                        }
+                        // First-two-payments combined cap (universal: 80%).
+                        // gainRemaining at this point includes whatever Y1
+                        // already took, so cumulative-recognized = total -
+                        // gainRemaining. Y2 can take at most
+                        // (80% × total) - cumulativeRecognized.
+                        if (i === startIdx + 1) {
+                              const combinedCap = totalGainBucket * _metlifeRules.firstTwoPaymentsMaxPct;
+                              const cumulativeRecognized = totalGainBucket - gainRemaining;
+                              const maxY2 = Math.max(0, combinedCap - cumulativeRecognized);
+                              cap = Math.min(cap, maxY2);
                         }
                         // Last-payment floor (term-specific):
                         //   3-yr: 20%, 4-yr+: 10%
