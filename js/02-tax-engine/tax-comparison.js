@@ -2,35 +2,53 @@
 // Side-by-side baseline vs. post-strategy tax. Per-year, multi-year aware.
 
 // =============================================================================
-// TEMPORARY — MetLife structured-sale payment-schedule rules (2026-05-07)
+// TEMPORARY — MetLife structured-sale payment-schedule rules (2026-05-07,
+// updated 2026-05-08 for new 3-year approval)
 // =============================================================================
 // MetLife's contractual requirements for the Brooklyn structured-sale
-// product:
-//   1. First payment cannot exceed 50% of total gain.
-//   2. Last payment must be at least 20% of total gain.
-// Yearly payments on Jan 1; minimum total term 48 months (4 yearly payments).
-// These limits are NOT tax rules — they're contract terms imposed by the
-// insurance carrier (MetLife). They will likely change when MetLife
-// updates the product spec; when that happens, edit the constants below
-// and search for "METLIFE_RULES" to find every dependent code path.
+// product. These are CONTRACT terms (not tax rules) imposed by the
+// insurance carrier; they will change as MetLife updates the product
+// spec. When that happens, edit the constants below and search for
+// "METLIFE_RULES" or "_metlifeRulesForTerm" to find every dependent
+// code path.
+//
+// Term-specific rules (yearly Jan-1 payments):
+//   • 3-year (36mo): first payment <= 40%, last >= 20%
+//                    e.g. 40/40/20 split is the canonical example.
+//   • 4-year+ (48mo, 60mo, 72mo): first <= 50%, last >= 10%
+//                    e.g. 50/30/10/10 or 40/30/20/10 splits are valid.
+// 36mo is the new minimum (was 48mo per the prior MetLife approval).
+// 72mo is the practical ceiling — anything longer is too long for the
+// client to commit to.
 //
 // The engine enforces these inside the deferred-path recognition loop:
-//   - Caps the first recognition year at firstPaymentMaxPct × totalGainBucket
-//   - Reserves at least lastPaymentMinPct × totalGainBucket for the
-//     maturity year (the engine's existing "force-remainder-at-maturity"
-//     logic naturally satisfies the floor — we just ensure earlier years
-//     don't drain past 80% of the gain).
+//   - Caps the first recognition year at firstPaymentMaxPct × totalGain
+//   - Reserves at least lastPaymentMinPct × totalGain for maturity year
 //
 // Applies only when cfg.structuredSaleDurationMonths is set AND
 // cfg.maxRecognitionYearIndex is absent. Strategy A (immediate) and
-// Strategy B (delay close to Jan 1, which sets maxRecognitionYearIndex)
-// bypass these checks because the gain isn't being staged through the
-// MetLife product on those paths.
+// Strategy B (Seller Finance §453, sets maxRecognitionYearIndex) bypass
+// because they don't route through the MetLife product.
 // =============================================================================
 var METLIFE_RULES = {
+      // Default rule (used when term-years can't be determined). Matches
+      // the looser 4-yr+ caps so it doesn't accidentally over-constrain.
       firstPaymentMaxPct: 0.50,
-      lastPaymentMinPct:  0.20
+      lastPaymentMinPct:  0.10
 };
+
+// Returns the rule object for a given structured-sale duration in months.
+// 36mo → 3-yr rule, 48+ → 4-yr+ rule.
+function _metlifeRulesForTerm(durationMonths) {
+      var months = Number(durationMonths) || 0;
+      if (months > 0 && months < 48) {
+            // 3-year (36mo) — tighter caps because there are only 3
+            // payments to absorb 100% of gain.
+            return { firstPaymentMaxPct: 0.40, lastPaymentMinPct: 0.20 };
+      }
+      // 4-year and longer terms.
+      return { firstPaymentMaxPct: 0.50, lastPaymentMinPct: 0.10 };
+}
 
 // --- Module-local helpers -----------------------------------------------
 // Default leverage when cfg supplies neither leverage nor leverageCap
@@ -454,14 +472,14 @@ function _zeroDeferredComparison(cfg) {
 //   1. If cfg.maxRecognitionYearIndex is set (used by the "delay close
 //      to Jan 1 next year" scenario), use it directly — that scenario
 //      has no insurance-product term to honor.
-//   2. Otherwise apply a hard 48-month floor (regulatory minimum for
-//      structured-sale products as of 2026 — was 18 months historically;
-//      bumped to 4 years per advisor 2026-05-07), then auto-extend the
-//      maturity to land on the next Jan 1: structured-sale payouts
+//   2. Otherwise apply a hard 36-month floor (regulatory minimum for
+//      structured-sale products as of 2026-05-08 per MetLife's 3-year
+//      approval — was 48mo since 2026-05-07, was 18 historically),
+//      then auto-extend the maturity to land on the next Jan 1: payouts
 //      happen on Jan 1, so a mid-year maturity wastes the months
 //      between the natural maturity and the next Jan 1. E.g. May 2026
-//      sale with 48-month duration → natural maturity May 2030 → bump
-//      to Jan 1 2031 (effectively a 56-month term) so the last legal
+//      sale with 36-month duration → natural maturity May 2029 → bump
+//      to Jan 1 2030 (effectively a 44-month term) so the last legal
 //      Jan 1 payout is reachable inside the product term.
 //   3. Falls back to horizon-1 when duration isn't supplied or the
 //      implementation date is missing.
@@ -475,10 +493,11 @@ function _structuredSaleMaturityYearIdx(cfg, horizon) {
       }
       const monthsRaw = Number(cfg && cfg.structuredSaleDurationMonths);
       if (!Number.isFinite(monthsRaw) || monthsRaw <= 0) return horizon - 1;
-      // 48-month minimum is the regulatory floor for a Brooklyn
-      // structured-sale product (4 years of yearly Jan-1 payments).
-      // Anything shorter the user enters is clamped up.
-      const months = Math.max(48, monthsRaw);
+      // 36-month minimum is the regulatory floor for a Brooklyn
+      // structured-sale product per MetLife's 2026-05-08 approval
+      // (3 years of yearly Jan-1 payments). Anything shorter is
+      // clamped up.
+      const months = Math.max(36, monthsRaw);
       let saleYear, saleMonth0;
       const implDate = cfg && cfg.implementationDate;
       if (implDate && typeof window !== 'undefined' && typeof window.parseLocalDate === 'function') {
@@ -767,22 +786,27 @@ function unifiedTaxComparison(cfg, opts) {
             const _isMetLifeConstrained = isDeferred
                   && Number(cfg && cfg.structuredSaleDurationMonths) > 0
                   && (cfg && cfg.maxRecognitionYearIndex == null);
+            // Term-specific rules: 36mo (3-yr) → 40/20, 48mo+ (4-yr+) → 50/10.
+            const _metlifeRules = _isMetLifeConstrained
+                  ? _metlifeRulesForTerm(cfg.structuredSaleDurationMonths)
+                  : null;
             let gainRecThisYear = 0;
             if (i >= startIdx && i <= maturityIdx && gainRemaining > 0) {
                   const maxAbsorbable = Math.max(0, (stCF + existingLoss - _recapDrag) / denom);
                   let cap = Math.min(gainRemaining, maxAbsorbable);
-                  if (_isMetLifeConstrained) {
-                        // First-payment cap: 50% of total gain.
+                  if (_metlifeRules) {
+                        // First-payment cap (term-specific):
+                        //   3-yr: 40%, 4-yr+: 50%
                         if (i === startIdx) {
-                              const firstCap = totalGainBucket * METLIFE_RULES.firstPaymentMaxPct;
+                              const firstCap = totalGainBucket * _metlifeRules.firstPaymentMaxPct;
                               cap = Math.min(cap, firstCap);
                         }
-                        // Last-payment floor: reserve ≥ 20% of total
-                        // gain for maturity year. Don't apply on the
-                        // maturity year itself — it takes the residual
-                        // anyway.
+                        // Last-payment floor (term-specific):
+                        //   3-yr: 20%, 4-yr+: 10%
+                        // Don't apply on the maturity year itself — it
+                        // takes the residual anyway.
                         if (i < maturityIdx) {
-                              const lastReserve = totalGainBucket * METLIFE_RULES.lastPaymentMinPct;
+                              const lastReserve = totalGainBucket * _metlifeRules.lastPaymentMinPct;
                               const maxAllowed  = Math.max(0, gainRemaining - lastReserve);
                               cap = Math.min(cap, maxAllowed);
                         }

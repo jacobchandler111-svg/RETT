@@ -545,7 +545,7 @@
   }
   function _buildScenarioComparison(currentCfg) {
     if (!currentCfg) return '';
-    var userDuration = currentCfg.structuredSaleDurationMonths || 48;
+    var userDuration = currentCfg.structuredSaleDurationMonths || 36;
 
     // Each row shows the BEST configuration of that strategy — same
     // auto-pick the section dashboard runs — so row and dashboard never
@@ -928,40 +928,44 @@
   // maximizes net for this scenario type. Used both when a section is
   // first checked AND when the user clicks Revert on a section.
   function _autoPickSection(type, baseCfg) {
-    if (!baseCfg) return { horizon: 5, shortPct: 100, comboId: null, bestRecC: 2, durationMonths: 48 };
+    if (!baseCfg) return { horizon: 5, shortPct: 100, comboId: null, bestRecC: 2, durationMonths: 36 };
     var stratKey = baseCfg.tierKey || 'beta1';
     var custId = baseCfg.custodian || '';
     var pcts = _candidateShortPctsLocal(stratKey, custId);
-    // Horizons set updated 2026-05-07 from the legacy odd-year sweep
-    // [1, 3, 5, 7]. Year-aligned with the new yearly-Jan-1-payment model:
+    // Horizons set updated 2026-05-08 — MetLife approved 36mo (3-yr) as
+    // the new minimum (was 48mo). Year-aligned with yearly-Jan-1-payment
+    // model:
     //   • horizon=1 — Strategy A (Sell-Now lump-sum, position closes Y1)
     //   • horizon=2 — Strategy B (Seller-Finance §453, Y0 recap +
     //                              Y1 LT recognition + 1 buffer)
-    //   • horizon=5 — Strategy C with 48mo dur (recognition Y1-Y4)
+    //   • horizon=4 — Strategy C with 36mo dur (recognition Y1-Y3)
+    //   • horizon=5 — Strategy C with up to 48mo dur (Y1-Y4)
     //   • horizon=6 — Strategy C with up to 60mo dur
     //   • horizon=7 — Strategy C with up to 72mo dur
-    // 72mo is the carrier's effective ceiling (anything longer is too
-    // long for the client and rarely helps net benefit).
-    var horizons = [1, 2, 5, 6, 7];
-    // Structured-sale duration: 48-month minimum (MetLife regulatory
-    // floor), 72-month ceiling, year-aligned 12-month buckets.
-    // Returns [] when the horizon physically can't fit a 48mo recognition
-    // window past Y0 — auto-picker then naturally skips Strategy C at
-    // that horizon. Recognition starts Y1 (sale year is Y0), so a
-    // 48mo window needs maturity at Y4 → horizon=5 minimum.
+    // 72mo is the carrier's effective ceiling — anything longer is too
+    // long for the client and rarely helps net benefit.
+    var horizons = [1, 2, 4, 5, 6, 7];
+    // Structured-sale duration: 36-month minimum (was 48mo prior to
+    // MetLife's 2026-05-08 approval), 72-month ceiling, year-aligned
+    // 12-month buckets. Returns [] when the horizon can't fit a 36mo
+    // window past Y0 (i.e., hor < 4) so auto-picker naturally skips
+    // Strategy C there. Recognition starts Y1 (sale year is Y0), so:
+    //   • 36mo dur needs maturity at Y3 → horizon=4 minimum
+    //   • 48mo → horizon=5
+    //   • 60mo → horizon=6
+    //   • 72mo → horizon=7
     function _durationsForHorizon(hor) {
       // Y0 reserved for sale-year tax events; Y1+ available for
-      // recognition. Maturity year-index = duration_months/12. So
-      // horizon must be >= 1 (Y0) + duration/12 (recognition years).
+      // recognition. Duration / 12 = recognition years required.
       var availableRecYears = Math.max(0, (hor || 5) - 1);
       var maxByHor = availableRecYears * 12;
-      if (maxByHor < 48) return [];
+      if (maxByHor < 36) return [];
       var maxMo = Math.min(72, maxByHor);
       var arr = [];
-      for (var m = 48; m <= maxMo; m += 12) arr.push(m);
+      for (var m = 36; m <= maxMo; m += 12) arr.push(m);
       return arr;
     }
-    var userDurationFallback = baseCfg.structuredSaleDurationMonths || 48;
+    var userDurationFallback = baseCfg.structuredSaleDurationMonths || 36;
     var best = null;
     horizons.forEach(function (hor) {
       // Strategy-specific minimum horizons:
@@ -970,13 +974,13 @@
       //     for LT gain recognition. With hor=1 there's no Y1 row, so the
       //     engine collapses recap + LT back into the same year (the §453(i)
       //     violation the B fix removes).
-      //   • C (Structured Sale): hor >= 5 — minimum 48mo duration is 4
+      //   • C (Structured Sale): hor >= 4 — minimum 36mo duration is 3
       //     yearly recognition payments; with sale year Y0 + recognition
-      //     Y1-Y4 = 5 years total horizon required. Skipping hor < 5
+      //     Y1-Y3 = 4 years total horizon required. Skipping hor < 4
       //     prevents the auto-picker from generating infeasible
       //     (startIdx == maturityIdx) shapes that collapse all gain
       //     into a single year and bypass MetLife caps.
-      if (type === 'C' && hor < 5) return;
+      if (type === 'C' && hor < 4) return;
       if (type === 'B' && hor < 2) return;
       pcts.forEach(function (p) {
         var cfgSection = Object.assign({}, baseCfg, {
@@ -1020,7 +1024,7 @@
         }
       });
     });
-    return best || { horizon: 5, shortPct: 100, comboId: null, bestRecC: 2, durationMonths: 48 };
+    return best || { horizon: 5, shortPct: 100, comboId: null, bestRecC: 2, durationMonths: 36 };
   }
 
   function _ensureSectionState(type, baseCfg) {
@@ -1034,7 +1038,7 @@
       shortPct: picked.shortPct,
       comboId: picked.comboId,
       bestRecC: picked.bestRecC,
-      durationMonths: baseCfg.structuredSaleDurationMonths || 48,
+      durationMonths: baseCfg.structuredSaleDurationMonths || 36,
       autoPickEnabled: true
     };
     return root.__rettSectionState[type];
@@ -1795,11 +1799,11 @@
       '<td class="muted">Sum of all installments</td>' +
     '</tr>';
 
-    var months = durationMonths || 48;
+    var months = durationMonths || 36;
     var atMinimum = months <= 18;
     var termSubtitle = atMinimum
       ? '<p class="rett-payments-subtitle muted">Sale term: <strong>' + months + ' months</strong> (the regulatory minimum). The engine will recommend a longer term if a transaction this size needs one to satisfy the safe-harbor schedule.</p>'
-      : '<p class="rett-payments-subtitle muted">Sale term: <strong>' + months + ' months</strong> — extended past the 48-month minimum for this transaction size.</p>';
+      : '<p class="rett-payments-subtitle muted">Sale term: <strong>' + months + ' months</strong> — extended past the 36-month minimum for this transaction size.</p>';
     return '<div class="rett-interested-payments">' +
       '<h4>Payment Schedule</h4>' +
       termSubtitle +
@@ -2033,7 +2037,7 @@
       var bMonths = _bMonthsUntilJan1(currentCfg);
       lockupValue = (bMonths != null ? bMonths : '—') + ' months';
     } else {
-      var pickedDur = (picked && picked.durationMonths) || durationMonths || 48;
+      var pickedDur = (picked && picked.durationMonths) || durationMonths || 36;
       lockupValue = pickedDur + ' months';
     }
 
@@ -2135,7 +2139,7 @@
         });
       }
     }
-    var userDuration = currentCfg.structuredSaleDurationMonths || 48;
+    var userDuration = currentCfg.structuredSaleDurationMonths || 36;
 
     function _bestPickedCfgLocal(type) {
       var picked = _autoPickSection(type, currentCfg);

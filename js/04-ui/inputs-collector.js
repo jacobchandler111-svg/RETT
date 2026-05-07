@@ -123,13 +123,14 @@ function collectInputs() {
                 // continue to work without migration.
                 strategyImplementationDate: _val('strategy-implementation-date') || _val('implementation-date') || '',
                 // Structured-sale product term (months from sale date to
-                // maturity). Empty input → 48-month default (regulatory
-                // minimum as of 2026-05-07; 4 years of yearly Jan-1
-                // payments). The deferred tax-comparison engine clips
-                // gain recognition so all gain hits by the maturity year.
+                // maturity). Empty input → 36-month default (regulatory
+                // minimum as of 2026-05-08; 3 years of yearly Jan-1
+                // payments). 36mo replaced 48mo per MetLife's 3-year
+                // approval; engine clips gain recognition so all gain
+                // hits by the maturity year.
                 structuredSaleDurationMonths: (function () {
                       var raw = parseInt(_val('structured-sale-duration-months'), 10);
-                      return (Number.isFinite(raw) && raw > 0) ? raw : 48;
+                      return (Number.isFinite(raw) && raw > 0) ? raw : 36;
                 })(),
                 // "Cover taxes from sale": when yes, the calculator carves
                 // estimated federal + state tax out of the sale proceeds
