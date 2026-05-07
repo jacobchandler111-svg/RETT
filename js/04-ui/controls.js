@@ -5,7 +5,7 @@
 //   - 'projection' : multi-year results table
 //   - 'allocator'  : year-1 allocator suggestions
 
-const PAGE_IDS = ['page-pmq', 'page-inputs', 'page-baseline', 'page-strategies', 'page-projection', 'page-supplemental', 'page-allocator'];
+const PAGE_IDS = ['page-pmq', 'page-inputs', 'page-baseline', 'page-strategies', 'page-projection', 'page-supplemental', 'page-allocator', 'page-temp'];
 const PROJECTION_SUBPAGE_IDS = ['subpage-summary', 'subpage-details'];
 
 function showProjectionSubpage(id) {
@@ -520,6 +520,11 @@ function showPage(id) {
     try {
       if (typeof renderStrategySummary === 'function') renderStrategySummary();
     } catch(e) { (window.reportFailure || console.warn)('Strategy Summary render failed', e); }
+  }
+  if (id === 'page-temp') {
+    try {
+      if (typeof window.renderTempPage === 'function') window.renderTempPage();
+    } catch(e) { (window.reportFailure || console.warn)('Temporary page render failed', e); }
   }
   if (id === 'page-baseline') {
     // Fresh render on entry so the table reflects the latest inputs.
@@ -1186,6 +1191,8 @@ function bindControls() {
   if (navStrategies)   navStrategies.addEventListener('click', () => showPage('page-strategies'));
   if (navProjection)   navProjection.addEventListener('click', () => showPage('page-projection'));
   if (navAllocator)    navAllocator.addEventListener('click', () => showPage('page-allocator'));
+  const navTemp = document.getElementById('nav-temp');
+  if (navTemp)         navTemp.addEventListener('click', () => showPage('page-temp'));
 
   var baselineBackBtn = document.getElementById('baseline-back-btn');
   if (baselineBackBtn) baselineBackBtn.addEventListener('click', () => showPage('page-inputs'));
