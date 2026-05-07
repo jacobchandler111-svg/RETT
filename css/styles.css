@@ -6525,11 +6525,27 @@ body { font-size: 16px; }
 .print-cta-row {
     margin: 24px 0 0 0;
     display: flex;
-    justify-content: flex-end;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
 }
 .print-cta-row .cta-btn {
     font-size: 0.95em;
     padding: 10px 20px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.print-cta-row .cta-btn-secondary {
+    background: var(--paper-warm);
+    color: var(--ink);
+    border: 1.5px solid var(--ink-soft);
+}
+.print-cta-row .cta-btn-secondary:hover {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
 }
 
 /* ===========================================================
