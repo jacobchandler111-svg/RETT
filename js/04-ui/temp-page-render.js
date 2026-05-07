@@ -294,22 +294,24 @@
   //                           (Delphi's shortTermLoss allocation)
   //   Ordinary income offset — Brooklyn loss applied to ordinary
   //                            (capped at $3K/yr per §1211(b)) +
-  //                            every supp's ordinary deduction
-  //                            (Oil & Gas IDC, Charitable §170,
-  //                             PTET, Cost Seg, Heavy Vehicle, etc.)
+  //                            every funded supp's ordinary deduction
+  //                            FOR THIS YEAR (Oil & Gas spreads IDC
+  //                            across multiple years; other supps
+  //                            fire only in their deployment year)
   //   LT gain added         — supp LT gain added (Delphi mainly)
   //
-  // Supplementals fire in Y0 only (deployment year). Brooklyn loss
-  // generation can land in any year per the engine row.
+  // Per-year supp resolution:
+  //   - If supp.lastResult.perYear[displayedI] exists, use that year's
+  //     deduction/investment/etc. (Oil & Gas now spreads 4 years).
+  //   - Else if displayedI === 0, fall back to the legacy single-year
+  //     shape (allocations.ordinaryExpense, detail.deductibleAmount,
+  //     etc. — Delphi, Charitable, PTET, Cost Seg, Heavy Vehicle,
+  //     Aircraft, STR, Farm Equip, 401k, Augusta, Equipment Leasing).
+  //     These are still single-year until the engine ships per-year
+  //     shape for them too — see prompt drafted earlier.
   function _renderActivityCell(row, displayedI, chosen, cfg, fundedSupps) {
     var stLossBrooklyn = Math.max(0, Number(row && row.lossGenerated) || 0);
     var ordOffsetBrooklyn = 0;
-    // Brooklyn applies losses across LT/recap/ord buckets; only the
-    // ordinary slice is §1211(b)-capped at $3K. The engine surfaces
-    // it on the row's withStrategy as `lossOrdOffsetApplied` when set;
-    // if not present, treat Brooklyn ordinary contribution as 0
-    // (Brooklyn's loss is overwhelmingly used to offset LT gain, not
-    // ordinary, so this is the right default).
     var withStrat = row && row.withStrategy;
     if (withStrat && Number.isFinite(Number(withStrat._ordOffsetApplied))) {
       ordOffsetBrooklyn = Math.max(0, Number(withStrat._ordOffsetApplied) || 0);
@@ -317,35 +319,44 @@
       ordOffsetBrooklyn = Math.max(0, Number(row.ordOffsetApplied) || 0);
     }
 
-    // Sum supp activity (Y0 only).
     var stLossSupp = 0;
     var ordOffsetSupp = 0;
     var ltGainAddedSupp = 0;
-    if (displayedI === 0 && Array.isArray(fundedSupps)) {
+    if (Array.isArray(fundedSupps)) {
       fundedSupps.forEach(function (s) {
         var extraSpec = (root.__rettSupplementalExtra && root.__rettSupplementalExtra[s.id]) || null;
         var coreSpec  = (root.__rettSupplemental      && root.__rettSupplemental[s.id])      || null;
         var last      = (extraSpec && extraSpec.lastResult)
                      || (coreSpec  && coreSpec.lastResult) || null;
         if (!last) return;
+        var perYear     = Array.isArray(last.perYear) ? last.perYear : null;
+        // Multi-year shape: pull THIS displayed year's slice if it
+        // exists in perYear[]. Oil & Gas (perYearLength=4 typical for
+        // C / B-with-multi-year-IDC) lights up Y0..Y3 each.
+        if (perYear && perYear[displayedI]) {
+          var py = perYear[displayedI];
+          ordOffsetSupp += Number(py.deduction || 0) || 0;
+          // Per-year LT/ST shape isn't standardized yet — when supps
+          // start emitting longTermGainAdded / shortTermLoss per year
+          // the same path will pick them up.
+          ltGainAddedSupp += Number(py.longTermGainAdded || 0) || 0;
+          stLossSupp      += Number(py.shortTermLoss || 0) || 0;
+          return;
+        }
+        // Legacy single-year shape: only contributes to Y0.
+        if (displayedI !== 0) return;
         var detail      = last.detail      || {};
         var allocations = last.allocations || {};
-        var perY0       = (Array.isArray(last.perYear) && last.perYear[0]) || {};
-        // Ordinary income offset (Oil & Gas IDC deduction, Delphi
-        // ordinaryExpense, Charitable deductibleAmount, etc.)
         ordOffsetSupp += Number(
           allocations.ordinaryExpense
-          || perY0.deduction
           || detail.deductibleAmount
           || detail.yr1Deduction
           || detail.deduction
           || detail.expense
           || 0
         ) || 0;
-        // LT gain added (Delphi alpha layer)
         ltGainAddedSupp += Number(allocations.longTermGainAdded || detail.longTermGainAdded || 0) || 0;
-        // ST loss added (Delphi short leg)
-        stLossSupp += Number(allocations.shortTermLoss || detail.shortTermLoss || 0) || 0;
+        stLossSupp      += Number(allocations.shortTermLoss      || detail.shortTermLoss      || 0) || 0;
       });
     }
 
