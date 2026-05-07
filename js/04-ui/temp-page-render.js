@@ -26,7 +26,10 @@
 (function (root) {
   'use strict';
 
-  // Number of year cards to render (Y0..Y_TOTAL_YEARS-1).
+  // Default number of year cards (Y0..Y_TOTAL_YEARS-1). The actual
+  // count is max(TOTAL_YEARS, engineRows.length) — see render() — so a
+  // C scenario with a 72-month structured-sale duration that extends
+  // recognition past Y5 still gets every recognition year displayed.
   var TOTAL_YEARS = 6;
 
   function _fmt(n) {
@@ -490,7 +493,8 @@
       var le = engineRows[engineRows.length - 1];
       lastEngineCarry = Math.max(0, Number(le && le.stCarryForward) || 0);
     }
-    for (var i = 0; i < TOTAL_YEARS; i++) {
+    var totalCards = Math.max(TOTAL_YEARS, engineRows.length);
+    for (var i = 0; i < totalCards; i++) {
       var yr = year0 + i;
       var row = engineRows[i] || null;
       var carryIn  = 0;
