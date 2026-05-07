@@ -747,6 +747,27 @@
   }
 
   // Build the cfg variant for a scenario type ('A', 'B', 'C').
+  //
+  // IMPORTANT — strategy dispatch lives HERE, not in the recognition-start
+  // dropdown (#recognition-start-select). That dropdown is hidden in the
+  // DOM (index.html:802 inside `<div hidden>`) and is engine-only — the
+  // auto-picker writes to it for Strategy C's recognition sweep. Users
+  // never touch it directly. Strategy A/B/C selection happens via Page-2
+  // Interest clicks, which route through this function to set the cfg
+  // fields the engine actually consumes:
+  //
+  //   Strategy A (Sell Now)        → recognitionStartYearIndex=0, year1 unchanged
+  //   Strategy B (Seller Finance)  → recognitionStartYearIndex=0, year1+1, Jan-1 dates
+  //   Strategy C (Structured Sale) → recognitionStartYearIndex=bestRecC-1, duration sweep
+  //
+  // Strategy B does NOT use rec>=1 — the engine sees it as an immediate
+  // sale that just happens to close Jan 1 of next year. So a probe like
+  // `setVal('recognition-start-select', '1'); collectInputs();` will NOT
+  // produce Strategy B's behavior — that flow only modifies the recognition
+  // index, not year1 / implementationDate. Verify Strategy B by setting
+  // __rettStrategyInterest.B = true and checking entry.cfg.year1 ===
+  // currentYear+1. (Bug verified 2026-05-06; no fix needed — working as
+  // designed, just non-obvious from a probe-the-dropdown angle.)
   function _scenarioCfgFor(type, currentCfg, bestRecC, userDuration) {
     if (!currentCfg) return null;
     if (type === 'A') {

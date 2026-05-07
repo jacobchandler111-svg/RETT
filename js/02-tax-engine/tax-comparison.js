@@ -254,9 +254,18 @@ function _applyLossesWithSTCfCap(scenario, lossAvailable, capOrdinary) {
       //   3) Regular LT gain (0/15/20%)
       //   4) Ordinary income (capped at $3K / $1.5K MFS)
 
-      // Step 1: ST gain
+      // Step 1: ST gain. ST cap gain is investment income for §1411 NIIT
+      // purposes (per the same logic as recap and LT below), so the NIIT
+      // base must shrink by the absorbed amount alongside shortTermGain.
+      // Bug fix 2026-05-06 (verified by targeted-loss-application tests):
+      // omitting this caused the 3.8% NIIT savings on Brooklyn-absorbed
+      // ST gain to silently drop. Symptom was T3_ST_first_h1 ratio
+      // landing at 0.370 (federal 37% only) instead of expected 0.408
+      // (37% + 3.8% NIIT). Steps 2 (recap) and 3 (LT) already shrink
+      // investmentIncome correctly.
       const offsetShort = Math.min(out.shortTermGain || 0, loss);
       out.shortTermGain = (out.shortTermGain || 0) - offsetShort;
+      out.investmentIncome = Math.max(0, (out.investmentIncome || 0) - offsetShort);
       loss -= offsetShort;
 
       // Step 2: §1250 unrecaptured gain (recapture). Still a capital gain
