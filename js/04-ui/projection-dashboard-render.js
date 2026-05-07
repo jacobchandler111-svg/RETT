@@ -789,25 +789,38 @@
       });
     }
     if (type === 'B') {
-      // Delay-Close (B) is "negotiate the close date to Jan 1 of next
-      // year." There is no insurance product, no structured-sale
-      // mechanism — the buyer just signs a contract that closes Jan 1.
-      // Mechanically that's an IMMEDIATE sale that happens Jan 1 of
-      // Y+1, so model it like Sell-Now (rec=1 immediate path) with
-      // year1 advanced by one and a Jan-1 implementation date. This
-      // gives Brooklyn a full-year Y1 (yfImpl=1) — the whole point of
-      // delaying — instead of inheriting the user's typed Oct/Nov date
-      // and getting a partial year that defeats the purpose.
+      // Seller-Finance (B) is a true §453 installment sale where the
+      // buyer pays the full sale amount on Jan 1 of the year following
+      // the close. Per §453(i), DEPRECIATION RECAPTURE must be
+      // recognized in the YEAR OF SALE (Y0) at ordinary rates — even
+      // though no cash arrives until Y1. The deferred LT gain is
+      // recognized when the buyer pays (Y1, Jan 1 of next year).
+      //
+      // Engine routing: recognitionStartYearIndex=1 puts the path
+      // through the deferred branch, which automatically files recap
+      // in row[0] (year of sale, ordinary rates) and LT gain in row[1]
+      // (Jan 1 payment year). maxRecognitionYearIndex=1 forces full
+      // gain into Y1 — no multi-year spread (this is NOT a MetLife
+      // structured sale). structuredSaleDurationMonths is intentionally
+      // NOT set so the MetLife payment-schedule caps don't apply.
+      //
+      // Brooklyn opens Jan 1 of Y1 (when the buyer's payment lands and
+      // capital is available to deploy). yfImpl=1 → full-year fees in
+      // Y1 — the whole point of "delaying" the close.
+      //
+      // Horizon: must be ≥2 so the engine sees both Y0 (recap-only)
+      // and Y1 (Brooklyn + LT recognition). We clamp up here as a
+      // safety net; the auto-picker sweep also skips horizon=1 for B
+      // for the same reason.
       var bYear = (currentCfg.year1 || (new Date()).getFullYear()) + 1;
-      // For B (Delay-Close), pin BOTH the sale-side and the strategy-side
-      // dates to Jan 1 of next year so the engine sees a clean full-year
-      // proration on every consumer (gain timing AND Brooklyn fees).
       return Object.assign({}, currentCfg, {
-        recognitionStartYearIndex: 0,
-        maxRecognitionYearIndex: null,
-        implementationDate: bYear + '-01-01',
-        strategyImplementationDate: bYear + '-01-01',
-        year1: bYear
+        recognitionStartYearIndex: 1,
+        maxRecognitionYearIndex:   1,
+        horizonYears: Math.max(2, Number(currentCfg.horizonYears) || 2),
+        implementationDate:         bYear + '-01-01',
+        strategyImplementationDate: bYear + '-01-01'
+        // year1 stays at original sale year so Y0 = year of sale (recap)
+        // and Y1 = year1+1 = Jan-1 close year (LT gain).
       });
     }
     if (type === 'C') {
@@ -937,13 +950,13 @@
     var userDurationFallback = baseCfg.structuredSaleDurationMonths || 48;
     var best = null;
     horizons.forEach(function (hor) {
-      // Scenario C still needs horizon >= 2 (deferred recognition starts
-      // in Y2 or later). B used to share that constraint when it was a
-      // deferred scenario; after the fix that re-routed B through the
-      // immediate path with year1+1 + Jan-1 implementation date, B is a
-      // single-tranche lump-sum and works fine at horizon=1 — the
-      // optimal horizon for any sale that doesn't span tax years.
-      if (hor < 2 && type === 'C') return;
+      // Both B (Seller Finance §453 installment) and C (Structured Sale)
+      // need horizon >= 2 because the deferred path uses Y0 for recap-
+      // only / sale-year ordinary tax events and Y1+ for the actual
+      // gain recognition. With horizon=1 there's no Y1 row, so the
+      // engine collapses recap + LT into the same year — which is
+      // exactly the §453(i) violation the B fix removes.
+      if (hor < 2 && (type === 'C' || type === 'B')) return;
       pcts.forEach(function (p) {
         var cfgSection = Object.assign({}, baseCfg, {
           horizonYears: hor,
