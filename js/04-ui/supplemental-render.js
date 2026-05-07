@@ -194,7 +194,18 @@
     var per = (st.maxInvestment || 0) / count;
     var years = [];
     for (var i = 0; i < count; i++) {
-      years.push({ investment: per, idcPct: st.depreciationPct });
+      years.push({
+        investment: per,
+        idcPct: st.depreciationPct,
+        // Per §453(i): depreciation recapture is recognized in the
+        // year of sale only. For multi-year deployment (B/C strategies),
+        // years 1+ should NOT include recap in their ordinary-income
+        // baseline — recap doesn't recur. Y0 (i === 0) keeps recap.
+        // Without this flag, the multi-year math previously double-
+        // counted recap as if it appeared in every recognition year,
+        // inflating apparent absorption capacity.
+        includeRecap: (i === 0)
+      });
     }
     return years;
   }

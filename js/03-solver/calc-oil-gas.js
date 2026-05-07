@@ -160,12 +160,27 @@
     return _computeYearImpact(snap, investment, idcPct);
   }
 
-  // Multi-year entry point. years = [{ investment, idcPct }, ...].
-  // Each year's math runs against the SAME Y1 ordinary-income baseline
-  // (advisor's instruction 2026-05-05: "keep it as the year-one ordinary
-  // income consistent across the years"). When a real per-year ordinary
-  // forecast lands, this is the function to extend — pass an array of
-  // per-year snapshots instead of one shared snap.
+  // Multi-year entry point. years = [{ investment, idcPct, includeRecap }, ...]
+  // Each row carries its own per-year snapshot signal:
+  //   • includeRecap (default true for back-compat) — when false, the
+  //     §1250 recapture is removed from the year's ordinary-income
+  //     baseline. Per §453(i) recapture is recognized in Y0 only, so
+  //     Y1+ rows of a multi-year deployment (Strategy B/C) should pass
+  //     includeRecap: false. Without this, recap was double-counted
+  //     across every recognition year.
+  //
+  // NOL carryforward: when a year's deduction exceeds that year's
+  // ordinary baseline, the excess (nolGenerated) used to be reported
+  // as "wasted." Per §172, that NOL carries forward to reduce the
+  // following year's ordinary income. Apply that reduction here so
+  // a 2-yr B or 4-yr C deployment doesn't lose the trailing
+  // deduction value.
+  //
+  // Updated 2026-05-08: the prior behavior held all years to the SAME
+  // Y0 baseline (frozen pre-NOL, recap-included) per a 2026-05-05
+  // advisor decision. That decision was reversed when multi-year supp
+  // deployment for B/C became a priority — see the "supplemental
+  // multi-year" engine prompt of 2026-05-08.
   function computeOilGasMultiYear(years) {
     if (!Array.isArray(years) || years.length === 0) {
       return {
@@ -176,10 +191,25 @@
     }
     var snap = readBaselineSnapshot();
     var baselineY1 = _totalTaxAt(snap, null).total;
+    var carryNol = 0;
     var perYear = years.map(function (y) {
       var inv = Math.max(0, Number(y && y.investment) || 0);
       var pct = _normIdcPct(y && y.idcPct);
-      return _computeYearImpact(snap, inv, pct);
+      // Y0 keeps recap unless explicitly excluded; Y1+ defaults to
+      // exclude. Callers that don't pass the flag (legacy single-
+      // year shape) get recap-included behavior.
+      var includeRecap = (y && y.includeRecap === false) ? false : true;
+      var yearSnap = Object.assign({}, snap, {
+        recap:    includeRecap ? snap.recap : 0,
+        // §172 NOL carry: prior year's residual deduction reduces this
+        // year's ordinary income before computing absorption.
+        ordTotal: Math.max(0, snap.ordTotal - carryNol)
+      });
+      var impact = _computeYearImpact(yearSnap, inv, pct);
+      // Track NOL: only the portion that exceeds the (already-NOL-
+      // reduced) baseline becomes the next year's carry.
+      carryNol = Math.max(0, Number(impact.nolGenerated) || 0);
+      return impact;
     });
     var sum = function (key) {
       return perYear.reduce(function (s, r) { return s + (Number(r[key]) || 0); }, 0);
@@ -189,7 +219,11 @@
       totalInvestment:   sum('investment'),
       totalDeduction:    sum('deduction'),
       totalAbsorbed:     sum('absorbed'),
-      totalNolGenerated: sum('nolGenerated'),
+      // Residual NOL after the last year — the truly unused
+      // deduction. Earlier years' NOL was carried forward and absorbed
+      // (or partially absorbed) in subsequent years; only what's left
+      // at the tail is wasted.
+      totalNolGenerated: carryNol,
       totalSaved:        sum('totalSaved'),
       totalFedSaved:     sum('fedSaved'),
       totalStateSaved:   sum('stateSaved'),
