@@ -28,32 +28,32 @@
   var PMQ_QUESTIONS = [
     {
       id:    'businessOwner',
-      label: 'Does the client own or run a business?',
+      label: 'Do you own or run a business?',
       helper:'LLC, S-Corp, Partnership, Sole Proprietor — any active business income.',
       type:  'yesno'
     },
     {
       id:    'passThrough',
-      label: 'Is the business a pass-through entity?',
+      label: 'Is this business a pass-through entity?',
       helper:'LLC (partnership-taxed), S-Corp (1120S), Partnership (1065), or Sch-C sole proprietor.',
       type:  'yesno',
       showIf:{ businessOwner: true }
     },
     {
       id:    'realEstate',
-      label: 'Does the client own or invest in real estate?',
+      label: 'Do you own or invest in real estate?',
       helper:'Rental properties, commercial buildings, land — anything beyond the primary residence.',
       type:  'yesno'
     },
     {
       id:    'charitable',
-      label: 'Does the client regularly give to charity?',
+      label: 'Do you plan on giving to charities?',
       helper:'Cash gifts, donor-advised fund contributions, IRA distributions to charity.',
-      type:  'yesno'
+      type:  'toggle'
     },
     {
       id:    'altInvestments',
-      label: 'Open to alternative-investment tax shelters?',
+      label: 'Are you open to alternative investments / tax shelters?',
       helper:'Oil & gas working interests, hedge funds, equipment-leasing funds — accredited-investor products.',
       type:  'yesno'
     }
@@ -169,21 +169,33 @@
   function _renderQuestion(q, answers) {
     if (!_isQuestionVisible(q, answers)) return '';
     var ans = answers[q.id];
-    var yesActive = (ans === true)  ? ' is-active' : '';
-    var noActive  = (ans === false) ? ' is-active' : '';
     var subClass  = q.showIf ? ' pmq-q-sub' : '';
-    // Helper subtext intentionally omitted per advisor spec — labels
-    // stand on their own. The `helper` field on each spec is kept for
-    // future reference / tooltip-style use.
+    var control;
+    if (q.type === 'toggle') {
+      var onClass = (ans === true) ? ' is-on' : '';
+      control =
+        '<div class="pmq-q-buttons">' +
+          '<button type="button" role="switch" aria-checked="' + (ans === true ? 'true' : 'false') + '" ' +
+            'class="pmq-q-toggle' + onClass + '" data-pmq-action="toggle" data-pmq-target="' + q.id + '">' +
+            '<span class="pmq-q-toggle-track"><span class="pmq-q-toggle-thumb"></span></span>' +
+            '<span class="pmq-q-toggle-text">' + (ans === true ? 'Yes' : 'No') + '</span>' +
+          '</button>' +
+        '</div>';
+    } else {
+      var yesActive = (ans === true)  ? ' is-active' : '';
+      var noActive  = (ans === false) ? ' is-active' : '';
+      control =
+        '<div class="pmq-q-buttons">' +
+          '<button type="button" class="pmq-q-btn pmq-q-btn-yes' + yesActive + '" data-pmq-action="yes" data-pmq-target="' + q.id + '">Yes</button>' +
+          '<button type="button" class="pmq-q-btn pmq-q-btn-no' + noActive + '" data-pmq-action="no" data-pmq-target="' + q.id + '">No</button>' +
+        '</div>';
+    }
     return '' +
       '<div class="pmq-q' + subClass + '" data-pmq-q="' + q.id + '">' +
         '<div class="pmq-q-text">' +
           '<div class="pmq-q-label">' + q.label + '</div>' +
         '</div>' +
-        '<div class="pmq-q-buttons">' +
-          '<button type="button" class="pmq-q-btn pmq-q-btn-yes' + yesActive + '" data-pmq-action="yes" data-pmq-target="' + q.id + '">Yes</button>' +
-          '<button type="button" class="pmq-q-btn pmq-q-btn-no' + noActive + '" data-pmq-action="no" data-pmq-target="' + q.id + '">No</button>' +
-        '</div>' +
+        control +
       '</div>';
   }
 
@@ -229,10 +241,17 @@
       if (qBtn) {
         var qId = qBtn.getAttribute('data-pmq-target');
         var act = qBtn.getAttribute('data-pmq-action');
-        var newVal = (act === 'yes');
         var ans = _answers();
-        // Toggle off if clicking the same answer again.
-        ans[qId] = (ans[qId] === newVal) ? null : newVal;
+        var newVal;
+        if (act === 'toggle') {
+          // Switch flips between true and false (no null state on toggles).
+          newVal = !(ans[qId] === true);
+          ans[qId] = newVal;
+        } else {
+          newVal = (act === 'yes');
+          // Toggle off if clicking the same answer again.
+          ans[qId] = (ans[qId] === newVal) ? null : newVal;
+        }
         // If a parent answer changed away from the showIf trigger,
         // null out any dependent answers so they don't linger as
         // "yes" while the parent is now "no".
