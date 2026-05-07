@@ -2123,8 +2123,26 @@
       if (d && !isNaN(d.getTime())) saleMonth0 = d.getMonth();
     }
 
-    var pickedA = _bestPickedCfgLocal('A');
-    var mA = _scenarioMetrics(pickedA.cfg);
+    // Optimization (2026-05-06): skip per-strategy auto-pick + scenario
+    // metrics for strategies the user has explicitly marked Not Interested.
+    // _autoPickSection sweeps ~50-200 (leverage, horizon, duration,
+    // recognition) combos per strategy — a meaningful chunk of total
+    // pipeline time. When interest[X] === false, X cannot be the chosen
+    // strategy AND won't render on Page 3, so its metrics are never
+    // consumed. Skipping yields a measurable speedup for the common
+    // single-strategy flow (e.g., user marks A Interested, B+C Not
+    // Interested → only Strategy A sweeps).
+    //
+    // Conservative: skip only when interest === false (strict opt-out).
+    // For unmarked (null/undefined), keep computing — those entries
+    // appear on Page 3 as comparison cards.
+    var _interestEarly = (typeof window !== 'undefined' && window.__rettStrategyInterest) || {};
+    var _skipA = _interestEarly.A === false;
+    var _skipB = _interestEarly.B === false;
+    var _skipC = _interestEarly.C === false;
+
+    var pickedA = _skipA ? null : _bestPickedCfgLocal('A');
+    var mA = (!_skipA && pickedA) ? _scenarioMetrics(pickedA.cfg) : null;
     var lossA = mA ? _scenarioLossSum(pickedA.cfg) : 0;
     var visualsA = mA ? _buildVisuals('A', mA, pickedA.cfg, null) : null;
 
@@ -2135,17 +2153,17 @@
     // "Interested" on B did nothing for those scenarios, which the user
     // saw as a bug. Now we always compute and render B; the math will
     // show whether it helps or hurts, and the user can decide.
-    var pickedB = _bestPickedCfgLocal('B');
-    var mB = _scenarioMetrics(pickedB.cfg);
+    var pickedB = _skipB ? null : _bestPickedCfgLocal('B');
+    var mB = (!_skipB && pickedB) ? _scenarioMetrics(pickedB.cfg) : null;
     var lossB = mB ? _scenarioLossSum(pickedB.cfg) : 0;
     var visualsB = mB ? _buildVisuals('B', mB, pickedB.cfg, null) : null;
 
-    var pickedC = _bestPickedCfgLocal('C');
-    var mC = _scenarioMetrics(pickedC.cfg);
+    var pickedC = _skipC ? null : _bestPickedCfgLocal('C');
+    var mC = (!_skipC && pickedC) ? _scenarioMetrics(pickedC.cfg) : null;
     var lossC = mC ? _scenarioLossSum(pickedC.cfg) : 0;
     var paymentsC = '';
     var visualsC = null;
-    var durationC = (pickedC.picked && pickedC.picked.durationMonths) || userDuration;
+    var durationC = (pickedC && pickedC.picked && pickedC.picked.durationMonths) || userDuration;
     if (mC) {
       var dataC = _scenarioFullData(pickedC.cfg);
       if (dataC && dataC.comp) {
