@@ -205,21 +205,29 @@
     host.innerHTML = '<span class="temp-strategy-pill">Chosen strategy: <strong>' + label + '</strong></span>';
   }
 
-  // INCOME side — three rows the strategy could reduce. Hide ST/LT/recap
-  // when 0 to keep cards tight; ordinary is always shown.
-  function _renderIncomeRows(incomes) {
+  // INCOME side — reducible buckets the strategy can touch. Hide
+  // ST/LT/recap when 0 to keep cards tight; ordinary is always shown.
+  // If a carryover loss arrives from the prior year, it lands at the
+  // top of this section so the CPA sees the working pool of losses
+  // available before any income is even read.
+  function _renderIncomeRows(incomes, carryIn) {
     if (!incomes) return '';
+    var html = '';
+    if (carryIn && carryIn > 0) {
+      html += '<tr class="temp-carryin-row"><td>Carryover loss from prior year</td><td class="temp-amt">' + _fmt(carryIn) + '</td></tr>';
+    }
     var rows = [
       ['Ordinary income',          incomes.ordinary,    true],
       ['Long-term capital gain',   incomes.longTermGain, false],
       ['Short-term capital gain',  incomes.shortTermGain, false],
       ['Depreciation recapture',   incomes.recapture,    false]
     ];
-    return rows.map(function (r) {
+    html += rows.map(function (r) {
       var amt = Number(r[1]) || 0;
       if (!r[2] && amt === 0) return '';
       return '<tr><td>' + r[0] + '</td><td class="temp-amt">' + _fmt(amt) + '</td></tr>';
     }).join('');
+    return html;
   }
 
   // TAX side — split federal into ordinary / LT cap gains / recap /
@@ -255,10 +263,13 @@
       '<tr class="temp-total-row"><td><strong>Total tax</strong></td><td class="temp-amt"><strong>' + _fmt(total) + '</strong></td></tr>';
   }
 
-  function _renderBaselineCell(b) {
+  function _renderBaselineCell(b, carryIn, carryOut) {
     if (!b) return '<div class="temp-baseline-empty">No baseline data.</div>';
-    var incomeRows = _renderIncomeRows(b._incomes || {});
+    var incomeRows = _renderIncomeRows(b._incomes || {}, carryIn);
     var taxRows    = _renderTaxRows(b);
+    var carryOutRow = (carryOut && carryOut > 0)
+      ? '<tr class="temp-carryout-row"><td>Carryover loss to next year</td><td class="temp-amt">' + _fmt(carryOut) + '</td></tr>'
+      : '';
     return '' +
       '<table class="temp-baseline-table">' +
         '<tbody>' +
@@ -267,6 +278,7 @@
             : '') +
           '<tr class="temp-section-head"><td colspan="2">Tax breakdown</td></tr>' +
           taxRows +
+          carryOutRow +
         '</tbody>' +
       '</table>';
   }
@@ -354,7 +366,7 @@
       '</tbody></table>';
   }
 
-  function _renderYearCard(row, i, chosen, cfg, fundedSupps, stateCode) {
+  function _renderYearCard(row, i, chosen, cfg, fundedSupps, stateCode, carryIn, carryOut) {
     var year  = Number(row.year) || (i + 1);
     var label = 'Year ' + i + ' (' + year + ')';
     var rel   = _isRelevant(row, i, chosen, cfg);
@@ -369,7 +381,7 @@
         '</div>' +
         '<div class="temp-year-baseline">' +
           '<div class="temp-year-head">Tax Baseline &mdash; ' + label + stateTag + '</div>' +
-          _renderBaselineCell(row.baseline) +
+          _renderBaselineCell(row.baseline, carryIn, carryOut) +
         '</div>' +
         '<div class="temp-year-activity">' +
           '<div class="temp-year-head temp-year-head-muted">Strategy activity</div>' +
@@ -467,21 +479,44 @@
     var year0 = engineRows.length ? Number(engineRows[0].year) : inputYear1;
 
     var html = '';
+    // Carryover-loss tracking: row.stCarryForward is the unused
+    // Brooklyn loss EXITING that engine row. So Y_i's "carry IN"
+    // equals row[i-1].stCarryForward, and Y_i's "carry OUT" equals
+    // row[i].stCarryForward. Years past the engine horizon carry the
+    // last engine row's exit value forward unchanged (no further loss
+    // generation, no further absorption).
+    var lastEngineCarry = 0;
+    if (engineRows.length) {
+      var le = engineRows[engineRows.length - 1];
+      lastEngineCarry = Math.max(0, Number(le && le.stCarryForward) || 0);
+    }
     for (var i = 0; i < TOTAL_YEARS; i++) {
       var yr = year0 + i;
       var row = engineRows[i] || null;
+      var carryIn  = 0;
+      var carryOut = 0;
       if (row) {
         if (row.baseline && !row.baseline._incomes) {
           row.baseline._incomes = _deriveIncomesForEngineRow(row, i, ctx.chosen, ctx.entry.cfg);
         }
+        carryIn  = (i > 0)
+          ? Math.max(0, Number(engineRows[i - 1] && engineRows[i - 1].stCarryForward) || 0)
+          : 0;
+        carryOut = Math.max(0, Number(row.stCarryForward) || 0);
       } else {
         row = {
           year: yr,
           baseline: _recurringBaselineForYear(yr),
           gainRecognized: 0, lossApplied: 0, lossGenerated: 0, investmentThisYear: 0
         };
+        // Synthetic recurring years inherit the last-engine-row carry
+        // (loss is preserved but not used because there's no gain to
+        // absorb in a recurring year). Same value flows in and out so
+        // the CPA sees the pool isn't shrinking.
+        carryIn  = lastEngineCarry;
+        carryOut = lastEngineCarry;
       }
-      html += _renderYearCard(row, i, ctx.chosen, ctx.entry.cfg, ctx.fundedSupps, stateCode);
+      html += _renderYearCard(row, i, ctx.chosen, ctx.entry.cfg, ctx.fundedSupps, stateCode, carryIn, carryOut);
     }
     host.innerHTML = html;
   }

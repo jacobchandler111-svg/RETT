@@ -7415,3 +7415,22 @@ body { font-size: 16px; }
     border-top: 1px solid var(--rule);
     font-weight: 600;
 }
+
+/* Tab 7 — carryover loss rows. Sit at top (carry-in) of income block
+   and bottom (carry-out) of tax block in muted amber so they read as
+   tracking metadata, not as additional income / tax. */
+.temp-baseline-table tr.temp-carryin-row td,
+.temp-baseline-table tr.temp-carryout-row td {
+    color: #8a6f00;
+    background: rgba(251, 191, 36, 0.08);
+    font-style: italic;
+    font-size: 0.88em;
+    padding: 4px 6px;
+}
+.temp-baseline-table tr.temp-carryin-row td:first-child,
+.temp-baseline-table tr.temp-carryout-row td:first-child {
+    border-left: 2px solid rgba(251, 191, 36, 0.6);
+}
+.temp-baseline-table tr.temp-carryout-row td {
+    border-top: 1px dashed rgba(251, 191, 36, 0.5);
+}
