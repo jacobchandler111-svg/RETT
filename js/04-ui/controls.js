@@ -352,6 +352,11 @@ function resetAllInputs(skipConfirm) {
   // Strategy" pick also clears so Page 4 doesn't render stale state.
   window.__rettStrategyInterest = { A: null, B: null, C: null };
   window.__rettChosenStrategy = null;
+  // Also clear the Page-3 KPI-ribbon checked-scenarios set so a New
+  // Client doesn't inherit the prior client's "checked" strategy and
+  // render stale or zeroed data when buildInterestedSummary's row
+  // pipeline lands a different best strategy for the new client.
+  window.__rettCheckedScenarios = null;
   // Page-5 supplemental toggle overrides clear too, so a new client
   // starts with default-on for any strategy they later mark Interested
   // — no carry-over from the prior client's session toggles.
@@ -806,6 +811,50 @@ function runFullPipeline() {
     try {
       var cfg = _buildEngineCfg();
       if (cfg) {
+        // F20 fix: honor the per-strategy auto-picked combo for the
+        // chosen strategy. Without this, the pipeline runs the
+        // optimizer at cfg's nominal (leverage, horizon, rec) which
+        // can be strictly worse than the auto-picked combo — when the
+        // nominal combo's net is negative but the auto-pick is
+        // positive, the pipeline silently dials Brooklyn to $0 while
+        // Page-5 continues to render the auto-pick's $X net + an
+        // Implementation panel claiming "$X full deployment fine."
+        // Patching cfg here keeps the pipeline-level optimizer + per-
+        // entry optimizer in agreement.
+        //
+        // GATE: only apply when auto-pick is enabled. When the user
+        // has manually overridden leverage (commit 90fa7c6's leverage
+        // dropdown fix) or any pill toggle, __rettAutoPickEnabled is
+        // set to false and we must respect their choice — not silently
+        // re-overlay an auto-picked combo. Same convention used by
+        // _autoPickSection's callers in projection-dashboard-render.js.
+        var chosenStrat = (typeof root !== 'undefined' && root.__rettChosenStrategy)
+          || (typeof window !== 'undefined' && window.__rettChosenStrategy);
+        var autoPickAllowed = (typeof window !== 'undefined')
+          ? (window.__rettAutoPickEnabled !== false) : true;
+        if (chosenStrat && autoPickAllowed && typeof window._autoPickSection === 'function') {
+          try {
+            var apk = window._autoPickSection(chosenStrat, cfg);
+            if (apk && Number.isFinite(apk.shortPct) && Number.isFinite(apk.horizon)) {
+              // Patch leverage / horizon / comboId / recognition / duration
+              // from the auto-picked combo. cfg.investment + cfg.availableCapital
+              // remain untouched — those reflect the user's stated capital.
+              cfg = Object.assign({}, cfg, {
+                horizonYears:  apk.horizon,
+                leverage:      apk.shortPct / 100,
+                leverageCap:   apk.shortPct / 100,
+                comboId:       apk.comboId
+              });
+              if (chosenStrat === 'C' && Number.isFinite(apk.bestRecC)) {
+                cfg.recognitionStartYearIndex = apk.bestRecC - 1;
+              }
+              if (chosenStrat === 'C' && Number.isFinite(apk.durationMonths)) {
+                cfg.structuredSaleDurationMonths = apk.durationMonths;
+              }
+            }
+          } catch (apErr) { /* leave cfg unchanged on auto-pick failure */ }
+        }
+
         // Dollar conservation (advisor 2026-05-06): a single dollar
         // can't simultaneously fund Brooklyn AND a supplemental — the
         // pool is finite. Ask the rivalry allocator how much of
@@ -1457,6 +1506,12 @@ function bindControls() {
     var type = btn.getAttribute('data-use-strategy');
     if (!type) return;
     window.__rettChosenStrategy = type;
+    // F19b fix: reset Page-3 KPI-ribbon checked-scenarios so the ribbon
+    // + KPI tiles follow the user's new pick. Without this, the ribbon
+    // remains stuck on whatever strategy was the prior winner — showing
+    // a different "Net Benefit" than Page-5's hero for the same case.
+    window.__rettCheckedScenarios = {};
+    window.__rettCheckedScenarios[type] = true;
     if (!window.__rettApplyingState && window.RETTCaseStorage) {
       var s = window.RETTCaseStorage;
       if (typeof s.autoSaveCurrent === 'function') {

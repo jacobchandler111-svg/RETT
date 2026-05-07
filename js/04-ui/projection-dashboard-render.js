@@ -656,13 +656,25 @@
       }
     }
 
-    // Initialize the checked-scenarios set on first render. Default:
-    // only the RECOMMENDED row is checked, so the dashboard below
-    // shows that single scenario by default. Once the user toggles a
-    // checkbox, their selection persists across re-renders.
+    // Initialize the checked-scenarios set on first render. Default
+    // priority:
+    //   1. user's CHOSEN strategy (Page-2 "Use This Strategy" pick) —
+    //      so the savings ribbon + KPI tiles match Page-5's hero. F19b
+    //      fix: previously defaulted to winner regardless of pick,
+    //      causing Page-3 ribbon ($X / Y× ROP) to show a different
+    //      strategy than Page-5 ($Z / W×) for the same scenario.
+    //   2. recommended (highest-net) winner — when no chosen pick yet.
+    //   3. first row — when neither is available.
+    // Once the user toggles a checkbox manually, their selection
+    // persists across re-renders.
     if (!root.__rettCheckedScenarios) {
       root.__rettCheckedScenarios = {};
-      if (winnerIdx >= 0) {
+      var _chosenS = (typeof root !== 'undefined' && root.__rettChosenStrategy)
+        || (typeof window !== 'undefined' && window.__rettChosenStrategy);
+      var _chosenInRows = _chosenS && rows.some(function (r) { return r.type === _chosenS; });
+      if (_chosenInRows) {
+        root.__rettCheckedScenarios[_chosenS] = true;
+      } else if (winnerIdx >= 0) {
         root.__rettCheckedScenarios[rows[winnerIdx].type] = true;
       } else if (rows.length) {
         root.__rettCheckedScenarios[rows[0].type] = true;
@@ -2278,6 +2290,14 @@
     };
   }
   root.buildInterestedSummary = buildInterestedSummary;
+  // Expose so runFullPipeline can patch cfg with the chosen strategy's
+  // auto-picked combo BEFORE running ProjectionEngine. Without this,
+  // the pipeline's optimizer runs at cfg's nominal (leverage, horizon,
+  // rec) which can be a strictly worse combo than the auto-pick — when
+  // the nominal combo's net is negative but the auto-picked combo's
+  // net is positive, the pipeline dials Brooklyn to $0 while Page-5
+  // continues to render the auto-picked combo's positive net (F20).
+  root._autoPickSection = _autoPickSection;
 
   function renderInterestedSnapshot() {
     var host = document.getElementById('interested-cards-host');

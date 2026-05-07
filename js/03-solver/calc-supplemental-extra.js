@@ -334,21 +334,40 @@
     var cost = Math.max(0, _num(st.vehicleCost));
     if (cost <= 0) return _writeResult('slot06', null);
     var bizUse = Math.min(1, Math.max(0, _num(st.bizUsePct) / 100));
-    if (bizUse <= 0.5 && st.vehicleClass !== 'lightAuto') {
-      return _writeResult('slot06', { netBenefit: 0, investment: 0,
-        detail: { reason: 'Business use must exceed 50% (§280F predominant-use)' } });
-    }
     var bizBasis = cost * bizUse;
-    var yr1Deduction = 0;
     var cls = st.vehicleClass || 'suvHeavy';
-    if (cls === 'lightAuto') {
-      yr1Deduction = Math.min(bizBasis, 20300);
-    } else if (cls === 'suvHeavy') {
-      var sec179 = Math.min(bizBasis, 32000);
-      yr1Deduction = sec179 + (bizBasis - sec179);
+    var yr1Deduction = 0;
+    var method;
+    if (bizUse > 0.50) {
+      // Predominant-use path: §179 + 100% bonus on residual.
+      if (cls === 'lightAuto') {
+        yr1Deduction = Math.min(bizBasis, 20300);
+        method = '§280F luxury cap (with bonus)';
+      } else if (cls === 'suvHeavy') {
+        var sec179 = Math.min(bizBasis, 32000);
+        yr1Deduction = sec179 + (bizBasis - sec179);
+        method = '§179 cap $32K + 100% bonus on residual';
+      } else {
+        var sec179f = Math.min(bizBasis, 2560000);
+        yr1Deduction = sec179f + (bizBasis - sec179f);
+        method = '§179 + 100% bonus';
+      }
     } else {
-      var sec179f = Math.min(bizBasis, 2560000);
-      yr1Deduction = sec179f + (bizBasis - sec179f);
+      // §280F(b)(1): predominant-use failed → ADS straight-line over
+      // the recovery period for the asset class. 5 years is the §168(g)
+      // recovery period for autos and light trucks; we use 5 years for
+      // all sub-50%-biz vehicle classes since they're all 5-year MACRS
+      // assets defaulting to ADS at the same recovery period when biz
+      // use fails predominant. Statute does NOT permit zeroing — IRC
+      // §280F(b)(1) "the deduction allowable shall be determined under
+      // section 168(g)". Light passenger autos still subject to §280F(a)
+      // luxury cap, which uses the no-bonus Yr1 number ($12,300 in 2026
+      // per Rev Proc) at the smaller no-bonus rate.
+      yr1Deduction = bizBasis / 5;
+      method = 'ADS straight-line (§280F(b)(1) — predominant-use failed)';
+      if (cls === 'lightAuto') {
+        yr1Deduction = Math.min(yr1Deduction, 12300);
+      }
     }
     var marginal = _fedMarginal(cfg) + _stateMarginal(cfg);
     _writeResult('slot06', {
@@ -360,7 +379,8 @@
         yr1Deduction: Math.round(yr1Deduction),
         bizUse: bizUse,
         vehicleClass: cls,
-        assetCost: Math.round(cost)
+        assetCost: Math.round(cost),
+        method: method
       }
     });
   }
