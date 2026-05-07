@@ -181,8 +181,26 @@
   function _yearCountForSaleStrategy(key) {
     if (key === 'A') return 1;
     if (key === 'B') return 2;
+    // Strategy C: derive year count from the structured-sale duration.
+    // Source priority:
+    //   1. Form input (advisor explicitly typed a duration)
+    //   2. Auto-picked duration from the latest pipeline run
+    //      (__lastResult.config.structuredSaleDurationMonths)
+    //   3. 36-month MetLife minimum (post-2026-05-08 spec)
+    // Earlier code defaulted to 18mo — the legacy pre-MetLife minimum —
+    // which made every empty-form C-strategy supp deploy across only
+    // 2 years instead of the auto-picked 3-6 years, wasting most of
+    // the IDC deduction as residual NOL.
     var monthsRaw = parseInt(_val('structured-sale-duration-months'), 10);
-    var months = (Number.isFinite(monthsRaw) && monthsRaw > 0) ? monthsRaw : 18;
+    var months;
+    if (Number.isFinite(monthsRaw) && monthsRaw > 0) {
+      months = monthsRaw;
+    } else if (root.__lastResult && root.__lastResult.config &&
+               Number(root.__lastResult.config.structuredSaleDurationMonths) > 0) {
+      months = Number(root.__lastResult.config.structuredSaleDurationMonths);
+    } else {
+      months = 36;  // MetLife minimum
+    }
     var years = Math.max(1, Math.ceil((months + 6) / 12));
     if (years > YEAR_HARD_CAP) years = YEAR_HARD_CAP;
     return years;
