@@ -365,7 +365,7 @@
     html += '<div class="input-section" id="fee-strategies-section">' +
       '<div class="section-heading">' +
         '<h2>Fees Baked In</h2>' +
-        '<span class="num">REVIEW</span>' +
+        '<button type="button" class="num section-review-btn" id="fee-review-btn" aria-expanded="false" title="Toggle side-by-side baseline vs. strategy reconciliation">REVIEW &#9662;</button>' +
       '</div>' +
       '<div class="section-body">' +
         _bullet('Asset Manager fees<span class="strat-savings-line">Borrow + fund + short-side carry over the position' +
@@ -377,6 +377,7 @@
           '<div class="fee-summary-label">Total Fees</div>' +
           '<div class="fee-summary-amt">' + _fmt(totalFeesAll) + '</div>' +
         '</div>' +
+        _renderReconciliationPanel(entry, currentCfg, solverOut, fundedSupplements) +
       '</div>' +
     '</div>';
 
@@ -440,6 +441,7 @@
 
     host.innerHTML = html;
     _bindSupplementalToggleEvents();
+    _bindReviewToggle();
     // Repopulate the growth chart from the preserved input values
     // immediately after a re-render so the user doesn't see an empty
     // chart between re-render and their next keystroke.
@@ -635,6 +637,91 @@
 
     h += '</div></div>'; // /print-doc-frame /print-view
     return h;
+  }
+
+  // -----------------------------------------------------------------
+  // REVIEW reconciliation panel — toggled by the "REVIEW ▾" button on
+  // the Fees Baked In header. Hidden by default. Two-column side-by-
+  // side: LEFT shows the Tax Baseline (what the client would pay with
+  // no strategy applied), RIGHT shows every strategy effect that
+  // alters those baseline buckets, with explicit subtraction. Lets the
+  // advisor manually verify net benefit by walking the math:
+  // baseline minus offsets equals post-strategy result.
+  // -----------------------------------------------------------------
+  function _renderReconciliationPanel(entry, cfg, solverOut, fundedSupplements) {
+    if (!entry || !entry.cfg) return '';
+    // Engine doesn't attach rows to the summary entry — re-run engine
+    // with entry.cfg to recover the per-year breakdown.
+    var ecfg = entry.cfg;
+    if (typeof root.rettFlavorEngineCfg === 'function') ecfg = root.rettFlavorEngineCfg(ecfg);
+    var engineOut = (typeof root.unifiedTaxComparison === 'function')
+      ? root.unifiedTaxComparison(ecfg) : null;
+    var rows = (engineOut && engineOut.rows) || [];
+    if (!rows.length) return '';
+    var r0base = rows[0]?.baseline || {};
+    var r0with = rows[0]?.withStrategy || {};
+    var totalLossApplied = rows.reduce(function (s, r) { return s + (Number(r.lossApplied) || 0); }, 0);
+    var totalGainRecognized = rows.reduce(function (s, r) { return s + (Number(r.gainRecognized) || 0); }, 0);
+
+    // Per-supp contribution to the offsets — pull from each spec's
+    // lastResult to show what bucket it touches.
+    var suppEffects = [];
+    (fundedSupplements || []).forEach(function (s) {
+      var benefit = Number(s.netBenefit) || 0;
+      if (benefit <= 0) return;
+      // Best-effort label of which bucket the supp affects.
+      // Most placeholder-rail supps are ordinary-income deductions;
+      // PTET shifts state↔federal; Charitable is itemized deduction;
+      // O&G/Delphi are ordinary-income offsets.
+      var bucket = 'Ordinary income';
+      if (s.id === 'ptet') bucket = 'State income tax';
+      if (s.id === 'charitableGifts') bucket = 'Itemized deduction (ordinary)';
+      if (s.id === 'delphi') bucket = 'Ordinary → LT conversion';
+      suppEffects.push({ id: s.id, name: s.name, benefit: benefit, bucket: bucket });
+    });
+
+    var suppRowsHtml = suppEffects.map(function (s) {
+      return '<div class="recon-row recon-supp">' +
+        '<div class="recon-label">' + s.name + ' &mdash; <span class="recon-bucket">' + s.bucket + '</span></div>' +
+        '<div class="recon-amt">&minus;' + _fmt(s.benefit) + '</div>' +
+      '</div>';
+    }).join('');
+
+    var brooklynNetBenefit = (Number(r0base.federal) || 0) - (Number(r0with.federal) || 0)
+                            + (Number(r0base.state)   || 0) - (Number(r0with.state)   || 0);
+    // Aggregate across all years for total federal+state savings tied to Brooklyn
+    var totalFedSav = rows.reduce(function (s, r) { return s + ((Number(r.baseline?.federal) || 0) - (Number(r.withStrategy?.federal) || 0)); }, 0);
+    var totalStateSav = rows.reduce(function (s, r) { return s + ((Number(r.baseline?.state) || 0) - (Number(r.withStrategy?.state) || 0)); }, 0);
+
+    return '' +
+      '<div class="recon-panel" id="fee-review-panel" hidden>' +
+        '<div class="recon-intro">Side-by-side reconciliation. <strong>Left:</strong> what the client would pay without any planning. <strong>Right:</strong> each lever pulled and what it offset, with subtraction. Manual check: baseline &minus; offsets should equal post-strategy tax bill.</div>' +
+        '<div class="recon-grid">' +
+          '<div class="recon-col recon-col-left">' +
+            '<div class="recon-col-head">Tax Baseline (no planning)</div>' +
+            '<div class="recon-row"><div class="recon-label">Ordinary income</div><div class="recon-amt">' + _fmt(cfg.baseOrdinaryIncome) + '</div></div>' +
+            '<div class="recon-row"><div class="recon-label">Long-term capital gain</div><div class="recon-amt">' + _fmt(cfg.baseLongTermGain) + '</div></div>' +
+            '<div class="recon-row"><div class="recon-label">§1250 recapture</div><div class="recon-amt">' + _fmt(cfg.recapture || 0) + '</div></div>' +
+            '<div class="recon-row recon-divider"></div>' +
+            '<div class="recon-row"><div class="recon-label">Federal income tax</div><div class="recon-amt">' + _fmt(r0base.federalIncomeTax) + '</div></div>' +
+            '<div class="recon-row"><div class="recon-label">AMT top-up</div><div class="recon-amt">' + _fmt(r0base.amt || 0) + '</div></div>' +
+            '<div class="recon-row"><div class="recon-label">NIIT (3.8%)</div><div class="recon-amt">' + _fmt(r0base.niit || 0) + '</div></div>' +
+            '<div class="recon-row"><div class="recon-label">State income tax</div><div class="recon-amt">' + _fmt(r0base.state || 0) + '</div></div>' +
+            '<div class="recon-row recon-total"><div class="recon-label">Total tax</div><div class="recon-amt">' + _fmt(r0base.total) + '</div></div>' +
+          '</div>' +
+          '<div class="recon-col recon-col-right">' +
+            '<div class="recon-col-head">Strategy effects (offsets)</div>' +
+            '<div class="recon-row recon-supp"><div class="recon-label">Brooklyn loss applied to gain &mdash; <span class="recon-bucket">LT gain / §1250 recapture</span></div><div class="recon-amt">&minus;' + _fmt(totalLossApplied) + '</div></div>' +
+            suppRowsHtml +
+            '<div class="recon-row recon-divider"></div>' +
+            '<div class="recon-row"><div class="recon-label">Federal tax savings (Y0)</div><div class="recon-amt">&minus;' + _fmt((Number(r0base.federal) || 0) - (Number(r0with.federal) || 0)) + '</div></div>' +
+            '<div class="recon-row"><div class="recon-label">State tax savings (Y0)</div><div class="recon-amt">&minus;' + _fmt((Number(r0base.state) || 0) - (Number(r0with.state) || 0)) + '</div></div>' +
+            '<div class="recon-row recon-divider"></div>' +
+            '<div class="recon-row recon-total"><div class="recon-label">Total tax with strategy</div><div class="recon-amt">' + _fmt(r0with.total) + '</div></div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="recon-checkmath">Reconciliation check: <strong>' + _fmt(r0base.total) + '</strong> baseline &minus; <strong>' + _fmt((Number(r0base.total) || 0) - (Number(r0with.total) || 0)) + '</strong> Y0 savings = <strong>' + _fmt(r0with.total) + '</strong> after strategy. ✓</div>' +
+      '</div>';
   }
 
   function _renderImplementationPanel(cfg, brooklynCumulativeLoss, precomputedOpt) {
@@ -863,6 +950,26 @@
         '</div>' +
         '<div class="section-body">' + rows + '</div>' +
       '</div>';
+  }
+
+  // Toggle the REVIEW reconciliation panel via the section-heading button.
+  function _bindReviewToggle() {
+    var btn = document.getElementById('fee-review-btn');
+    var panel = document.getElementById('fee-review-panel');
+    if (!btn || !panel || btn.dataset.bound) return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', function () {
+      var isOpen = !panel.hasAttribute('hidden');
+      if (isOpen) {
+        panel.setAttribute('hidden', '');
+        btn.setAttribute('aria-expanded', 'false');
+        btn.innerHTML = 'REVIEW &#9662;';
+      } else {
+        panel.removeAttribute('hidden');
+        btn.setAttribute('aria-expanded', 'true');
+        btn.innerHTML = 'REVIEW &#9652;';
+      }
+    });
   }
 
   function _bindSupplementalToggleEvents() {

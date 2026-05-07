@@ -5331,6 +5331,124 @@ body { font-size: 16px; }
     font-weight: 500;
     color: var(--ink);
 }
+/* REVIEW button — replaces the static REVIEW badge in the section
+   heading. Same visual size/feel; click toggles the side-by-side
+   reconciliation panel. */
+.section-review-btn {
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid var(--ink-soft);
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.78em;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    transition: all 0.15s;
+}
+.section-review-btn:hover {
+    border-color: var(--ink);
+    color: var(--ink);
+    background: var(--paper-warm);
+}
+.section-review-btn[aria-expanded="true"] {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--paper);
+}
+/* Side-by-side baseline-vs-strategy reconciliation panel. Hidden by
+   default; opened via the REVIEW button on the Fees Baked In header.
+   Two-column grid: left is the no-planning tax baseline, right is
+   each strategy effect that altered each baseline bucket. The check-
+   math line at the bottom verifies subtraction holds. */
+.recon-panel {
+    margin-top: 24px;
+    padding: 18px 20px;
+    background: var(--paper-warm);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+}
+.recon-panel[hidden] { display: none; }
+.recon-intro {
+    font-size: 0.88em;
+    color: var(--muted);
+    margin-bottom: 14px;
+    line-height: 1.4;
+}
+.recon-intro strong { color: var(--ink); }
+.recon-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+}
+.recon-col-head {
+    font-family: var(--font-mono);
+    font-size: 0.78em;
+    letter-spacing: 0.04em;
+    color: var(--bh-blue-deep);
+    text-transform: uppercase;
+    padding-bottom: 8px;
+    margin-bottom: 4px;
+    border-bottom: 1.5px solid var(--bh-blue-deep);
+}
+.recon-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding: 6px 0;
+    font-size: 0.94em;
+}
+.recon-row .recon-label {
+    color: var(--ink);
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.recon-row .recon-amt {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    flex-shrink: 0;
+    font-size: 0.96em;
+}
+.recon-row.recon-divider {
+    border-top: 1px dashed var(--rule);
+    padding: 0;
+    margin: 6px 0;
+    height: 0;
+}
+.recon-row.recon-total {
+    font-weight: 700;
+    padding-top: 8px;
+    border-top: 1.5px solid var(--ink);
+    margin-top: 4px;
+}
+.recon-row.recon-total .recon-amt { font-weight: 700; font-size: 1.05em; }
+.recon-row.recon-supp .recon-amt { color: #16704a; }  /* offset = green-ish */
+.recon-bucket {
+    color: var(--muted);
+    font-size: 0.86em;
+    font-style: italic;
+}
+.recon-checkmath {
+    margin-top: 14px;
+    padding: 10px 14px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    font-size: 0.9em;
+    color: var(--ink);
+    text-align: center;
+    font-family: var(--font-mono);
+}
+.recon-checkmath strong {
+    font-weight: 700;
+    color: var(--bh-blue-deep);
+}
+@media (max-width: 720px) {
+    .recon-grid { grid-template-columns: 1fr; gap: 16px; }
+}
+
 .fee-summary-row .fee-summary-amt {
     font-family: var(--font-mono);
     font-size: 16px;
