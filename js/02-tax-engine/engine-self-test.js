@@ -52,11 +52,11 @@
 
       var CANONICAL_SCENARIOS = [
             { name: 'imm_GA',       cfg: { salePrice: 48000000, costBasis: 8000000, acceleratedDepreciation: 0,    state: 'GA', investedCapital: 48000000, investment: 48000000 } },
-            { name: 'def_GA',       cfg: { salePrice: 48000000, costBasis: 8000000, acceleratedDepreciation: 0,    state: 'GA', investedCapital: 48000000, investment: 48000000, recognitionStartYearIndex: 1, structuredSaleDurationMonths: 24 } },
+            { name: 'def_GA',       cfg: { salePrice: 48000000, costBasis: 8000000, acceleratedDepreciation: 0,    state: 'GA', investedCapital: 48000000, investment: 48000000, recognitionStartYearIndex: 1, structuredSaleDurationMonths: 60 } },
             { name: 'imm_NJ',       cfg: { salePrice: 30000000, costBasis: 5000000, acceleratedDepreciation: 0,    state: 'NJ', investedCapital: 30000000, investment: 30000000 } },
             { name: 'imm_CA_recap', cfg: { salePrice: 25000000, costBasis: 5000000, acceleratedDepreciation: 4000000, state: 'CA', investedCapital: 25000000, investment: 25000000 } },
             { name: 'imm_TX_stg',   cfg: { salePrice: 15000000, costBasis: 3000000, acceleratedDepreciation: 0,    state: 'TX', baseShortTermGain: 250000, investedCapital: 15000000, investment: 15000000 } },
-            { name: 'def_belowmin', cfg: { salePrice:  1500000, costBasis:  500000, acceleratedDepreciation: 0,    state: 'GA', investedCapital:  1500000, investment:  1500000, recognitionStartYearIndex: 1, structuredSaleDurationMonths: 24 } },
+            { name: 'def_belowmin', cfg: { salePrice:  1500000, costBasis:  500000, acceleratedDepreciation: 0,    state: 'GA', investedCapital:  1500000, investment:  1500000, recognitionStartYearIndex: 1, structuredSaleDurationMonths: 60 } },
             { name: 'imm_noengage', cfg: { salePrice:        0, costBasis:       0, acceleratedDepreciation: 0,    state: 'GA', investedCapital:        0, investment:        0 } }
       ];
 
@@ -144,7 +144,7 @@
                   investment: basis + gain,
                   baseShortTermGain: Math.random() < 0.3 ? _randInt(0, 500000) : 0,
                   recognitionStartYearIndex: deferred ? 1 : 0,
-                  structuredSaleDurationMonths: deferred ? _pick([18, 24, 30, 36]) : undefined
+                  structuredSaleDurationMonths: deferred ? _pick([48, 60, 72, 84]) : undefined
             });
       }
 

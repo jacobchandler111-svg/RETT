@@ -423,13 +423,14 @@ function _zeroDeferredComparison(cfg) {
 //   1. If cfg.maxRecognitionYearIndex is set (used by the "delay close
 //      to Jan 1 next year" scenario), use it directly — that scenario
 //      has no insurance-product term to honor.
-//   2. Otherwise apply a hard 18-month floor (regulatory minimum for
-//      structured-sale products), then auto-extend the maturity to
-//      land on the next Jan 1: structured-sale payouts happen on
-//      Jan 1, so a mid-year maturity wastes the months between the
-//      natural maturity and the next Jan 1. E.g. May 2026 sale with
-//      18-month duration → natural maturity Nov 2027 → bump to
-//      Jan 1 2028 (effectively a 20-month term) so the last legal
+//   2. Otherwise apply a hard 48-month floor (regulatory minimum for
+//      structured-sale products as of 2026 — was 18 months historically;
+//      bumped to 4 years per advisor 2026-05-07), then auto-extend the
+//      maturity to land on the next Jan 1: structured-sale payouts
+//      happen on Jan 1, so a mid-year maturity wastes the months
+//      between the natural maturity and the next Jan 1. E.g. May 2026
+//      sale with 48-month duration → natural maturity May 2030 → bump
+//      to Jan 1 2031 (effectively a 56-month term) so the last legal
 //      Jan 1 payout is reachable inside the product term.
 //   3. Falls back to horizon-1 when duration isn't supplied or the
 //      implementation date is missing.
@@ -443,10 +444,10 @@ function _structuredSaleMaturityYearIdx(cfg, horizon) {
       }
       const monthsRaw = Number(cfg && cfg.structuredSaleDurationMonths);
       if (!Number.isFinite(monthsRaw) || monthsRaw <= 0) return horizon - 1;
-      // 18-month minimum is the regulatory floor for a Brooklyn
-      // structured-sale product. Anything shorter the user enters is
-      // ignored.
-      const months = Math.max(18, monthsRaw);
+      // 48-month minimum is the regulatory floor for a Brooklyn
+      // structured-sale product (4 years of yearly Jan-1 payments).
+      // Anything shorter the user enters is clamped up.
+      const months = Math.max(48, monthsRaw);
       let saleYear, saleMonth0;
       const implDate = cfg && cfg.implementationDate;
       if (implDate && typeof window !== 'undefined' && typeof window.parseLocalDate === 'function') {

@@ -545,7 +545,7 @@
   }
   function _buildScenarioComparison(currentCfg) {
     if (!currentCfg) return '';
-    var userDuration = currentCfg.structuredSaleDurationMonths || 18;
+    var userDuration = currentCfg.structuredSaleDurationMonths || 48;
 
     // Each row shows the BEST configuration of that strategy — same
     // auto-pick the section dashboard runs — so row and dashboard never
@@ -915,29 +915,26 @@
   // maximizes net for this scenario type. Used both when a section is
   // first checked AND when the user clicks Revert on a section.
   function _autoPickSection(type, baseCfg) {
-    if (!baseCfg) return { horizon: 5, shortPct: 100, comboId: null, bestRecC: 2, durationMonths: 18 };
+    if (!baseCfg) return { horizon: 5, shortPct: 100, comboId: null, bestRecC: 2, durationMonths: 48 };
     var stratKey = baseCfg.tierKey || 'beta1';
     var custId = baseCfg.custodian || '';
     var pcts = _candidateShortPctsLocal(stratKey, custId);
     var horizons = [1, 3, 5, 7];
-    // Structured-sale duration: 18 months is the regulatory minimum.
-    // The engine sweeps every 3 months (the smallest practical resolution
-    // for a structured-sale contract) up through the horizon's full
-    // calendar span — there is no artificial upper cap, the bound is
-    // purely "we can't see payments past the projection horizon." Per
-    // user spec the duration can land at any month value in that range
-    // (18, 21, 24, ..., horizon*12) — 1-month granularity is exposed by
-    // a direct override on cfg.structuredSaleDurationMonths but the
-    // auto-picker uses 3-month buckets for perf at typical horizons.
+    // Structured-sale duration: 48 months is the regulatory minimum
+    // (was 18 historically; bumped 2026-05-07 per advisor — Brooklyn
+    // structured-sale product now requires 4 years of yearly Jan-1
+    // payments, so the duration sweep is in 12-month buckets starting
+    // at 48). Upper bound is the horizon's full calendar span — past
+    // that there's no projection room for additional payment years.
     function _durationsForHorizon(hor) {
-      var maxMo = Math.max(18, (hor || 5) * 12);
+      var maxMo = Math.max(48, (hor || 5) * 12);
       var arr = [];
-      for (var m = 18; m <= maxMo; m += 3) arr.push(m);
+      for (var m = 48; m <= maxMo; m += 12) arr.push(m);
       // Always include the explicit max so we don't truncate just below it.
       if (arr[arr.length - 1] !== maxMo) arr.push(maxMo);
       return arr;
     }
-    var userDurationFallback = baseCfg.structuredSaleDurationMonths || 18;
+    var userDurationFallback = baseCfg.structuredSaleDurationMonths || 48;
     var best = null;
     horizons.forEach(function (hor) {
       // Scenario C still needs horizon >= 2 (deferred recognition starts
@@ -989,7 +986,7 @@
         }
       });
     });
-    return best || { horizon: 5, shortPct: 100, comboId: null, bestRecC: 2, durationMonths: 18 };
+    return best || { horizon: 5, shortPct: 100, comboId: null, bestRecC: 2, durationMonths: 48 };
   }
 
   function _ensureSectionState(type, baseCfg) {
@@ -1003,7 +1000,7 @@
       shortPct: picked.shortPct,
       comboId: picked.comboId,
       bestRecC: picked.bestRecC,
-      durationMonths: baseCfg.structuredSaleDurationMonths || 18,
+      durationMonths: baseCfg.structuredSaleDurationMonths || 48,
       autoPickEnabled: true
     };
     return root.__rettSectionState[type];
@@ -1764,11 +1761,11 @@
       '<td class="muted">Sum of all installments</td>' +
     '</tr>';
 
-    var months = durationMonths || 18;
+    var months = durationMonths || 48;
     var atMinimum = months <= 18;
     var termSubtitle = atMinimum
       ? '<p class="rett-payments-subtitle muted">Sale term: <strong>' + months + ' months</strong> (the regulatory minimum). The engine will recommend a longer term if a transaction this size needs one to satisfy the safe-harbor schedule.</p>'
-      : '<p class="rett-payments-subtitle muted">Sale term: <strong>' + months + ' months</strong> — extended past the 18-month minimum for this transaction size.</p>';
+      : '<p class="rett-payments-subtitle muted">Sale term: <strong>' + months + ' months</strong> — extended past the 48-month minimum for this transaction size.</p>';
     return '<div class="rett-interested-payments">' +
       '<h4>Payment Schedule</h4>' +
       termSubtitle +
@@ -2002,7 +1999,7 @@
       var bMonths = _bMonthsUntilJan1(currentCfg);
       lockupValue = (bMonths != null ? bMonths : '—') + ' months';
     } else {
-      var pickedDur = (picked && picked.durationMonths) || durationMonths || 18;
+      var pickedDur = (picked && picked.durationMonths) || durationMonths || 48;
       lockupValue = pickedDur + ' months';
     }
 
@@ -2104,7 +2101,7 @@
         });
       }
     }
-    var userDuration = currentCfg.structuredSaleDurationMonths || 18;
+    var userDuration = currentCfg.structuredSaleDurationMonths || 48;
 
     function _bestPickedCfgLocal(type) {
       var picked = _autoPickSection(type, currentCfg);

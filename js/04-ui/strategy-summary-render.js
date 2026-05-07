@@ -173,7 +173,7 @@
     var savePct = Math.max(1, (savings / maxBar) * 100);
 
     var picked = entry.picked || {};
-    var dur = picked.durationMonths || 18;
+    var dur = picked.durationMonths || 48;
     var horizon = picked.horizon;
     var leverage = picked.shortPct;
     var recYr = picked.bestRecC;

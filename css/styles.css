@@ -4361,10 +4361,10 @@ body { font-size: 16px; }
 /* Slice 1 — what the client KEPT (would have kept doing nothing).
    Uses a soft neutral-blue so the eye reads it as the "default" /
    already-yours portion of the income pie. */
-.rett-donut .rett-donut-kept    { fill: var(--rett-blue); opacity: 0.85; }
+.rett-donut .rett-donut-kept    { fill: var(--rett-blue); opacity: 0.55; }
 /* Slice — net benefit / savings clawed back by the strategy. Bright
    green so it pops as "this is the part the strategy gave you." */
-.rett-donut .rett-donut-benefit { fill: var(--green); }
+.rett-donut .rett-donut-benefit { fill: var(--green-soft); }
 /* Slice — fees paid to operate the strategy (variant A only).
    Mid-blue so it visually sits between "savings" and "tax due." */
 .rett-donut .rett-donut-fees    { fill: var(--bh-blue-deep); opacity: 0.85; }
@@ -4418,8 +4418,8 @@ body { font-size: 16px; }
     border-radius: 2px;
     flex-shrink: 0;
 }
-.rett-donut-swatch.sw-kept    { background: var(--rett-blue); opacity: 0.85; }
-.rett-donut-swatch.sw-benefit { background: var(--green); }
+.rett-donut-swatch.sw-kept    { background: var(--rett-blue); opacity: 0.55; }
+.rett-donut-swatch.sw-benefit { background: var(--green-soft); }
 .rett-donut-swatch.sw-fees    { background: var(--bh-blue-deep); opacity: 0.85; }
 .rett-donut-swatch.sw-owed    { background: var(--rett-amber); opacity: 0.92; }
 .rett-donut-legend-wrap {
@@ -7204,4 +7204,130 @@ body { font-size: 16px; }
 @media (max-width: 720px) {
     .pmq-q { flex-direction: column; align-items: flex-start; gap: 10px; }
     .pmq-q-sub { margin-left: 16px; }
+}
+
+/* ===== Tab 7 Temporary — CPA verification view =====
+   Per-year baseline cards laid top-to-bottom. Each card is a 3-column
+   grid: relevance tag (LEFT), baseline mini-table (CENTER), activity
+   placeholder (RIGHT, phase 2). Not Relevant rows fade so the eye
+   skips past them. */
+.temp-page-header { margin-bottom: 16px; }
+.temp-page-sub {
+    color: var(--muted);
+    margin: 6px 0 12px;
+    max-width: 820px;
+    line-height: 1.5;
+}
+.temp-strategy-pill {
+    display: inline-block;
+    padding: 6px 12px;
+    background: var(--paper-warm);
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: 0.82em;
+    letter-spacing: 0.04em;
+    color: var(--ink);
+}
+.temp-strategy-pill.temp-pill-empty { color: var(--muted); border-style: dashed; }
+
+.temp-baselines { display: flex; flex-direction: column; gap: 14px; }
+.temp-empty {
+    padding: 28px 22px;
+    text-align: center;
+    color: var(--muted);
+    background: var(--paper-warm);
+    border: 1px dashed var(--rule);
+    border-radius: 4px;
+}
+
+.temp-year-card {
+    display: grid;
+    grid-template-columns: 160px 1fr 1fr;
+    gap: 14px;
+    align-items: stretch;
+    padding: 14px 16px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    box-shadow: var(--shadow);
+}
+.temp-year-card.is-not-relevant { opacity: 0.55; }
+.temp-year-card.is-not-relevant .temp-year-baseline,
+.temp-year-card.is-not-relevant .temp-year-activity { filter: grayscale(0.4); }
+
+.temp-year-rel {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 12px 8px;
+    border-radius: 3px;
+    text-align: center;
+}
+.temp-rel-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.7em;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 6px;
+}
+.temp-rel-tag {
+    font-weight: 700;
+    font-size: 1.1em;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.temp-rel-yes {
+    background: rgba(34, 134, 58, 0.10);
+    border: 1px solid rgba(34, 134, 58, 0.35);
+}
+.temp-rel-yes .temp-rel-tag { color: var(--green, #1f7a3a); }
+.temp-rel-no {
+    background: var(--paper-warm);
+    border: 1px solid var(--rule);
+}
+.temp-rel-no .temp-rel-tag { color: var(--muted); }
+
+.temp-year-head {
+    font-family: var(--font-mono);
+    font-size: 0.74em;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink);
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--rule);
+}
+.temp-year-head-muted { color: var(--muted); }
+
+.temp-baseline-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92em;
+}
+.temp-baseline-table td {
+    padding: 4px 0;
+    border-bottom: 1px dotted rgba(0,0,0,0.06);
+}
+.temp-baseline-table tr:last-child td { border-bottom: none; }
+.temp-amt {
+    text-align: right;
+    font-family: var(--font-mono);
+    white-space: nowrap;
+}
+.temp-total-row td { padding-top: 8px; border-top: 1px solid var(--rule); }
+
+.temp-activity-placeholder {
+    color: var(--muted);
+    font-style: italic;
+    font-size: 0.88em;
+    padding: 4px 0;
+}
+
+@media (max-width: 900px) {
+    .temp-year-card { grid-template-columns: 1fr; }
+    .temp-year-rel { flex-direction: row; gap: 12px; justify-content: flex-start; }
+    .temp-rel-eyebrow { margin-bottom: 0; }
 }
