@@ -2029,10 +2029,10 @@ body {
 }
 .rett-hero-tag {
     font-family: var(--font-body);
-    font-weight: 800;
-    font-size: 22px;
-    letter-spacing: -0.005em;
-    line-height: 1.1;
+    font-weight: 900;
+    font-size: 40px;
+    letter-spacing: -0.01em;
+    line-height: 1.05;
     color: #fff;
     text-transform: uppercase;
 }
@@ -2040,22 +2040,24 @@ body {
     color: var(--rett-cyan);
     font-style: italic;
     font-family: var(--font-display);
-    font-weight: 500;
+    font-weight: 600;
     font-size: 0.98em;
     text-transform: none;
     letter-spacing: -0.005em;
-    margin-left: 4px;
+    margin-left: 6px;
 }
 .rett-hero-sub {
-    margin: 0;
-    max-width: 820px;
-    font-size: 13px;
-    line-height: 1.5;
-    color: rgba(255,255,255,0.78);
+    margin: 12px 0 0 0;
+    max-width: 980px;
+    font-size: 22px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: rgba(255,255,255,0.92);
 }
 @media (max-width: 720px) {
     .rett-hero { padding: 14px 18px; }
-    .rett-hero-tag { font-size: 17px; }
+    .rett-hero-tag { font-size: 28px; }
+    .rett-hero-sub { font-size: 16px; }
 }
 
 /* Pre-Meeting hint card — a slim cool-blue band that replaces the
@@ -2348,8 +2350,9 @@ body { font-size: 16px; }
    way toward the CLIENT FORM dock without overlapping its open
    popup. */
 .pmq-left-col {
-    flex: 0 1 720px;
+    flex: 1 1 auto;
     min-width: 320px;
+    width: 100%;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
@@ -3041,9 +3044,14 @@ body { font-size: 16px; }
 .case-actions-row {
     display: flex;
     gap: 8px;
-    align-items: center;
+    align-items: stretch;
     flex-wrap: nowrap;
     min-height: 38px;
+}
+.case-actions-row > .btn {
+    flex: 1 1 0;
+    min-width: 0;
+    text-align: center;
 }
 /* The status row's value cell is just the span — give it a stable
    line height so the auto-save flash text changes don't bump
@@ -3629,11 +3637,16 @@ body { font-size: 16px; }
     background: var(--ink);
 }
 .strategy-pick-card.is-interested:not(.is-recommended) {
-    border-color: var(--bh-blue-deep);
-    box-shadow: 0 0 0 2px rgba(65,185,234,0.18), var(--shadow);
+    /* Orange border draws the eye to the user's pick — paired with
+       the orange-filled Interested button. Replaces prior blue border
+       so attention follows the pick, not the static STRATEGY 01/02/03
+       badge. */
+    border-color: var(--rett-amber);
+    box-shadow: 0 0 0 2px rgba(224,123,42,0.20), var(--shadow);
 }
 .strategy-pick-card.is-not-interested {
-    opacity: 0.55;
+    opacity: 0.6;
+    background: var(--rett-blue-light);
 }
 .strategy-pick-card.is-not-interested:hover { opacity: 0.85; }
 
@@ -3672,12 +3685,16 @@ body { font-size: 16px; }
     width: 44px;
     height: 44px;
     border-radius: 50%;
-    background: var(--rett-amber);
+    /* Step-circle moved from amber to navy: the strategy NUMBER is
+       not the thing that should pop. The Interested-card outline
+       (orange, below) is what should draw the eye to the user's
+       pick. Number stays present but recedes visually. */
+    background: var(--rett-navy);
     display: inline-flex;
     align-items: center;
     justify-content: center;
     line-height: 1;
-    box-shadow: 0 2px 6px rgba(241,168,58,0.35), inset 0 -2px 0 rgba(0,0,0,0.06);
+    box-shadow: 0 2px 6px rgba(11,27,58,0.35), inset 0 -2px 0 rgba(0,0,0,0.06);
 }
 .strategy-pick-recommended-tag {
     background: var(--ink);
@@ -3884,14 +3901,18 @@ body { font-size: 16px; }
     color: var(--ink);
 }
 .strategy-pick-btn.is-interested {
-    background: var(--ink);
-    border-color: var(--ink);
+    /* Popping orange — pair with the orange card border so the
+       advisor's eye moves to the picked card, not the static badge. */
+    background: var(--rett-amber);
+    border-color: var(--rett-amber);
     color: var(--paper);
 }
 .strategy-pick-btn.is-not-interested {
-    background: var(--paper-warm);
-    border-color: var(--ink-soft);
-    color: var(--ink);
+    /* Faded light-blue — visually recedes; pairs with the light-blue
+       card background to communicate "we're moving past this one." */
+    background: var(--rett-blue-light);
+    border-color: var(--rett-blue-light);
+    color: var(--rett-navy);
 }
 /* Supplemental cards add .is-active to the picked button (the JS uses
    a distinct class name from the Page-2 strategy cards). Mirror the
@@ -4042,14 +4063,21 @@ body { font-size: 16px; }
     background: var(--ink);
 }
 .rett-interested-card.is-chosen {
-    box-shadow: 0 0 0 3px var(--green), var(--shadow);
+    /* Chosen ring switched from green to navy — the dark ring "moves
+       the eye" to the selected strategy without competing with the
+       money-gained green slice in the donut. */
+    box-shadow: 0 0 0 3px var(--rett-navy), var(--shadow);
 }
 .rett-use-strategy-btn {
     margin-top: 14px;
     padding: 12px 16px;
-    background: var(--ink);
-    color: var(--paper);
-    border: 1px solid var(--ink);
+    /* Default (unchosen) state: outlined navy, lighter feel — invites
+       the click without already looking "selected." When the user
+       picks the strategy, .is-chosen below fills it solid navy and
+       the surrounding card border darkens to match. */
+    background: var(--paper);
+    color: var(--rett-navy);
+    border: 1.5px solid var(--rett-navy);
     border-radius: 2px;
     font-family: var(--font-body);
     font-size: 0.92em;
@@ -4060,16 +4088,16 @@ body { font-size: 16px; }
     width: 100%;
 }
 .rett-use-strategy-btn:hover {
-    background: var(--bh-trusted-soft);
+    background: var(--rett-blue-light);
     transform: translateY(-1px);
 }
 .rett-interested-card.is-chosen .rett-use-strategy-btn {
-    background: var(--green);
-    border-color: var(--green);
+    background: var(--rett-navy);
+    border-color: var(--rett-navy);
     color: var(--paper);
 }
 .rett-interested-card.is-chosen .rett-use-strategy-btn:hover {
-    background: var(--green-soft);
+    background: var(--rett-navy-soft);
 }
 .rett-interested-header {
     display: flex;
@@ -4333,16 +4361,17 @@ body { font-size: 16px; }
 /* Slice 1 — what the client KEPT (would have kept doing nothing).
    Uses a soft neutral-blue so the eye reads it as the "default" /
    already-yours portion of the income pie. */
-.rett-donut .rett-donut-kept    { fill: var(--bh-powder); opacity: 0.55; }
+.rett-donut .rett-donut-kept    { fill: var(--rett-blue); opacity: 0.85; }
 /* Slice — net benefit / savings clawed back by the strategy. Bright
    green so it pops as "this is the part the strategy gave you." */
 .rett-donut .rett-donut-benefit { fill: var(--green); }
 /* Slice — fees paid to operate the strategy (variant A only).
    Mid-blue so it visually sits between "savings" and "tax due." */
 .rett-donut .rett-donut-fees    { fill: var(--bh-blue-deep); opacity: 0.85; }
-/* Slice — tax still owed under the strategy. Dark ink so it reads as
-   the "loss" portion. */
-.rett-donut .rett-donut-owed    { fill: var(--ink); opacity: 0.82; }
+/* Slice — tax still owed under the strategy. Orange to read as
+   "this is the cost / loss" — pairs with the Page-2 Interested
+   button color for cross-page color consistency. */
+.rett-donut .rett-donut-owed    { fill: var(--rett-amber); opacity: 0.92; }
 .rett-donut-center-pct {
     font-family: var(--font-display);
     font-style: italic;
@@ -4389,10 +4418,10 @@ body { font-size: 16px; }
     border-radius: 2px;
     flex-shrink: 0;
 }
-.rett-donut-swatch.sw-kept    { background: var(--bh-powder); opacity: 0.55; }
+.rett-donut-swatch.sw-kept    { background: var(--rett-blue); opacity: 0.85; }
 .rett-donut-swatch.sw-benefit { background: var(--green); }
 .rett-donut-swatch.sw-fees    { background: var(--bh-blue-deep); opacity: 0.85; }
-.rett-donut-swatch.sw-owed    { background: var(--ink); opacity: 0.82; }
+.rett-donut-swatch.sw-owed    { background: var(--rett-amber); opacity: 0.92; }
 .rett-donut-legend-wrap {
     display: flex;
     flex-direction: column;
@@ -7127,6 +7156,51 @@ body { font-size: 16px; }
     border-color: var(--ink);
     color: var(--paper);
 }
+
+/* Toggle switch (charitable question, etc.) — slider UI rather than
+   yes/no buttons. State is binary (true/false), no null/neutral. */
+.pmq-q-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: transparent;
+    border: none;
+    padding: 4px 6px;
+    cursor: pointer;
+    font: inherit;
+    color: var(--ink);
+}
+.pmq-q-toggle-track {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    background: var(--rule);
+    border-radius: 999px;
+    transition: background 0.15s ease;
+    flex-shrink: 0;
+}
+.pmq-q-toggle-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    background: var(--paper);
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    transition: transform 0.15s ease;
+}
+.pmq-q-toggle.is-on .pmq-q-toggle-track { background: var(--bh-blue-deep); }
+.pmq-q-toggle.is-on .pmq-q-toggle-thumb { transform: translateX(20px); }
+.pmq-q-toggle-text {
+    font-weight: 600;
+    font-size: 0.95em;
+    min-width: 28px;
+    color: var(--ink);
+}
+.pmq-q-toggle:focus-visible { outline: 2px solid var(--bh-blue-deep); outline-offset: 2px; border-radius: 4px; }
+
 @media (max-width: 720px) {
     .pmq-q { flex-direction: column; align-items: flex-start; gap: 10px; }
     .pmq-q-sub { margin-left: 16px; }
