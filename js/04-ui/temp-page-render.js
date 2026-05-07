@@ -43,11 +43,19 @@
     return el && el.value ? el.value : (fallback || '');
   }
 
-  // Compute a "no sale activity" baseline for a given absolute year.
-  // Used to fill Y1..Y5 cards when the engine doesn't produce a row
-  // (e.g. Sell Now mode produces only one row). Mirrors baseline-table.js
-  // exactly minus the sale-side terms.
-  function _recurringBaselineForYear(year) {
+  // Compute a baseline for a given absolute year using the form's
+  // recurring income, with optional recapture stacked on top.
+  //
+  //   `recap` > 0 — used for B (Seller Finance) Y0 to surface the
+  //                 §453(i) recapture-in-year-of-sale view the engine
+  //                 doesn't currently model. Recapture is taxed as
+  //                 ordinary, so we feed it through the engine's
+  //                 depreciationRecapture path which applies the
+  //                 §1250 25% federal cap and full state rates.
+  //   `recap` === 0 — pure recurring-income year (Y1..Y5 in A, etc.)
+  function _recurringBaselineForYear(year, opts) {
+    opts = opts || {};
+    var recap  = Math.max(0, Number(opts.recap) || 0);
     var status = _readVal('filing-status', 'mfj');
     var state  = _readVal('state-code', 'NONE');
     var ord = 0;
@@ -60,30 +68,35 @@
     var seInc  = Math.max(0, _readNum('se-income'));
     var nIIT_base = stGain
                   + Math.max(0, _readNum('rental-income'))
-                  + Math.max(0, _readNum('dividend-income'));
+                  + Math.max(0, _readNum('dividend-income'))
+                  + recap;
     var fedB = (typeof root.computeFederalTaxBreakdown === 'function')
       ? root.computeFederalTaxBreakdown(ord, year, status, {
-          longTermGain: 0, shortTermGain: stGain, depreciationRecapture: 0,
+          longTermGain: 0, shortTermGain: stGain, depreciationRecapture: recap,
           investmentIncome: nIIT_base, wages: wages, seIncome: seInc
         })
       : null;
     var fedOrd  = fedB ? Number(fedB.ordinaryTax) || 0 : 0;
+    var fedRcap = fedB ? Number(fedB.recapTax)    || 0 : 0;
     var fedLt   = fedB ? Number(fedB.ltTax)       || 0 : 0;
     var amt     = fedB ? Number(fedB.amtTopUp)    || 0 : 0;
     var seTax   = fedB ? Number(fedB.seTax)       || 0 : 0;
     var niit    = fedB ? Number(fedB.niit)        || 0 : 0;
     var addmed  = fedB ? Number(fedB.addlMedicare)|| 0 : 0;
-    var fedTotal = fedOrd + fedLt + amt;
+    var fedTotal = fedOrd + fedRcap + fedLt + amt;
+    // State picks up recap at full state rates (most states ignore
+    // the §1250 25% federal cap on recapture).
     var stateTax = (typeof root.computeStateTax === 'function')
-      ? (root.computeStateTax(ord + stGain, year, state, status,
+      ? (root.computeStateTax(ord + recap + stGain, year, state, status,
             { longTermGain: 0, shortTermGain: stGain }) || 0)
       : 0;
     var total = fedTotal + niit + addmed + seTax + stateTax;
     return {
       federalIncomeTax: fedTotal,
-      ordinaryTax: fedOrd, recapTax: 0, ltTax: fedLt, amt: amt,
+      ordinaryTax: fedOrd, recapTax: fedRcap, ltTax: fedLt, amt: amt,
       niit: niit, addlMedicare: addmed, seTax: seTax,
-      state: stateTax, total: total
+      state: stateTax, total: total,
+      _recapStacked: recap
     };
   }
 
@@ -123,16 +136,17 @@
   // CPA to verify:
   //   - Any year with gain recognized → Relevant
   //   - Any year with Brooklyn loss applied → Relevant
-  //   - Y0 specifically when recapture lands there → Relevant
-  //     (true for B and C — recap is taken in the sale year even when
-  //      the gain itself is pushed forward)
+  //   - Any year with recapture stacked into the baseline → Relevant
+  //     (B Y0 synthesized via _recurringBaselineForYear with recap > 0
+  //      sets baseline._recapStacked; C Y0 carries it via the engine row)
   function _isRelevant(row, i, chosen, cfg) {
     var gain = Number(row && row.gainRecognized) || 0;
     var loss = Number(row && row.lossApplied) || 0;
-    if (gain > 0 || loss > 0) return true;
+    var stackedRecap = Number(row && row.baseline && row.baseline._recapStacked) || 0;
+    if (gain > 0 || loss > 0 || stackedRecap > 0) return true;
     if (i === 0) {
       var recap = Number(cfg && (cfg.depreciationRecapture || cfg.acceleratedDepreciation)) || 0;
-      if (recap > 0 && (chosen === 'B' || chosen === 'C')) return true;
+      if (recap > 0 && chosen === 'C') return true;
       // Sell Now (A): if the engine produced no gain in row 0, the user
       // hasn't actually wired a sale — fall through to Not Relevant.
     }
@@ -217,19 +231,52 @@
       host.innerHTML = '<div class="temp-empty">Choose a strategy on Tab 4 (Projection) and load supplemental selections on Tab 5 to populate this view.</div>';
       return;
     }
-    // Always render TOTAL_YEARS cards (Y0..Y_TOTAL_YEARS-1). For
-    // years the engine produced rows for, use the engine's baseline.
-    // For years it didn't (typical in Sell Now mode), synthesize a
-    // recurring-income baseline so the CPA can still see the
-    // "this year had no sale activity" tax bill.
+    // Always render TOTAL_YEARS cards (Y0..Y_TOTAL_YEARS-1).
+    //
+    // Year-frame per chosen strategy:
+    //   A (Sell Now)        — Y0 = year1; engine row[0] = Y0; rest synthesized
+    //   B (Seller Finance)  — Y0 = year1 (synthesized: recurring + recap as
+    //                          ordinary, since §453(i) requires recap in
+    //                          year-of-sale even when gain is deferred);
+    //                          Y1 = engine row[0] (year1+1, gain lands here);
+    //                          Y2..Y5 = recurring synthesized
+    //   C (Structured Sale) — engine row[0] is Y0 with recap; gain spreads
+    //                          across rows; rest recurring
+    //
+    // The B reframing is a Tab-7 display choice: the engine itself
+    // models B as a delay-close to Jan 1 of next year and bundles
+    // recap + gain together at row[0]. Showing recap in Y0 here gives
+    // the CPA the §453(i)-flavored view they expect to walk through,
+    // independent of the engine's roll-up.
     var engineRows = ctx.comp.rows || [];
-    var year0 = engineRows.length ? Number(engineRows[0].year) : (parseInt(_readVal('year1','2026'), 10) || 2026);
+    var inputYear1 = parseInt(_readVal('year1','2026'), 10) || 2026;
+    var saleRecap = Math.max(0, _readNum('accelerated-depreciation'));
+    var year0;
+    var engineRowOffset; // engineRows[i - engineRowOffset] aligns with displayed Yi
+    if (ctx.chosen === 'B') {
+      year0 = inputYear1;
+      engineRowOffset = 1; // engine row[0] is Y1 in displayed frame
+    } else {
+      year0 = engineRows.length ? Number(engineRows[0].year) : inputYear1;
+      engineRowOffset = 0;
+    }
     var html = '';
     for (var i = 0; i < TOTAL_YEARS; i++) {
       var yr = year0 + i;
-      var row = engineRows[i] || null;
-      if (!row) {
-        row = { year: yr, baseline: _recurringBaselineForYear(yr), gainRecognized: 0, lossApplied: 0 };
+      var row;
+      if (ctx.chosen === 'B' && i === 0) {
+        // Synthesize Y0 for B: recurring income + depreciation recapture.
+        row = {
+          year: yr,
+          baseline: _recurringBaselineForYear(yr, { recap: saleRecap }),
+          gainRecognized: 0,
+          lossApplied: 0
+        };
+      } else {
+        row = engineRows[i - engineRowOffset] || null;
+        if (!row) {
+          row = { year: yr, baseline: _recurringBaselineForYear(yr), gainRecognized: 0, lossApplied: 0 };
+        }
       }
       html += _renderYearCard(row, i, ctx.chosen, ctx.entry.cfg);
     }
