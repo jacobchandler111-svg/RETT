@@ -1,6 +1,37 @@
 // FILE: js/02-tax-engine/tax-comparison.js
 // Side-by-side baseline vs. post-strategy tax. Per-year, multi-year aware.
 
+// =============================================================================
+// TEMPORARY — MetLife structured-sale payment-schedule rules (2026-05-07)
+// =============================================================================
+// MetLife's contractual requirements for the Brooklyn structured-sale
+// product:
+//   1. First payment cannot exceed 50% of total gain.
+//   2. Last payment must be at least 20% of total gain.
+// Yearly payments on Jan 1; minimum total term 48 months (4 yearly payments).
+// These limits are NOT tax rules — they're contract terms imposed by the
+// insurance carrier (MetLife). They will likely change when MetLife
+// updates the product spec; when that happens, edit the constants below
+// and search for "METLIFE_RULES" to find every dependent code path.
+//
+// The engine enforces these inside the deferred-path recognition loop:
+//   - Caps the first recognition year at firstPaymentMaxPct × totalGainBucket
+//   - Reserves at least lastPaymentMinPct × totalGainBucket for the
+//     maturity year (the engine's existing "force-remainder-at-maturity"
+//     logic naturally satisfies the floor — we just ensure earlier years
+//     don't drain past 80% of the gain).
+//
+// Applies only when cfg.structuredSaleDurationMonths is set AND
+// cfg.maxRecognitionYearIndex is absent. Strategy A (immediate) and
+// Strategy B (delay close to Jan 1, which sets maxRecognitionYearIndex)
+// bypass these checks because the gain isn't being staged through the
+// MetLife product on those paths.
+// =============================================================================
+var METLIFE_RULES = {
+      firstPaymentMaxPct: 0.50,
+      lastPaymentMinPct:  0.20
+};
+
 // --- Module-local helpers -----------------------------------------------
 // Default leverage when cfg supplies neither leverage nor leverageCap
 // as a finite number. Honors EXPLICIT zero — leverage=0 in Brooklyn
@@ -721,14 +752,42 @@ function unifiedTaxComparison(cfg, opts) {
             // sum at sale; whatever Brooklyn doesn't absorb is taxed."
             // Deferred mode: greedy up to maxAbsorbable, force remainder
             // at maturity year.
+            //
+            // METLIFE_RULES (see top of file): when this is a true
+            // structured-sale path (duration set + no max-rec override),
+            // also enforce the carrier's payment-schedule caps:
+            //   • first recognition year ≤ 50% of total gain
+            //   • reserve ≥ 20% for the last (maturity) year
+            // Inside the absorption math: greedy still tries to take
+            // maxAbsorbable, but is clamped down by these caps.
             const year1Rate = lossRateForTrancheYear(0);
             const effYear1Rate = year1Rate * _reinvestFrac;
             const denom = Math.max(0.001, 1 - effYear1Rate);
             const _recapDrag = (i === 0) ? recapture : 0;
+            const _isMetLifeConstrained = isDeferred
+                  && Number(cfg && cfg.structuredSaleDurationMonths) > 0
+                  && (cfg && cfg.maxRecognitionYearIndex == null);
             let gainRecThisYear = 0;
             if (i >= startIdx && i <= maturityIdx && gainRemaining > 0) {
                   const maxAbsorbable = Math.max(0, (stCF + existingLoss - _recapDrag) / denom);
-                  gainRecThisYear = Math.min(gainRemaining, maxAbsorbable);
+                  let cap = Math.min(gainRemaining, maxAbsorbable);
+                  if (_isMetLifeConstrained) {
+                        // First-payment cap: 50% of total gain.
+                        if (i === startIdx) {
+                              const firstCap = totalGainBucket * METLIFE_RULES.firstPaymentMaxPct;
+                              cap = Math.min(cap, firstCap);
+                        }
+                        // Last-payment floor: reserve ≥ 20% of total
+                        // gain for maturity year. Don't apply on the
+                        // maturity year itself — it takes the residual
+                        // anyway.
+                        if (i < maturityIdx) {
+                              const lastReserve = totalGainBucket * METLIFE_RULES.lastPaymentMinPct;
+                              const maxAllowed  = Math.max(0, gainRemaining - lastReserve);
+                              cap = Math.min(cap, maxAllowed);
+                        }
+                  }
+                  gainRecThisYear = cap;
                   if (i === maturityIdx && gainRemaining > gainRecThisYear) {
                         gainRecThisYear = gainRemaining;
                   }
