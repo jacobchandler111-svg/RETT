@@ -541,41 +541,54 @@
     return sum;
   }
 
-  // Bottom-of-page fees panel. Pulls from the chosen entry's metrics
-  // (which mirror the Strategy Summary numbers) so the CPA can
-  // verify: Σ(per-year gross benefits) - total fees = net benefit
-  // shown on Strategy Summary. Same plumbing — no new computation.
+  // Bottom-of-page fees panel. Uses the engine's AUTHORITATIVE
+  // aggregates (comp.totalSavings + solverOut.totalSupplementalBenefit
+  // − comp.totalAllFees) so the displayed net equals Strategy Summary
+  // exactly. Per-year breakdown above is informational; the bottom
+  // panel is the canonical reconciliation.
   function _renderFeesPanel(ctx) {
     if (!ctx || !ctx.entry) return '';
     var m = ctx.entry.metrics || {};
+    var comp = ctx.comp || {};
+    // Brooklyn-side: engine reports totalSavings (do-nothing − with-strategy).
+    var brooklynGross = Math.round(Number(comp.totalSavings || 0) || 0);
+    // Supplemental side: pull from the master solver's vetted
+    // aggregate — that's what Strategy Summary uses for net = primaryNet
+    // + supplementalBenefit. Summing individual s.netBenefit values
+    // double-counts when supps have rivalry-capping or interlocking
+    // effects (Delphi LT-add absorbed by Brooklyn, etc.).
+    var suppBenefit = 0;
+    if (typeof root.runMasterSolver === 'function') {
+      try {
+        var sOut = root.runMasterSolver(Number(m.net) || 0);
+        if (sOut && Number.isFinite(Number(sOut.totalSupplementalBenefit))) {
+          suppBenefit = Math.round(Number(sOut.totalSupplementalBenefit));
+        }
+      } catch (e) { /* */ }
+    }
+    var totalGross = brooklynGross + suppBenefit;
     var brooklynFees   = Math.round(Number(m.brooklynFees   || 0) || 0);
     var brookhavenFees = Math.round(Number(m.brookhavenFees || 0) || 0);
-    var totalFees      = Math.round(Number(m.fees           || (brooklynFees + brookhavenFees)) || 0);
-
-    // Sum gross benefit across every rendered year card.
-    var totalGross = 0;
-    var rowCount = ctx.comp && ctx.comp.rows ? ctx.comp.rows.length : 0;
-    var renderedYears = Math.max(7, rowCount);
-    for (var i = 0; i < renderedYears; i++) {
-      var r = ctx.comp.rows[i];
-      var brooklyn = (r && r.baseline && r.withStrategy)
-        ? Math.max(0, Number(r.baseline.total || 0) - Number(r.withStrategy.total || 0))
-        : 0;
-      totalGross += brooklyn + _computeSuppSavingsForYear(i, ctx.fundedSupps);
-    }
-    totalGross = Math.round(totalGross);
+    var totalFees      = brooklynFees + brookhavenFees;
     var net = totalGross - totalFees;
-    var entryNet = Math.round(Number(m.net || 0) || 0);
+    // Strategy Summary's displayed net = primary net (Brooklyn savings
+    // − fees) + supplementalBenefit. entry.metrics.net is the primary
+    // piece only; adding suppBenefit gives the user-facing total.
+    var primaryNet = Math.round(Number(m.net || 0) || 0);
+    var ssDisplayedNet = primaryNet + suppBenefit;
+    var checkOk = Math.abs(net - ssDisplayedNet) <= 5;
 
     return '' +
       '<div class="temp-fees-panel">' +
         '<div class="temp-fees-head">Fees &amp; Net Benefit Reconciliation</div>' +
         '<table class="temp-fees-table"><tbody>' +
-          '<tr><td>Total gross benefit (sum of all years)</td><td class="temp-amt temp-fees-gross">' + _fmt(totalGross) + '</td></tr>' +
+          '<tr><td>Brooklyn gross savings (across all years)</td><td class="temp-amt">' + _fmt(brooklynGross) + '</td></tr>' +
+          '<tr><td>Supplemental tax savings (vetted total)</td><td class="temp-amt">' + _fmt(suppBenefit) + '</td></tr>' +
+          '<tr class="temp-fees-subtotal"><td><strong>Total gross benefit</strong></td><td class="temp-amt temp-fees-gross"><strong>' + _fmt(totalGross) + '</strong></td></tr>' +
           '<tr><td>Brooklyn AM fee</td><td class="temp-amt">&minus;' + _fmt(brooklynFees) + '</td></tr>' +
           '<tr><td>Brookhaven planning fee</td><td class="temp-amt">&minus;' + _fmt(brookhavenFees) + '</td></tr>' +
           '<tr class="temp-fees-total"><td><strong>Net benefit (gross − fees)</strong></td><td class="temp-amt"><strong>' + _fmt(net) + '</strong></td></tr>' +
-          '<tr class="temp-fees-check"><td>Strategy Summary net benefit (cross-check)</td><td class="temp-amt">' + _fmt(entryNet) + '</td></tr>' +
+          '<tr class="temp-fees-check' + (checkOk ? ' is-ok' : ' is-mismatch') + '"><td>Strategy Summary net benefit ' + (checkOk ? '✓ matches' : '⚠ mismatch') + '</td><td class="temp-amt">' + _fmt(ssDisplayedNet) + '</td></tr>' +
         '</tbody></table>' +
       '</div>';
   }
