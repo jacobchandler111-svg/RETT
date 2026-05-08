@@ -522,30 +522,53 @@
     var bhFeeYear = Math.round((Number(row && row.brookhavenFee) || 0) * bhScale);
     var netForYear = grossBenefit - amFeeYear - bhFeeYear;
 
+    // Surface what Brooklyn losses were APPLIED against this year. The
+    // CPA otherwise sees "ST loss generated $1.8M" but doesn't know
+    // where the $1.8M went (esp. when no LT gain is shown for the
+    // year). The bucket label is inferred from row context:
+    //   gainRecognized > 0     → applied to LT capital gain
+    //   Y0 + recap > 0         → applied to §1250 depreciation recapture
+    //                           (Brooklyn ST losses absorb recap via
+    //                           §1212(b) netting before §1211(b) ord cap)
+    //   else lossApp ≤ $3K     → applied to ordinary income (§1211(b) cap)
+    //   else                   → generic "gain / recap"
+    var lossApp = Math.max(0, Number(row && row.lossApplied) || 0);
+    var lossAppLabel = '';
+    if (lossApp > 0) {
+      var rowGain = Math.max(0, Number(row && row.gainRecognized) || 0);
+      var cfgRecap = Math.max(0, Number(cfg && cfg.acceleratedDepreciation) || 0);
+      if (rowGain > 0) lossAppLabel = 'Loss applied to LT capital gain';
+      else if (displayedI === 0 && cfgRecap > 0) lossAppLabel = 'Loss applied to §1250 recapture';
+      else if (lossApp <= 3001) lossAppLabel = 'Loss applied to ordinary income (§1211(b) cap)';
+      else lossAppLabel = 'Loss applied (gain / recap)';
+    }
+
     var rows = [];
     if (stLoss > 0)      rows.push(['ST loss generated',     _fmt(stLoss)]);
+    if (lossApp > 0)     rows.push([lossAppLabel,             _fmt(lossApp)]);
     if (ordOffset > 0)   rows.push(['Ordinary income offset', _fmt(ordOffset)]);
     if (ltGainAdded > 0) rows.push(['LT gain added',          _fmt(ltGainAdded)]);
     if (other > 0)       rows.push(['Other tax savings (PTET, etc.)', _fmt(other)]);
-    // Mgmt fee row appears only when the year's funded supps allocate
-    // a fee (Delphi today; future fund-style supps would show here too).
-    if (suppMgmtFee > 0) rows.push(['Less: supp management fee', '&minus;' + _fmt(suppMgmtFee), 'temp-feeline-row']);
 
     var grossRow = (grossBenefit !== 0)
       ? '<tr class="temp-gross-row"><td>Gross benefit (tax saved)</td><td class="temp-amt">' + _fmt(grossBenefit) + '</td></tr>'
       : '';
 
-    // Year-level fee lines + net-for-year, surfaced after the gross row
-    // so the per-year view reads: action lines → gross → fees → net.
+    // Fee lines AFTER the gross row. Order: supp mgmt fee → Asset
+    // Manager fee → Brookhaven fee → net-this-year. Supp mgmt fee
+    // moved here per advisor: gross is gross before any fees.
     var feeRows = '';
+    if (suppMgmtFee > 0) {
+      feeRows += '<tr class="temp-feeline-row"><td>Less: Supplemental management fee</td><td class="temp-amt">&minus;' + _fmt(suppMgmtFee) + '</td></tr>';
+    }
     if (amFeeYear > 0) {
       feeRows += '<tr class="temp-feeline-row"><td>Less: Asset Manager fee</td><td class="temp-amt">&minus;' + _fmt(amFeeYear) + '</td></tr>';
     }
     if (bhFeeYear > 0) {
       feeRows += '<tr class="temp-feeline-row"><td>Less: Brookhaven fee</td><td class="temp-amt">&minus;' + _fmt(bhFeeYear) + '</td></tr>';
     }
-    var netForYearRow = (amFeeYear > 0 || bhFeeYear > 0)
-      ? '<tr class="temp-netyear-row"><td><strong>Net benefit this year</strong></td><td class="temp-amt"><strong>' + _fmt(netForYear) + '</strong></td></tr>'
+    var netForYearRow = (suppMgmtFee > 0 || amFeeYear > 0 || bhFeeYear > 0)
+      ? '<tr class="temp-netyear-row"><td><strong>Net benefit this year</strong></td><td class="temp-amt"><strong>' + _fmt(netForYear - suppMgmtFee) + '</strong></td></tr>'
       : '';
 
     return '<table class="temp-activity-table"><tbody>' +
