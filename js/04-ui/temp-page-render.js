@@ -313,7 +313,7 @@
   //     Aircraft, STR, Farm Equip, 401k, Augusta, Equipment Leasing).
   //     These are still single-year until the engine ships per-year
   //     shape for them too — see prompt drafted earlier.
-  function _renderActivityCell(row, displayedI, chosen, cfg, fundedSupps) {
+  function _renderActivityCell(row, displayedI, chosen, cfg, fundedSupps, feeScale) {
     var stLossBrooklyn = Math.max(0, Number(row && row.lossGenerated) || 0);
     var ordOffsetBrooklyn = 0;
     var withStrat = row && row.withStrategy;
@@ -498,6 +498,20 @@
       return '<div class="temp-activity-empty">No strategy activity this year.</div>';
     }
 
+    // Per-year fees (Brooklyn AM + Brookhaven). The engine puts them
+    // on each row as r.fee / r.brookhavenFee. We then scale by
+    // entry.metrics.brooklynFees / comp.totalFees (and same for
+    // Brookhaven) so the per-year sum equals the bottom panel's
+    // authoritative aggregate — without that scale, the optimizer's
+    // dialback can leave row-fee sums slightly above metrics-fee
+    // totals (~3% in canonical scenarios) and the per-year display
+    // wouldn't reconcile to hero.
+    var amScale = (feeScale && Number.isFinite(feeScale.am)) ? feeScale.am : 1;
+    var bhScale = (feeScale && Number.isFinite(feeScale.bh)) ? feeScale.bh : 1;
+    var amFeeYear = Math.round((Number(row && row.fee) || 0) * amScale);
+    var bhFeeYear = Math.round((Number(row && row.brookhavenFee) || 0) * bhScale);
+    var netForYear = grossBenefit - amFeeYear - bhFeeYear;
+
     var rows = [];
     if (stLoss > 0)      rows.push(['ST loss generated',     _fmt(stLoss)]);
     if (ordOffset > 0)   rows.push(['Ordinary income offset', _fmt(ordOffset)]);
@@ -511,12 +525,27 @@
       ? '<tr class="temp-gross-row"><td>Gross benefit (tax saved)</td><td class="temp-amt">' + _fmt(grossBenefit) + '</td></tr>'
       : '';
 
+    // Year-level fee lines + net-for-year, surfaced after the gross row
+    // so the per-year view reads: action lines → gross → fees → net.
+    var feeRows = '';
+    if (amFeeYear > 0) {
+      feeRows += '<tr class="temp-feeline-row"><td>Less: Asset Manager fee</td><td class="temp-amt">&minus;' + _fmt(amFeeYear) + '</td></tr>';
+    }
+    if (bhFeeYear > 0) {
+      feeRows += '<tr class="temp-feeline-row"><td>Less: Brookhaven fee</td><td class="temp-amt">&minus;' + _fmt(bhFeeYear) + '</td></tr>';
+    }
+    var netForYearRow = (amFeeYear > 0 || bhFeeYear > 0)
+      ? '<tr class="temp-netyear-row"><td><strong>Net benefit this year</strong></td><td class="temp-amt"><strong>' + _fmt(netForYear) + '</strong></td></tr>'
+      : '';
+
     return '<table class="temp-activity-table"><tbody>' +
       rows.map(function (r) {
         var cls = r[2] ? (' class="' + r[2] + '"') : '';
         return '<tr' + cls + '><td>' + r[0] + '</td><td class="temp-amt">' + r[1] + '</td></tr>';
       }).join('') +
       grossRow +
+      feeRows +
+      netForYearRow +
       '</tbody></table>';
   }
 
@@ -647,15 +676,15 @@
           '<tr><td>Brooklyn gross savings (across all years)</td><td class="temp-amt">' + _fmt(brooklynGross) + '</td></tr>' +
           '<tr><td>Supplemental tax savings (vetted total)</td><td class="temp-amt">' + _fmt(suppBenefit) + '</td></tr>' +
           '<tr class="temp-fees-subtotal"><td><strong>Total gross benefit</strong></td><td class="temp-amt temp-fees-gross"><strong>' + _fmt(totalGross) + '</strong></td></tr>' +
-          '<tr><td>Brooklyn AM fee</td><td class="temp-amt">&minus;' + _fmt(brooklynFees) + '</td></tr>' +
-          '<tr><td>Brookhaven planning fee</td><td class="temp-amt">&minus;' + _fmt(brookhavenFees) + '</td></tr>' +
+          '<tr><td>Asset Manager fees (across all years)</td><td class="temp-amt">&minus;' + _fmt(brooklynFees) + '</td></tr>' +
+          '<tr><td>Brookhaven fees (across all years)</td><td class="temp-amt">&minus;' + _fmt(brookhavenFees) + '</td></tr>' +
           '<tr class="temp-fees-total"><td><strong>Net benefit (gross − fees)</strong></td><td class="temp-amt"><strong>' + _fmt(net) + '</strong></td></tr>' +
           '<tr class="temp-fees-check' + (checkOk ? ' is-ok' : ' is-mismatch') + '"><td>Strategy Summary net benefit ' + (checkOk ? '✓ matches' : '⚠ mismatch') + '</td><td class="temp-amt">' + _fmt(ssDisplayedNet) + '</td></tr>' +
         '</tbody></table>' +
       '</div>';
   }
 
-  function _renderYearCard(row, i, chosen, cfg, fundedSupps, stateCode, carryIn, carryOut) {
+  function _renderYearCard(row, i, chosen, cfg, fundedSupps, stateCode, carryIn, carryOut, feeScale) {
     var year  = Number(row.year) || (i + 1);
     var label = 'Year ' + i + ' (' + year + ')';
     var rel   = _isRelevant(row, i, chosen, cfg);
@@ -674,7 +703,7 @@
         '</div>' +
         '<div class="temp-year-activity">' +
           '<div class="temp-year-head temp-year-head-muted">Strategy activity</div>' +
-          _renderActivityCell(row, i, chosen, cfg, fundedSupps) +
+          _renderActivityCell(row, i, chosen, cfg, fundedSupps, feeScale) +
         '</div>' +
       '</div>';
   }
@@ -779,6 +808,20 @@
       var le = engineRows[engineRows.length - 1];
       lastEngineCarry = Math.max(0, Number(le && le.stCarryForward) || 0);
     }
+    // Compute fee-scale once so per-year AM/Brookhaven lines sum to
+    // exactly the entry.metrics totals shown on the bottom panel +
+    // Strategy Summary. Optimizer dialback can leave row.fee sums a
+    // few % above metrics.brooklynFees; scaling closes the gap.
+    var _mFees = (ctx.entry && ctx.entry.metrics) || {};
+    var _ctotalFees = Number(ctx.comp.totalFees || 0);
+    var _ctotalBh   = Number(ctx.comp.totalBrookhaven || 0);
+    var _mAM = Number(_mFees.brooklynFees || 0);
+    var _mBH = Number(_mFees.brookhavenFees || 0);
+    var feeScale = {
+      am: _ctotalFees > 0 ? _mAM / _ctotalFees : 1,
+      bh: _ctotalBh   > 0 ? _mBH / _ctotalBh   : 1
+    };
+
     var totalCards = Math.max(TOTAL_YEARS, engineRows.length);
     for (var i = 0; i < totalCards; i++) {
       var yr = year0 + i;
@@ -806,7 +849,7 @@
         carryIn  = lastEngineCarry;
         carryOut = lastEngineCarry;
       }
-      html += _renderYearCard(row, i, ctx.chosen, ctx.entry.cfg, ctx.fundedSupps, stateCode, carryIn, carryOut);
+      html += _renderYearCard(row, i, ctx.chosen, ctx.entry.cfg, ctx.fundedSupps, stateCode, carryIn, carryOut, feeScale);
     }
     host.innerHTML = html + _renderFeesPanel(ctx);
   }
