@@ -183,21 +183,30 @@
     if (key === 'B') return 2;
     // Strategy C: derive year count from the structured-sale duration.
     // Source priority:
-    //   1. Form input (advisor explicitly typed a duration)
-    //   2. Auto-picked duration from the latest pipeline run
-    //      (__lastResult.config.structuredSaleDurationMonths)
-    //   3. 36-month MetLife minimum (post-2026-05-08 spec)
-    // Earlier code defaulted to 18mo — the legacy pre-MetLife minimum —
-    // which made every empty-form C-strategy supp deploy across only
-    // 2 years instead of the auto-picked 3-6 years, wasting most of
-    // the IDC deduction as residual NOL.
-    var monthsRaw = parseInt(_val('structured-sale-duration-months'), 10);
+    //   1. When auto-pick is enabled (default): __lastResult.config —
+    //      whatever duration the auto-picker chose, so the supplemental
+    //      year count matches what Page 3 / Page 5 actually run.
+    //   2. When auto-pick is disabled: form input (advisor manually
+    //      typed a duration and we must honor it without overlay).
+    //   3. Form input even when auto-pick is on if __lastResult is
+    //      missing (first render before pipeline has populated it).
+    //   4. 36-month MetLife minimum as last-resort fallback.
+    // Without rule (1), supps were sizing for the form value (e.g.
+    // 60mo → 6 years) while the actual engine ran the auto-picked
+    // value (e.g. 72mo → 7 years), so charitable annual giving and
+    // O&G/Delphi multi-year disagreed on the horizon.
+    var autoPickOn = (typeof root.__rettAutoPickEnabled === 'undefined') ||
+                     root.__rettAutoPickEnabled !== false;
+    var lastDur = (root.__lastResult && root.__lastResult.config &&
+                   Number(root.__lastResult.config.structuredSaleDurationMonths)) || 0;
+    var formDur = parseInt(_val('structured-sale-duration-months'), 10);
     var months;
-    if (Number.isFinite(monthsRaw) && monthsRaw > 0) {
-      months = monthsRaw;
-    } else if (root.__lastResult && root.__lastResult.config &&
-               Number(root.__lastResult.config.structuredSaleDurationMonths) > 0) {
-      months = Number(root.__lastResult.config.structuredSaleDurationMonths);
+    if (autoPickOn && lastDur > 0) {
+      months = lastDur;
+    } else if (Number.isFinite(formDur) && formDur > 0) {
+      months = formDur;
+    } else if (lastDur > 0) {
+      months = lastDur;
     } else {
       months = 36;  // MetLife minimum
     }

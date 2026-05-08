@@ -221,21 +221,27 @@
   // ----------------------------------------------------------------
   // Year count for a multi-year deduction. Returns 1 when the strategy
   // is single-year (A) or no strategy is chosen. For B/C, mirrors the
-  // _yearCountForSaleStrategy logic in supplemental-render.js so the
+  // _yearCountForSaleStrategy priority in supplemental-render.js so the
   // charitable annual-giving multiplier matches the O&G/Delphi
-  // recognition window.
+  // recognition window: auto-pick result first (when enabled), then
+  // form/cfg, then 36-month minimum.
   function _strategyYearCount(cfg) {
     var chosen = root.__rettChosenStrategy;
     if (chosen === 'A') return 1;
     if (chosen === 'B') return 2;
     if (chosen === 'C') {
-      var months = Number(
-        (root.__lastResult && root.__lastResult.config &&
-         root.__lastResult.config.structuredSaleDurationMonths) ||
-        (cfg && cfg.structuredSaleDurationMonths) || 36
-      );
+      var autoPickOn = (typeof root.__rettAutoPickEnabled === 'undefined') ||
+                       root.__rettAutoPickEnabled !== false;
+      var lastDur = (root.__lastResult && root.__lastResult.config &&
+                     Number(root.__lastResult.config.structuredSaleDurationMonths)) || 0;
+      var cfgDur  = (cfg && Number(cfg.structuredSaleDurationMonths)) || 0;
+      var months;
+      if (autoPickOn && lastDur > 0)      months = lastDur;
+      else if (cfgDur > 0)                months = cfgDur;
+      else if (lastDur > 0)               months = lastDur;
+      else                                months = 36;
       var yrs = Math.max(1, Math.ceil((months + 6) / 12));
-      return Math.min(yrs, 8);  // cap at 8 to match supplemental-render
+      return Math.min(yrs, 7);  // match YEAR_HARD_CAP in supplemental-render
     }
     return 1;
   }
