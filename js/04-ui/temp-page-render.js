@@ -28,9 +28,13 @@
 
   // Default number of year cards (Y0..Y_TOTAL_YEARS-1). The actual
   // count is max(TOTAL_YEARS, engineRows.length) — see render() — so a
-  // C scenario with a 72-month structured-sale duration that extends
-  // recognition past Y5 still gets every recognition year displayed.
-  var TOTAL_YEARS = 6;
+  // C scenario whose recognition extends past the default still gets
+  // every recognition year displayed.
+  //
+  // Default is 7 (Y0..Y6). Most strategies' tax-relevant years end
+  // before Y6, but a few supps could push there (especially with
+  // future multi-year deployment of charitable / 401k / etc.).
+  var TOTAL_YEARS = 7;
 
   function _fmt(n) {
     if (n == null || !isFinite(n)) return '$0';
