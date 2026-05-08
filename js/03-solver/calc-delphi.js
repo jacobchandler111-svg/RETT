@@ -396,19 +396,22 @@
     var remaining = maxInvestment;
 
     // Coarse phase: place chunks of classMin while budget allows.
+    // classMin is integer-valued so += / -= cancels exactly here, but
+    // we still use save/restore for symmetry with the fine phase.
     if (classMin > 0 && remaining >= classMin) {
       var coarseChunks = Math.floor(remaining / classMin);
       for (var k = 0; k < coarseChunks; k++) {
         var bestIdxC = -1, bestGainC = 0;
         for (var iC = 0; iC < N; iC++) {
-          years[iC].investment += classMin;
+          var origC = years[iC].investment;
+          years[iC].investment = origC + classMin;
           var trialC = computeDelphiMultiYear(years, classKey).totalSaved || 0;
           var gainC = trialC - prev;
-          years[iC].investment -= classMin;
+          years[iC].investment = origC;
           if (gainC > bestGainC) { bestGainC = gainC; bestIdxC = iC; }
         }
         if (bestIdxC < 0) break;
-        years[bestIdxC].investment += classMin;
+        years[bestIdxC].investment = years[bestIdxC].investment + classMin;
         remaining -= classMin;
         prev += bestGainC;
       }
@@ -417,6 +420,9 @@
     // Fine phase: distribute the sub-classMin remainder into already-
     // funded years only. Years at $0 stay at $0 (otherwise we'd push
     // them between $0 and classMin, which the fund rejects).
+    // Save/restore (not += / -=) so an irrational chunkSize doesn't
+    // FP-drift a year's investment to e.g. $999,999.9999 — which would
+    // false-trip the class-min check downstream.
     if (remaining > 0) {
       var FINE_CHUNKS = 25;
       var chunkSize = remaining / FINE_CHUNKS;
@@ -425,14 +431,15 @@
           var bestIdxF = -1, bestGainF = 0;
           for (var iF = 0; iF < N; iF++) {
             if (years[iF].investment <= 0) continue;
-            years[iF].investment += chunkSize;
+            var origF = years[iF].investment;
+            years[iF].investment = origF + chunkSize;
             var trialF = computeDelphiMultiYear(years, classKey).totalSaved || 0;
             var gainF = trialF - prev;
-            years[iF].investment -= chunkSize;
+            years[iF].investment = origF;
             if (gainF > bestGainF) { bestGainF = gainF; bestIdxF = iF; }
           }
           if (bestIdxF < 0) break;
-          years[bestIdxF].investment += chunkSize;
+          years[bestIdxF].investment = years[bestIdxF].investment + chunkSize;
           prev += bestGainF;
         }
       }

@@ -206,6 +206,10 @@
         ordTotal: Math.max(0, snap.ordTotal - carryNol)
       });
       var impact = _computeYearImpact(yearSnap, inv, pct);
+      // Echo the flag in the output so downstream consumers (Tab 7,
+      // stress-test invariants, future per-year UI) can read it without
+      // re-deriving from the input years[] array.
+      impact.includeRecap = includeRecap;
       // Track NOL: only the portion that exceeds the (already-NOL-
       // reduced) baseline becomes the next year's carry.
       carryNol = Math.max(0, Number(impact.nolGenerated) || 0);
@@ -265,14 +269,17 @@
     for (var c = 0; c < CHUNK_COUNT; c++) {
       var bestIdx = -1, bestGain = 0;
       for (var i = 0; i < N; i++) {
-        years[i].investment += chunkSize;
+        // Save/restore avoids the FP drift that += / -= on irrational
+        // chunkSize accumulates across many iterations.
+        var origI = years[i].investment;
+        years[i].investment = origI + chunkSize;
         var trial = computeOilGasMultiYear(years).totalSaved || 0;
         var gain = trial - prev;
-        years[i].investment -= chunkSize;
+        years[i].investment = origI;
         if (gain > bestGain) { bestGain = gain; bestIdx = i; }
       }
       if (bestIdx < 0) break;       // no positive gain anywhere — stop
-      years[bestIdx].investment += chunkSize;
+      years[bestIdx].investment = years[bestIdx].investment + chunkSize;
       prev += bestGain;
     }
     return years;
