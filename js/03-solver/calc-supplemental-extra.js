@@ -141,10 +141,6 @@
     var cfg = _cfg(); if (!cfg) return _writeResult('ptet', null);
     var st = _state('ptet');
     var income = Math.max(0, _num(st.taxableIncome));
-    // Auto-fill state rate from the lookup table when the user has
-    // not manually entered one (or has cleared it). User-entered
-    // values still win — only an empty / 0 stateRate triggers the
-    // table fallback.
     var rate = Math.max(0, _num(st.stateRate)) / 100;
     if (rate <= 0 && cfg.state && PTET_RATES_2026[cfg.state] != null) {
       rate = PTET_RATES_2026[cfg.state] / 100;
@@ -152,46 +148,58 @@
     if (income <= 0 || rate <= 0) return _writeResult('ptet', null);
 
     var ptet = income * rate;
-    var fed     = _fedMarginal(cfg);
-    var stRate  = _stateMarginal(cfg);
     var qbi     = _qbiHaircut(cfg);
     var saltCap = Math.max(0, _num(st.saltCapacityRemaining));
     var creditPct = Math.max(0, Math.min(100, _num(st.creditPct) || 100)) / 100;
+    var annualRecurring = !!st.annualRecurring;
 
-    // Gross federal benefit: PTET deductible at entity → reduces
-    // K-1 income → fed × PTET. QBI haircut applies — reducing K-1
-    // income by PTET also reduces the §199A QBI deduction by the
-    // SAME PTET amount × 20% (the QBI rate). The lost deduction
-    // costs the owner that × fed at the margin.
-    //
-    // _qbiHaircut() already returns 0.20 (the QBI rate) when the
-    // deduction applies, 0 otherwise — so the factor is simply
-    // (1 - qbi), NOT (1 - 0.20 × qbi). The earlier code multiplied
-    // 0.20 twice and only haircut 4% instead of 20%, overstating
-    // PTET net by ~16 percentage points.
-    var fedBenefit = fed * ptet * (1 - qbi);
+    // Per-year marginal rates. Y0 has the §1250 recap added to the
+    // ordinary baseline (sale year), pushing the federal bracket up.
+    // Y1+ revert to the W-2 / pass-through baseline alone.
+    var baseOrd = _num(cfg.baseOrdinaryIncome);
+    var recap = _num(cfg.depreciationRecapture || cfg.acceleratedDepreciation || cfg.recap || 0);
+    var fedY0   = _fedMarginalAt(cfg, baseOrd + recap);
+    var stY0    = _stateMarginalAt(cfg, baseOrd + recap);
+    var fedRest = _fedMarginalAt(cfg, baseOrd);
+    var stRest  = _stateMarginalAt(cfg, baseOrd);
 
-    // SALT-capacity opportunity cost: any unused individual SALT
-    // headroom that the owner could have used for the SAME state
-    // tax (had they paid individually rather than via PTET) is
-    // forfeited — value at fed marginal.
-    var saltForfeit = Math.min(saltCap, ptet) * fed;
+    // Per-year net benefit composition (federal — QBI haircut — SALT
+    // opportunity cost — state-credit slippage). The QBI / SALT /
+    // credit-slippage factors are rate-dependent so we compute them
+    // separately for Y0 and rest.
+    function _ptetNet(fed, stR) {
+      var fedBenefit     = fed * ptet * (1 - qbi);
+      var saltForfeit    = Math.min(saltCap, ptet) * fed;
+      var creditSlippage = ptet * (1 - creditPct) * stR;
+      return { fedBenefit: fedBenefit, saltForfeit: saltForfeit,
+               creditSlippage: creditSlippage,
+               net: fedBenefit - saltForfeit - creditSlippage };
+    }
+    var y0  = _ptetNet(fedY0,  stY0);
+    var rest= _ptetNet(fedRest,stRest);
 
-    // State-credit slippage (MA-style 90% credit): owner pays
-    // state-level tax on the missing 10% — valued at state marginal.
-    var creditSlippage = ptet * (1 - creditPct) * stRate;
+    // Annual-recurring multiplier: when toggled on AND strategy is
+    // multi-year (B/C), PTET continues each recognition year. Y0 uses
+    // the recap-pushed marginal; Y1+ use the no-recap marginal.
+    var yearCount = annualRecurring ? _strategyYearCount(cfg) : 1;
+    var netBenefit = y0.net + rest.net * Math.max(0, yearCount - 1);
 
-    var netBenefit = fedBenefit - saltForfeit - creditSlippage;
     _writeResult('ptet', {
       netBenefit: Math.max(0, Math.round(netBenefit)),
       investment: 0,             // not invested capital — tax payment
-      marginalRate: fed,
+      marginalRate: fedY0,
       detail: {
-        ptetPaid:       Math.round(ptet),
-        ptetRate:       rate,
-        fedBenefit:     Math.round(fedBenefit),
-        saltForfeit:    Math.round(saltForfeit),
-        creditSlippage: Math.round(creditSlippage)
+        ptetPaid:        Math.round(ptet),
+        ptetRate:        rate,
+        annualRecurring: annualRecurring,
+        yearCount:       yearCount,
+        y0Net:           Math.round(y0.net),
+        restNetPerYear:  Math.round(rest.net),
+        fedBenefit:      Math.round(y0.fedBenefit),
+        saltForfeit:     Math.round(y0.saltForfeit),
+        creditSlippage:  Math.round(y0.creditSlippage),
+        marginalY0:      fedY0 + stY0,
+        marginalRest:    fedRest + stRest
       }
     });
   }
@@ -483,12 +491,33 @@
     var fmv = Math.max(0, _num(st.fmvPerDay));
     if (days <= 0 || fmv <= 0) return _writeResult('slot08', null);
     var businessRent = days * fmv;
-    var marginal = _fedMarginal(cfg) + _stateMarginal(cfg);
+    var annualRecurring = !!st.annualRecurring;
+
+    // Per-year marginals (recap-pushed Y0 vs no-recap Y1+).
+    var baseOrd = _num(cfg.baseOrdinaryIncome);
+    var recap = _num(cfg.depreciationRecapture || cfg.acceleratedDepreciation || cfg.recap || 0);
+    var marginalY0   = _fedMarginalAt(cfg, baseOrd + recap) + _stateMarginalAt(cfg, baseOrd + recap);
+    var marginalRest = _fedMarginalAt(cfg, baseOrd)         + _stateMarginalAt(cfg, baseOrd);
+
+    var yearCount = annualRecurring ? _strategyYearCount(cfg) : 1;
+    var benY0   = businessRent * marginalY0;
+    var benRest = businessRent * marginalRest;
+    var netBenefit = benY0 + benRest * Math.max(0, yearCount - 1);
+
     _writeResult('slot08', {
-      netBenefit: Math.max(0, Math.round(businessRent * marginal)),
+      netBenefit: Math.max(0, Math.round(netBenefit)),
       investment: 0,
-      marginalRate: marginal,
-      detail: { days: days, fmv: fmv, businessRent: Math.round(businessRent) }
+      marginalRate: marginalY0,
+      detail: {
+        days: days, fmv: fmv,
+        businessRent: Math.round(businessRent),
+        annualRecurring: annualRecurring,
+        yearCount: yearCount,
+        y0Net: Math.round(benY0),
+        restNetPerYear: Math.round(benRest),
+        marginalY0: marginalY0,
+        marginalRest: marginalRest
+      }
     });
   }
 
@@ -509,14 +538,32 @@
     var employer = Math.min(0.25 * compCapped, 25 * 360000 / 100);
     var cap415c = 72000 + catchup;
     var total = Math.min(elective + catchup + employer, cap415c);
-    var marginal = _fedMarginal(cfg) + _stateMarginal(cfg);
+    var annualRecurring = !!st.annualRecurring;
+
+    // Per-year marginals (recap-pushed Y0 vs no-recap Y1+).
+    var baseOrd = _num(cfg.baseOrdinaryIncome);
+    var recap = _num(cfg.depreciationRecapture || cfg.acceleratedDepreciation || cfg.recap || 0);
+    var marginalY0   = _fedMarginalAt(cfg, baseOrd + recap) + _stateMarginalAt(cfg, baseOrd + recap);
+    var marginalRest = _fedMarginalAt(cfg, baseOrd)         + _stateMarginalAt(cfg, baseOrd);
+
+    var yearCount = annualRecurring ? _strategyYearCount(cfg) : 1;
+    var benY0   = total * marginalY0;
+    var benRest = total * marginalRest;
+    var netBenefit = benY0 + benRest * Math.max(0, yearCount - 1);
+
     _writeResult('slot09', {
-      netBenefit: Math.max(0, Math.round(total * marginal)),
+      netBenefit: Math.max(0, Math.round(netBenefit)),
       investment: 0,
-      marginalRate: marginal,
+      marginalRate: marginalY0,
       detail: {
         elective: elective, catchup: catchup,
-        employer: Math.round(employer), totalContribution: Math.round(total)
+        employer: Math.round(employer), totalContribution: Math.round(total),
+        annualRecurring: annualRecurring,
+        yearCount: yearCount,
+        y0Net: Math.round(benY0),
+        restNetPerYear: Math.round(benRest),
+        marginalY0: marginalY0,
+        marginalRest: marginalRest
       }
     });
   }

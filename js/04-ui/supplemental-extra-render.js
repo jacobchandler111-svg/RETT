@@ -177,13 +177,15 @@
         taxableIncome:         1000000,
         stateRate:             5.49,
         saltCapacityRemaining: 0,        // unused individual SALT cap headroom
-        creditPct:             100        // % of PTET creditable on owner state return (MA = 90)
+        creditPct:             100,       // % of PTET creditable on owner state return (MA = 90)
+        annualRecurring:       false      // true + Strategy B/C → benefit repeats each recognition year
       },
       detailRows: [
         { id: 'taxableIncome',         label: 'Pass-through income',                 kind: 'usd', placeholder: '1,000,000' },
         { id: 'stateRate',             label: 'State PTET rate (%)',                 kind: 'pct', placeholder: '5.49' },
         { id: 'saltCapacityRemaining', label: 'Unused individual SALT cap',          kind: 'usd', placeholder: '0' },
-        { id: 'creditPct',             label: 'PTET-to-owner credit (%)',            kind: 'pct', placeholder: '100' }
+        { id: 'creditPct',             label: 'PTET-to-owner credit (%)',            kind: 'pct', placeholder: '100' },
+        { id: 'annualRecurring',       label: 'Recurs each year (multi-year)?',      kind: 'yesno' }
       ]
     },
     {
@@ -322,12 +324,14 @@
       audience: 'S-corp / partnership owner',
       bucket: 'ordinary',
       defaults: {
-        daysRented:  14,
-        fmvPerDay:   1500
+        daysRented:      14,
+        fmvPerDay:       1500,
+        annualRecurring: false      // Augusta is structurally annual; toggle multiplies benefit across the strategy horizon
       },
       detailRows: [
-        { id: 'daysRented', label: 'Days rented (max 14)', kind: 'num', placeholder: '14' },
-        { id: 'fmvPerDay',  label: 'FMV rental per day',   kind: 'usd', placeholder: '1,500' }
+        { id: 'daysRented',     label: 'Days rented (max 14)',                kind: 'num', placeholder: '14' },
+        { id: 'fmvPerDay',      label: 'FMV rental per day',                  kind: 'usd', placeholder: '1,500' },
+        { id: 'annualRecurring',label: 'Recurs each year (multi-year)?',      kind: 'yesno' }
       ]
     },
     {
@@ -340,14 +344,16 @@
       audience: 'Business owner',
       bucket: 'ordinary',
       defaults: {
-        compensation:  300000,
-        ownerAge:      55,
-        priorYearWages: 200000
+        compensation:    300000,
+        ownerAge:        55,
+        priorYearWages:  200000,
+        annualRecurring: false      // 401(k) contributions repeat annually; toggle multiplies benefit across the strategy horizon
       },
       detailRows: [
-        { id: 'compensation',   label: 'Eligible compensation / SE earnings', kind: 'usd', placeholder: '300,000' },
-        { id: 'ownerAge',       label: 'Owner age',                            kind: 'num', placeholder: '55' },
-        { id: 'priorYearWages', label: 'Prior-year FICA wages',                kind: 'usd', placeholder: '200,000' }
+        { id: 'compensation',    label: 'Eligible compensation / SE earnings', kind: 'usd', placeholder: '300,000' },
+        { id: 'ownerAge',        label: 'Owner age',                            kind: 'num', placeholder: '55' },
+        { id: 'priorYearWages',  label: 'Prior-year FICA wages',                kind: 'usd', placeholder: '200,000' },
+        { id: 'annualRecurring', label: 'Recurs each year (multi-year)?',       kind: 'yesno' }
       ]
     },
     {
