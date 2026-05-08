@@ -481,12 +481,22 @@
     // difference. Signed — when fees exceed savings in a year, delta
     // is negative; that lands in the per-year row and the sum still
     // reconciles to comp.totalSavings.
+    // Per-year delta uses the MATCHED-TIMING baseline (r.baseline.total),
+    // not the do-nothing lump-in-Y0 baseline (r.doNothingBaseline.total).
+    // For Structured Sale C, the do-nothing baseline assumes the full
+    // gain would have been realized in Y0 — so Y0's doNothing − with
+    // includes "savings from deferring the gain itself," which the CPA
+    // can't attribute to any specific year's actions. The matched-timing
+    // baseline assumes the gain is recognized when the engine schedules
+    // it (e.g. Y3-Y4 for C); Y0's matched-timing delta then reflects
+    // only the Y0-specific actions (Brooklyn absorbing recap, supps
+    // doing their thing). The bottom-panel total still uses engine's
+    // authoritative aggregate (which includes deferral savings) —
+    // sum-of-per-year may be smaller than bottom-panel total by the
+    // timing-shift portion. That gap is footnoted on the panel.
     var brooklynSavings = 0;
-    if (row && row.withStrategy) {
-      var _dn = (row.doNothingBaseline && row.doNothingBaseline.total != null)
-        ? Number(row.doNothingBaseline.total) || 0
-        : (row.baseline ? Number(row.baseline.total) || 0 : 0);
-      brooklynSavings = _dn - Number(row.withStrategy.total || 0);
+    if (row && row.withStrategy && row.baseline) {
+      brooklynSavings = Number(row.baseline.total || 0) - Number(row.withStrategy.total || 0);
     }
     // Supp savings for the year — already NET of per-year supp mgmt fee
     // (see _computeSuppSavingsForYear's perYear branch). The mgmt fee
