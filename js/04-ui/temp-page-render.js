@@ -463,26 +463,38 @@
     var ltGainAdded = ltGainAddedSupp;
     var other       = otherTaxSaved;
 
-    // Gross benefit for THIS year = Brooklyn baseline.total minus
-    // withStrategy.total (engine's per-year delta) PLUS supp tax
-    // saved for this year. The CPA can sum across all year cards
-    // and subtract the bottom-of-page fees panel to verify net.
+    // Per-year supp management fees (Delphi). Surface as an explicit
+    // line so the CPA sees how the fee allocates each year, and so the
+    // sum of "Gross benefit" rows across years reconciles to the bottom
+    // Fees panel's "Supplemental tax savings (vetted total)" — which is
+    // already net of mgmt fees via runMasterSolver. Without this row the
+    // per-year sum drifts by Delphi's mgmt fee.
+    var suppMgmtFee = _computeSuppMgmtFeeForYear(displayedI, fundedSupps);
+
+    // Brooklyn baseline.total − withStrategy.total = Brooklyn's per-year
+    // tax delta (engine reports this directly per row).
     var brooklynSavings = 0;
     if (row && row.baseline && row.withStrategy) {
       brooklynSavings = Math.max(0, Number(row.baseline.total || 0) - Number(row.withStrategy.total || 0));
     }
+    // Supp savings for the year — already NET of per-year supp mgmt fee
+    // (see _computeSuppSavingsForYear's perYear branch). The mgmt fee
+    // line above is informational, surfacing what was deducted.
     var suppSavings = _computeSuppSavingsForYear(displayedI, fundedSupps);
     var grossBenefit = brooklynSavings + suppSavings;
 
-    if (stLoss === 0 && ordOffset === 0 && ltGainAdded === 0 && other === 0 && grossBenefit === 0) {
+    if (stLoss === 0 && ordOffset === 0 && ltGainAdded === 0 && other === 0 && grossBenefit === 0 && suppMgmtFee === 0) {
       return '<div class="temp-activity-empty">No strategy activity this year.</div>';
     }
 
     var rows = [];
-    if (stLoss > 0)      rows.push(['ST loss generated',     _fmt(stLoss), '']);
-    if (ordOffset > 0)   rows.push(['Ordinary income offset', _fmt(ordOffset), '']);
-    if (ltGainAdded > 0) rows.push(['LT gain added',          _fmt(ltGainAdded), '']);
-    if (other > 0)       rows.push(['Other tax savings (PTET, etc.)', _fmt(other), '']);
+    if (stLoss > 0)      rows.push(['ST loss generated',     _fmt(stLoss)]);
+    if (ordOffset > 0)   rows.push(['Ordinary income offset', _fmt(ordOffset)]);
+    if (ltGainAdded > 0) rows.push(['LT gain added',          _fmt(ltGainAdded)]);
+    if (other > 0)       rows.push(['Other tax savings (PTET, etc.)', _fmt(other)]);
+    // Mgmt fee row appears only when the year's funded supps allocate
+    // a fee (Delphi today; future fund-style supps would show here too).
+    if (suppMgmtFee > 0) rows.push(['Less: supp management fee', '&minus;' + _fmt(suppMgmtFee), 'temp-feeline-row']);
 
     var grossRow = grossBenefit > 0
       ? '<tr class="temp-gross-row"><td>Gross benefit (tax saved)</td><td class="temp-amt">' + _fmt(grossBenefit) + '</td></tr>'
@@ -490,10 +502,41 @@
 
     return '<table class="temp-activity-table"><tbody>' +
       rows.map(function (r) {
-        return '<tr><td>' + r[0] + '</td><td class="temp-amt">' + r[1] + '</td></tr>';
+        var cls = r[2] ? (' class="' + r[2] + '"') : '';
+        return '<tr' + cls + '><td>' + r[0] + '</td><td class="temp-amt">' + r[1] + '</td></tr>';
       }).join('') +
       grossRow +
       '</tbody></table>';
+  }
+
+  // Sum the per-year supplemental management fee across all funded
+  // supps for a given displayed year. Today only Delphi carries a fee.
+  //   - Multi-year shape (Strategy B/C): each perYear[i] exposes
+  //     mgmtFeeDollars (= invest_for_year × managementFee).
+  //   - Single-year shape (Strategy A via computeDelphiYear1): the fee
+  //     lives at the top level of lastResult; allocate the entire fee
+  //     to Y0 since the position is opened that year.
+  // Other supps (O&G, charitable, PTET, Augusta, 401k) have no fee →
+  // both branches return 0 for them.
+  function _computeSuppMgmtFeeForYear(displayedI, fundedSupps) {
+    if (!Array.isArray(fundedSupps)) return 0;
+    var sum = 0;
+    fundedSupps.forEach(function (s) {
+      var coreSpec  = (root.__rettSupplemental      && root.__rettSupplemental[s.id])      || null;
+      var extraSpec = (root.__rettSupplementalExtra && root.__rettSupplementalExtra[s.id]) || null;
+      var last = (coreSpec && coreSpec.lastResult) || (extraSpec && extraSpec.lastResult) || null;
+      if (!last) return;
+      if (Array.isArray(last.perYear)) {
+        var py = last.perYear[displayedI];
+        if (py) sum += Number(py.mgmtFeeDollars || 0) || 0;
+        return;
+      }
+      // Single-year shape: top-level mgmtFeeDollars hits Y0 only.
+      if (displayedI === 0) {
+        sum += Number(last.mgmtFeeDollars || 0) || 0;
+      }
+    });
+    return sum;
   }
 
   // Sum supp tax savings allocated to a given displayed year. Mirrors
