@@ -193,8 +193,17 @@
         ptetRate:        rate,
         annualRecurring: annualRecurring,
         yearCount:       yearCount,
-        y0Net:           Math.round(y0.net),
-        restNetPerYear:  Math.round(rest.net),
+        // ACTION: PTET deducts the entity-level state-tax payment from
+        // K-1 ordinary income. The mechanism IS an ord offset, just
+        // routed through the entity. Same $ value Y0 vs Y1+ since PTET
+        // amount doesn't change with the sale.
+        ordOffsetY0:           Math.round(ptet),
+        ordOffsetRestPerYear:  Math.round(ptet),
+        // RESULT: tax dollars saved per year (federal benefit minus SALT
+        // forfeiture minus credit slippage; QBI haircut applied).
+        taxSavingsY0:          Math.round(y0.net),
+        taxSavingsRestPerYear: Math.round(rest.net),
+        // Detail breakdown for the Y0 calculation.
         fedBenefit:      Math.round(y0.fedBenefit),
         saltForfeit:     Math.round(y0.saltForfeit),
         creditSlippage:  Math.round(y0.creditSlippage),
@@ -311,14 +320,23 @@
         giftAmount:       Math.round(amount),
         giftType:         giftType,
         deductibleAmount: Math.round(deductibleAmount),
-        deductionValue:   Math.round(deductionValue),
+        deductionValue:   Math.round(deductionValue),  // total tax savings (legacy name; kept)
         capGainAvoided:   Math.round(capGainAvoided),
         agiCapApplied:    deductibleAmount < amount,
         pctCap:           pctCap,
         annualGiving:     annual,
         yearCount:        yearCount,
-        deductionY0:      Math.round(deductionY0),
-        deductionPerYearAfterY0: Math.round(deductionRest),
+        // ACTION: ordinary income offset — the actual deductible $
+        // applied each year. Constant across years (gift is the same
+        // each year on annual giving). Tab 7 reads these for the
+        // "Ordinary income offset" line.
+        ordOffsetY0:           Math.round(deductibleAmount),
+        ordOffsetRestPerYear:  Math.round(deductibleAmount),
+        // RESULT: tax dollars saved per year. Y0 uses the recap-pushed
+        // marginal (top bracket in the sale year); Y1+ uses the no-recap
+        // marginal (W-2-only baseline).
+        taxSavingsY0:          Math.round(deductionY0),
+        taxSavingsRestPerYear: Math.round(deductionRest),
         marginalY0:       marginalY0,
         marginalRest:     marginalRest
       }
@@ -513,8 +531,15 @@
         businessRent: Math.round(businessRent),
         annualRecurring: annualRecurring,
         yearCount: yearCount,
-        y0Net: Math.round(benY0),
-        restNetPerYear: Math.round(benRest),
+        // ACTION: Augusta shifts businessRent from the entity to the
+        // owner — the entity deducts it (ord offset to biz income), the
+        // owner excludes it (§280A(g)). Net to the owner = rent ×
+        // marginal. Constant amount per year (capped at 14 days × FMV).
+        ordOffsetY0:           Math.round(businessRent),
+        ordOffsetRestPerYear:  Math.round(businessRent),
+        // RESULT: tax dollars saved per year.
+        taxSavingsY0:          Math.round(benY0),
+        taxSavingsRestPerYear: Math.round(benRest),
         marginalY0: marginalY0,
         marginalRest: marginalRest
       }
@@ -560,8 +585,13 @@
         employer: Math.round(employer), totalContribution: Math.round(total),
         annualRecurring: annualRecurring,
         yearCount: yearCount,
-        y0Net: Math.round(benY0),
-        restNetPerYear: Math.round(benRest),
+        // ACTION: 401(k) + profit-sharing reduces W-2 / SE income by
+        // the total contribution each year (capped at §415(c)).
+        ordOffsetY0:           Math.round(total),
+        ordOffsetRestPerYear:  Math.round(total),
+        // RESULT: tax dollars saved per year.
+        taxSavingsY0:          Math.round(benY0),
+        taxSavingsRestPerYear: Math.round(benRest),
         marginalY0: marginalY0,
         marginalRest: marginalRest
       }

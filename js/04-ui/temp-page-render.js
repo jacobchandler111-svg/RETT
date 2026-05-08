@@ -382,44 +382,34 @@
         var detail      = last.detail      || {};
         var allocations = last.allocations || {};
 
-        // Multi-year shape A: charitable annual giving uses
-        // detail.deductionY0 / detail.deductionPerYearAfterY0 / yearCount.
-        // Reduces ord income each year.
-        if (detail.deductionY0 != null || detail.deductionPerYearAfterY0 != null) {
+        // Unified multi-year shape (post-rename 2026-05-09): every
+        // annual-recurring supp now exposes per-year
+        //   ordOffsetY0 / ordOffsetRestPerYear  — the action $
+        //   taxSavingsY0 / taxSavingsRestPerYear — the resulting tax $
+        // plus yearCount. Charitable, PTET, Augusta, and 401(k) all
+        // ship this shape. Ord offset goes to the "Ordinary income
+        // offset" line; tax savings flow into the gross-benefit total
+        // via _computeSuppSavingsForYear.
+        if (detail.ordOffsetY0 != null || detail.ordOffsetRestPerYear != null) {
           var yearCount = Number(detail.yearCount || 1);
           if (displayedI < yearCount) {
-            var deductThisYear = (displayedI === 0)
-              ? Number(detail.deductionY0 || 0)
-              : Number(detail.deductionPerYearAfterY0 || 0);
-            if (deductThisYear > 0) { ordOffsetSupp += deductThisYear; contributedThisYear = true; }
+            var offsetThisYear = (displayedI === 0)
+              ? Number(detail.ordOffsetY0 || 0)
+              : Number(detail.ordOffsetRestPerYear || 0);
+            if (offsetThisYear > 0) { ordOffsetSupp += offsetThisYear; contributedThisYear = true; }
           }
           return;
         }
-
-        // Multi-year shape B: indirect-effect supps (PTET, etc.) use
-        // detail.y0Net / detail.restNetPerYear / detail.yearCount.
-        // No ord/LT/ST contribution — pure tax savings per year.
-        if (detail.y0Net != null || detail.restNetPerYear != null) {
+        // Indirect-effect supp without an ord offset (none today; here
+        // for forward-compat). Surfaces the year's tax savings under
+        // "Other tax savings".
+        if (detail.taxSavingsY0 != null || detail.taxSavingsRestPerYear != null) {
           var ycB = Number(detail.yearCount || 1);
           if (displayedI < ycB) {
             var netThisYear = (displayedI === 0)
-              ? Number(detail.y0Net || 0)
-              : Number(detail.restNetPerYear || 0);
+              ? Number(detail.taxSavingsY0 || 0)
+              : Number(detail.taxSavingsRestPerYear || 0);
             if (netThisYear > 0) { otherTaxSaved += netThisYear; contributedThisYear = true; }
-          }
-          return;
-        }
-
-        // Multi-year shape C: 401(k) annual recurring — same
-        // totalContribution each year for `yearCount` years (annual
-        // employer + elective contribution recurs naturally). Ord
-        // offset only — netBenefit is already captured downstream
-        // by the engine's tax math when ord goes down.
-        if (detail.annualRecurring === true && detail.totalContribution > 0) {
-          var ycC = Number(detail.yearCount || 1);
-          if (displayedI < ycC) {
-            ordOffsetSupp += Number(detail.totalContribution) || 0;
-            contributedThisYear = true;
           }
           return;
         }
@@ -528,37 +518,18 @@
         sum += Number(perYear[displayedI].totalSaved || 0) || 0;
         return;
       }
-      // Charitable annual giving: deductionY0/PerYearAfterY0 × marginal.
-      if (detail.deductionY0 != null || detail.deductionPerYearAfterY0 != null) {
+      // Unified multi-year shape (post-rename 2026-05-09): every
+      // annual-recurring supp ships taxSavingsY0 + taxSavingsRestPerYear
+      // already in tax dollars. Charitable, PTET, Augusta, 401(k).
+      // Earlier code multiplied charitable's deductionY0 (which was
+      // actually tax-savings, badly named) by marginal — under-counting
+      // by a factor of marginal. The rename + this read fixes it.
+      if (detail.taxSavingsY0 != null || detail.taxSavingsRestPerYear != null) {
         var yc = Number(detail.yearCount || 1);
         if (displayedI < yc) {
-          var ded = (displayedI === 0)
-            ? Number(detail.deductionY0 || 0)
-            : Number(detail.deductionPerYearAfterY0 || 0);
-          var marg = (displayedI === 0)
-            ? Number(detail.marginalY0 || detail.marginalRate || last.marginalRate || 0)
-            : Number(detail.marginalRest || detail.marginalRate || last.marginalRate || 0);
-          sum += ded * marg;
-        }
-        return;
-      }
-      // PTET-style indirect: y0Net/restNetPerYear are already tax dollars saved.
-      if (detail.y0Net != null || detail.restNetPerYear != null) {
-        var yc2 = Number(detail.yearCount || 1);
-        if (displayedI < yc2) {
           sum += (displayedI === 0)
-            ? Number(detail.y0Net || 0)
-            : Number(detail.restNetPerYear || 0);
-        }
-        return;
-      }
-      // 401(k) annual recurring: same restNetPerYear (or netBenefit if not set) per year.
-      if (detail.annualRecurring === true && Number(detail.yearCount || 1) > 1) {
-        var yc3 = Number(detail.yearCount || 1);
-        if (displayedI < yc3) {
-          sum += (displayedI === 0)
-            ? Number(detail.y0Net || detail.restNetPerYear || s.netBenefit || 0)
-            : Number(detail.restNetPerYear || s.netBenefit || 0);
+            ? Number(detail.taxSavingsY0 || 0)
+            : Number(detail.taxSavingsRestPerYear || 0);
         }
         return;
       }
