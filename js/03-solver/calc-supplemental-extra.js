@@ -33,12 +33,15 @@
   // Federal marginal rate via a $1,000 delta against the live tax
   // engine. Falls back to 37% (top bracket — the target client
   // segment). Caller decides whether to add state / NIIT.
-  function _fedMarginal(cfg) {
+  // baseOverride lets the caller probe the marginal at a specific
+  // ordinary-income level (e.g., Y0-with-recap vs Y1+-without-recap).
+  function _fedMarginalAt(cfg, baseOverride) {
     if (!cfg) return 0.37;
     if (typeof root.computeFederalTax !== 'function') return 0.37;
     var year   = cfg.year1 || (new Date()).getFullYear();
     var status = cfg.filingStatus || 'mfj';
-    var base   = _num(cfg.baseOrdinaryIncome);
+    var base   = (baseOverride != null) ? Math.max(0, _num(baseOverride))
+                                        : _num(cfg.baseOrdinaryIncome);
     var delta  = 1000;
     try {
       var t0 = root.computeFederalTax(base, year, status) || 0;
@@ -48,18 +51,20 @@
       return rate;
     } catch (e) { return 0.37; }
   }
+  function _fedMarginal(cfg) { return _fedMarginalAt(cfg, null); }
 
   // State marginal rate via the engine's computeStateTax. Defaults
   // to 5% when state == NONE / engine missing — reasonable HNW
   // assumption.
-  function _stateMarginal(cfg) {
+  function _stateMarginalAt(cfg, baseOverride) {
     if (!cfg) return 0.05;
     var state = cfg.state;
     if (!state || state === 'NONE') return 0;
     if (typeof root.computeStateTax !== 'function') return 0.05;
     var year   = cfg.year1 || (new Date()).getFullYear();
     var status = cfg.filingStatus || 'mfj';
-    var base   = _num(cfg.baseOrdinaryIncome);
+    var base   = (baseOverride != null) ? Math.max(0, _num(baseOverride))
+                                        : _num(cfg.baseOrdinaryIncome);
     var delta  = 1000;
     try {
       var t0 = root.computeStateTax(base,         year, state, status) || 0;
@@ -69,6 +74,7 @@
       return rate;
     } catch (e) { return 0.05; }
   }
+  function _stateMarginal(cfg) { return _stateMarginalAt(cfg, null); }
 
   // QBI applicability shorthand: if the deduction reduces flow-
   // through ordinary income that would otherwise generate a §199A
@@ -245,9 +251,17 @@
     var agi      = Math.max(0, _num(st.agi));
     var annual   = !!st.annualGiving;
 
-    var fed = _fedMarginal(cfg);
-    var stRate = _stateMarginal(cfg);
-    var marginal = fed + stRate;
+    // Per-year marginal rates. Y0 (the sale year) has §1250 recap
+    // pushing the client into a higher ordinary bracket — a $1 charitable
+    // deduction in Y0 is worth more than the same $1 deduction in Y1+
+    // (where the baseline reverts to W-2 / SE / pass-through only).
+    // baseOrd is what _fedMarginal/_stateMarginal probe by default.
+    var baseOrd = _num(cfg.baseOrdinaryIncome);
+    var recap = _num(cfg.depreciationRecapture || cfg.acceleratedDepreciation || cfg.recap || 0);
+    var marginalY0   = _fedMarginalAt(cfg, baseOrd + recap) +
+                       _stateMarginalAt(cfg, baseOrd + recap);
+    var marginalRest = _fedMarginalAt(cfg, baseOrd) +
+                       _stateMarginalAt(cfg, baseOrd);
 
     // §170 percentage cap by gift type. When agi is provided, cap
     // the deductible amount; otherwise honor the user-entered amount
@@ -257,34 +271,28 @@
     var hardCap = (agi > 0) ? agi * pctCap : Infinity;
     var deductibleAmount = Math.min(amount, hardCap);
 
-    // Federal + state deduction value (per year).
-    var deductionValuePerYear = deductibleAmount * marginal;
-
-    // Appreciated-asset bonus: avoids capital-gains tax on the
-    // unrealized gain portion. Use 23.8% blended rate (top LT cap
-    // gain 20% + NIIT 3.8%) for HNW. Capped at the appreciation
-    // amount that's actually deductible (the same 30% AGI ceiling
-    // applies — appreciation > deductibleAmount × (apprec/amount)
-    // can't be claimed and would carry over).
-    var capGainAvoidedPerYear = 0;
-    if (giftType === 'appreciated' && apprec > 0 && amount > 0) {
-      var apprecDeductible = deductibleAmount * (apprec / amount);
-      capGainAvoidedPerYear = apprecDeductible * 0.238;
-    }
+    // Appreciated-asset bonus is rate-independent (LT cap-gain rate is
+    // ~23.8% blended regardless of the year's ordinary bracket).
+    var apprecDeductible = (giftType === 'appreciated' && apprec > 0 && amount > 0)
+      ? deductibleAmount * (apprec / amount) : 0;
+    var capGainPerYear = apprecDeductible * 0.238;
 
     // Annual giving: when the toggle is on AND the chosen sale strategy
-    // is multi-year (B/C), the deduction repeats each recognition year
-    // — same gift amount, same marginal rate. Year count comes from the
-    // strategy horizon (B=2, C=⌈(months+6)/12⌉). When off, single-year.
+    // is multi-year (B/C), the deduction repeats each recognition year.
+    // Y0 uses marginalY0 (ord + recap baseline); Y1+ use marginalRest.
     var yearCount = annual ? _strategyYearCount(cfg) : 1;
-    var deductionValue = deductionValuePerYear * yearCount;
-    var capGainAvoided = capGainAvoidedPerYear * yearCount;
+    var deductionY0 = deductibleAmount * marginalY0;
+    var deductionRest = deductibleAmount * marginalRest;
+    // Y0 is always one of the years (gift starts in sale year). Years
+    // 2..yearCount use the no-recap marginal.
+    var deductionValue = deductionY0 + deductionRest * Math.max(0, yearCount - 1);
+    var capGainAvoided = capGainPerYear * yearCount;
 
     var netBenefit = deductionValue + capGainAvoided;
     _writeResult('charitableGifts', {
       netBenefit: Math.round(netBenefit),
       investment: 0,            // gift, not investment — no rivalry
-      marginalRate: marginal,
+      marginalRate: marginalY0,  // headline rate is the Y0 rate (sale year)
       detail: {
         giftAmount:       Math.round(amount),
         giftType:         giftType,
@@ -295,7 +303,10 @@
         pctCap:           pctCap,
         annualGiving:     annual,
         yearCount:        yearCount,
-        deductionPerYear: Math.round(deductionValuePerYear)
+        deductionY0:      Math.round(deductionY0),
+        deductionPerYearAfterY0: Math.round(deductionRest),
+        marginalY0:       marginalY0,
+        marginalRest:     marginalRest
       }
     });
   }

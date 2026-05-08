@@ -362,12 +362,28 @@
     };
   }
 
-  // Per-year yield-sorted allocator — same algorithm as
-  // optimizeOilGasMultiYear in calc-oil-gas.js, applied to Delphi's
-  // ord/LT/ST/qdiv/FTC effects. Front-loads Y0 when recap drives a
-  // higher marginal ordinary rate; stops allocating when the next chunk
-  // would yield ≤ 0 incremental savings.
+  // Per-year yield-sorted allocator with class-minimum constraint.
+  // Unlike calc-oil-gas (where deployment can be any positive amount),
+  // Delphi enforces the carrier's subscription floor: each funded year
+  // must be ≥ classMin, or stay at $0. A split that puts $1.2M into a
+  // Class A ($5M min) year is mathematically optimal but the fund
+  // won't accept it.
+  //
+  // Two-phase greedy:
+  //   1. Coarse — place chunks of size = classMin. Each chunk takes a
+  //      year from $0 to classMin (or grows an existing funded year).
+  //      This guarantees every funded year hits the threshold.
+  //   2. Fine — split the leftover budget (< classMin) in 25 small
+  //      chunks, but only into already-funded years. Years still at $0
+  //      stay at $0 — partial-fill would violate the class minimum.
+  //
+  // Edge case: budget < classMin (e.g., $3M Class A). Coarse can't
+  // place anything. Fall back to picking the year that maximizes
+  // single-year savings; minInvestmentMet will surface as false so the
+  // advisor sees the warning.
   function optimizeDelphiMultiYear(maxInvestment, classKey, yearMeta) {
+    var ck = (classKey === 'classA') ? 'classA' : 'classB';
+    var classMin = (DELPHI_STRATEGIES[ck] && DELPHI_STRATEGIES[ck].minInvestment) || 0;
     var N = (yearMeta && yearMeta.length) || 0;
     if (N === 0) return [];
     var years = yearMeta.map(function (m) {
@@ -376,23 +392,65 @@
     if (!(maxInvestment > 0)) return years;
     if (N === 1) { years[0].investment = maxInvestment; return years; }
 
-    var CHUNK_COUNT = 25;
-    var chunkSize = maxInvestment / CHUNK_COUNT;
-    if (!(chunkSize > 0)) return years;
-
     var prev = computeDelphiMultiYear(years, classKey).totalSaved || 0;
-    for (var c = 0; c < CHUNK_COUNT; c++) {
-      var bestIdx = -1, bestGain = 0;
-      for (var i = 0; i < N; i++) {
-        years[i].investment += chunkSize;
-        var trial = computeDelphiMultiYear(years, classKey).totalSaved || 0;
-        var gain = trial - prev;
-        years[i].investment -= chunkSize;
-        if (gain > bestGain) { bestGain = gain; bestIdx = i; }
+    var remaining = maxInvestment;
+
+    // Coarse phase: place chunks of classMin while budget allows.
+    if (classMin > 0 && remaining >= classMin) {
+      var coarseChunks = Math.floor(remaining / classMin);
+      for (var k = 0; k < coarseChunks; k++) {
+        var bestIdxC = -1, bestGainC = 0;
+        for (var iC = 0; iC < N; iC++) {
+          years[iC].investment += classMin;
+          var trialC = computeDelphiMultiYear(years, classKey).totalSaved || 0;
+          var gainC = trialC - prev;
+          years[iC].investment -= classMin;
+          if (gainC > bestGainC) { bestGainC = gainC; bestIdxC = iC; }
+        }
+        if (bestIdxC < 0) break;
+        years[bestIdxC].investment += classMin;
+        remaining -= classMin;
+        prev += bestGainC;
       }
-      if (bestIdx < 0) break;
-      years[bestIdx].investment += chunkSize;
-      prev += bestGain;
+    }
+
+    // Fine phase: distribute the sub-classMin remainder into already-
+    // funded years only. Years at $0 stay at $0 (otherwise we'd push
+    // them between $0 and classMin, which the fund rejects).
+    if (remaining > 0) {
+      var FINE_CHUNKS = 25;
+      var chunkSize = remaining / FINE_CHUNKS;
+      if (chunkSize > 0) {
+        for (var c = 0; c < FINE_CHUNKS; c++) {
+          var bestIdxF = -1, bestGainF = 0;
+          for (var iF = 0; iF < N; iF++) {
+            if (years[iF].investment <= 0) continue;
+            years[iF].investment += chunkSize;
+            var trialF = computeDelphiMultiYear(years, classKey).totalSaved || 0;
+            var gainF = trialF - prev;
+            years[iF].investment -= chunkSize;
+            if (gainF > bestGainF) { bestGainF = gainF; bestIdxF = iF; }
+          }
+          if (bestIdxF < 0) break;
+          years[bestIdxF].investment += chunkSize;
+          prev += bestGainF;
+        }
+      }
+    }
+
+    // Fallback: budget < classMin — pick the single year with the
+    // highest savings as if all the budget went there. The result will
+    // fail minInvestmentMet, surfacing the warning to the advisor.
+    var anyFunded = years.some(function (y) { return y.investment > 0; });
+    if (!anyFunded && maxInvestment > 0) {
+      var bestSingleIdx = -1, bestSingleSaved = -1;
+      for (var iS = 0; iS < N; iS++) {
+        years[iS].investment = maxInvestment;
+        var s = computeDelphiMultiYear(years, classKey).totalSaved || 0;
+        years[iS].investment = 0;
+        if (s > bestSingleSaved) { bestSingleSaved = s; bestSingleIdx = iS; }
+      }
+      if (bestSingleIdx >= 0) years[bestSingleIdx].investment = maxInvestment;
     }
     return years;
   }
