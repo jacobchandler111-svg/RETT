@@ -337,9 +337,19 @@
         // Multi-year shape: pull THIS displayed year's slice if it
         // exists in perYear[]. Oil & Gas (perYearLength=4 typical for
         // C / B-with-multi-year-IDC) lights up Y0..Y3 each.
+        //
+        // Use `absorbed` when present (Oil & Gas) — that's the portion
+        // of the gross deduction that actually offset ordinary income.
+        // Anything in `deduction` that exceeds `absorbed` is NOL
+        // (currently dropped by the engine — flagged separately).
+        // CPAs read this line as "what reduced my ordinary income,"
+        // not "what we tried to deduct."
         if (perYear && perYear[displayedI]) {
           var py = perYear[displayedI];
-          ordOffsetSupp += Number(py.deduction || 0) || 0;
+          var ordContribution = (py.absorbed != null)
+            ? Number(py.absorbed)
+            : Number(py.deduction || 0);
+          ordOffsetSupp += Math.max(0, ordContribution) || 0;
           // Per-year LT/ST shape isn't standardized yet — when supps
           // start emitting longTermGainAdded / shortTermLoss per year
           // the same path will pick them up.
