@@ -357,18 +357,58 @@
           stLossSupp      += Number(py.shortTermLoss || 0) || 0;
           return;
         }
-        // Legacy single-year shape: only contributes to Y0.
-        if (displayedI !== 0) return;
+        // Legacy single-year shape. Most supps fire their ord deduction
+        // in Y0 only and stash it under a per-supp-named key in
+        // `detail` or `allocations`. Some now ship a tiny multi-year
+        // shape (charitable's deductionY0 / deductionPerYearAfterY0)
+        // so contribute on later years too if those keys are present.
         var detail      = last.detail      || {};
         var allocations = last.allocations || {};
-        ordOffsetSupp += Number(
+
+        // Multi-year-ish: charitable's "deductionY0" + "deductionPerYearAfterY0".
+        // Year 0 reads deductionY0; subsequent years read the per-year
+        // amount until detail.yearCount runs out. When the supp uses
+        // this shape we don't fall through to the single-year path.
+        if (detail.deductionY0 != null || detail.deductionPerYearAfterY0 != null) {
+          var yearCount = Number(detail.yearCount || 1);
+          if (displayedI < yearCount) {
+            var deductThisYear = (displayedI === 0)
+              ? Number(detail.deductionY0 || 0)
+              : Number(detail.deductionPerYearAfterY0 || 0);
+            ordOffsetSupp += Math.max(0, deductThisYear);
+          }
+          return;
+        }
+
+        // True single-year supps — only contribute to Y0.
+        if (displayedI !== 0) return;
+
+        // Ord deduction key varies by supp:
+        //   Delphi          — allocations.ordinaryExpense
+        //   Charitable      — detail.deductibleAmount (legacy single-year)
+        //   PTET            — no direct ord deduction (shifts state↔federal); skip
+        //   Cost Seg slot05 — detail.year1Deduction (note casing)
+        //   Heavy Veh slot06— detail.yr1Deduction
+        //   Eq Leasing 07   — detail.yr1Loss (passive activity loss)
+        //   Augusta 08      — detail.businessRent (rental expense to owner)
+        //   401(k)+PS 09    — detail.totalContribution (employer + elective)
+        //   Aircraft 10     — detail.yr1Deduction
+        //   STR Loop 11     — detail.year1Deduction
+        //   Farm Equip 12   — detail.total (§179 + bonus)
+        var ordKeyValue = Number(
           allocations.ordinaryExpense
           || detail.deductibleAmount
+          || detail.year1Deduction
           || detail.yr1Deduction
+          || detail.yr1Loss
+          || detail.businessRent
+          || detail.totalContribution
+          || detail.total
           || detail.deduction
           || detail.expense
           || 0
         ) || 0;
+        ordOffsetSupp += Math.max(0, ordKeyValue);
         ltGainAddedSupp += Number(allocations.longTermGainAdded || detail.longTermGainAdded || 0) || 0;
         stLossSupp      += Number(allocations.shortTermLoss      || detail.shortTermLoss      || 0) || 0;
       });
