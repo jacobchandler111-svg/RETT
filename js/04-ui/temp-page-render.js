@@ -513,9 +513,17 @@
       var detail = last.detail || {};
       var perYear = Array.isArray(last.perYear) ? last.perYear : null;
       // Multi-year (Oil & Gas style): perYear[i].totalSaved already
-      // includes federal + state + NIIT delta for that year.
+      // includes federal + state + NIIT delta for that year. Subtract
+      // perYear[i].mgmtFeeDollars when the supp carries a per-year
+      // management fee (Delphi). O&G's perYear has no mgmtFeeDollars
+      // field, so the subtraction is a no-op there. This makes the
+      // per-year sum reconcile to the master-solver's funded-supps net
+      // total (the same source the Strategy Summary hero uses).
       if (perYear && perYear[displayedI] != null) {
-        sum += Number(perYear[displayedI].totalSaved || 0) || 0;
+        var py = perYear[displayedI];
+        var pyGross = Number(py.totalSaved || 0) || 0;
+        var pyFee   = Number(py.mgmtFeeDollars || 0) || 0;
+        sum += Math.max(0, pyGross - pyFee);
         return;
       }
       // Unified multi-year shape (post-rename 2026-05-09): every
