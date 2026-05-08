@@ -641,8 +641,14 @@
     if (!ctx || !ctx.entry) return '';
     var m = ctx.entry.metrics || {};
     var comp = ctx.comp || {};
-    // Brooklyn-side: engine reports totalSavings (do-nothing − with-strategy).
-    var brooklynGross = Math.round(Number(comp.totalSavings || 0) || 0);
+    // Brooklyn-side: prefer entry.metrics.savings (post-optimizer
+    // adjustment — when optimizer scales Brooklyn to 0, engine zeroes
+    // savings/fees/net so Strategy Summary displays "no engagement").
+    // Fall back to comp.totalSavings only when entry.metrics.savings
+    // is undefined (defensive).
+    var brooklynGross = Math.round(
+      (m.savings != null ? Number(m.savings) : Number(comp.totalSavings || 0)) || 0
+    );
     // Supplemental side: pull from the master solver's vetted
     // aggregate — that's what Strategy Summary uses for net = primaryNet
     // + supplementalBenefit. Summing individual s.netBenefit values
