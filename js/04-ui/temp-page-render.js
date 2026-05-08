@@ -374,8 +374,8 @@
 
     var rows = [];
     if (stLoss > 0)      rows.push(['ST loss generated',     _fmt(stLoss)]);
-    if (ordOffset > 0)   rows.push(['Ordinary income offset', '&minus;' + _fmt(ordOffset)]);
-    if (ltGainAdded > 0) rows.push(['LT gain added',          '+' + _fmt(ltGainAdded)]);
+    if (ordOffset > 0)   rows.push(['Ordinary income offset', _fmt(ordOffset)]);
+    if (ltGainAdded > 0) rows.push(['LT gain added',          _fmt(ltGainAdded)]);
 
     return '<table class="temp-activity-table"><tbody>' +
       rows.map(function (r) {
