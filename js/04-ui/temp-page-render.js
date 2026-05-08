@@ -471,11 +471,22 @@
     // per-year sum drifts by Delphi's mgmt fee.
     var suppMgmtFee = _computeSuppMgmtFeeForYear(displayedI, fundedSupps);
 
-    // Brooklyn baseline.total − withStrategy.total = Brooklyn's per-year
-    // tax delta (engine reports this directly per row).
+    // Brooklyn per-year tax delta. Use row.doNothingBaseline.total
+    // (the honest "did nothing — gain at Y0 lump" baseline) when
+    // available — that's what the engine sums into comp.totalSavings.
+    // For deferred strategies (B/C), r.baseline.total is the MATCHED
+    // baseline (year-of-recognition timing), which differs from the
+    // do-nothing baseline; using r.baseline here drifted Tab 7's
+    // per-year sum away from the bottom panel by the gain-timing
+    // difference. Signed — when fees exceed savings in a year, delta
+    // is negative; that lands in the per-year row and the sum still
+    // reconciles to comp.totalSavings.
     var brooklynSavings = 0;
-    if (row && row.baseline && row.withStrategy) {
-      brooklynSavings = Math.max(0, Number(row.baseline.total || 0) - Number(row.withStrategy.total || 0));
+    if (row && row.withStrategy) {
+      var _dn = (row.doNothingBaseline && row.doNothingBaseline.total != null)
+        ? Number(row.doNothingBaseline.total) || 0
+        : (row.baseline ? Number(row.baseline.total) || 0 : 0);
+      brooklynSavings = _dn - Number(row.withStrategy.total || 0);
     }
     // Supp savings for the year — already NET of per-year supp mgmt fee
     // (see _computeSuppSavingsForYear's perYear branch). The mgmt fee
@@ -496,7 +507,7 @@
     // a fee (Delphi today; future fund-style supps would show here too).
     if (suppMgmtFee > 0) rows.push(['Less: supp management fee', '&minus;' + _fmt(suppMgmtFee), 'temp-feeline-row']);
 
-    var grossRow = grossBenefit > 0
+    var grossRow = (grossBenefit !== 0)
       ? '<tr class="temp-gross-row"><td>Gross benefit (tax saved)</td><td class="temp-amt">' + _fmt(grossBenefit) + '</td></tr>'
       : '';
 
