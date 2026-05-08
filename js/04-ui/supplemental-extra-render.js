@@ -201,7 +201,8 @@
         giftAmount:    100000,
         giftType:      'cash',     // 'cash' | 'appreciated' | 'daf'
         appreciation:  0,           // dollars of unrealized gain (appreciated path)
-        agi:           0            // donor AGI for §170 percentage caps
+        agi:           0,           // donor AGI for §170 percentage caps
+        annualGiving:  false        // when true + Strategy B/C, gift repeats each recognition year
       },
       detailRows: [
         { id: 'giftAmount',   label: 'Gift amount',                        kind: 'usd',   placeholder: '100,000' },
@@ -211,7 +212,8 @@
             { value: 'daf',          label: 'Donor-advised fund (60% AGI cap)' }
         ] },
         { id: 'appreciation', label: 'Unrealized gain (appreciated only)', kind: 'usd',   placeholder: '0' },
-        { id: 'agi',          label: 'Donor AGI (for AGI cap, optional)',  kind: 'usd',   placeholder: '0' }
+        { id: 'agi',          label: 'Donor AGI (for AGI cap, optional)',  kind: 'usd',   placeholder: '0' },
+        { id: 'annualGiving', label: 'Annual giving (repeat each year)?',  kind: 'yesno' }
       ]
     },
     // ----------------------------------------------------------------

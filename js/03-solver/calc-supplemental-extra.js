@@ -213,6 +213,27 @@
   // doesn't compete with Brooklyn for sale-proceed capital — it's
   // tax-side, not an investment).
   // ----------------------------------------------------------------
+  // Year count for a multi-year deduction. Returns 1 when the strategy
+  // is single-year (A) or no strategy is chosen. For B/C, mirrors the
+  // _yearCountForSaleStrategy logic in supplemental-render.js so the
+  // charitable annual-giving multiplier matches the O&G/Delphi
+  // recognition window.
+  function _strategyYearCount(cfg) {
+    var chosen = root.__rettChosenStrategy;
+    if (chosen === 'A') return 1;
+    if (chosen === 'B') return 2;
+    if (chosen === 'C') {
+      var months = Number(
+        (root.__lastResult && root.__lastResult.config &&
+         root.__lastResult.config.structuredSaleDurationMonths) ||
+        (cfg && cfg.structuredSaleDurationMonths) || 36
+      );
+      var yrs = Math.max(1, Math.ceil((months + 6) / 12));
+      return Math.min(yrs, 8);  // cap at 8 to match supplemental-render
+    }
+    return 1;
+  }
+
   function _calcCharitableGifts() {
     var cfg = _cfg(); if (!cfg) return _writeResult('charitableGifts', null);
     var st = _state('charitableGifts');
@@ -222,6 +243,7 @@
     var giftType = st.giftType || 'cash';
     var apprec   = Math.max(0, _num(st.appreciation));
     var agi      = Math.max(0, _num(st.agi));
+    var annual   = !!st.annualGiving;
 
     var fed = _fedMarginal(cfg);
     var stRate = _stateMarginal(cfg);
@@ -235,8 +257,8 @@
     var hardCap = (agi > 0) ? agi * pctCap : Infinity;
     var deductibleAmount = Math.min(amount, hardCap);
 
-    // Federal + state deduction value.
-    var deductionValue = deductibleAmount * marginal;
+    // Federal + state deduction value (per year).
+    var deductionValuePerYear = deductibleAmount * marginal;
 
     // Appreciated-asset bonus: avoids capital-gains tax on the
     // unrealized gain portion. Use 23.8% blended rate (top LT cap
@@ -244,11 +266,19 @@
     // amount that's actually deductible (the same 30% AGI ceiling
     // applies — appreciation > deductibleAmount × (apprec/amount)
     // can't be claimed and would carry over).
-    var capGainAvoided = 0;
+    var capGainAvoidedPerYear = 0;
     if (giftType === 'appreciated' && apprec > 0 && amount > 0) {
       var apprecDeductible = deductibleAmount * (apprec / amount);
-      capGainAvoided = apprecDeductible * 0.238;
+      capGainAvoidedPerYear = apprecDeductible * 0.238;
     }
+
+    // Annual giving: when the toggle is on AND the chosen sale strategy
+    // is multi-year (B/C), the deduction repeats each recognition year
+    // — same gift amount, same marginal rate. Year count comes from the
+    // strategy horizon (B=2, C=⌈(months+6)/12⌉). When off, single-year.
+    var yearCount = annual ? _strategyYearCount(cfg) : 1;
+    var deductionValue = deductionValuePerYear * yearCount;
+    var capGainAvoided = capGainAvoidedPerYear * yearCount;
 
     var netBenefit = deductionValue + capGainAvoided;
     _writeResult('charitableGifts', {
@@ -262,7 +292,10 @@
         deductionValue:   Math.round(deductionValue),
         capGainAvoided:   Math.round(capGainAvoided),
         agiCapApplied:    deductibleAmount < amount,
-        pctCap:           pctCap
+        pctCap:           pctCap,
+        annualGiving:     annual,
+        yearCount:        yearCount,
+        deductionPerYear: Math.round(deductionValuePerYear)
       }
     });
   }

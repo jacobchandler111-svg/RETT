@@ -243,7 +243,163 @@
     };
   }
 
-  root.computeDelphiYear1 = computeDelphiYear1;
-  root.DELPHI_STRATEGIES  = DELPHI_STRATEGIES;
-  root.DELPHI_ALLOCATIONS = DELPHI_ALLOCATIONS;
+  // Multi-year entry point — mirrors computeOilGasMultiYear.
+  // years = [{ investment, includeRecap }, ...]
+  //
+  // Per §453(i) §1250 recapture is recognized in the year of sale only,
+  // so Y0 uses snap.recap (recap in ord baseline) and Y1+ should pass
+  // includeRecap: false. Each year's federal+state engine runs with its
+  // own ordinary baseline (W-2 ± recap) so the marginal-rate effect of
+  // Delphi's -30% ord expense is computed correctly per year.
+  //
+  // NOL carryforward: when a year's ord expense exceeds its baseline,
+  // the residual NOL carries to the next year via §172 (same shape as
+  // calc-oil-gas.computeOilGasMultiYear).
+  function computeDelphiMultiYear(years, classKey) {
+    var ck = (classKey === 'classA') ? 'classA' : 'classB';
+    var cls = DELPHI_STRATEGIES[ck];
+    if (!Array.isArray(years) || years.length === 0) {
+      return {
+        classKey: ck, className: cls.name, minInvestment: cls.minInvestment,
+        managementFee: cls.managementFee, perYear: [],
+        investment: 0, totalInvestment: 0, totalNetInvestment: 0,
+        mgmtFeeDollars: 0, totalSaved: 0, totalFedSaved: 0,
+        totalStateSaved: 0, totalNolGenerated: 0, allocations: {
+          ordinaryExpense: 0, longTermGainAdded: 0, shortTermLoss: 0,
+          qualifiedDividends: 0, foreignTaxCredit: 0
+        }, minInvestmentMet: false
+      };
+    }
+    var snap = _readSnapshot();
+    var alloc = DELPHI_ALLOCATIONS;
+    var carryNol = 0;
+    var perYear = years.map(function (y) {
+      var invest = Math.max(0, Number(y && y.investment) || 0);
+      var netInvest = invest * (1 - cls.managementFee);
+      var ordExpense = netInvest * Math.abs(alloc.ordinaryIncomeExpense);
+      var ltGainAdd  = netInvest * alloc.longTermCapitalGainLoss;
+      var stLossAmt  = netInvest * Math.abs(alloc.shortTermCapitalGainLoss);
+      var qdivAdd    = netInvest * alloc.qualifiedDividends;
+      var ftcAmt     = netInvest * Math.abs(alloc.foreignTaxesPaid);
+
+      var includeRecap = (y && y.includeRecap === false) ? false : true;
+      // Per-year snapshot: drop recap in Y1+ and apply NOL carry-down
+      // to ordinary baseline before running the engine.
+      var ySnap = Object.assign({}, snap);
+      if (!includeRecap) ySnap.recap = 0;
+      ySnap.ordTotal = Math.max(0, ySnap.ordTotal - carryNol);
+
+      var ordBase  = ySnap.ordTotal + ySnap.recap;
+      var ordAfter = ordBase - ordExpense;
+      var nolGen   = Math.max(0, -ordAfter);
+
+      var baseline  = _totalTaxAt(ySnap, {});
+      var optimized = _totalTaxAt(ySnap, {
+        ord:  Math.max(0, ordAfter),
+        lt:   ySnap.ltGain + ltGainAdd,
+        st:   ySnap.stGain - stLossAmt,
+        qdiv: qdivAdd,
+        ftc:  ftcAmt
+      });
+
+      carryNol = nolGen;
+
+      return {
+        investment:     invest,
+        netInvestment:  netInvest,
+        mgmtFeeDollars: invest - netInvest,
+        ordExpense:     ordExpense,
+        ltGainAdd:      ltGainAdd,
+        stLossAmt:      stLossAmt,
+        qdivAdd:        qdivAdd,
+        ftcAmt:         ftcAmt,
+        includeRecap:   includeRecap,
+        ordBaseline:    ordBase,
+        nolGenerated:   nolGen,
+        baselineTotal:  baseline.total,
+        optimizedTotal: optimized.total,
+        totalSaved:     Math.max(0, baseline.total - optimized.total),
+        fedSaved:       baseline.fed   - optimized.fed,
+        stateSaved:     baseline.state - optimized.state,
+        ftcApplied:     optimized.ftc
+      };
+    });
+    var sum = function (key) {
+      return perYear.reduce(function (s, r) { return s + (Number(r[key]) || 0); }, 0);
+    };
+    var totalInvestment = sum('investment');
+    return {
+      classKey:           ck,
+      className:          cls.name,
+      minInvestment:      cls.minInvestment,
+      // True only if EVERY funded year meets the class minimum. A split
+      // that puts $3M and $2M in two years for Class A ($5M min) fails
+      // both years; surface it so the UI can warn the advisor.
+      minInvestmentMet:   perYear.every(function (r) {
+        return r.investment === 0 || r.investment >= cls.minInvestment;
+      }),
+      managementFee:      cls.managementFee,
+      liquidity:          cls.liquidity,
+      liquidityNoticeDays: cls.liquidityNoticeDays,
+      perYear:            perYear,
+      // Back-compat fields for getInvestment / getNetBenefit / Tab 7 —
+      // these read totals across years.
+      investment:         totalInvestment,
+      totalInvestment:    totalInvestment,
+      totalNetInvestment: sum('netInvestment'),
+      mgmtFeeDollars:     sum('mgmtFeeDollars'),
+      totalSaved:         sum('totalSaved'),
+      totalFedSaved:      sum('fedSaved'),
+      totalStateSaved:    sum('stateSaved'),
+      totalNolGenerated:  carryNol,
+      allocations: {
+        ordinaryExpense:    sum('ordExpense'),
+        longTermGainAdded:  sum('ltGainAdd'),
+        shortTermLoss:      sum('stLossAmt'),
+        qualifiedDividends: sum('qdivAdd'),
+        foreignTaxCredit:   sum('ftcAmt')
+      }
+    };
+  }
+
+  // Per-year yield-sorted allocator — same algorithm as
+  // optimizeOilGasMultiYear in calc-oil-gas.js, applied to Delphi's
+  // ord/LT/ST/qdiv/FTC effects. Front-loads Y0 when recap drives a
+  // higher marginal ordinary rate; stops allocating when the next chunk
+  // would yield ≤ 0 incremental savings.
+  function optimizeDelphiMultiYear(maxInvestment, classKey, yearMeta) {
+    var N = (yearMeta && yearMeta.length) || 0;
+    if (N === 0) return [];
+    var years = yearMeta.map(function (m) {
+      return { investment: 0, includeRecap: !!(m && m.includeRecap) };
+    });
+    if (!(maxInvestment > 0)) return years;
+    if (N === 1) { years[0].investment = maxInvestment; return years; }
+
+    var CHUNK_COUNT = 25;
+    var chunkSize = maxInvestment / CHUNK_COUNT;
+    if (!(chunkSize > 0)) return years;
+
+    var prev = computeDelphiMultiYear(years, classKey).totalSaved || 0;
+    for (var c = 0; c < CHUNK_COUNT; c++) {
+      var bestIdx = -1, bestGain = 0;
+      for (var i = 0; i < N; i++) {
+        years[i].investment += chunkSize;
+        var trial = computeDelphiMultiYear(years, classKey).totalSaved || 0;
+        var gain = trial - prev;
+        years[i].investment -= chunkSize;
+        if (gain > bestGain) { bestGain = gain; bestIdx = i; }
+      }
+      if (bestIdx < 0) break;
+      years[bestIdx].investment += chunkSize;
+      prev += bestGain;
+    }
+    return years;
+  }
+
+  root.computeDelphiYear1     = computeDelphiYear1;
+  root.computeDelphiMultiYear = computeDelphiMultiYear;
+  root.optimizeDelphiMultiYear = optimizeDelphiMultiYear;
+  root.DELPHI_STRATEGIES      = DELPHI_STRATEGIES;
+  root.DELPHI_ALLOCATIONS     = DELPHI_ALLOCATIONS;
 })(window);

@@ -231,7 +231,55 @@
     };
   }
 
-  root.computeOilGasYear1     = computeOilGasYear1;
-  root.computeOilGasMultiYear = computeOilGasMultiYear;
+  // Per-year yield-sorted allocator. Splits a single maxInvestment budget
+  // across N recognition years to maximize total tax savings, instead of
+  // even-splitting (the prior behavior, which underweighted Y0 — where
+  // §1250 recap drives a higher marginal ordinary rate — and overweighted
+  // Y1+ — where extra deduction becomes wasted NOL).
+  //
+  // Algorithm: chunked greedy. Discretize the budget into CHUNK_COUNT
+  // chunks; for each chunk, place it in the year that gives the biggest
+  // incremental totalSaved bump (running computeOilGasMultiYear with the
+  // tentative allocation). Stop early once no year yields positive gain
+  // — that's the user's "positive-net-only gate" applied on the time
+  // dimension.
+  //
+  // yearMeta: array of N { includeRecap: bool } describing per-year
+  // baseline shape (Y0 includes §1250 recap, Y1+ doesn't). Returns a
+  // `years` array suitable for passing to computeOilGasMultiYear.
+  function optimizeOilGasMultiYear(maxInvestment, idcPct, yearMeta) {
+    var N = (yearMeta && yearMeta.length) || 0;
+    if (N === 0) return [];
+    var pct = _normIdcPct(idcPct);
+    var years = yearMeta.map(function (m) {
+      return { investment: 0, idcPct: pct, includeRecap: !!(m && m.includeRecap) };
+    });
+    if (!(maxInvestment > 0)) return years;
+    if (N === 1) { years[0].investment = maxInvestment; return years; }
+
+    var CHUNK_COUNT = 25;          // 4% allocation granularity
+    var chunkSize = maxInvestment / CHUNK_COUNT;
+    if (!(chunkSize > 0)) return years;
+
+    var prev = computeOilGasMultiYear(years).totalSaved || 0;
+    for (var c = 0; c < CHUNK_COUNT; c++) {
+      var bestIdx = -1, bestGain = 0;
+      for (var i = 0; i < N; i++) {
+        years[i].investment += chunkSize;
+        var trial = computeOilGasMultiYear(years).totalSaved || 0;
+        var gain = trial - prev;
+        years[i].investment -= chunkSize;
+        if (gain > bestGain) { bestGain = gain; bestIdx = i; }
+      }
+      if (bestIdx < 0) break;       // no positive gain anywhere — stop
+      years[bestIdx].investment += chunkSize;
+      prev += bestGain;
+    }
+    return years;
+  }
+
+  root.computeOilGasYear1       = computeOilGasYear1;
+  root.computeOilGasMultiYear   = computeOilGasMultiYear;
+  root.optimizeOilGasMultiYear  = optimizeOilGasMultiYear;
   root.readSupplementalBaselineSnapshot = readBaselineSnapshot;
 })(window);

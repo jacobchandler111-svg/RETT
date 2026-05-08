@@ -209,23 +209,24 @@
     var st = _state().oilGas;
     var key = _resolvedSaleStrategyKey();
     var count = _yearCountForSaleStrategy(key);
-    var per = (st.maxInvestment || 0) / count;
-    var years = [];
-    for (var i = 0; i < count; i++) {
-      years.push({
-        investment: per,
-        idcPct: st.depreciationPct,
-        // Per §453(i): depreciation recapture is recognized in the
-        // year of sale only. For multi-year deployment (B/C strategies),
-        // years 1+ should NOT include recap in their ordinary-income
-        // baseline — recap doesn't recur. Y0 (i === 0) keeps recap.
-        // Without this flag, the multi-year math previously double-
-        // counted recap as if it appeared in every recognition year,
-        // inflating apparent absorption capacity.
-        includeRecap: (i === 0)
-      });
+    var maxInv = st.maxInvestment || 0;
+    var pct = st.depreciationPct;
+    // Y0 includes §1250 recap; Y1+ doesn't (§453(i) — recap is sale-year-only).
+    var meta = [];
+    for (var i = 0; i < count; i++) meta.push({ includeRecap: (i === 0) });
+    // For B/C (count > 1) the per-year yield optimizer decides how much
+    // of maxInvestment to deploy in each recognition year. Y0 absorbs at
+    // the higher marginal ordinary rate (recap-driven), so the optimizer
+    // typically front-loads. For A (count === 1) there's only one year
+    // — the optimizer trivially returns [{investment: maxInv}].
+    if (typeof root.optimizeOilGasMultiYear === 'function') {
+      return root.optimizeOilGasMultiYear(maxInv, pct, meta);
     }
-    return years;
+    // Fallback: even split (legacy behavior pre-2026-05-09).
+    var per = maxInv / count;
+    return meta.map(function (m) {
+      return { investment: per, idcPct: pct, includeRecap: m.includeRecap };
+    });
   }
   function _oilGasIconSVG() {
     return '' +
@@ -363,13 +364,30 @@
       '</div>';
   }
   function _runDelphiMath() {
-    if (typeof root.computeDelphiYear1 !== 'function') return;
     var st = _state().delphi;
+    var key = _resolvedSaleStrategyKey();
+    var count = _yearCountForSaleStrategy(key);
     try {
-      st.lastResult = root.computeDelphiYear1({
-        classKey:   st.classKey,
-        investment: st.investment
-      });
+      // Strategy A (count === 1) — single-year shape, preserve back-compat.
+      if (count <= 1) {
+        if (typeof root.computeDelphiYear1 !== 'function') { st.lastResult = null; return; }
+        st.lastResult = root.computeDelphiYear1({
+          classKey:   st.classKey,
+          investment: st.investment
+        });
+        return;
+      }
+      // Strategy B/C — per-year yield optimizer decides Y0/Y1+ split of
+      // the user's dialed maxInvestment (st.investment is the budget
+      // ceiling; optimizer may deploy less if extra dollars become NOL).
+      if (typeof root.optimizeDelphiMultiYear !== 'function' ||
+          typeof root.computeDelphiMultiYear !== 'function') {
+        st.lastResult = null; return;
+      }
+      var meta = [];
+      for (var i = 0; i < count; i++) meta.push({ includeRecap: (i === 0) });
+      var years = root.optimizeDelphiMultiYear(st.investment || 0, st.classKey, meta);
+      st.lastResult = root.computeDelphiMultiYear(years, st.classKey);
     } catch (e) { st.lastResult = null; }
   }
 
