@@ -382,10 +382,9 @@
         var detail      = last.detail      || {};
         var allocations = last.allocations || {};
 
-        // Multi-year-ish: charitable's "deductionY0" + "deductionPerYearAfterY0".
-        // Year 0 reads deductionY0; subsequent years read the per-year
-        // amount until detail.yearCount runs out. When the supp uses
-        // this shape we don't fall through to the single-year path.
+        // Multi-year shape A: charitable annual giving uses
+        // detail.deductionY0 / detail.deductionPerYearAfterY0 / yearCount.
+        // Reduces ord income each year.
         if (detail.deductionY0 != null || detail.deductionPerYearAfterY0 != null) {
           var yearCount = Number(detail.yearCount || 1);
           if (displayedI < yearCount) {
@@ -393,6 +392,34 @@
               ? Number(detail.deductionY0 || 0)
               : Number(detail.deductionPerYearAfterY0 || 0);
             if (deductThisYear > 0) { ordOffsetSupp += deductThisYear; contributedThisYear = true; }
+          }
+          return;
+        }
+
+        // Multi-year shape B: indirect-effect supps (PTET, etc.) use
+        // detail.y0Net / detail.restNetPerYear / detail.yearCount.
+        // No ord/LT/ST contribution — pure tax savings per year.
+        if (detail.y0Net != null || detail.restNetPerYear != null) {
+          var ycB = Number(detail.yearCount || 1);
+          if (displayedI < ycB) {
+            var netThisYear = (displayedI === 0)
+              ? Number(detail.y0Net || 0)
+              : Number(detail.restNetPerYear || 0);
+            if (netThisYear > 0) { otherTaxSaved += netThisYear; contributedThisYear = true; }
+          }
+          return;
+        }
+
+        // Multi-year shape C: 401(k) annual recurring — same
+        // totalContribution each year for `yearCount` years (annual
+        // employer + elective contribution recurs naturally). Ord
+        // offset only — netBenefit is already captured downstream
+        // by the engine's tax math when ord goes down.
+        if (detail.annualRecurring === true && detail.totalContribution > 0) {
+          var ycC = Number(detail.yearCount || 1);
+          if (displayedI < ycC) {
+            ordOffsetSupp += Number(detail.totalContribution) || 0;
+            contributedThisYear = true;
           }
           return;
         }
@@ -446,21 +473,140 @@
     var ltGainAdded = ltGainAddedSupp;
     var other       = otherTaxSaved;
 
-    if (stLoss === 0 && ordOffset === 0 && ltGainAdded === 0 && other === 0) {
+    // Gross benefit for THIS year = Brooklyn baseline.total minus
+    // withStrategy.total (engine's per-year delta) PLUS supp tax
+    // saved for this year. The CPA can sum across all year cards
+    // and subtract the bottom-of-page fees panel to verify net.
+    var brooklynSavings = 0;
+    if (row && row.baseline && row.withStrategy) {
+      brooklynSavings = Math.max(0, Number(row.baseline.total || 0) - Number(row.withStrategy.total || 0));
+    }
+    var suppSavings = _computeSuppSavingsForYear(displayedI, fundedSupps);
+    var grossBenefit = brooklynSavings + suppSavings;
+
+    if (stLoss === 0 && ordOffset === 0 && ltGainAdded === 0 && other === 0 && grossBenefit === 0) {
       return '<div class="temp-activity-empty">No strategy activity this year.</div>';
     }
 
     var rows = [];
-    if (stLoss > 0)      rows.push(['ST loss generated',     _fmt(stLoss)]);
-    if (ordOffset > 0)   rows.push(['Ordinary income offset', _fmt(ordOffset)]);
-    if (ltGainAdded > 0) rows.push(['LT gain added',          _fmt(ltGainAdded)]);
-    if (other > 0)       rows.push(['Other tax savings (PTET, etc.)', _fmt(other)]);
+    if (stLoss > 0)      rows.push(['ST loss generated',     _fmt(stLoss), '']);
+    if (ordOffset > 0)   rows.push(['Ordinary income offset', _fmt(ordOffset), '']);
+    if (ltGainAdded > 0) rows.push(['LT gain added',          _fmt(ltGainAdded), '']);
+    if (other > 0)       rows.push(['Other tax savings (PTET, etc.)', _fmt(other), '']);
+
+    var grossRow = grossBenefit > 0
+      ? '<tr class="temp-gross-row"><td>Gross benefit (tax saved)</td><td class="temp-amt">' + _fmt(grossBenefit) + '</td></tr>'
+      : '';
 
     return '<table class="temp-activity-table"><tbody>' +
       rows.map(function (r) {
         return '<tr><td>' + r[0] + '</td><td class="temp-amt">' + r[1] + '</td></tr>';
       }).join('') +
+      grossRow +
       '</tbody></table>';
+  }
+
+  // Sum supp tax savings allocated to a given displayed year. Mirrors
+  // the multi-year shapes the activity column reads but pulls the
+  // dollar tax-saved value (not the underlying ord/LT/ST contribution).
+  // Used both by per-year card rendering and the bottom fees panel
+  // reconciliation totals.
+  function _computeSuppSavingsForYear(displayedI, fundedSupps) {
+    if (!Array.isArray(fundedSupps)) return 0;
+    var sum = 0;
+    fundedSupps.forEach(function (s) {
+      var extraSpec = (root.__rettSupplementalExtra && root.__rettSupplementalExtra[s.id]) || null;
+      var coreSpec  = (root.__rettSupplemental      && root.__rettSupplemental[s.id])      || null;
+      var last      = (extraSpec && extraSpec.lastResult)
+                   || (coreSpec  && coreSpec.lastResult) || null;
+      if (!last) return;
+      var detail = last.detail || {};
+      var perYear = Array.isArray(last.perYear) ? last.perYear : null;
+      // Multi-year (Oil & Gas style): perYear[i].totalSaved already
+      // includes federal + state + NIIT delta for that year.
+      if (perYear && perYear[displayedI] != null) {
+        sum += Number(perYear[displayedI].totalSaved || 0) || 0;
+        return;
+      }
+      // Charitable annual giving: deductionY0/PerYearAfterY0 × marginal.
+      if (detail.deductionY0 != null || detail.deductionPerYearAfterY0 != null) {
+        var yc = Number(detail.yearCount || 1);
+        if (displayedI < yc) {
+          var ded = (displayedI === 0)
+            ? Number(detail.deductionY0 || 0)
+            : Number(detail.deductionPerYearAfterY0 || 0);
+          var marg = (displayedI === 0)
+            ? Number(detail.marginalY0 || detail.marginalRate || last.marginalRate || 0)
+            : Number(detail.marginalRest || detail.marginalRate || last.marginalRate || 0);
+          sum += ded * marg;
+        }
+        return;
+      }
+      // PTET-style indirect: y0Net/restNetPerYear are already tax dollars saved.
+      if (detail.y0Net != null || detail.restNetPerYear != null) {
+        var yc2 = Number(detail.yearCount || 1);
+        if (displayedI < yc2) {
+          sum += (displayedI === 0)
+            ? Number(detail.y0Net || 0)
+            : Number(detail.restNetPerYear || 0);
+        }
+        return;
+      }
+      // 401(k) annual recurring: same restNetPerYear (or netBenefit if not set) per year.
+      if (detail.annualRecurring === true && Number(detail.yearCount || 1) > 1) {
+        var yc3 = Number(detail.yearCount || 1);
+        if (displayedI < yc3) {
+          sum += (displayedI === 0)
+            ? Number(detail.y0Net || detail.restNetPerYear || s.netBenefit || 0)
+            : Number(detail.restNetPerYear || s.netBenefit || 0);
+        }
+        return;
+      }
+      // Single-year fallback: full netBenefit on Y0.
+      if (displayedI === 0) {
+        sum += Number(s.netBenefit || last.netBenefit || last.totalSaved || 0) || 0;
+      }
+    });
+    return sum;
+  }
+
+  // Bottom-of-page fees panel. Pulls from the chosen entry's metrics
+  // (which mirror the Strategy Summary numbers) so the CPA can
+  // verify: Σ(per-year gross benefits) - total fees = net benefit
+  // shown on Strategy Summary. Same plumbing — no new computation.
+  function _renderFeesPanel(ctx) {
+    if (!ctx || !ctx.entry) return '';
+    var m = ctx.entry.metrics || {};
+    var brooklynFees   = Math.round(Number(m.brooklynFees   || 0) || 0);
+    var brookhavenFees = Math.round(Number(m.brookhavenFees || 0) || 0);
+    var totalFees      = Math.round(Number(m.fees           || (brooklynFees + brookhavenFees)) || 0);
+
+    // Sum gross benefit across every rendered year card.
+    var totalGross = 0;
+    var rowCount = ctx.comp && ctx.comp.rows ? ctx.comp.rows.length : 0;
+    var renderedYears = Math.max(7, rowCount);
+    for (var i = 0; i < renderedYears; i++) {
+      var r = ctx.comp.rows[i];
+      var brooklyn = (r && r.baseline && r.withStrategy)
+        ? Math.max(0, Number(r.baseline.total || 0) - Number(r.withStrategy.total || 0))
+        : 0;
+      totalGross += brooklyn + _computeSuppSavingsForYear(i, ctx.fundedSupps);
+    }
+    totalGross = Math.round(totalGross);
+    var net = totalGross - totalFees;
+    var entryNet = Math.round(Number(m.net || 0) || 0);
+
+    return '' +
+      '<div class="temp-fees-panel">' +
+        '<div class="temp-fees-head">Fees &amp; Net Benefit Reconciliation</div>' +
+        '<table class="temp-fees-table"><tbody>' +
+          '<tr><td>Total gross benefit (sum of all years)</td><td class="temp-amt temp-fees-gross">' + _fmt(totalGross) + '</td></tr>' +
+          '<tr><td>Brooklyn AM fee</td><td class="temp-amt">&minus;' + _fmt(brooklynFees) + '</td></tr>' +
+          '<tr><td>Brookhaven planning fee</td><td class="temp-amt">&minus;' + _fmt(brookhavenFees) + '</td></tr>' +
+          '<tr class="temp-fees-total"><td><strong>Net benefit (gross − fees)</strong></td><td class="temp-amt"><strong>' + _fmt(net) + '</strong></td></tr>' +
+          '<tr class="temp-fees-check"><td>Strategy Summary net benefit (cross-check)</td><td class="temp-amt">' + _fmt(entryNet) + '</td></tr>' +
+        '</tbody></table>' +
+      '</div>';
   }
 
   function _renderYearCard(row, i, chosen, cfg, fundedSupps, stateCode, carryIn, carryOut) {
@@ -616,7 +762,7 @@
       }
       html += _renderYearCard(row, i, ctx.chosen, ctx.entry.cfg, ctx.fundedSupps, stateCode, carryIn, carryOut);
     }
-    host.innerHTML = html;
+    host.innerHTML = html + _renderFeesPanel(ctx);
   }
 
   root.renderTempPage = render;

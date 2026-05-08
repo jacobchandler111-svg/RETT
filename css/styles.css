@@ -7434,3 +7434,53 @@ body { font-size: 16px; }
 .temp-baseline-table tr.temp-carryout-row td {
     border-top: 1px dashed rgba(251, 191, 36, 0.5);
 }
+
+/* Tab 7 — gross benefit row (green, bottom of activity column) */
+.temp-activity-table tr.temp-gross-row td {
+    color: #1f7a3a;
+    font-weight: 700;
+    border-top: 1px solid rgba(34, 134, 58, 0.4);
+    padding-top: 6px;
+}
+
+/* Tab 7 — fees & net benefit reconciliation panel */
+.temp-fees-panel {
+    margin-top: 18px;
+    padding: 16px 20px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    box-shadow: var(--shadow);
+}
+.temp-fees-head {
+    font-family: var(--font-mono);
+    font-size: 0.78em;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink);
+    padding-bottom: 6px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--rule);
+}
+.temp-fees-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95em;
+}
+.temp-fees-table td {
+    padding: 5px 0;
+    border-bottom: 1px dotted rgba(0,0,0,0.06);
+}
+.temp-fees-table tr:last-child td { border-bottom: none; }
+.temp-fees-table .temp-fees-gross { color: #1f7a3a; font-weight: 700; }
+.temp-fees-table tr.temp-fees-total td {
+    padding-top: 8px;
+    border-top: 1px solid var(--rule);
+    font-size: 1.05em;
+}
+.temp-fees-table tr.temp-fees-check td {
+    color: var(--muted);
+    font-size: 0.88em;
+    font-style: italic;
+    padding-top: 6px;
+}
