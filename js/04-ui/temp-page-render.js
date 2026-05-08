@@ -326,6 +326,7 @@
     var stLossSupp = 0;
     var ordOffsetSupp = 0;
     var ltGainAddedSupp = 0;
+    var otherTaxSaved = 0;
     if (Array.isArray(fundedSupps)) {
       fundedSupps.forEach(function (s) {
         var extraSpec = (root.__rettSupplementalExtra && root.__rettSupplementalExtra[s.id]) || null;
@@ -333,6 +334,16 @@
         var last      = (extraSpec && extraSpec.lastResult)
                      || (coreSpec  && coreSpec.lastResult) || null;
         if (!last) return;
+        // Track whether THIS supp contributed to ord/LT/ST in this
+        // year. If it didn't but it has netBenefit > 0 (e.g. PTET, which
+        // shifts state tax to federal deduction without offsetting
+        // ordinary income directly), surface its tax saved separately
+        // under "Other tax savings". Single-year supps fire in Y0;
+        // multi-year supps that emit per-year netBenefit / taxSaved
+        // pick up the right slice. PTET is currently single-year but
+        // the engine plans to ship multi-year for it — when it does,
+        // perYear[i].netBenefit / taxSaved on this supp will land here.
+        var contributedThisYear = false;
         var perYear     = Array.isArray(last.perYear) ? last.perYear : null;
         // Multi-year shape: pull THIS displayed year's slice if it
         // exists in perYear[]. Oil & Gas (perYearLength=4 typical for
@@ -349,12 +360,18 @@
           var ordContribution = (py.absorbed != null)
             ? Number(py.absorbed)
             : Number(py.deduction || 0);
-          ordOffsetSupp += Math.max(0, ordContribution) || 0;
-          // Per-year LT/ST shape isn't standardized yet — when supps
-          // start emitting longTermGainAdded / shortTermLoss per year
-          // the same path will pick them up.
-          ltGainAddedSupp += Number(py.longTermGainAdded || 0) || 0;
-          stLossSupp      += Number(py.shortTermLoss || 0) || 0;
+          if (ordContribution > 0) { ordOffsetSupp += ordContribution; contributedThisYear = true; }
+          var ltAdd = Number(py.longTermGainAdded || 0) || 0;
+          if (ltAdd > 0) { ltGainAddedSupp += ltAdd; contributedThisYear = true; }
+          var stAdd = Number(py.shortTermLoss || 0) || 0;
+          if (stAdd > 0) { stLossSupp += stAdd; contributedThisYear = true; }
+          // Per-year netBenefit / taxSaved that didn't come through
+          // an ord/LT/ST contribution (e.g. PTET when engine ships
+          // multi-year). Falls into "Other tax savings" line.
+          if (!contributedThisYear) {
+            var pyTax = Number(py.netBenefit || py.taxSaved || 0) || 0;
+            if (pyTax > 0) { otherTaxSaved += pyTax; contributedThisYear = true; }
+          }
           return;
         }
         // Legacy single-year shape. Most supps fire their ord deduction
@@ -375,7 +392,7 @@
             var deductThisYear = (displayedI === 0)
               ? Number(detail.deductionY0 || 0)
               : Number(detail.deductionPerYearAfterY0 || 0);
-            ordOffsetSupp += Math.max(0, deductThisYear);
+            if (deductThisYear > 0) { ordOffsetSupp += deductThisYear; contributedThisYear = true; }
           }
           return;
         }
@@ -408,17 +425,28 @@
           || detail.expense
           || 0
         ) || 0;
-        ordOffsetSupp += Math.max(0, ordKeyValue);
-        ltGainAddedSupp += Number(allocations.longTermGainAdded || detail.longTermGainAdded || 0) || 0;
-        stLossSupp      += Number(allocations.shortTermLoss      || detail.shortTermLoss      || 0) || 0;
+        if (ordKeyValue > 0) { ordOffsetSupp += ordKeyValue; contributedThisYear = true; }
+        var ltAdd2 = Number(allocations.longTermGainAdded || detail.longTermGainAdded || 0) || 0;
+        if (ltAdd2 > 0) { ltGainAddedSupp += ltAdd2; contributedThisYear = true; }
+        var stAdd2 = Number(allocations.shortTermLoss || detail.shortTermLoss || 0) || 0;
+        if (stAdd2 > 0) { stLossSupp += stAdd2; contributedThisYear = true; }
+        // Indirect-effect supps (PTET shifts state→fed, no direct ord
+        // offset) — when nothing in ord/LT/ST captured the supp's
+        // impact this year, surface its full netBenefit under "Other
+        // tax savings" so the CPA sees what each strategy is doing.
+        if (!contributedThisYear) {
+          var net = Number(s.netBenefit || last.netBenefit || last.totalSaved || 0) || 0;
+          if (net > 0) otherTaxSaved += net;
+        }
       });
     }
 
     var stLoss      = stLossBrooklyn + stLossSupp;
     var ordOffset   = ordOffsetBrooklyn + ordOffsetSupp;
     var ltGainAdded = ltGainAddedSupp;
+    var other       = otherTaxSaved;
 
-    if (stLoss === 0 && ordOffset === 0 && ltGainAdded === 0) {
+    if (stLoss === 0 && ordOffset === 0 && ltGainAdded === 0 && other === 0) {
       return '<div class="temp-activity-empty">No strategy activity this year.</div>';
     }
 
@@ -426,6 +454,7 @@
     if (stLoss > 0)      rows.push(['ST loss generated',     _fmt(stLoss)]);
     if (ordOffset > 0)   rows.push(['Ordinary income offset', _fmt(ordOffset)]);
     if (ltGainAdded > 0) rows.push(['LT gain added',          _fmt(ltGainAdded)]);
+    if (other > 0)       rows.push(['Other tax savings (PTET, etc.)', _fmt(other)]);
 
     return '<table class="temp-activity-table"><tbody>' +
       rows.map(function (r) {
