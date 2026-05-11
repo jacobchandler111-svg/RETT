@@ -80,8 +80,15 @@
     var wages = Math.max(0, _num('w2-wages'));
     var seInc = Math.max(0, _num('se-income'));
     // NIIT base = LT (clamped to 0 — losses don't add to investment
-    // income) + ST + investment-flavored ordinary (rental + dividend).
-    var nIIT_base = Math.max(0, ltGain) + stGain
+    // income) + ST + §1250 unrecaptured gain + investment-flavored
+    // ordinary (rental + dividend). Per §1411, depreciation recapture
+    // from a property sale IS net investment income (gain from
+    // disposition of property held in a passive activity / investment),
+    // so it belongs in the NIIT base. Previously omitted, which under-
+    // reported NIIT on recapture-heavy scenarios — and made the Page-1
+    // "did nothing" baseline disagree with the Tab-7 (engine) baseline
+    // by $20K+ for a typical $500K-recap client.
+    var nIIT_base = Math.max(0, ltGain) + stGain + recap
                   + Math.max(0, _num('rental-income'))
                   + Math.max(0, _num('dividend-income'));
 
@@ -113,10 +120,11 @@
     var lossOff = fedB ? Number(fedB.lossOrdOffsetApplied) || 0 : 0;
     var lossCFY = fedB ? Number(fedB.lossCarryforward)     || 0 : 0;
 
-    // Federal tax for display = ordinary + recapture (capped at 25%)
-    // + LT + AMT. NIIT, Additional Medicare, and SE tax are surfaced
-    // on their OWN rows so "Federal Income Tax" stays a clean single
-    // concept everywhere it appears. (P0-3.)
+    // Federal tax is now SPLIT into its components for the Page-1
+    // display: ordinary, §1250 recap (capped at 25%), long-term cap
+    // gains, and AMT top-up — each on its own row so the CPA can audit
+    // each piece independently. Total stays the same; only presentation
+    // changed.
     var fedTotal = fedOrd + fedRcap + fedLt + amt;
 
     // State tax (passes total income; state engine handles LTCG-vs-ordinary
@@ -144,6 +152,15 @@
 
     _set('bt-taxable', _fmt(Math.max(0, ord + recap + Math.max(0, ltGain) + stGain - lossOff)));
     _set('bt-fed',     _fmt(fedTotal));
+    // Split federal into its components. Each row is hidden when the
+    // amount is zero (e.g., no recap, no LT gain, no AMT) so the table
+    // stays tight for simple scenarios.
+    _set('bt-fed-ord', _fmt(fedOrd));
+    _showRow('bt-fed-ord', fedOrd > 0);
+    _set('bt-fed-recap', _fmt(fedRcap));
+    _showRow('bt-fed-recap', fedRcap > 0);
+    _set('bt-fed-lt', _fmt(fedLt));
+    _showRow('bt-fed-lt', fedLt > 0);
     _set('bt-amt',     _fmt(amt));
     _showRow('bt-amt',  amt > 0);
     _set('bt-state',   _fmt(stateTax));
