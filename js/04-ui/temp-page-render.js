@@ -173,9 +173,16 @@
     try { comp = root.unifiedTaxComparison(ecfg); } catch (e) { return null; }
     if (!comp || !comp.rows) return null;
 
-    // Funded supplementals — only those the master solver ranked as
-    // funded after rivalry / availability checks. Same filter the
-    // Strategy Summary REVIEW panel uses.
+    // Show every supplemental the user marked Interested + that's
+    // actually available given the PMQ gates (state, business owner,
+    // etc.). Previously this also gated on s.rivalry.funded — but
+    // rivalry-capped supps still represent a user decision and should
+    // show up in the Tab 7 activity column even if their per-year
+    // contribution is $0. The aggregate (suppBenefit in fees panel)
+    // still uses runMasterSolver's vetted totalSupplementalBenefit, so
+    // showing unfunded rows doesn't double-count. It just gives the CPA
+    // visibility into "which supps did the client click, and what did
+    // each contribute (or not contribute)."
     var fundedSupps = [];
     if (typeof root.runMasterSolver === 'function') {
       var primaryNet = (entry.metrics && Number.isFinite(entry.metrics.net)) ? entry.metrics.net : 0;
@@ -183,7 +190,7 @@
       try { solverOut = root.runMasterSolver(primaryNet); } catch (e) { /* */ }
       if (solverOut && Array.isArray(solverOut.supplementals)) {
         fundedSupps = solverOut.supplementals.filter(function (s) {
-          return s && s.enabled && s.available && s.rivalry && s.rivalry.funded;
+          return s && s.enabled && s.available;
         });
       }
     }
@@ -700,6 +707,22 @@
     var brooklynGross = Math.round(
       (m.savings != null ? Number(m.savings) : Number(comp.totalSavings || 0)) || 0
     );
+    // Bridge the per-year cards (matched-timing baseline) to the engine's
+    // do-nothing aggregate. For deferred strategies B/C the per-year
+    // matched-timing sum will be SMALLER than brooklynGross by the
+    // tax-deferral / gain-timing benefit — the engine catches it in
+    // comp.totalSavings (via doNothingBaseline) but the per-year cards
+    // can't show it on any individual year. We split it out as its own
+    // line so the per-year cards + this row + supps + fees reconcile
+    // cleanly to the bottom-panel net.
+    var perYearBrooklynSum = 0;
+    (comp.rows || []).forEach(function (r) {
+      var b = (r && r.baseline) ? Number(r.baseline.total) || 0 : 0;
+      var w = (r && r.withStrategy) ? Number(r.withStrategy.total) || 0 : 0;
+      perYearBrooklynSum += (b - w);
+    });
+    perYearBrooklynSum = Math.round(perYearBrooklynSum);
+    var deferralBenefit = brooklynGross - perYearBrooklynSum;
     // Supplemental side: pull from the master solver's vetted
     // aggregate — that's what Strategy Summary uses for net = primaryNet
     // + supplementalBenefit. Summing individual s.netBenefit values
@@ -726,11 +749,22 @@
     var ssDisplayedNet = primaryNet + suppBenefit;
     var checkOk = Math.abs(net - ssDisplayedNet) <= 5;
 
+    // Only show the deferral-benefit + per-year-sum split when there's a
+    // meaningful gap (deferred strategies). For Strategy A the per-year
+    // sum equals brooklynGross — collapse to a single "across all years"
+    // row to keep the table tight.
+    var showDeferralSplit = Math.abs(deferralBenefit) > 5;
+    var brooklynRows = showDeferralSplit
+      ? '<tr><td>Brooklyn per-year activity savings (sum of year cards)</td><td class="temp-amt">' + _fmt(perYearBrooklynSum) + '</td></tr>' +
+        '<tr><td>Tax deferral benefit (gain timing shift, not attributable to any single year)</td><td class="temp-amt">' + _fmt(deferralBenefit) + '</td></tr>' +
+        '<tr class="temp-fees-subtotal-faint"><td>&nbsp;&nbsp;&nbsp;&nbsp;Brooklyn gross savings (= per-year + deferral)</td><td class="temp-amt">' + _fmt(brooklynGross) + '</td></tr>'
+      : '<tr><td>Brooklyn gross savings (across all years)</td><td class="temp-amt">' + _fmt(brooklynGross) + '</td></tr>';
+
     return '' +
       '<div class="temp-fees-panel">' +
         '<div class="temp-fees-head">Fees &amp; Net Benefit Reconciliation</div>' +
         '<table class="temp-fees-table"><tbody>' +
-          '<tr><td>Brooklyn gross savings (across all years)</td><td class="temp-amt">' + _fmt(brooklynGross) + '</td></tr>' +
+          brooklynRows +
           '<tr><td>Supplemental tax savings (vetted total)</td><td class="temp-amt">' + _fmt(suppBenefit) + '</td></tr>' +
           '<tr class="temp-fees-subtotal"><td><strong>Total gross benefit</strong></td><td class="temp-amt temp-fees-gross"><strong>' + _fmt(totalGross) + '</strong></td></tr>' +
           '<tr><td>Asset Manager fees (across all years)</td><td class="temp-amt">&minus;' + _fmt(brooklynFees) + '</td></tr>' +
