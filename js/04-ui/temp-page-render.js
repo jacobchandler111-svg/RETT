@@ -505,13 +505,16 @@
     // sum-of-per-year may be smaller than bottom-panel total by the
     // timing-shift portion. That gap is footnoted on the panel.
     var brooklynSavings = 0;
-    if (row && row.withStrategy && (row.doNothingBaseline || row.baseline)) {
-      // Use doNothingBaseline (full-lump scenario) when available so the
-      // per-year savings ledger matches the Page-3 net-benefit KPI, which
-      // also uses doNothingBaseline.  For Strategy A and synthetic trailing
-      // rows the two are identical, so this change is no-op for those paths.
-      var _bnForSavings = row.doNothingBaseline || row.baseline;
-      brooklynSavings = Number((_bnForSavings && _bnForSavings.total) || 0) - Number(row.withStrategy.total || 0);
+    if (row && row.withStrategy && row.baseline) {
+      // Per-year savings use the MATCHED-TIMING baseline so each year's
+      // savings line is an apples-to-apples comparison: what the client
+      // would have paid recognizing gain on the same schedule as the
+      // strategy actually recognizes it, minus what the strategy + losses
+      // produce. For deferred strategies (B/C) this differs from the
+      // do-nothing baseline (which lumps everything in Y0); Tab 7 shows
+      // matched-timing because the per-year card is for verifying that
+      // the strategy worked in each individual year.
+      brooklynSavings = Number(row.baseline.total || 0) - Number(row.withStrategy.total || 0);
     }
     // Supp savings for the year — already NET of per-year supp mgmt fee
     // (see _computeSuppSavingsForYear's perYear branch). The mgmt fee
@@ -753,7 +756,7 @@
         '</div>' +
         '<div class="temp-year-baseline">' +
           '<div class="temp-year-head">Tax Baseline &mdash; ' + label + stateTag + '</div>' +
-          _renderBaselineCell(row.doNothingBaseline || row.baseline, carryIn, carryOut) +
+          _renderBaselineCell(row.baseline, carryIn, carryOut) +
         '</div>' +
         '<div class="temp-year-activity">' +
           '<div class="temp-year-head temp-year-head-muted">Strategy activity</div>' +

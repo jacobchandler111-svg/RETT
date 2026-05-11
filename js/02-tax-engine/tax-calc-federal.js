@@ -78,28 +78,26 @@ function _amtForYearStatus(year, status) {
 // on top — double-taxing the LTCG portion at 26/28% AND the LTCG rate.
 // On a $48M LTCG / $0 ordinary case that fabricated ~$13M of AMT
 // liability that doesn't exist on a real return.
-function _computeAmt(amti, year, status, ltAmount, recapAmount) {
+function _computeAmt(amti, year, status, ltAmount) {
           const a = _amtForYearStatus(year, status);
           let exemption = a.exemption;
           const excess = Math.max(0, amti - a.phaseoutStart);
           exemption = Math.max(0, exemption - excess * 0.25);
           const taxable = Math.max(0, amti - exemption);
           if (taxable <= 0) return 0;
-          // Strip out LTCG — taxed separately at preferential rates.
+          // Strip out LTCG — taxed separately at preferential rates (Form
+          // 6251 Part III preserves §1(h) preferential rates on net cap
+          // gain + qualified div). Depreciation recapture, however, is
+          // NOT carved out here: the §1250 25% cap is a REGULAR-tax-only
+          // construct; under AMT the recap slice rides the 26/28% band
+          // along with W-2 ordinary. This is the source of legitimate
+          // AMT top-up on recap-heavy sales (regular tax limits recap to
+          // 25%, AMT pulls it back up to 26-28%, top-up = the delta).
           const lt = Math.max(0, Number(ltAmount) || 0);
-          // §1(h)(1)(E): §1250 unrecaptured gain is capped at 25% even inside
-          // AMT — it is NOT subject to the 26%/28% ordinary AMT rate. Isolate
-          // the recap slice so it gets its own 25% charge instead of riding
-          // the 26/28 band (which would overstate AMT for recap-heavy returns).
-          const rcap = Math.max(0, Number(recapAmount) || 0);
-          const recapInSlice = Math.min(rcap, Math.max(0, taxable - lt));
-          const ordinarySlice = Math.max(0, taxable - lt - recapInSlice);
-          const recapAmt = recapInSlice * 0.25;
-          if (ordinarySlice <= 0) return recapAmt;
-          const ordAmt = ordinarySlice <= a.rate26Threshold
-              ? ordinarySlice * a.rate26
-              : a.rate26Threshold * a.rate26 + (ordinarySlice - a.rate26Threshold) * a.rate28;
-          return ordAmt + recapAmt;
+          const ordinarySlice = Math.max(0, taxable - lt);
+          if (ordinarySlice <= 0) return 0;
+          if (ordinarySlice <= a.rate26Threshold) return ordinarySlice * a.rate26;
+          return a.rate26Threshold * a.rate26 + (ordinarySlice - a.rate26Threshold) * a.rate28;
 }
 
 function _computeNiit(investmentIncome, magi, year, status) {
@@ -380,7 +378,7 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       // rate application is still on the ordinary slice — LTCG keeps
       // its preferential rate via the + ltTax line.
       const amtAmti     = taxableOrdinary + ltAmount;
-      const amtOrdOnly  = _computeAmt(amtAmti, year, status, ltAmount, _recapInTaxable);
+      const amtOrdOnly  = _computeAmt(amtAmti, year, status, ltAmount);
       const amtTotal    = amtOrdOnly + ltTax;
       // Regular tax for AMT comparison includes recapTax — without
       // it the AMT top-up double-counts the recapture portion.
