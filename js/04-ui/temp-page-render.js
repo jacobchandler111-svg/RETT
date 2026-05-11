@@ -72,13 +72,23 @@
     var recap  = Math.max(0, Number(opts.recap) || 0);
     var status = _readVal('filing-status', 'mfj');
     var state  = _readVal('state-code', 'NONE');
-    var ord    = _recurringOrdinary();
+    // Apply the same 2%/yr inflation factor the engine uses in
+    // _baseScenarioForYear so synthetic trailing rows don't silently drift
+    // into a lower effective rate as brackets inflate but income stays flat.
+    var _year1 = parseInt(_readVal('year1', String(new Date().getFullYear())), 10) || new Date().getFullYear();
+    var _idx   = Math.max(0, year - _year1);
+    var _infl  = (typeof root.TAX_DATA !== 'undefined' && root.TAX_DATA && typeof root.TAX_DATA.inflationRate === 'number')
+                   ? root.TAX_DATA.inflationRate : 0.02;
+    var _inflF = Math.pow(1 + _infl, _idx);
+    var ord    = _recurringOrdinary() * _inflF;
     var stGain = Math.max(0, _readNum('short-term-gain'));
-    var wages  = Math.max(0, _readNum('w2-wages'));
-    var seInc  = Math.max(0, _readNum('se-income'));
+    var wages  = Math.max(0, _readNum('w2-wages')) * _inflF;
+    var seInc  = Math.max(0, _readNum('se-income')) * _inflF;
+    // Passive investment income (rental + dividend) inflated alongside ord.
+    // stGain is asset-specific, not inflated (no recurring annual gain to grow).
     var nIIT_base = stGain
-                  + Math.max(0, _readNum('rental-income'))
-                  + Math.max(0, _readNum('dividend-income'))
+                  + Math.max(0, _readNum('rental-income'))  * _inflF
+                  + Math.max(0, _readNum('dividend-income')) * _inflF
                   + recap;
     var fedB = (typeof root.computeFederalTaxBreakdown === 'function')
       ? root.computeFederalTaxBreakdown(ord, year, status, {
@@ -495,8 +505,13 @@
     // sum-of-per-year may be smaller than bottom-panel total by the
     // timing-shift portion. That gap is footnoted on the panel.
     var brooklynSavings = 0;
-    if (row && row.withStrategy && row.baseline) {
-      brooklynSavings = Number(row.baseline.total || 0) - Number(row.withStrategy.total || 0);
+    if (row && row.withStrategy && (row.doNothingBaseline || row.baseline)) {
+      // Use doNothingBaseline (full-lump scenario) when available so the
+      // per-year savings ledger matches the Page-3 net-benefit KPI, which
+      // also uses doNothingBaseline.  For Strategy A and synthetic trailing
+      // rows the two are identical, so this change is no-op for those paths.
+      var _bnForSavings = row.doNothingBaseline || row.baseline;
+      brooklynSavings = Number((_bnForSavings && _bnForSavings.total) || 0) - Number(row.withStrategy.total || 0);
     }
     // Supp savings for the year — already NET of per-year supp mgmt fee
     // (see _computeSuppSavingsForYear's perYear branch). The mgmt fee
@@ -738,7 +753,7 @@
         '</div>' +
         '<div class="temp-year-baseline">' +
           '<div class="temp-year-head">Tax Baseline &mdash; ' + label + stateTag + '</div>' +
-          _renderBaselineCell(row.baseline, carryIn, carryOut) +
+          _renderBaselineCell(row.doNothingBaseline || row.baseline, carryIn, carryOut) +
         '</div>' +
         '<div class="temp-year-activity">' +
           '<div class="temp-year-head temp-year-head-muted">Strategy activity</div>' +
