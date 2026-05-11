@@ -13,13 +13,15 @@
 
 // ---- Hard-coded AMT + Additional Medicare tables (per IRS) ----
 // Filing-status keys here use snake_case to match the JSON.
-// 2026 OBBB-amended AMT exemptions per IRS notice (single $90,100 /
-// MFJ $140,200; phaseout starts $500,000 / $1,000,000). Issue #54.
+// 2026 AMT figures per IRS Rev. Proc. 2025-32 (OBBB-amended inflation
+// adjustments). Exemption (single $90,100 / MFJ $140,200; phaseout
+// starts $500,000 / $1,000,000); 26%/28% rate breakpoint at $244,500
+// for single/MFJ/HoH and $122,250 for MFS. Issue #54.
 const FED_AMT_2026 = {
-          single:           { exemption: 90100,  phaseoutStart: 500000,   rate26Threshold: 244000, rate26: 0.26, rate28: 0.28 },
-          married_joint:    { exemption: 140200, phaseoutStart: 1000000,  rate26Threshold: 244000, rate26: 0.26, rate28: 0.28 },
-          married_separate: { exemption: 70100,  phaseoutStart: 500000,   rate26Threshold: 122000, rate26: 0.26, rate28: 0.28 },
-          head_household:   { exemption: 90100,  phaseoutStart: 500000,   rate26Threshold: 244000, rate26: 0.26, rate28: 0.28 }
+          single:           { exemption: 90100,  phaseoutStart: 500000,   rate26Threshold: 244500, rate26: 0.26, rate28: 0.28 },
+          married_joint:    { exemption: 140200, phaseoutStart: 1000000,  rate26Threshold: 244500, rate26: 0.26, rate28: 0.28 },
+          married_separate: { exemption: 70100,  phaseoutStart: 500000,   rate26Threshold: 122250, rate26: 0.26, rate28: 0.28 },
+          head_household:   { exemption: 90100,  phaseoutStart: 500000,   rate26Threshold: 244500, rate26: 0.26, rate28: 0.28 }
 };
 const FED_AMT_2025 = {
           single:           { exemption: 88100,  phaseoutStart: 626350,  rate26Threshold: 239100, rate26: 0.26, rate28: 0.28 },
