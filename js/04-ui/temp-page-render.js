@@ -173,16 +173,14 @@
     try { comp = root.unifiedTaxComparison(ecfg); } catch (e) { return null; }
     if (!comp || !comp.rows) return null;
 
-    // Show every supplemental the user marked Interested + that's
-    // actually available given the PMQ gates (state, business owner,
-    // etc.). Previously this also gated on s.rivalry.funded — but
-    // rivalry-capped supps still represent a user decision and should
-    // show up in the Tab 7 activity column even if their per-year
-    // contribution is $0. The aggregate (suppBenefit in fees panel)
-    // still uses runMasterSolver's vetted totalSupplementalBenefit, so
-    // showing unfunded rows doesn't double-count. It just gives the CPA
-    // visibility into "which supps did the client click, and what did
-    // each contribute (or not contribute)."
+    // Funded supplementals — only those the master solver ranked as
+    // funded after rivalry / availability checks. Same filter the
+    // Strategy Summary REVIEW panel uses. This keeps the per-year supp
+    // contributions exactly equal to runMasterSolver's vetted total —
+    // critical for the bottom panel reconciliation to hold. Unfunded
+    // supps (rivalry-capped) carry stale lastResult numbers from
+    // upstream calc modules that would inflate the per-year sum without
+    // a corresponding increase in the aggregate, creating phantom gaps.
     var fundedSupps = [];
     if (typeof root.runMasterSolver === 'function') {
       var primaryNet = (entry.metrics && Number.isFinite(entry.metrics.net)) ? entry.metrics.net : 0;
@@ -190,7 +188,7 @@
       try { solverOut = root.runMasterSolver(primaryNet); } catch (e) { /* */ }
       if (solverOut && Array.isArray(solverOut.supplementals)) {
         fundedSupps = solverOut.supplementals.filter(function (s) {
-          return s && s.enabled && s.available;
+          return s && s.enabled && s.available && s.rivalry && s.rivalry.funded;
         });
       }
     }
@@ -749,15 +747,15 @@
     var ssDisplayedNet = primaryNet + suppBenefit;
     var checkOk = Math.abs(net - ssDisplayedNet) <= 5;
 
-    // Only show the deferral-benefit + per-year-sum split when there's a
-    // meaningful gap (deferred strategies). For Strategy A the per-year
-    // sum equals brooklynGross — collapse to a single "across all years"
-    // row to keep the table tight.
+    // Only show the lower-bracket-benefit + per-year-sum split when
+    // there's a meaningful gap (deferred strategies). For Strategy A the
+    // per-year sum equals brooklynGross — collapse to a single
+    // "across all years" row to keep the table tight.
     var showDeferralSplit = Math.abs(deferralBenefit) > 5;
     var brooklynRows = showDeferralSplit
       ? '<tr><td>Brooklyn per-year activity savings (sum of year cards)</td><td class="temp-amt">' + _fmt(perYearBrooklynSum) + '</td></tr>' +
-        '<tr><td>Tax deferral benefit (gain timing shift, not attributable to any single year)</td><td class="temp-amt">' + _fmt(deferralBenefit) + '</td></tr>' +
-        '<tr class="temp-fees-subtotal-faint"><td>&nbsp;&nbsp;&nbsp;&nbsp;Brooklyn gross savings (= per-year + deferral)</td><td class="temp-amt">' + _fmt(brooklynGross) + '</td></tr>'
+        '<tr><td>Gain from lower tax bracket (gain recognized in later years at lower marginal rates)</td><td class="temp-amt">' + _fmt(deferralBenefit) + '</td></tr>' +
+        '<tr class="temp-fees-subtotal-faint"><td>&nbsp;&nbsp;&nbsp;&nbsp;Brooklyn gross savings (= per-year + lower-bracket benefit)</td><td class="temp-amt">' + _fmt(brooklynGross) + '</td></tr>'
       : '<tr><td>Brooklyn gross savings (across all years)</td><td class="temp-amt">' + _fmt(brooklynGross) + '</td></tr>';
 
     return '' +
