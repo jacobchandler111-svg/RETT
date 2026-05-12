@@ -167,7 +167,13 @@
       : [];
     var savings = primarySavings + supplementalBenefit;
     var net = primaryNet + supplementalBenefit;
-    var roi = fees > 0 ? (savings / fees) : 0;
+    // Return on Planning expressed as a percentage of NET benefit over
+    // fees ("for every $1 of fees, you get back $X of net benefit",
+    // rendered as a percentage). Was a multiplier (× back); switched per
+    // advisor 2026-05-09 to a percent so it reads as a clean ROI figure
+    // (e.g. 828%) instead of "8.3×". Uses net (not savings) so the
+    // numerator is the true take-home benefit shown on the hero.
+    var roi = fees > 0 ? (net / fees) : 0;
     var maxBar = Math.max(fees, savings, 1);
     var feePct = Math.max(1, (fees / maxBar) * 100);
     var savePct = Math.max(1, (savings / maxBar) * 100);
@@ -281,16 +287,22 @@
     // fee amount.
     var walkawayNoPlanning   = salePrice - (m.doNothing || 0);
     var walkawayWithPlanning = salePrice - withPlanningTax - fees + supplementalBenefit;
-    var ropMultiplierValue = (fees > 0 && savings > 0) ? (savings / fees) : 0;
-    var ropDisplay = (ropMultiplierValue > 0)
-      ? _fmtMultiplier(ropMultiplierValue) + '<span class="rop-x">&times;</span>'
+    // Return on Planning rendered as a percentage = (net / fees) × 100.
+    // Was a multiplier (× back) earlier; switched to percent per advisor
+    // 2026-05-09 so the headline reads as an ROI figure ("828%") rather
+    // than the abstract "8.3×". Uses NET benefit over fees (not gross
+    // savings) — the numerator matches the hero number above.
+    var ropRatio = (fees > 0 && net > 0) ? (net / fees) : 0;
+    var ropPctNum = Math.round(ropRatio * 100);
+    var ropDisplay = (ropRatio > 0)
+      ? ropPctNum.toLocaleString('en-US') + '<span class="rop-x">%</span>'
       : '—';
-    // Inline the multiplier into the sub-copy so it reads as a complete
-    // sentence — "every dollar you spend gets you 13.4× back" rather
+    // Inline the percent into the sub-copy so it reads as a complete
+    // sentence — "every dollar you spend gets you 828% back" rather
     // than the abstract "this much back" which forced the reader to
     // glance up at the big number to fill in the blank.
-    var ropSubText = (ropMultiplierValue > 0)
-      ? 'every dollar you spend gets you ' + _fmtMultiplier(ropMultiplierValue) + '&times; back'
+    var ropSubText = (ropRatio > 0)
+      ? 'every dollar you spend gets you ' + ropPctNum.toLocaleString('en-US') + '% back'
       : 'every dollar you spend gets you this much back';
     // The hero of Page 5 is now Net Benefit — large, shaded, centered.
     // The walkaway tiles (No Planning / With Planning) sit ABOVE the
@@ -612,11 +624,16 @@
       h += '</tbody></table></div>';
     }
 
+    // Print ROI display: percent format matching the screen view
+    // (roi = net / fees). Renders as e.g. "828%" with the sub-line
+    // "For every $1 in fees, $8.28 returned in net benefit".
+    var roiPct = Math.round((roi || 0) * 100);
+    var roiPerDollar = (roi > 0) ? roi.toFixed(2) : '0.00';
     h += '<div class="print-section">' +
       '<div class="print-section-head">Return on Planning</div>' +
       '<div class="print-roi-display">' +
-        '<span class="print-roi-num">' + _fmtMultiplier(roi) + '&times;</span>' +
-        '<span class="print-roi-label">For every $1 in fees, $' + _fmtMultiplier(roi) + ' returned in tax savings</span>' +
+        '<span class="print-roi-num">' + roiPct.toLocaleString('en-US') + '%</span>' +
+        '<span class="print-roi-label">For every $1 in fees, $' + roiPerDollar + ' returned in net benefit</span>' +
       '</div>' +
     '</div>';
 
