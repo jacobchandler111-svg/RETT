@@ -71,13 +71,16 @@
       // F12 / F13 / F14 engine fixes, and the MetLife schedule
       // constraints. To regenerate after a future intentional engine
       // change: window.runEngineSelfTest({rebake:true}).
+      // Rebaked 2026-05-09 after AMT std-deduction add-back fix (§55(b)(1)(A) /
+      // Form 6251 line 2a). Prior values were from the 8086a93 / baa341a rebake
+      // window, since stale due to multi-year supp optimizer + AMT fix shifts.
       var CANONICAL_EXPECTED = {
-            imm_GA:       { totalBaseline: 12286908, totalWith:  7782273, totalSavings:  4504635, totalFees: 2859820, totalBrookhavenFees: 61000 },
-            def_GA:       { totalBaseline: 12286908, totalWith:   670893, totalSavings: 11616015, totalFees: 1914571, totalBrookhavenFees: 61000 },
-            imm_NJ:       { totalBaseline:  9264457, totalWith:  5909042, totalSavings:  3355415, totalFees: 1787387, totalBrookhavenFees: 61000 },
-            imm_CA_recap: { totalBaseline:  8493768, totalWith:  5161283, totalSavings:  3332485, totalFees: 1489489, totalBrookhavenFees: 61000 },
-            imm_TX_stg:   { totalBaseline:  3887509, totalWith:  2319628, totalSavings:  1567881, totalFees:  893694, totalBrookhavenFees: 61000 },
-            def_belowmin: { totalBaseline:   974298, totalWith:   974298, totalSavings:        0, totalFees:       0, totalBrookhavenFees:     0 },
+            imm_GA:       { totalBaseline: 12295914, totalWith:  7791279, totalSavings:  4504635, totalFees: 2859820, totalBrookhavenFees: 61000 },
+            def_GA:       { totalBaseline: 12295914, totalWith:   670893, totalSavings: 11625021, totalFees: 1914571, totalBrookhavenFees: 61000 },
+            imm_NJ:       { totalBaseline:  9273463, totalWith:  5918048, totalSavings:  3355415, totalFees: 1787387, totalBrookhavenFees: 61000 },
+            imm_CA_recap: { totalBaseline:  8382774, totalWith:  5170289, totalSavings:  3212485, totalFees: 1489489, totalBrookhavenFees: 61000 },
+            imm_TX_stg:   { totalBaseline:  3896515, totalWith:  2328634, totalSavings:  1567881, totalFees:  893694, totalBrookhavenFees: 61000 },
+            def_belowmin: { totalBaseline:   985558, totalWith:   985558, totalSavings:        0, totalFees:       0, totalBrookhavenFees:     0 },
             imm_noengage: { totalBaseline:   674707, totalWith:   674707, totalSavings:        0, totalFees:       0, totalBrookhavenFees:     0 }
       };
       var TOLERANCE = 10;

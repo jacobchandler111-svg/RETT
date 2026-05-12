@@ -386,7 +386,17 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       // for high-LTCG years and AMT is understated. The 26%/28%
       // rate application is still on the ordinary slice — LTCG keeps
       // its preferential rate via the + ltTax line.
-      const amtAmti     = taxableOrdinary + ltAmount;
+      //
+      // §55(b)(1)(A) / Form 6251 line 2a: the STANDARD DEDUCTION is
+      // disallowed for AMT — it gets added back to AMTI. Itemized
+      // deductions stay in (they may have their own AMT preference
+      // items like state taxes, but we don't model those today).
+      // Without this add-back the engine was under-counting AMTI by
+      // the standard deduction ($29,200 MFJ 2026), which let some
+      // high-LTCG / low-ord scenarios escape AMT that would actually
+      // owe top-up on a real return.
+      const _stdDedAddback = (deduction === stdDed && stdDed > 0) ? stdDed : 0;
+      const amtAmti     = taxableOrdinary + _stdDedAddback + ltAmount;
       const amtOrdOnly  = _computeAmt(amtAmti, year, status, ltAmount, _recapInTaxable);
       const amtTotal    = amtOrdOnly + ltTax;
       // Regular tax for AMT comparison includes recapTax — without
