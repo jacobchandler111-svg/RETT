@@ -518,6 +518,16 @@ function showPage(id) {
   });
   if (id === 'page-allocator') {
     try {
+      // Run the full engine pipeline FIRST so renderStrategySummary
+      // reads fresh entry.metrics / sout.totalSupplementalBenefit.
+      // Without this, a hard-refresh landing directly on page-allocator
+      // would paint the hero / supp tiles / Return-on-Planning square
+      // with default seed values (e.g. ~$20K from default supp tiles)
+      // before the pipeline catches up. Nav away + back used to mask
+      // this because the next showPage('page-allocator') re-fired the
+      // render after pipeline was warm. Tab 7's render() does this
+      // same belt-and-suspenders runFullPipeline() before _resolveChosen.
+      if (typeof runFullPipeline === 'function') runFullPipeline();
       if (typeof renderStrategySummary === 'function') renderStrategySummary();
     } catch(e) { (window.reportFailure || console.warn)('Strategy Summary render failed', e); }
   }
