@@ -25,6 +25,9 @@
     'sale-price-5', 'cost-basis-5', 'accelerated-depreciation-5',
     'short-term-gain', 'long-term-gain',
     'withhold-amount', 'available-capital',
+    // Per-property personal-use amounts (replaces the old single withhold-amount).
+    'personal-use-amount-1', 'personal-use-amount-2', 'personal-use-amount-3',
+    'personal-use-amount-4', 'personal-use-amount-5',
     // Future Sale Loss Target (Section 05) — single estimated gain.
     'future-estimated-gain'
   ];
@@ -50,6 +53,8 @@
     'sale-price-5': 1, 'cost-basis-5': 1, 'accelerated-depreciation-5': 1,
     'short-term-gain': 1, 'long-term-gain': 1,
     'withhold-amount': 1, 'available-capital': 1,
+    'personal-use-amount-1': 1, 'personal-use-amount-2': 1, 'personal-use-amount-3': 1,
+    'personal-use-amount-4': 1, 'personal-use-amount-5': 1,
     'future-estimated-gain': 1
   };
 

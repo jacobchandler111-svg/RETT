@@ -1411,7 +1411,8 @@ function bindControls() {
       // Clear that block's input values so the aggregator doesn't pull
       // stale data when the user toggles it back on later.
       ['sale-price','cost-basis','accelerated-depreciation',
-       'implementation-date','strategy-implementation-date'].forEach(function (base) {
+       'implementation-date','strategy-implementation-date',
+       'personal-use-amount'].forEach(function (base) {
         var el = document.getElementById(base + '-' + n);
         if (!el) return;
         el.value = '';
@@ -1423,6 +1424,12 @@ function bindControls() {
       if (hpEl) {
         hpEl.value = 'yes';
         hpEl.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      // Reset personal-use toggle to default 'no'.
+      var puEl = document.getElementById('personal-use-yes-no-' + n);
+      if (puEl) {
+        puEl.value = 'no';
+        puEl.dispatchEvent(new Event('change', { bubbles: true }));
       }
       _refreshAddButton();
       _refreshMultiPropertyMode();
@@ -1478,95 +1485,60 @@ function bindControls() {
   // toggle handles the show/hide so no custom wiring is needed
   // here.
 
-  // Sale Proceeds: auto-default behavior keyed off Accelerated Depreciation.
-  // When recapture > 0, the "Amount to keep" field defaults to the full
-  // recapture amount and "investing everything?" flips to No, unless the
-  // advisor has already touched either field. Reason: §1250 recapture is
-  // recognized in the year of sale (§453(i)) and must be paid in cash
-  // regardless of any structured-sale deferral — keeping the recapture
-  // amount back from proceeds gives the client a guaranteed cash buffer
-  // for that bill. The advisor can override for Strategy B/C scenarios.
-  var accelDeprEl = document.getElementById('accelerated-depreciation');
+  // Per-property "Any sale proceeds needed for personal use?" wiring.
+  // Replaces the old top-level "investing everything?" question + recap-
+  // tied auto-default. Each property has its own Yes/No + conditional
+  // amount input. The hidden top-level #withhold-yes-no and
+  // #withhold-amount mirrors stay populated by JS so inputs-collector
+  // and engine consumers see the AGGREGATE personal-use values without
+  // needing per-property awareness.
   var withholdYesNoEl  = document.getElementById('withhold-yes-no');
   var withholdAmountEl = document.getElementById('withhold-amount');
-  // Aggregated recapture across all active property blocks (Q1).
-  // _sumPropertyRecap captures the SUM of every visible property's accel
-  // depreciation, which is what should drive the Cover-Tax-Bill auto-
-  // default — not just Property 1's number. Falls back to Property 1
-  // only if the aggregator helper hasn't loaded yet.
-  function _sumPropertyRecap() {
-    if (typeof window.__rettSumPropertyField === 'function') {
-      return window.__rettSumPropertyField('accelerated-depreciation');
+  function _syncPersonalUseMirror() {
+    if (!withholdYesNoEl || !withholdAmountEl) return;
+    var anyYes = (typeof window.__rettAnyPersonalUseYes === 'function')
+      ? window.__rettAnyPersonalUseYes() : false;
+    var total = (typeof window.__rettSumPersonalUseAmount === 'function')
+      ? window.__rettSumPersonalUseAmount() : 0;
+    var fmt = (typeof fmtUSD === 'function')
+      ? fmtUSD
+      : function (n) { return '$' + Math.round(n).toLocaleString('en-US'); };
+    // Hidden mirror: #withhold-yes-no value 'yes' = "keep some" (matches
+    // legacy semantic where value='yes' means user wants to withhold).
+    var newYesNo = anyYes ? 'yes' : 'no';
+    if (withholdYesNoEl.value !== newYesNo) {
+      withholdYesNoEl.value = newYesNo;
+      withholdYesNoEl.dispatchEvent(new Event('change', { bubbles: true }));
     }
-    return parseUSD((accelDeprEl || {}).value) || 0;
+    var newAmt = anyYes && total > 0 ? fmt(total) : '';
+    if (withholdAmountEl.value !== newAmt) {
+      withholdAmountEl.value = newAmt;
+      withholdAmountEl.dispatchEvent(new Event('input', { bubbles: true }));
+    }
   }
-  if (accelDeprEl) {
-    // Guard so our own programmatic dispatch (input/change events fired
-    // from inside syncPayment to keep _recomputeAvailableCapital in sync)
-    // does not flip userEdited and freeze the auto-default.
-    var _autoSyncing = false;
-    if (withholdYesNoEl) {
-      withholdYesNoEl.addEventListener('change', function () {
-        if (_autoSyncing) return;
-        withholdYesNoEl.dataset.userEdited = 'true';
-      });
+  // Wire each property's personal-use Yes/No to show/hide its Amount
+  // input, then sync the aggregate mirror.
+  function _wirePersonalUseForBlock(n) {
+    var yn = document.getElementById('personal-use-yes-no-' + n);
+    var grp = document.getElementById('personal-use-amount-group-' + n);
+    var amt = document.getElementById('personal-use-amount-' + n);
+    if (!yn || !grp) return;
+    function _toggleVisibility() {
+      grp.hidden = (yn.value !== 'yes');
+      if (yn.value !== 'yes' && amt) amt.value = '';
     }
-    if (withholdAmountEl) {
-      withholdAmountEl.addEventListener('input', function () {
-        if (_autoSyncing) return;
-        withholdAmountEl.dataset.userEdited = 'true';
-      });
+    yn.addEventListener('change', function () {
+      _toggleVisibility();
+      _syncPersonalUseMirror();
+    });
+    if (amt) {
+      amt.addEventListener('input',  _syncPersonalUseMirror);
+      amt.addEventListener('change', _syncPersonalUseMirror);
     }
-    var syncPayment = function () {
-      // Multi-property (Q1): use SUM of recapture across all active
-      // properties so the Cover-Tax-Bill auto-default reflects the
-      // aggregate cash buffer the client needs, not just Property 1.
-      var amount = _sumPropertyRecap();
-      var fmt = (typeof fmtUSD === 'function')
-        ? fmtUSD
-        : function (n) { return '$' + Math.round(n).toLocaleString('en-US'); };
-      _autoSyncing = true;
-      try {
-        if (amount > 0) {
-          // Default "investing everything?" to No (value="yes" =
-          // keep some) and pre-fill the keep amount with the recapture
-          // value, unless the advisor has already touched either field.
-          if (withholdYesNoEl && withholdYesNoEl.dataset.userEdited !== 'true' && withholdYesNoEl.value !== 'yes') {
-            withholdYesNoEl.value = 'yes';
-            withholdYesNoEl.dispatchEvent(new Event('change', { bubbles: true }));
-          }
-          if (withholdAmountEl && withholdAmountEl.dataset.userEdited !== 'true') {
-            withholdAmountEl.value = fmt(amount);
-            withholdAmountEl.dispatchEvent(new Event('input', { bubbles: true }));
-          }
-        } else {
-          if (withholdAmountEl && withholdAmountEl.dataset.userEdited !== 'true') {
-            withholdAmountEl.value = '';
-            withholdAmountEl.dispatchEvent(new Event('input', { bubbles: true }));
-          }
-          if (withholdYesNoEl && withholdYesNoEl.dataset.userEdited !== 'true' && withholdYesNoEl.value === 'yes') {
-            withholdYesNoEl.value = 'no';
-            withholdYesNoEl.dispatchEvent(new Event('change', { bubbles: true }));
-          }
-        }
-      } finally {
-        _autoSyncing = false;
-      }
-    };
-    // Q5 multi-property: syncPayment fires when ANY property's accel-depr
-    // changes (P1 + P2-P5). The auto-default uses the SUM of recapture
-    // across all active properties, so every input must trigger.
-    accelDeprEl.addEventListener('input', syncPayment);
-    accelDeprEl.addEventListener('change', syncPayment);
-    for (var _adn = 2; _adn <= 5; _adn++) {
-      var _adEl = document.getElementById('accelerated-depreciation-' + _adn);
-      if (_adEl) {
-        _adEl.addEventListener('input', syncPayment);
-        _adEl.addEventListener('change', syncPayment);
-      }
-    }
-    syncPayment();
+    _toggleVisibility();
   }
+  for (var _pun = 1; _pun <= 5; _pun++) _wirePersonalUseForBlock(_pun);
+  _syncPersonalUseMirror();
 
   // Future Sale Loss Target (Section 05): the Yes/No question toggles
   // the conditional fields group. The optimizer reads cfg.futureSale to
@@ -1824,6 +1796,13 @@ function bindControls() {
    'sale-price-5', 'cost-basis-5', 'accelerated-depreciation-5', 'holding-period-5',
    'short-term-gain', 'long-term-gain',
    'withhold-yes-no', 'withhold-amount', 'cover-taxes-yes-no',
+   // Per-property personal-use yes/no + amount. Triggers
+   // _recomputeAvailableCapital via the synced hidden mirror.
+   'personal-use-yes-no-1', 'personal-use-amount-1',
+   'personal-use-yes-no-2', 'personal-use-amount-2',
+   'personal-use-yes-no-3', 'personal-use-amount-3',
+   'personal-use-yes-no-4', 'personal-use-amount-4',
+   'personal-use-yes-no-5', 'personal-use-amount-5',
    'filing-status', 'state-code', 'year1',
    'w2-wages', 'se-income', 'biz-revenue', 'rental-income',
    'dividend-income', 'retirement-distributions'].forEach(function (id) {

@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=1777600000309">
+  <link rel="stylesheet" href="css/styles.css?v=1777600000310">
   <!-- html2pdf.js: turns the page-allocator DOM into a downloadable
        PDF on click. Bundled build (includes html2canvas + jsPDF).
        Script loads async/defer-friendly; window.html2pdf is the
@@ -393,6 +393,17 @@
                 <div class="label">Strategy Implementation Date</div>
                 <input type="date" id="strategy-implementation-date">
               </div>
+              <div class="input-row">
+                <div class="label">Any sale proceeds needed for personal use?</div>
+                <select id="personal-use-yes-no-1" class="yes-no">
+                  <option value="no" selected>No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </div>
+              <div class="input-row" id="personal-use-amount-group-1" hidden>
+                <div class="label">Amount</div>
+                <div class="currency-input"><input type="text" id="personal-use-amount-1" placeholder="0" inputmode="numeric" autocomplete="off"></div>
+              </div>
             </div>
 
             <!-- Property 2 (hidden until + clicked) -->
@@ -427,6 +438,17 @@
               <div class="input-row">
                 <div class="label">Strategy Implementation Date</div>
                 <input type="date" id="strategy-implementation-date-2">
+              </div>
+              <div class="input-row">
+                <div class="label">Any sale proceeds needed for personal use?</div>
+                <select id="personal-use-yes-no-2" class="yes-no">
+                  <option value="no" selected>No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </div>
+              <div class="input-row" id="personal-use-amount-group-2" hidden>
+                <div class="label">Amount</div>
+                <div class="currency-input"><input type="text" id="personal-use-amount-2" placeholder="0" inputmode="numeric" autocomplete="off"></div>
               </div>
             </div>
 
@@ -463,6 +485,17 @@
                 <div class="label">Strategy Implementation Date</div>
                 <input type="date" id="strategy-implementation-date-3">
               </div>
+              <div class="input-row">
+                <div class="label">Any sale proceeds needed for personal use?</div>
+                <select id="personal-use-yes-no-3" class="yes-no">
+                  <option value="no" selected>No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </div>
+              <div class="input-row" id="personal-use-amount-group-3" hidden>
+                <div class="label">Amount</div>
+                <div class="currency-input"><input type="text" id="personal-use-amount-3" placeholder="0" inputmode="numeric" autocomplete="off"></div>
+              </div>
             </div>
 
             <!-- Property 4 -->
@@ -497,6 +530,17 @@
               <div class="input-row">
                 <div class="label">Strategy Implementation Date</div>
                 <input type="date" id="strategy-implementation-date-4">
+              </div>
+              <div class="input-row">
+                <div class="label">Any sale proceeds needed for personal use?</div>
+                <select id="personal-use-yes-no-4" class="yes-no">
+                  <option value="no" selected>No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </div>
+              <div class="input-row" id="personal-use-amount-group-4" hidden>
+                <div class="label">Amount</div>
+                <div class="currency-input"><input type="text" id="personal-use-amount-4" placeholder="0" inputmode="numeric" autocomplete="off"></div>
               </div>
             </div>
 
@@ -533,33 +577,44 @@
                 <div class="label">Strategy Implementation Date</div>
                 <input type="date" id="strategy-implementation-date-5">
               </div>
+              <div class="input-row">
+                <div class="label">Any sale proceeds needed for personal use?</div>
+                <select id="personal-use-yes-no-5" class="yes-no">
+                  <option value="no" selected>No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </div>
+              <div class="input-row" id="personal-use-amount-group-5" hidden>
+                <div class="label">Amount</div>
+                <div class="currency-input"><input type="text" id="personal-use-amount-5" placeholder="0" inputmode="numeric" autocomplete="off"></div>
+              </div>
             </div>
 
-            <!-- Q6: Withhold + Cover-Tax questions merged in from the
-                 previous Section 04 "Sale Proceeds". They apply to the
-                 AGGREGATE sale across all properties, so they live at the
-                 bottom of the section after all property blocks + strategy
-                 implementation date. IDs (withhold-yes-no, withhold-amount,
-                 withhold-amount-group, withhold-error, cover-taxes-yes-no)
-                 are unchanged so every consumer keeps working. -->
+            <!-- Cover-Tax question — single client-level decision applied to
+                 the aggregate. Personal-use carve-out moved to per-property
+                 (see "Any sale proceeds needed for personal use?" inside
+                 each property block). The legacy #withhold-yes-no and
+                 #withhold-amount elements are kept as HIDDEN MIRRORS so
+                 inputs-collector + _recomputeAvailableCapital + engine
+                 consumers continue to read consistent aggregate values
+                 synced from the per-property fields by controls.js. -->
             <div class="input-row property-proceeds-divider">
-              <div class="label">Will the client be investing everything?</div>
-              <select id="withhold-yes-no" class="yes-no">
-                <option value="no" selected>Yes</option>
-                <option value="yes">No</option>
-              </select>
-            </div>
-            <div class="input-row" id="withhold-amount-group" hidden>
-              <div class="label">Amount to keep</div>
-              <div class="currency-input"><input type="text" id="withhold-amount" placeholder="0" inputmode="numeric" autocomplete="off"></div>
-            </div>
-            <p id="withhold-error" class="error-text" role="alert" hidden></p>
-            <div class="input-row">
               <div class="label">Cover any tax bill from sale?</div>
               <select id="cover-taxes-yes-no" class="yes-no">
                 <option value="yes" selected>Yes</option>
                 <option value="no">No</option>
               </select>
+            </div>
+            <!-- Hidden mirror fields (back-compat). Populated by JS from
+                 the per-property personal-use inputs. -->
+            <div hidden aria-hidden="true">
+              <select id="withhold-yes-no" class="yes-no">
+                <option value="no" selected>Yes</option>
+                <option value="yes">No</option>
+              </select>
+              <input type="text" id="withhold-amount" value="">
+              <div id="withhold-amount-group" hidden></div>
+              <p id="withhold-error" class="error-text" role="alert" hidden></p>
             </div>
 
             <!-- + Additional Real Estate Sale button — sits at the very
@@ -1155,71 +1210,71 @@
   <!-- ============ Subsystem load order: 00 -> 01 -> 02 -> 03 -> 05 -> 04 ============ -->
   <!-- date-utils is loaded ahead of 00-data so schwab-strategies can use the
        shared parseLocalDate global instead of defining its own copy. -->
-  <script src="js/01-brooklyn/date-utils.js?v=1777600000309"></script>
-  <script src="js/00-data/custodians.js?v=1777600000309"></script>
-  <script src="js/00-data/schwab-strategies.js?v=1777600000309"></script>
-  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000309"></script>
-  <script src="js/01-brooklyn/time-weight.js?v=1777600000309"></script>
-  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000309"></script>
-  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000309"></script>
+  <script src="js/01-brooklyn/date-utils.js?v=1777600000310"></script>
+  <script src="js/00-data/custodians.js?v=1777600000310"></script>
+  <script src="js/00-data/schwab-strategies.js?v=1777600000310"></script>
+  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000310"></script>
+  <script src="js/01-brooklyn/time-weight.js?v=1777600000310"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000310"></script>
+  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000310"></script>
 
-  <script src="js/02-tax-engine/tax-data.js?v=1777600000309"></script>
-  <script src="js/02-tax-engine/tax-loader.js?v=1777600000309"></script>
-  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000309"></script>
-  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000309"></script>
-  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000309"></script>
-  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000309"></script>
-  <script src="js/02-tax-engine/engine-self-test.js?v=1777600000309"></script>
+  <script src="js/02-tax-engine/tax-data.js?v=1777600000310"></script>
+  <script src="js/02-tax-engine/tax-loader.js?v=1777600000310"></script>
+  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000310"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000310"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000310"></script>
+  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000310"></script>
+  <script src="js/02-tax-engine/engine-self-test.js?v=1777600000310"></script>
 
-  <script src="js/03-solver/fees.js?v=1777600000309"></script>
-  <script src="js/03-solver/fee-split.js?v=1777600000309"></script>
-  <script src="js/03-solver/brookhaven-fees.js?v=1777600000309"></script>
-  <script src="js/03-solver/single-year-solver.js?v=1777600000309"></script>
-  <script src="js/03-solver/multi-year-solver.js?v=1777600000309"></script>
-  <script src="js/03-solver/structured-sale.js?v=1777600000309"></script>
-  <script src="js/03-solver/calc-oil-gas.js?v=1777600000309"></script>
-  <script src="js/03-solver/calc-delphi.js?v=1777600000309"></script>
-  <script src="js/03-solver/calc-supplemental-extra.js?v=1777600000309"></script>
-  <script src="js/03-solver/decision-engine.js?v=1777600000309"></script>
+  <script src="js/03-solver/fees.js?v=1777600000310"></script>
+  <script src="js/03-solver/fee-split.js?v=1777600000310"></script>
+  <script src="js/03-solver/brookhaven-fees.js?v=1777600000310"></script>
+  <script src="js/03-solver/single-year-solver.js?v=1777600000310"></script>
+  <script src="js/03-solver/multi-year-solver.js?v=1777600000310"></script>
+  <script src="js/03-solver/structured-sale.js?v=1777600000310"></script>
+  <script src="js/03-solver/calc-oil-gas.js?v=1777600000310"></script>
+  <script src="js/03-solver/calc-delphi.js?v=1777600000310"></script>
+  <script src="js/03-solver/calc-supplemental-extra.js?v=1777600000310"></script>
+  <script src="js/03-solver/decision-engine.js?v=1777600000310"></script>
   <!-- Master solver registry + Page-5 supplemental defaults. master-solver
        declares register*/list*/runMasterSolver; supplemental-defaults uses
        those to register Oil & Gas. Future supplemental strategies append
        to supplemental-defaults â€” calc-* modules don't reach into this. -->
-  <script src="js/03-solver/master-solver.js?v=1777600000309"></script>
-  <script src="js/03-solver/supplemental-defaults.js?v=1777600000309"></script>
-  <script src="js/03-solver/supplemental-extra-registry.js?v=1777600000309"></script>
-  <script src="js/03-solver/supplemental-investment-shims.js?v=1777600000309"></script>
+  <script src="js/03-solver/master-solver.js?v=1777600000310"></script>
+  <script src="js/03-solver/supplemental-defaults.js?v=1777600000310"></script>
+  <script src="js/03-solver/supplemental-extra-registry.js?v=1777600000310"></script>
+  <script src="js/03-solver/supplemental-investment-shims.js?v=1777600000310"></script>
 
-  <script src="js/05-projections/carryforward-tracker.js?v=1777600000309"></script>
-  <script src="js/05-projections/projection-engine.js?v=1777600000309"></script>
+  <script src="js/05-projections/carryforward-tracker.js?v=1777600000310"></script>
+  <script src="js/05-projections/projection-engine.js?v=1777600000310"></script>
 
   <!-- format-helpers loads first inside 04-ui so every renderer can use
        fmtUSD / fmtPct / fmtNum directly without a defensive fallback. -->
-  <script src="js/04-ui/format-helpers.js?v=1777600000309"></script>
-  <script src="js/04-ui/money-format.js?v=1777600000309"></script>
-  <script src="js/04-ui/banner.js?v=1777600000309"></script>
-  <script src="js/04-ui/number-animator.js?v=1777600000309"></script>
-  <script src="js/04-ui/case-storage.js?v=1777600000309"></script>
-  <script src="js/04-ui/pill-toggles.js?v=1777600000309"></script>
-  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000309"></script>
-  <script src="js/04-ui/input-validation.js?v=1777600000309"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1777600000309"></script>
-  <script src="js/04-ui/controls.js?v=1777600000309"></script>
-  <script src="js/04-ui/recommendation-render.js?v=1777600000309"></script>
-  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000309"></script>
-  <script src="js/04-ui/savings-ribbon.js?v=1777600000309"></script>
-  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000309"></script>
-  <script src="js/04-ui/narrative-render.js?v=1777600000309"></script>
-  <script src="js/04-ui/strategy-summary-render.js?v=1777600000309"></script>
-  <script src="js/04-ui/baseline-table.js?v=1777600000309"></script>
-  <script src="js/04-ui/supplemental-render.js?v=1777600000309"></script>
-  <script src="js/04-ui/supplemental-extra-render.js?v=1777600000309"></script>
+  <script src="js/04-ui/format-helpers.js?v=1777600000310"></script>
+  <script src="js/04-ui/money-format.js?v=1777600000310"></script>
+  <script src="js/04-ui/banner.js?v=1777600000310"></script>
+  <script src="js/04-ui/number-animator.js?v=1777600000310"></script>
+  <script src="js/04-ui/case-storage.js?v=1777600000310"></script>
+  <script src="js/04-ui/pill-toggles.js?v=1777600000310"></script>
+  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000310"></script>
+  <script src="js/04-ui/input-validation.js?v=1777600000310"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1777600000310"></script>
+  <script src="js/04-ui/controls.js?v=1777600000310"></script>
+  <script src="js/04-ui/recommendation-render.js?v=1777600000310"></script>
+  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000310"></script>
+  <script src="js/04-ui/savings-ribbon.js?v=1777600000310"></script>
+  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000310"></script>
+  <script src="js/04-ui/narrative-render.js?v=1777600000310"></script>
+  <script src="js/04-ui/strategy-summary-render.js?v=1777600000310"></script>
+  <script src="js/04-ui/baseline-table.js?v=1777600000310"></script>
+  <script src="js/04-ui/supplemental-render.js?v=1777600000310"></script>
+  <script src="js/04-ui/supplemental-extra-render.js?v=1777600000310"></script>
 
-  <script src="js/04-ui/pmq-handler.js?v=1777600000309"></script>
-  <script src="js/04-ui/pmq-questions.js?v=1777600000309"></script>
-  <script src="js/04-ui/temp-page-render.js?v=1777600000309"></script>
+  <script src="js/04-ui/pmq-handler.js?v=1777600000310"></script>
+  <script src="js/04-ui/pmq-questions.js?v=1777600000310"></script>
+  <script src="js/04-ui/temp-page-render.js?v=1777600000310"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1777600000309"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1777600000310"></script>
 </body>
 </html>

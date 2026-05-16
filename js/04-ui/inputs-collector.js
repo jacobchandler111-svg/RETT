@@ -129,6 +129,29 @@ if (typeof window !== 'undefined') {
       window.__rettPropertyIsActive = _propertyIsActive;
       window.__rettShortTermPropertyGain = _shortTermPropertyGain;
       window.__rettPropertyHoldingPeriod = _propertyHoldingPeriod;
+      // Personal-use carve-out per property (replaces the top-level
+      // "investing everything?" question). Returns total amount the
+      // client wants to keep off the table across all active properties.
+      window.__rettSumPersonalUseAmount = function () {
+            let total = 0;
+            for (let n = 1; n <= 5; n++) {
+                  if (!_propertyIsActive(n)) continue;
+                  const yn = document.getElementById('personal-use-yes-no-' + n);
+                  if (!yn || yn.value !== 'yes') continue;
+                  const amt = document.getElementById('personal-use-amount-' + n);
+                  if (!amt) continue;
+                  total += parseUSD(amt.value) || 0;
+            }
+            return total;
+      };
+      window.__rettAnyPersonalUseYes = function () {
+            for (let n = 1; n <= 5; n++) {
+                  if (!_propertyIsActive(n)) continue;
+                  const yn = document.getElementById('personal-use-yes-no-' + n);
+                  if (yn && yn.value === 'yes') return true;
+            }
+            return false;
+      };
 }
 
 // Most income inputs are clamped to >= 0 (a negative wage / dividend
