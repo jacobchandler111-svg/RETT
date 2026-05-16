@@ -483,25 +483,31 @@ function _refreshCard3Visibility() {
   var defaultRiskEl = document.getElementById('default-risk-yes-no');
   var defaultRiskYes = !!(defaultRiskEl && defaultRiskEl.value === 'yes');
 
-  // 5% net-benefit rule. Compute approximate net = totalSavings for each
-  // scenario via direct engine call. Fees are not subtracted here — for
-  // the visibility threshold check, savings is the right proxy and the
-  // 5% margin is generous enough to absorb fee differences.
+  // 5% net-benefit rule — uses the SAME optimized-cfg + fee-adjusted
+  // net that projection-dashboard renders for the scenario comparison
+  // table. window._computeBestNetForStrategy (exposed from
+  // projection-dashboard-render.js) calls _autoPickSection +
+  // _scenarioCfgFor + _scenarioMetrics so Page 3's visibility check
+  // stays consistent with Page 4's display.
+  //
+  // Earlier naive direct unifiedTaxComparison calls produced equal netB
+  // and netC for many scenarios (engine didn't distinguish Y1-lump-sum
+  // from multi-year-spread without optimization) — the optimized helper
+  // resolves that.
   var fivePctRule = false;
   try {
-    if (typeof collectInputs === 'function' && typeof window.unifiedTaxComparison === 'function') {
+    if (typeof collectInputs === 'function' && typeof window._computeBestNetForStrategy === 'function') {
       var baseCfg = collectInputs();
       if (baseCfg && (Number(baseCfg.salePrice) || 0) > 0) {
-        var cfgA = Object.assign({}, baseCfg, { recognitionStartYearIndex: 0 });
-        var cfgB = Object.assign({}, baseCfg, { recognitionStartYearIndex: 1, maxRecognitionYearIndex: 1 });
-        var cfgC = Object.assign({}, baseCfg, { recognitionStartYearIndex: 1, structuredSaleDurationMonths: baseCfg.structuredSaleDurationMonths || 36 });
-        var compA = window.unifiedTaxComparison(cfgA);
-        var compB = window.unifiedTaxComparison(cfgB);
-        var compC = window.unifiedTaxComparison(cfgC);
-        var netA = (compA && Number(compA.totalSavings)) || 0;
-        var netB = (compB && Number(compB.totalSavings)) || 0;
-        var netC = (compC && Number(compC.totalSavings)) || 0;
-        if (netC > netA * 1.05 && netC > netB * 1.05) {
+        var netA = window._computeBestNetForStrategy('A', baseCfg);
+        var netB = window._computeBestNetForStrategy('B', baseCfg);
+        var netC = window._computeBestNetForStrategy('C', baseCfg);
+        // Require all three to be finite, positive numbers AND require
+        // C to exceed BOTH A and B by 5%. Any null / zero falls back to
+        // "don't fire" so we don't show C from a stale or partial compute.
+        if (Number.isFinite(netA) && Number.isFinite(netB) && Number.isFinite(netC)
+            && netA > 0 && netB > 0 && netC > 0
+            && netC > netA * 1.05 && netC > netB * 1.05) {
           fivePctRule = true;
         }
       }

@@ -2335,6 +2335,37 @@
   // continues to render the auto-picked combo's positive net (F20).
   root._autoPickSection = _autoPickSection;
 
+  // Public helper for the Strategy-Selection page (controls.js
+  // _refreshCard3Visibility). Returns the same NET BENEFIT that
+  // projection-dashboard would render for a given strategy type,
+  // computed using the optimized cfg (_autoPickSection picks leverage /
+  // horizon / recognition; _scenarioCfgFor builds the type-specific
+  // cfg; _scenarioMetrics returns tax + fee-adjusted net).
+  //
+  // This is the SAME math projection-dashboard uses for the scenario
+  // comparison table — so Page 3's "5% rule" visibility check stays
+  // consistent with what Page 4 will display. Returns null if compute
+  // fails (engine unavailable, malformed cfg, etc.).
+  root._computeBestNetForStrategy = function (type, baseCfg) {
+    if (!baseCfg || typeof _autoPickSection !== 'function') return null;
+    try {
+      var picked = _autoPickSection(type, baseCfg);
+      if (!picked) return null;
+      var userDuration = (baseCfg.structuredSaleDurationMonths || 36);
+      var sectionCfg = Object.assign({}, baseCfg, {
+        horizonYears: picked.horizon,
+        leverage:     picked.shortPct / 100,
+        leverageCap:  picked.shortPct / 100,
+        comboId:      picked.comboId
+      });
+      var cfg = _scenarioCfgFor(type, sectionCfg, picked.bestRecC, userDuration);
+      var m = _scenarioMetrics(cfg);
+      return m && Number.isFinite(Number(m.net)) ? Number(m.net) : null;
+    } catch (e) {
+      return null;
+    }
+  };
+
   function renderInterestedSnapshot() {
     var host = document.getElementById('interested-cards-host');
     if (!host) return;
