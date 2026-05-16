@@ -804,6 +804,39 @@
           '<div class="temp-year-head temp-year-head-muted">Strategy activity</div>' +
           _renderActivityCell(row, i, chosen, cfg, fundedSupps, feeScale, lowerBracketBenefit) +
         '</div>' +
+        _renderWithdrawalCell(row, year, cfg) +
+      '</div>';
+  }
+
+  // Tax-withdrawal callout (right side of each year card). Shows what
+  // comes out of the trust on April 1 of the year AFTER `year` to pay
+  // the prior year's tax liability — but only when the client elected
+  // to "Cover any tax bill from sale" on Page 1. With strategy in place,
+  // the withdrawal = row.withStrategy.total. If they're paying tax from
+  // outside the trust (cover-taxes-yes-no = no), the callout suppresses
+  // so the card layout stays clean for non-covered years.
+  function _renderWithdrawalCell(row, year, cfg) {
+    var covers = cfg && (cfg.coverTaxesFromSale === true || cfg.coverTaxesFromSale === 'yes');
+    if (!covers) return '';
+    // Use withStrategy.total when present (engine-row years), else fall
+    // back to baseline.total for synthetic recurring years past the
+    // engine horizon — those years carry no sale-related activity but
+    // the client still owes tax on ordinary income, and if they're
+    // covering tax from the trust the trust still funds that draw.
+    var taxThisYear = 0;
+    if (row && row.withStrategy && Number(row.withStrategy.total) > 0) {
+      taxThisYear = Number(row.withStrategy.total);
+    } else if (row && row.baseline && Number(row.baseline.total) > 0) {
+      taxThisYear = Number(row.baseline.total);
+    }
+    if (!(taxThisYear > 0)) return '';
+    var dueYear = Number(year) + 1;
+    return '' +
+      '<div class="temp-year-withdrawal">' +
+        '<div class="temp-year-head temp-year-head-withdraw">Trust Withdrawal</div>' +
+        '<div class="temp-withdraw-amt">' + _fmt(taxThisYear) + '</div>' +
+        '<div class="temp-withdraw-date">April 1, ' + dueYear + '</div>' +
+        '<div class="temp-withdraw-note">paid for ' + year + ' tax liability</div>' +
       '</div>';
   }
 
@@ -968,6 +1001,12 @@
       var lbbThisYear = (i === 0) ? _lowerBracketBenefit : 0;
       html += _renderYearCard(row, i, ctx.chosen, ctx.entry.cfg, ctx.fundedSupps, stateCode, carryIn, carryOut, feeScale, lbbThisYear);
     }
+    // Container variant when the client covers tax from sale proceeds
+    // — opens a 4th column on every year card for the Trust Withdrawal
+    // callout. Without this class the cards stay 3-column.
+    var coversTax = ctx.entry && ctx.entry.cfg &&
+      (ctx.entry.cfg.coverTaxesFromSale === true || ctx.entry.cfg.coverTaxesFromSale === 'yes');
+    host.classList.toggle('temp-baselines--withdrawals', !!coversTax);
     host.innerHTML = html + _renderFeesPanel(ctx);
   }
 
