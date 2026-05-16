@@ -2393,14 +2393,21 @@
     //     CTA back to Page 2 (P1-2) instead of a blank page.
     var interest = (typeof window !== 'undefined' && window.__rettStrategyInterest) || {};
 
-    // Tri-state filter: hide ONLY cards the user explicitly marked
-    // Not Interested (interest === false). Unmarked cards (null)
-    // stay visible — silently hiding them when at least one card was
-    // marked Interested was Bug #7. The recommended-type carve-out
-    // is no longer needed because null already passes through.
-    var filtered = entries.filter(function (e) {
-      return interest[e.type] !== false;
+    // Filter semantics per advisor 2026-05-16:
+    //   - If AT LEAST ONE strategy is marked Interested (=== true)
+    //     → show only those Interested cards (the user has narrowed
+    //     down their choices, respect that).
+    //   - Otherwise (no Interested clicks yet) → show every card the
+    //     user didn't explicitly opt out of (Not Interested).
+    // Previous behavior showed every non-opted-out card always, which
+    // surprised the advisor: clicking Interested on just Card 1 still
+    // surfaced Cards 2 and 3 on Page 4.
+    var anyInterested = ['A', 'B', 'C'].some(function (t) {
+      return interest[t] === true;
     });
+    var filtered = anyInterested
+      ? entries.filter(function (e) { return interest[e.type] === true; })
+      : entries.filter(function (e) { return interest[e.type] !== false; });
 
     // The legacy "Mark Interested / Not Interested on the Strategies
     // page to filter this view ..." hint was removed — the cards

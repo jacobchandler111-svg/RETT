@@ -246,6 +246,13 @@
       if (!el) return;
       var v = state[id];
       var strV = (v == null) ? '' : String(v);
+      // Custodian special-case (2026-05-16): legacy cases saved before
+      // Schwab became the default have custodian-select: "". Applying
+      // that empty value blows away the auto-selected Schwab and lands
+      // the user in the no-custodian "variable" leverage path. Skip the
+      // restore when the saved value is empty AND the dropdown already
+      // has a non-empty selection — keeps the auto-default in place.
+      if (id === 'custodian-select' && strV === '' && el.value) return;
       if (el.type === 'checkbox' || el.type === 'radio') {
         el.checked = !!v;
       } else if (el.tagName === 'SELECT') {
