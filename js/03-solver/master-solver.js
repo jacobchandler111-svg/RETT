@@ -476,9 +476,12 @@
   function runBrooklynOptimizer(cfg, brooklynCumulativeLoss, brooklynNetAtFull) {
     var c = cfg || {};
     var availCap = Math.max(0, Number(c.availableCapital) || 0);
+    // Q2: subtract shortTermPropertyGain — properties the user marked
+    // held < 1 year route to ST and don't count as LT-absorbable gain.
     var currentLT = Math.max(0,
       (Number(c.salePrice) || 0) - (Number(c.costBasis) || 0)
-      - (Number(c.acceleratedDepreciation) || 0));
+      - (Number(c.acceleratedDepreciation) || 0)
+      - (Number(c.shortTermPropertyGain) || 0));
     // §1250 unrecaptured-depreciation recapture is ALSO absorbable by
     // Brooklyn's short-term losses per IRC §1(h)'s 25%-bucket rule
     // (see _applyLossesToScenario / _applyLossesWithSTCfCap, where ST
@@ -497,10 +500,11 @@
     // already include future-sale" behavior would over-deploy Brooklyn
     // for clients who haven't agreed to absorb the future sale yet.
     var absorbFuture = !!root.__rettAbsorbFutureSale;
-    var futureLT = (future && absorbFuture) ? Math.max(0, Number(future.longTermGain) || 0) : 0;
-    var futureRecap = (future && absorbFuture)
-      ? Math.max(0, Number(future.acceleratedDepreciation) || 0) : 0;
-    var absorbable = currentLT + currentRecap + futureLT + futureRecap;
+    // Future-sale shape simplified (2026-05-15): single estimatedGain
+    // captures the client's total future taxable amount (no separate
+    // LT vs recap split since clients estimate the total directly).
+    var futureGain = (future && absorbFuture) ? Math.max(0, Number(future.estimatedGain) || 0) : 0;
+    var absorbable = currentLT + currentRecap + futureGain;
 
     var lossAtFull = Math.max(0, Number(brooklynCumulativeLoss) || 0);
     var dialBack = false;
@@ -576,8 +580,11 @@
       availableCapital:        availCap,
       currentLTGain:           currentLT,
       currentRecapture:        currentRecap,
-      futureLTGain:            futureLT,
-      futureRecapture:         futureRecap,
+      futureGain:              futureGain,
+      // Legacy keys preserved for consumers that haven't been updated to
+      // the new shape — futureGain is the canonical total now.
+      futureLTGain:            futureGain,
+      futureRecapture:         0,
       futureSaleEnabled:       !!future,
       futureSaleAbsorbing:     !!(future && absorbFuture),
       totalAbsorbableGain:     absorbable,

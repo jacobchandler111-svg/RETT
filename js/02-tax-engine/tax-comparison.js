@@ -183,8 +183,16 @@ function _baseScenarioForYear(cfg, yr, gainTakenThisYear, recaptureThisYear) {
       const _scaledBaseOrd = (cfg.baseOrdinaryIncome || 0) * Math.pow(1 + _infl, Math.max(0, idx));
       const _scaledBaseWages = (cfg.wages || 0) * Math.pow(1 + _infl, Math.max(0, idx));
       const ordOverride = (cfg.ordinaryByYear   && cfg.ordinaryByYear[idx]   != null) ? cfg.ordinaryByYear[idx]   : _scaledBaseOrd;
-      const shortOverride = (cfg.shortGainByYear && cfg.shortGainByYear[idx] != null) ? cfg.shortGainByYear[idx] : (cfg.baseShortTermGain || 0);
-      const longOverride  = (cfg.longGainByYear  && cfg.longGainByYear[idx]  != null) ? cfg.longGainByYear[idx]  : 0;
+      // Q2 multi-property holding-period: shortTermPropertyGain captures
+      // any property the user marked as held < 1 year. ST property gain
+      // is recognized in the sale year only (idx === 0); LT-flavored
+      // strategy deferrals don't apply to ST gain.
+      const _stOverride = (cfg.shortGainByYear && cfg.shortGainByYear[idx] != null) ? cfg.shortGainByYear[idx] : (cfg.baseShortTermGain || 0);
+      const shortOverride = _stOverride + ((idx === 0) ? (cfg.shortTermPropertyGain || 0) : 0);
+      // Q7: baseLongTermGain mirrors baseShortTermGain — non-property LT
+      // income (stocks held >1yr, crypto, etc.) recurs each year. Engine
+      // falls back to it when longGainByYear[idx] is not set.
+      const longOverride  = (cfg.longGainByYear  && cfg.longGainByYear[idx]  != null) ? cfg.longGainByYear[idx]  : (cfg.baseLongTermGain || 0);
       const ltAmt = (gainTakenThisYear != null ? gainTakenThisYear : 0) + longOverride;
       // Passive / portfolio income inside ordinary (rental + non-qualified
       // div / interest) is also part of the §1411 NIIT base. Inflated
@@ -397,7 +405,11 @@ function _belowMinForLifecycle(cfg) {
       if (!min) return false;
       const basis = Math.max(0, cfg.costBasis || 0);
       // STG is now an independent income item (not carved from sale).
-      const ltGain = Math.max(0, (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0));
+      // Q2 multi-property holding-period split: shortTermPropertyGain is
+      // the portion of the aggregate property gain the user marked as
+      // short-term-held. Subtract it from the LT formula since that gain
+      // is taxed at ordinary (ST) rates, not LT cap-gain rates.
+      const ltGain = Math.max(0, (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0) - (cfg.shortTermPropertyGain || 0));
       const recapture = Math.max(0, cfg.acceleratedDepreciation || 0);
       // G6: a $0-basis sale (gift, fully-depreciated property) still
       // produces deposit-able cash equal to the gain plus recapture, so
@@ -643,9 +655,11 @@ function unifiedTaxComparison(cfg, opts) {
 
       // Property-side gain split. STG is now an independent income
       // source (not carved from the sale), so totalLT is just the
-      // long-term portion of the property sale.
+      // long-term portion of the property sale. Q2: subtract
+      // shortTermPropertyGain so properties the user flagged as
+      // short-term-held don't fall into the LT bucket.
       const totalLT   = Math.max(0,
-            (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0));
+            (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0) - (cfg.shortTermPropertyGain || 0));
       const recapture = Math.max(0, cfg.acceleratedDepreciation || 0);
       const totalGainBucket = totalLT;
 

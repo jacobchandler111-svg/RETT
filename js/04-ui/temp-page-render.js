@@ -211,9 +211,9 @@
   }
 
   function _stratLabel(t) {
-    if (t === 'A') return 'Sell Now';
-    if (t === 'B') return 'Seller Finance';
-    if (t === 'C') return 'Structured Sale';
+    if (t === 'A') return 'Cash in Hand';
+    if (t === 'B') return 'Installment Sale';
+    if (t === 'C') return 'Installment Sale — Mitigating Buyer Default Risk';
     return null;
   }
 

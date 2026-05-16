@@ -51,7 +51,10 @@
     // carve-out from the sale. It still flows to the federal engine
     // via opts.shortTermGain (taxed at ordinary rates), but it does
     // NOT reduce the property's long-term gain bucket.
-    var shortTermGain = Number(cfg.baseShortTermGain || cfg.shortTermGain) || 0;
+    // Q2: also include shortTermPropertyGain (ST-held property gain
+    // routes to the ST bucket alongside Section 02 STG).
+    var shortTermGain = (Number(cfg.baseShortTermGain || cfg.shortTermGain) || 0)
+                      + (Number(cfg.shortTermPropertyGain) || 0);
 
     var strategyKey = (function () {
       var k = cfg.strategyKey;
@@ -81,7 +84,9 @@
     var useVariableLeverage = (cfg.useVariableLeverage !== false);
     var manualShort = (cfg.manualVariableShortPct != null) ? Number(cfg.manualVariableShortPct) : null;
 
-    var longTermGain = Math.max(0, salePrice - costBasis - acceleratedDepreciation);
+    // Q2: subtract ST-held property gain — ordinary-flavored, not LT.
+    var shortTermPropertyGain = Number(cfg.shortTermPropertyGain) || 0;
+    var longTermGain = Math.max(0, salePrice - costBasis - acceleratedDepreciation - shortTermPropertyGain);
     var recapture = Math.max(0, acceleratedDepreciation);
     var gainToOffset = longTermGain + recapture;
 

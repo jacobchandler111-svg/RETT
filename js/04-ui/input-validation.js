@@ -30,9 +30,15 @@
     }
 
     // --- Property sale ---
-    var salePrice    = _num('sale-price');
-    var costBasis    = _num('cost-basis');
-    var accelDep     = _num('accelerated-depreciation');
+    // Multi-property aggregation (Q1): validate the aggregate, not just P1.
+    // Per-property validation (e.g. "Property 2 basis exceeds sale") will
+    // be added in a later phase; for Q1 we keep the aggregate-level checks.
+    var _sumProp = (typeof window.__rettSumPropertyField === 'function')
+      ? window.__rettSumPropertyField
+      : function (id) { return _num(id); };
+    var salePrice    = _sumProp('sale-price');
+    var costBasis    = _sumProp('cost-basis');
+    var accelDep     = _sumProp('accelerated-depreciation');
 
     if (salePrice < 0)    errors.push({ field: 'sale-price',    message: 'Sale price cannot be negative.' });
     if (costBasis < 0)    errors.push({ field: 'cost-basis',    message: 'Cost basis cannot be negative.' });
@@ -66,7 +72,10 @@
     // carve-out from the property sale). LT gain = sale - basis - depr.
     var stGain = _num('short-term-gain');
     if (stGain < 0) errors.push({ field: 'short-term-gain', message: 'Short-term gain cannot be negative. (Use the projection engine to handle losses.)' });
-    var computedLT = Math.max(0, salePrice - costBasis - accelDep);
+    // Q2: subtract ST-held property gain.
+    var _stPropGain = (typeof window.__rettShortTermPropertyGain === 'function')
+      ? window.__rettShortTermPropertyGain() : 0;
+    var computedLT = Math.max(0, salePrice - costBasis - accelDep - _stPropGain);
     if (computedLT > 100_000_000) {
       warnings.push({
         field: 'sale-price',

@@ -31,12 +31,14 @@
   --rett-blue-light: #DCE9FA;  /* tinted bullet boxes, selected tab fill */
   --rett-cyan:       #5BA9FF;  /* uppercase mono section tags, secondary accent */
   --rett-bg:         #F4F7FB;  /* page background gradient top */
-  /* Step-circle warning orange — booth uses this for the numbered
-     1-5 process circles. Keep --rett-amber as an alias so existing
-     rules pointing at amber resolve to the new orange automatically. */
-  --rett-warning:    #E07B2A;
+  /* Accent "pop" color — replaces the prior booth orange (#E07B2A).
+     Used for numbered step circles, selected strategy borders, the
+     Interested button, the donut "tax owed" slice, and the Tax
+     Baseline delta tile. --rett-amber + --bh-yellow are kept as
+     aliases so existing rules resolve without renaming class hooks. */
+  --rett-warning:    #5BA9FF;
   --rett-amber:      var(--rett-warning);
-  --rett-amber-soft: #f3a567;
+  --rett-amber-soft: #8fc6ff;
   --rett-success:    #1F8A4C;  /* green selected, savings deltas */
   --rett-danger:     #C0392B;  /* "no planning" walk-away figure */
 
@@ -970,6 +972,261 @@ select.input-error {
     .rett-hero-tile { padding: 20px 18px; }
     .rett-hero-value { font-size: 2.4em; }
     .rett-hero-sub { font-size: 0.85em; }
+}
+
+/* ============ Tax Baseline — three-block delta display ============
+   Reads left-to-right as a math equation:
+   [ Without the Sale ]  +  [ Tax Due to the Sale ]  =  [ Total Tax ]
+   Visual crescendo from muted (left) → accent (middle) → hero (right)
+   so the eye terminates on the total. The middle tile carries the
+   accent border because Blake's framing is "this is the new cost the
+   sale introduced — and the strategies are designed to reduce it." */
+.baseline-trio {
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    gap: 12px;
+    margin: 12px 0 24px;
+    flex-wrap: nowrap;
+}
+.baseline-tile {
+    flex: 1 1 0;
+    min-width: 0;
+    background: linear-gradient(135deg, rgba(15, 76, 129, 0.30) 0%, rgba(13, 34, 64, 0.55) 100%);
+    border: 1px solid #1a3a6e;
+    border-left: 3px solid #2c4f86;
+    border-radius: 8px;
+    padding: 22px 18px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.baseline-tile--without {
+    /* Context: what they'd already owe. Slightly less saturated than
+       delta/total but readable — no opacity fade so text stays sharp. */
+    background: linear-gradient(135deg, rgba(15, 76, 129, 0.45) 0%, rgba(13, 34, 64, 0.65) 100%);
+}
+.baseline-tile--delta {
+    /* The new cost. Accent border draws the eye. */
+    border-left: 4px solid var(--rett-warning);
+    background: linear-gradient(135deg, rgba(15, 76, 129, 0.55) 0%, rgba(13, 34, 64, 0.75) 100%);
+}
+.baseline-tile--total {
+    /* The answer. Full hero treatment. */
+    background: linear-gradient(135deg, rgba(15, 76, 129, 0.65) 0%, rgba(13, 34, 64, 0.88) 100%);
+    border-left: 5px solid var(--rett-warning);
+    box-shadow: 0 4px 18px rgba(91, 169, 255, 0.18);
+}
+.baseline-tile-label {
+    font-size: 0.88em;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #ffffff;
+    margin-bottom: 12px;
+    font-weight: 800;
+}
+.baseline-tile-value {
+    font-size: 2.6em;
+    font-weight: 800;
+    line-height: 1.05;
+    color: #ffffff;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+}
+.baseline-tile--delta .baseline-tile-value {
+    font-size: 3.0em;
+    color: #ffffff;
+}
+.baseline-tile--total .baseline-tile-value {
+    font-size: 3.6em;
+    color: #ffffff;
+    /* Subtle black outline so the hero number reads as embossed
+       against the navy gradient — adds depth without looking cartoonish. */
+    text-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.45),
+        0 0 1px rgba(0, 0, 0, 0.65);
+}
+/* Sublines hidden per spec — three numbers, no clutter. The values
+   are still computed and live in the DOM in case a future view wants
+   them; CSS-only hide keeps the JS render path unchanged. */
+.baseline-tile-sub {
+    display: none;
+}
+.baseline-op {
+    align-self: center;
+    font-size: 2.2em;
+    font-weight: 600;
+    color: #6b8bba;
+    padding: 0 4px;
+    user-select: none;
+}
+.baseline-table-details {
+    margin-top: 18px;
+}
+.baseline-table-details > summary {
+    cursor: pointer;
+    font-size: 0.88em;
+    color: #6b8bba;
+    padding: 8px 12px;
+    border: 1px dashed #2c4f86;
+    border-radius: 6px;
+    display: inline-block;
+    list-style: none;
+}
+.baseline-table-details > summary::-webkit-details-marker { display: none; }
+.baseline-table-details > summary::before { content: '▸ '; }
+.baseline-table-details[open] > summary::before { content: '▾ '; }
+.baseline-table-details > summary:hover { color: #8fb3e0; border-color: var(--rett-warning); }
+
+@media (max-width: 900px) {
+    .baseline-trio { flex-wrap: wrap; }
+    .baseline-tile { flex: 1 1 100%; }
+    .baseline-op { width: 100%; padding: 4px 0; }
+    .baseline-tile-value { font-size: 2.2em; }
+    .baseline-tile--delta .baseline-tile-value { font-size: 2.4em; }
+    .baseline-tile--total .baseline-tile-value { font-size: 2.8em; }
+}
+
+/* ============ Multi-property scaffold (Q1) ============
+   Each property is a self-contained block. Property 1 has no header
+   (looks like a single sale today); Properties 2-5 have a small
+   header with the property number + Remove button. The + Additional
+   Real Estate Sale button sits below all property blocks. The shared
+   Strategy Implementation Date sits below the + button. */
+.property-block {
+    margin: 0 0 14px;
+}
+.property-block + .property-block {
+    /* Visible separator between property blocks — subtle dashed line
+       so the advisor can see where one property ends and the next begins
+       without overpowering the form. */
+    border-top: 1px dashed #c4d2e8;
+    padding-top: 14px;
+}
+.property-block-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+.property-block-title {
+    margin: 0;
+    font-size: 0.85em;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #4a5e85;
+    font-weight: 700;
+}
+.property-remove-btn {
+    background: transparent;
+    border: 1px solid #c4d2e8;
+    color: #6b8bba;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+}
+.property-remove-btn:hover {
+    border-color: var(--rett-warning);
+    color: var(--rett-warning);
+}
+.property-add-row {
+    margin: 16px 0 8px;
+}
+.property-add-btn {
+    width: 100%;
+    background: transparent;
+    border: 1px dashed var(--rett-warning);
+    color: var(--rett-warning);
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 0.9em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-style 0.15s;
+}
+.property-add-btn:hover {
+    background: rgba(91, 169, 255, 0.08);
+    border-style: solid;
+}
+.property-strategy-date-row {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid #e2e8f0;
+}
+/* Q6: Visual separator before the proceeds questions (withhold +
+   cover-tax) — sits below the property blocks + strategy impl date
+   inside the merged Section 03. */
+.property-proceeds-divider {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid #e2e8f0;
+}
+
+/* Q4: Hide Property 1 header by default (single-property scenario reads
+   like one sale with no numbered label). Shown only when 2+ properties
+   are active, set by baseline-table.js / controls.js when the user
+   clicks "+ Additional Real Estate Sale". */
+#property-1 .property-block-header { display: none; }
+body.rett-multi-property #property-1 .property-block-header { display: flex; }
+body.rett-multi-property #property-1 .property-remove-btn { display: none; }
+/* Q4: Insert a header into Property 1 dynamically when multi-property
+   mode activates. Defined here so the controls.js JS just injects the
+   element; CSS handles visibility. */
+
+/* Q3: Per-property tax breakdown panel — inline expand below the three
+   baseline tiles. Toggled by double-click on the middle delta tile. */
+.baseline-tile--has-breakdown {
+    cursor: pointer;
+    position: relative;
+}
+.baseline-tile--has-breakdown::after {
+    content: '▾';
+    position: absolute;
+    bottom: 6px;
+    right: 12px;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.85em;
+    pointer-events: none;
+}
+.baseline-breakdown-panel {
+    background: linear-gradient(135deg, rgba(15, 76, 129, 0.40) 0%, rgba(13, 34, 64, 0.62) 100%);
+    border: 1px solid #1a3a6e;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 0 0 24px;
+    max-width: 100%;
+}
+.baseline-breakdown-title {
+    font-size: 0.78em;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #b3d4ff;
+    margin-bottom: 10px;
+    font-weight: 700;
+}
+.baseline-breakdown-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.baseline-breakdown-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 0;
+    color: #ffffff;
+    font-size: 0.95em;
+}
+.baseline-breakdown-label {
+    color: #d6e6f7;
+}
+.baseline-breakdown-amt {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
 }
 
 .rett-strategy-card {
@@ -5992,7 +6249,7 @@ body { font-size: 16px; }
     .print-rule {
         height: 3pt;
         border: none;
-        background: linear-gradient(90deg, #0a1d3d 0%, #0a1d3d 60%, #f29c2c 60%, #f29c2c 100%);
+        background: linear-gradient(90deg, #0a1d3d 0%, #0a1d3d 60%, #5BA9FF 60%, #5BA9FF 100%);
         margin-bottom: 7pt;
         border-radius: 1pt;
     }
@@ -6031,7 +6288,7 @@ body { font-size: 16px; }
        the eye as the takeaway number on the page. */
     .print-hero-net {
         background: #fdf3e3;
-        border-color: #f29c2c;
+        border-color: #5BA9FF;
         border-width: 1.2pt;
     }
     .print-hero-net .print-hero-value { color: #b06b08; }
@@ -6149,7 +6406,7 @@ body { font-size: 16px; }
     .print-footer {
         margin-top: 8pt;
         padding-top: 5pt;
-        border-top: 1.5pt solid #f29c2c;
+        border-top: 1.5pt solid #5BA9FF;
         font-size: 6.5pt;
         color: #555;
         line-height: 1.4;

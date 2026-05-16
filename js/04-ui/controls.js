@@ -465,7 +465,7 @@ function _refreshStrategyLockupDisplays() {
     if (!pickedMonths && cfg && cfg.structuredSaleDurationMonths) {
       pickedMonths = cfg.structuredSaleDurationMonths;
     }
-    cEl.textContent = (pickedMonths ? pickedMonths : 18) + ' Month Lockup';
+    cEl.textContent = (pickedMonths ? pickedMonths : 36) + ' Month Distribution Period';
   }
 }
 
@@ -797,9 +797,13 @@ function _onCustodianChange() {
 function _buildEngineCfg() {
   if (typeof collectInputs !== 'function') return null;
   var cfg = collectInputs();
-  var sp = parseUSD((document.getElementById('sale-price') || {}).value) || 0;
-  var cb = parseUSD((document.getElementById('cost-basis') || {}).value) || 0;
-  var ad = parseUSD((document.getElementById('accelerated-depreciation') || {}).value) || 0;
+  // Multi-property aggregation (Q1).
+  var _sumProp = (typeof window.__rettSumPropertyField === 'function')
+    ? window.__rettSumPropertyField
+    : function (id) { return parseUSD((document.getElementById(id) || {}).value) || 0; };
+  var sp = _sumProp('sale-price');
+  var cb = _sumProp('cost-basis');
+  var ad = _sumProp('accelerated-depreciation');
   if (sp) cfg.salePrice = sp;
   if (cb) cfg.costBasis = cb;
   if (ad) cfg.acceleratedDepreciation = ad;
@@ -1303,18 +1307,22 @@ function bindControls() {
     }
   });
 
-  // Strategy Implementation Date can't legally precede the Sale /
-  // Closing Date — proceeds don't exist to deploy yet. Mirror the sale
-  // date into the strategy-date input's `min` attribute so the
-  // browser's native date picker rejects earlier values inline. Also
-  // clamp existing strategy-date values forward when the sale date
-  // moves later, so the saved-state restore path doesn't leave an
-  // invalid pair sitting in the form. (Bug #9.)
-  var saleDateEl = document.getElementById('implementation-date');
+  // Strategy Implementation Date can't legally precede ANY property's
+  // Sale / Closing Date — proceeds don't exist to deploy until every
+  // included property has closed. Multi-property (Q1): take the LATEST
+  // active property close date as the floor. Updates whenever ANY of
+  // the per-property sale-date inputs changes.
   var stratDateEl = document.getElementById('strategy-implementation-date');
-  if (saleDateEl && stratDateEl) {
+  if (stratDateEl) {
+    var _latestSaleDate = function () {
+      if (typeof window.__rettLatestPropertySaleDate === 'function') {
+        return window.__rettLatestPropertySaleDate();
+      }
+      var el = document.getElementById('implementation-date');
+      return el ? el.value : '';
+    };
     var syncStrategyMin = function () {
-      var v = saleDateEl.value || '';
+      var v = _latestSaleDate();
       if (v) {
         stratDateEl.min = v;
         if (stratDateEl.value && stratDateEl.value < v) {
@@ -1325,10 +1333,145 @@ function bindControls() {
         stratDateEl.removeAttribute('min');
       }
     };
-    saleDateEl.addEventListener('input', syncStrategyMin);
-    saleDateEl.addEventListener('change', syncStrategyMin);
+    // Listen on every property sale-date input.
+    ['implementation-date',
+     'implementation-date-2','implementation-date-3',
+     'implementation-date-4','implementation-date-5'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('input', syncStrategyMin);
+      el.addEventListener('change', syncStrategyMin);
+    });
     syncStrategyMin();
   }
+
+  // Multi-property (Q1) — Add / Remove handlers + per-property
+  // computed-gain readouts. Property 1 keeps its existing computed-gain
+  // listener (managed by recommendation-render.js); Properties 2-5 get
+  // their own block-scoped listeners here.
+  (function _wireMultiPropertyControls() {
+    var addBtn = document.getElementById('property-add-btn');
+    function _visibleSlots() {
+      // Return the array of property numbers currently visible (always
+      // includes 1; 2-5 only when their block is not hidden).
+      var out = [1];
+      for (var n = 2; n <= 5; n++) {
+        var b = document.getElementById('property-' + n);
+        if (b && !b.hidden) out.push(n);
+      }
+      return out;
+    }
+    function _refreshAddButton() {
+      if (!addBtn) return;
+      var maxed = _visibleSlots().length >= 5;
+      addBtn.hidden = maxed;
+    }
+    // Q4: When 2+ properties are visible, mark the body so the
+    // "Property 1" header on the first block becomes visible. Property 1
+    // has no header in single-property mode (reads as just "Sale"); the
+    // header appears only once a second property exists to distinguish.
+    function _refreshMultiPropertyMode() {
+      var multi = _visibleSlots().length >= 2;
+      document.body.classList.toggle('rett-multi-property', multi);
+      // Inject the Property 1 header lazily — it doesn't exist in the
+      // HTML scaffold (Property 1 ships without a header in single mode).
+      var p1 = document.getElementById('property-1');
+      if (!p1) return;
+      var existingHeader = p1.querySelector('.property-block-header');
+      if (multi && !existingHeader) {
+        var hdr = document.createElement('div');
+        hdr.className = 'property-block-header';
+        var title = document.createElement('h3');
+        title.className = 'property-block-title';
+        title.textContent = 'Property 1';
+        hdr.appendChild(title);
+        p1.insertBefore(hdr, p1.firstChild);
+      }
+    }
+    function _showNextSlot() {
+      for (var n = 2; n <= 5; n++) {
+        var b = document.getElementById('property-' + n);
+        if (b && b.hidden) {
+          b.hidden = false;
+          _refreshAddButton();
+          _refreshMultiPropertyMode();
+          // Trigger a recompute since the engine sees the new block on
+          // next collectInputs() (sale-price still 0 so no-op until user
+          // fills, but listeners need to know the block exists).
+          if (typeof _recomputeAvailableCapital === 'function') {
+            _recomputeAvailableCapital();
+          }
+          return;
+        }
+      }
+    }
+    function _removeSlot(n) {
+      var b = document.getElementById('property-' + n);
+      if (!b) return;
+      b.hidden = true;
+      // Clear that block's input values so the aggregator doesn't pull
+      // stale data when the user toggles it back on later.
+      ['sale-price','cost-basis','accelerated-depreciation',
+       'implementation-date'].forEach(function (base) {
+        var el = document.getElementById(base + '-' + n);
+        if (!el) return;
+        el.value = '';
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      // Reset the holding-period toggle to its default ('yes' = long-term).
+      var hpEl = document.getElementById('holding-period-' + n);
+      if (hpEl) {
+        hpEl.value = 'yes';
+        hpEl.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      _refreshAddButton();
+      _refreshMultiPropertyMode();
+      if (typeof _recomputeAvailableCapital === 'function') {
+        _recomputeAvailableCapital();
+      }
+    }
+    if (addBtn) addBtn.addEventListener('click', _showNextSlot);
+    document.querySelectorAll('.property-remove-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var n = parseInt(btn.getAttribute('data-remove-target'), 10);
+        if (n >= 2 && n <= 5) _removeSlot(n);
+      });
+    });
+
+    // Per-property holding-period toggles fire _recomputeAvailableCapital
+    // so the Cover-Tax-Bill tax estimate and Available Capital update
+    // when the user flips a property between LT and ST treatment.
+    for (var n = 1; n <= 5; n++) {
+      var hpEl = document.getElementById('holding-period-' + n);
+      if (hpEl) {
+        hpEl.addEventListener('change', function () {
+          if (typeof _recomputeAvailableCapital === 'function') {
+            _recomputeAvailableCapital();
+          }
+        });
+      }
+    }
+    _refreshAddButton();
+    _refreshMultiPropertyMode();
+    // Expose for case-storage so post-load visibility restore can sync
+    // the body class + Property 1 header without re-importing controls.
+    if (typeof window !== 'undefined') {
+      window.__rettRefreshMultiPropertyMode = _refreshMultiPropertyMode;
+    }
+
+    // Q3: Double-click the middle "Tax Due to the Sale" tile to reveal
+    // the per-property tax breakdown panel. Only active when 2+
+    // properties are visible (single click does nothing in single mode).
+    var deltaTile = document.querySelector('.baseline-tile--delta');
+    var breakdownPanel = document.getElementById('baseline-breakdown-panel');
+    if (deltaTile && breakdownPanel) {
+      deltaTile.addEventListener('dblclick', function () {
+        if (!deltaTile.classList.contains('baseline-tile--has-breakdown')) return;
+        breakdownPanel.hidden = !breakdownPanel.hidden;
+      });
+    }
+  })();
 
   // Pre-Meeting Questionnaire is now a pair of compact <details>
   // squares pinned to the top-right of the Client Inputs page —
@@ -1336,35 +1479,33 @@ function bindControls() {
   // toggle handles the show/hide so no custom wiring is needed
   // here.
 
-  // Sale Proceeds: cosmetic "Payment on sale date" row that surfaces
-  // when Accelerated Depreciation > 0. Defaults to whatever the user
-  // typed for accel depr and stays in sync until the user manually
-  // edits the field. Not yet read by the engine — the advisor will
-  // wire the rules in once finalized.
-  //
-  // Same auto-default extends to the "Amount to keep" field: when
-  // accelerated depreciation > 0, default the keep-amount to the full
-  // recapture amount and flip "investing everything?" to No. Reason:
-  // §1250 recapture is recognized in the year of sale (§453(i)) and
-  // must be paid in cash regardless of any structured-sale deferral —
-  // keeping the recapture amount back from proceeds gives the client
-  // a guaranteed cash buffer for that bill. The advisor can override
-  // for Strategy B/C scenarios where the buyer pushes back on the
-  // payment-on-sale-date arrangement.
+  // Sale Proceeds: auto-default behavior keyed off Accelerated Depreciation.
+  // When recapture > 0, the "Amount to keep" field defaults to the full
+  // recapture amount and "investing everything?" flips to No, unless the
+  // advisor has already touched either field. Reason: §1250 recapture is
+  // recognized in the year of sale (§453(i)) and must be paid in cash
+  // regardless of any structured-sale deferral — keeping the recapture
+  // amount back from proceeds gives the client a guaranteed cash buffer
+  // for that bill. The advisor can override for Strategy B/C scenarios.
   var accelDeprEl = document.getElementById('accelerated-depreciation');
-  var paymentGroup = document.getElementById('payment-on-sale-date-group');
-  var paymentInput = document.getElementById('payment-on-sale-date');
   var withholdYesNoEl  = document.getElementById('withhold-yes-no');
   var withholdAmountEl = document.getElementById('withhold-amount');
-  if (accelDeprEl && paymentGroup && paymentInput) {
+  // Aggregated recapture across all active property blocks (Q1).
+  // _sumPropertyRecap captures the SUM of every visible property's accel
+  // depreciation, which is what should drive the Cover-Tax-Bill auto-
+  // default — not just Property 1's number. Falls back to Property 1
+  // only if the aggregator helper hasn't loaded yet.
+  function _sumPropertyRecap() {
+    if (typeof window.__rettSumPropertyField === 'function') {
+      return window.__rettSumPropertyField('accelerated-depreciation');
+    }
+    return parseUSD((accelDeprEl || {}).value) || 0;
+  }
+  if (accelDeprEl) {
     // Guard so our own programmatic dispatch (input/change events fired
     // from inside syncPayment to keep _recomputeAvailableCapital in sync)
     // does not flip userEdited and freeze the auto-default.
     var _autoSyncing = false;
-    paymentInput.addEventListener('input', function () {
-      if (_autoSyncing) return;
-      paymentInput.dataset.userEdited = 'true';
-    });
     if (withholdYesNoEl) {
       withholdYesNoEl.addEventListener('change', function () {
         if (_autoSyncing) return;
@@ -1378,18 +1519,16 @@ function bindControls() {
       });
     }
     var syncPayment = function () {
-      var raw = (typeof parseUSD === 'function') ? parseUSD(accelDeprEl.value) : Number(accelDeprEl.value);
-      var amount = Number(raw) || 0;
+      // Multi-property (Q1): use SUM of recapture across all active
+      // properties so the Cover-Tax-Bill auto-default reflects the
+      // aggregate cash buffer the client needs, not just Property 1.
+      var amount = _sumPropertyRecap();
       var fmt = (typeof fmtUSD === 'function')
         ? fmtUSD
         : function (n) { return '$' + Math.round(n).toLocaleString('en-US'); };
       _autoSyncing = true;
       try {
         if (amount > 0) {
-          paymentGroup.hidden = false;
-          if (paymentInput.dataset.userEdited !== 'true') {
-            paymentInput.value = fmt(amount);
-          }
           // Default "investing everything?" to No (value="yes" =
           // keep some) and pre-fill the keep amount with the recapture
           // value, unless the advisor has already touched either field.
@@ -1402,8 +1541,6 @@ function bindControls() {
             withholdAmountEl.dispatchEvent(new Event('input', { bubbles: true }));
           }
         } else {
-          paymentGroup.hidden = true;
-          if (paymentInput.dataset.userEdited !== 'true') paymentInput.value = '';
           if (withholdAmountEl && withholdAmountEl.dataset.userEdited !== 'true') {
             withholdAmountEl.value = '';
             withholdAmountEl.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1417,25 +1554,32 @@ function bindControls() {
         _autoSyncing = false;
       }
     };
+    // Q5 multi-property: syncPayment fires when ANY property's accel-depr
+    // changes (P1 + P2-P5). The auto-default uses the SUM of recapture
+    // across all active properties, so every input must trigger.
     accelDeprEl.addEventListener('input', syncPayment);
     accelDeprEl.addEventListener('change', syncPayment);
+    for (var _adn = 2; _adn <= 5; _adn++) {
+      var _adEl = document.getElementById('accelerated-depreciation-' + _adn);
+      if (_adEl) {
+        _adEl.addEventListener('input', syncPayment);
+        _adEl.addEventListener('change', syncPayment);
+      }
+    }
     syncPayment();
   }
 
-  // Future Appreciated Asset Sale (Section 07): the Yes/No question
-  // toggles the conditional fields group, and the LT-gain readout
-  // mirrors the existing computed-gain pattern (sale - basis - depr,
-  // floored at 0). The optimizer reads cfg.futureSale to decide how
-  // much of the current Brooklyn position should generate carryforward
-  // for that future gain — when "no", excess loss is wasted, so the
-  // solver should pull Brooklyn back. Wiring is purely UI here; the
-  // engine consumes the data via inputs-collector.
+  // Future Sale Loss Target (Section 05): the Yes/No question toggles
+  // the conditional fields group. The optimizer reads cfg.futureSale to
+  // decide how much of the current Brooklyn position should generate
+  // carryforward for that future gain — when "no", excess loss is
+  // wasted, so the solver should pull Brooklyn back. Wiring is purely
+  // UI here; the engine consumes the data via inputs-collector.
+  //
+  // Simplified shape (2026-05-15): single #future-estimated-gain field
+  // — no more sale-basis-depr breakdown, no auto-compute listener.
   var futureYesNoEl   = document.getElementById('future-sale-yes-no');
   var futureGroupEl   = document.getElementById('future-sale-fields-group');
-  var futureSaleEl    = document.getElementById('future-sale-price');
-  var futureBasisEl   = document.getElementById('future-cost-basis');
-  var futureDeprEl    = document.getElementById('future-accelerated-depreciation');
-  var futureGainEl    = document.getElementById('future-long-term-gain');
   if (futureYesNoEl && futureGroupEl) {
     var syncFutureGroup = function () {
       futureGroupEl.hidden = (futureYesNoEl.value !== 'yes');
@@ -1443,22 +1587,6 @@ function bindControls() {
     futureYesNoEl.addEventListener('change', syncFutureGroup);
     futureYesNoEl.addEventListener('input',  syncFutureGroup);
     syncFutureGroup();
-  }
-  if (futureSaleEl && futureBasisEl && futureDeprEl && futureGainEl) {
-    var recomputeFutureGain = function () {
-      var sp = parseUSD(futureSaleEl.value)  || 0;
-      var cb = parseUSD(futureBasisEl.value) || 0;
-      var ad = parseUSD(futureDeprEl.value)  || 0;
-      var lt = Math.max(0, sp - cb - ad);
-      futureGainEl.value = (typeof fmtUSD === 'function')
-        ? fmtUSD(lt)
-        : '$' + Math.round(lt).toLocaleString('en-US');
-    };
-    [futureSaleEl, futureBasisEl, futureDeprEl].forEach(function (el) {
-      el.addEventListener('input',  recomputeFutureGain);
-      el.addEventListener('change', recomputeFutureGain);
-    });
-    recomputeFutureGain();
   }
 
   // Strategy-selection page (between Inputs and Projection): three
@@ -1560,13 +1688,24 @@ function bindControls() {
   // structured-sale paths the actual tax is less, but front-loading
   // the carve-out keeps the client liquid for the April due date.
   function _estimatedSaleTax() {
-    var saleVal  = parseUSD((document.getElementById('sale-price') || {}).value) || 0;
-    var basisVal = parseUSD((document.getElementById('cost-basis') || {}).value) || 0;
-    var deprVal  = parseUSD((document.getElementById('accelerated-depreciation') || {}).value) || 0;
+    // Multi-property aggregation (Q1) — tax estimate must reflect the
+    // total sale across all properties, not just Property 1.
+    var _sumProp = (typeof window.__rettSumPropertyField === 'function')
+      ? window.__rettSumPropertyField
+      : function (id) { return parseUSD((document.getElementById(id) || {}).value) || 0; };
+    var saleVal  = _sumProp('sale-price');
+    var basisVal = _sumProp('cost-basis');
+    var deprVal  = _sumProp('accelerated-depreciation');
     // STG is independent income now; not subtracted from property LT gain.
     var stShort  = parseUSD((document.getElementById('short-term-gain') || {}).value) || 0;
-    var ltGain   = Math.max(0, saleVal - basisVal - deprVal);
-    if (ltGain <= 0) return 0;
+    // Q2: ST-held property gain flows to ST bucket (ordinary rate), not LT.
+    // Q7: non-property LT income (stocks/crypto >1yr) adds to LT bucket.
+    var _stPropGain = (typeof window.__rettShortTermPropertyGain === 'function')
+      ? window.__rettShortTermPropertyGain() : 0;
+    var _ltIncome   = parseUSD((document.getElementById('long-term-gain') || {}).value) || 0;
+    var ltGain   = Math.max(0, saleVal - basisVal - deprVal - _stPropGain) + Math.max(0, _ltIncome);
+    var stGainForTax = Math.max(0, stShort) + _stPropGain;
+    if (ltGain <= 0 && stGainForTax <= 0 && deprVal <= 0) return 0;
     var year   = parseInt((document.getElementById('year1') || {}).value, 10) || (new Date()).getFullYear();
     var status = (document.getElementById('filing-status') || {}).value || 'mfj';
     var state  = (document.getElementById('state-code') || {}).value || 'NONE';
@@ -1581,15 +1720,15 @@ function bindControls() {
     var fed = 0, st = 0;
     try {
       if (typeof computeFederalTax === 'function') {
-        fed = computeFederalTax(ord + Math.max(0, stShort), year, status, {
+        fed = computeFederalTax(ord + stGainForTax, year, status, {
           longTermGain: ltGain,
           depreciationRecapture: deprVal,
-          investmentIncome: ltGain + Math.max(0, stShort),
+          investmentIncome: ltGain + stGainForTax,
           wages: wages
         }) || 0;
       }
       if (typeof computeStateTax === 'function') {
-        st = computeStateTax(ord + Math.max(0, stShort) + ltGain + deprVal, year, state, status, {
+        st = computeStateTax(ord + stGainForTax + ltGain + deprVal, year, state, status, {
           longTermGain: ltGain
         }) || 0;
       }
@@ -1607,7 +1746,11 @@ function bindControls() {
     const coverEl    = document.getElementById('cover-taxes-yes-no');
     if (!saleEl || !yesNoEl || !availEl) return;
 
-    const saleVal = parseUSD(saleEl.value) || 0;
+    // Multi-property (Q1): aggregate sale price across all active properties.
+    const _sumProp = (typeof window.__rettSumPropertyField === 'function')
+      ? window.__rettSumPropertyField
+      : function (id) { return parseUSD((document.getElementById(id) || {}).value) || 0; };
+    const saleVal = _sumProp('sale-price');
     const wantsKeep = (yesNoEl.value === 'yes');
     const amtRaw  = amtEl ? (parseUSD(amtEl.value) || 0) : 0;
     const wantsCoverTaxes = !!(coverEl && coverEl.value === 'yes');
@@ -1672,7 +1815,15 @@ function bindControls() {
   // elsewhere; we add ours alongside. cost-basis and accelerated-
   // depreciation also drive the tax estimate when "cover taxes" is on,
   // so changes to those fields must re-trigger Available Capital.
-  ['sale-price', 'cost-basis', 'accelerated-depreciation', 'short-term-gain',
+  // Multi-property (Q1) + Q2 holding-period: include Property 2-5 IDs +
+  // holding-period toggles so changes anywhere re-derive Available Capital.
+  [
+   'sale-price',   'cost-basis',   'accelerated-depreciation',   'holding-period-1',
+   'sale-price-2', 'cost-basis-2', 'accelerated-depreciation-2', 'holding-period-2',
+   'sale-price-3', 'cost-basis-3', 'accelerated-depreciation-3', 'holding-period-3',
+   'sale-price-4', 'cost-basis-4', 'accelerated-depreciation-4', 'holding-period-4',
+   'sale-price-5', 'cost-basis-5', 'accelerated-depreciation-5', 'holding-period-5',
+   'short-term-gain', 'long-term-gain',
    'withhold-yes-no', 'withhold-amount', 'cover-taxes-yes-no',
    'filing-status', 'state-code', 'year1',
    'w2-wages', 'se-income', 'biz-revenue', 'rental-income',

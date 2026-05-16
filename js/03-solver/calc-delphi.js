@@ -89,11 +89,18 @@
     var ordTotal = 0;
     for (var i = 0; i < ordIds.length; i++) ordTotal += _safe(ordIds[i]);
 
-    var stGain = _safe('short-term-gain');
-    var sale   = _safe('sale-price');
-    var basis  = _safe('cost-basis');
-    var depr   = _safe('accelerated-depreciation');
-    var ltGain = sale - basis - depr;
+    // Q1 multi-property + Q2 holding-period: sum across all active
+    // property blocks and route ST-held property gain to the ST bucket.
+    var _sumProp = (typeof window.__rettSumPropertyField === 'function')
+      ? window.__rettSumPropertyField
+      : function (id) { return _safe(id); };
+    var _stPropGain = (typeof window.__rettShortTermPropertyGain === 'function')
+      ? window.__rettShortTermPropertyGain() : 0;
+    var stGain = _safe('short-term-gain') + _stPropGain;
+    var sale   = _sumProp('sale-price');
+    var basis  = _sumProp('cost-basis');
+    var depr   = _sumProp('accelerated-depreciation');
+    var ltGain = sale - basis - depr - _stPropGain;
     var recap  = depr;
 
     var wages  = _safe('w2-wages');

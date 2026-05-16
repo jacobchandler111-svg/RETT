@@ -45,9 +45,9 @@
     return type === 'A' ? '01' : type === 'B' ? '02' : type === 'C' ? '03' : '00';
   }
   function _stratName(type) {
-    return type === 'A' ? 'Sell Now'
-      : type === 'B' ? 'Seller Finance'
-      : type === 'C' ? 'Structured Sale' : 'Strategy';
+    return type === 'A' ? 'Cash in Hand'
+      : type === 'B' ? 'Installment Sale'
+      : type === 'C' ? 'Installment Sale — Mitigating Buyer Default Risk' : 'Strategy';
   }
 
   // Empty-state when the user lands on Page 4 without having picked a
@@ -477,9 +477,9 @@
     var today = new Date();
     var dateStr = (today.getMonth()+1) + '/' + today.getDate() + '/' + today.getFullYear();
 
-    var stratLabel  = d.entry.type === 'A' ? 'Sell Now'
-      : d.entry.type === 'B' ? 'Seller Finance'
-      : 'Structured Sale';
+    var stratLabel  = d.entry.type === 'A' ? 'Cash in Hand'
+      : d.entry.type === 'B' ? 'Installment Sale'
+      : 'Installment Sale — Mitigating Buyer Default Risk';
     var stratNum = d.entry.type === 'A' ? '01' : d.entry.type === 'B' ? '02' : '03';
 
     // Tax comparison row
@@ -1327,7 +1327,7 @@
     // advisor opens Section 07 directly when there's a future sale.
     if (!cfg || !cfg.futureSale || !cfg.futureSale.enabled) return '';
 
-    var futureLT = Math.max(0, Number(cfg.futureSale.longTermGain) || 0);
+    var futureLT = Math.max(0, Number(cfg.futureSale.estimatedGain) || 0);
     if (futureLT <= 0) return '';
 
     var availCap = Math.max(0, Number(cfg.availableCapital) || 0);
@@ -1339,9 +1339,11 @@
     var feePerDollar  = feesAtFull / availCap;
     if (lossPerDollar <= 0) return '';
 
+    // Q2: subtract ST-held property gain.
     var currentLT = Math.max(0,
       (Number(cfg.salePrice) || 0) - (Number(cfg.costBasis) || 0)
-      - (Number(cfg.acceleratedDepreciation) || 0));
+      - (Number(cfg.acceleratedDepreciation) || 0)
+      - (Number(cfg.shortTermPropertyGain) || 0));
     // Recapture is also Brooklyn-loss-absorbable per IRC §1(h)
     // (ST losses → recapture → LT gain → ordinary cap order). Treat
     // currentLT + currentRecap as the current-sale absorbable load

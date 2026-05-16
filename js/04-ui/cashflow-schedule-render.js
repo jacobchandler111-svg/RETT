@@ -68,7 +68,7 @@
     // bucket here so the schedule reconciles with the tax engines.
     // STG is now an independent income item — not part of the property sale.
     var totalLT = Math.max(0,
-      (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0));
+      (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0) - (cfg.shortTermPropertyGain || 0));  // Q2: subtract ST-held property gain
     var recapture = Math.max(0, cfg.acceleratedDepreciation || 0);
     var totalGain = totalLT + recapture;
     var basis = Math.max(0, cfg.costBasis || 0);
@@ -284,19 +284,31 @@
     var cfg = result.config || {};
     // Patch in the property-sale fields (the projection-engine result
     // doesn't always carry them on cfg).
-    cfg.salePrice = cfg.salePrice
-      || parseUSD((document.getElementById('sale-price') || {}).value) || 0;
-    cfg.costBasis = cfg.costBasis
-      || parseUSD((document.getElementById('cost-basis') || {}).value) || 0;
-    cfg.acceleratedDepreciation = cfg.acceleratedDepreciation
-      || parseUSD((document.getElementById('accelerated-depreciation') || {}).value) || 0;
-    cfg.implementationDate = cfg.implementationDate
-      || (document.getElementById('implementation-date') || {}).value || '';
+    // Multi-property aggregation (Q1) — same helper inputs-collector uses.
+    var _sumProp = (typeof window.__rettSumPropertyField === 'function')
+      ? window.__rettSumPropertyField
+      : function (id) { return parseUSD((document.getElementById(id) || {}).value) || 0; };
+    var _earliestDate = (typeof window.__rettEarliestPropertySaleDate === 'function')
+      ? window.__rettEarliestPropertySaleDate
+      : function () { return (document.getElementById('implementation-date') || {}).value || ''; };
+    cfg.salePrice = cfg.salePrice || _sumProp('sale-price');
+    cfg.costBasis = cfg.costBasis || _sumProp('cost-basis');
+    cfg.acceleratedDepreciation = cfg.acceleratedDepreciation || _sumProp('accelerated-depreciation');
+    cfg.implementationDate = cfg.implementationDate || _earliestDate();
     cfg.strategyImplementationDate = cfg.strategyImplementationDate
       || (document.getElementById('strategy-implementation-date') || {}).value
       || cfg.implementationDate || '';
     cfg.baseShortTermGain = cfg.baseShortTermGain
       || parseUSD((document.getElementById('short-term-gain') || {}).value) || 0;
+    // Q2/Q7: fallback patches for cfg fields that engines downstream rely on
+    // (parallel to baseShortTermGain above).
+    if (cfg.shortTermPropertyGain == null) {
+      cfg.shortTermPropertyGain = (typeof window.__rettShortTermPropertyGain === 'function')
+        ? window.__rettShortTermPropertyGain() : 0;
+    }
+    if (cfg.baseLongTermGain == null) {
+      cfg.baseLongTermGain = parseUSD((document.getElementById('long-term-gain') || {}).value) || 0;
+    }
 
     var rows = _buildScheduleRows(cfg, comp, result.years);
     if (!rows.length) {
@@ -307,12 +319,12 @@
     // Total locked in the structured sale = LT capital gain + recapture.
     // STG is independent income — not part of the property sale.
     var _totalLT = Math.max(0,
-      (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0));
+      (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0) - (cfg.shortTermPropertyGain || 0));  // Q2: subtract ST-held property gain
     var totalGain = _totalLT + Math.max(0, cfg.acceleratedDepreciation || 0);
 
     var lumpSum = _isLumpSum(cfg, comp, rows);
     var brookSub = lumpSum
-      ? 'Lump-sum scenario: the full sale proceeds are received at close and deployed into Brooklyn in Year 1 — no structured-sale lockup, no later tranche releases.'
+      ? 'Lump-sum scenario: the full sale proceeds are received at close and deployed into Brooklyn in Year 1 — no structured-sale distribution period, no later tranche releases.'
       : 'New capital deployed each year — basis cash on engagement plus structured-sale tranche releases. Each row shows the assumed implementation date for that year’s deposit and the cumulative position for context.';
 
     var ssSection;

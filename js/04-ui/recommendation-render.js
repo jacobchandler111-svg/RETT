@@ -109,8 +109,11 @@
     // (any short-term gain the client recognized this year, NOT a
     // carve-out from the property sale). Property LT gain is computed
     // from sale - basis - depr only.
+    // Q2: subtract ST-held property gain — flows to ST bucket instead.
+    var _stPropGain = (typeof window.__rettShortTermPropertyGain === 'function')
+      ? window.__rettShortTermPropertyGain() : 0;
     var lt = Math.max(0,
-      inputs.salePrice - inputs.costBasis - inputs.acceleratedDepreciation);
+      inputs.salePrice - inputs.costBasis - inputs.acceleratedDepreciation - _stPropGain);
     var rec = Math.max(0, inputs.acceleratedDepreciation);
     var total = lt + rec;
     var gainEl  = $('computed-gain');

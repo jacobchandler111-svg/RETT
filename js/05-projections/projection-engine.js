@@ -70,7 +70,8 @@ const ProjectionEngine = {
               const _min = _stratKey ? window.getMinInvestment(cfg.custodian, _stratKey, cfg.comboId) : 0;
               if (_min > 0) {
                 const _basis = Math.max(0, cfg.costBasis || 0);
-                const _ltGain = Math.max(0, (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0));
+                // Q2: subtract ST-held property gain — ordinary-taxed, not LT.
+                const _ltGain = Math.max(0, (cfg.salePrice || 0) - (cfg.costBasis || 0) - (cfg.acceleratedDepreciation || 0) - (cfg.shortTermPropertyGain || 0));
                 const _recapture = Math.max(0, cfg.acceleratedDepreciation || 0);
                 const _fromSale = (cfg.salePrice || 0) > 0 && _basis > 0
                   ? (_basis + _ltGain + _recapture) : 0;
@@ -106,10 +107,18 @@ const ProjectionEngine = {
                             const year = cfg.year1 + i;
                             const ordinary = (cfg.ordinaryByYear && cfg.ordinaryByYear[i] != null)
                                 ? cfg.ordinaryByYear[i] : cfg.baseOrdinaryIncome;
+                            // Q2: shortTermPropertyGain applies to year 0 only
+                            // (recognized in sale year regardless of structured
+                            // sale deferrals — ST gain can't be deferred).
+                            // Q7: baseLongTermGain is recurring income — applies
+                            // each year (stocks/crypto produce LT income annually).
+                            const _stPropY0 = (i === 0) ? (cfg.shortTermPropertyGain || 0) : 0;
                             const shortGain = (cfg.shortGainByYear && cfg.shortGainByYear[i] != null)
-                                ? cfg.shortGainByYear[i] : (i === 0 ? cfg.baseShortTermGain : 0);
+                                ? cfg.shortGainByYear[i]
+                                : ((i === 0 ? (cfg.baseShortTermGain || 0) : 0) + _stPropY0);
                             const longGain = (cfg.longGainByYear && cfg.longGainByYear[i] != null)
-                                ? cfg.longGainByYear[i] : (i === 0 ? cfg.baseLongTermGain : 0);
+                                ? cfg.longGainByYear[i]
+                                : (cfg.baseLongTermGain || 0);
 
                         const lossRate = _schwabRates ? _schwabRates[i]
       : (cfg.lossRateByYear && cfg.lossRateByYear[i] != null)
