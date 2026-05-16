@@ -503,11 +503,15 @@ function _refreshCard3Visibility() {
   var netA = NaN, netB = NaN, netC = NaN;
   try {
     if (typeof collectInputs === 'function' && typeof window._computeBestNetForStrategy === 'function') {
+      // Sanity gate: don't trigger the dashboard pipeline for an empty
+      // form. The helper now routes through buildInterestedSummary, so
+      // it runs collectInputs internally — but if salePrice is 0 we'd
+      // get garbage nets back.
       var baseCfg = collectInputs();
       if (baseCfg && (Number(baseCfg.salePrice) || 0) > 0) {
-        netA = window._computeBestNetForStrategy('A', baseCfg);
-        netB = window._computeBestNetForStrategy('B', baseCfg);
-        netC = window._computeBestNetForStrategy('C', baseCfg);
+        netA = window._computeBestNetForStrategy('A');
+        netB = window._computeBestNetForStrategy('B');
+        netC = window._computeBestNetForStrategy('C');
       }
     }
   } catch (e) { /* swallow — fall through with NaN nets */ }

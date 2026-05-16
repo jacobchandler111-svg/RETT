@@ -323,8 +323,20 @@
     // is multi-year (B/C), the deduction repeats each recognition year.
     // Y0 uses marginalY0 (ord + recap baseline); Y1+ use marginalRest.
     var yearCount = annual ? _strategyYearCount(cfg) : 1;
-    var deductionY0 = deductibleAmount * marginalY0;
-    var deductionRest = deductibleAmount * marginalRest;
+    // Per-year ord-pool cap. Y0 pool includes §1250 recap (ordinary
+    // rates); Y1+ pool is just the base W-2 / SE / biz income because
+    // recapture is a one-time Y0 event. Charitable deduction beyond
+    // the year's ord pool carries forward 5 years under §170(d), but
+    // the supp engine doesn't model carryforward; we show actual
+    // tax dollars saved THIS year.
+    var poolY0 = Math.max(0, baseOrd + recap);
+    var poolRest = Math.max(0, baseOrd);
+    var deductibleY0 = (poolY0 > 0)
+      ? Math.min(deductibleAmount, poolY0) : deductibleAmount;
+    var deductibleRest = (poolRest > 0)
+      ? Math.min(deductibleAmount, poolRest) : deductibleAmount;
+    var deductionY0 = deductibleY0 * marginalY0;
+    var deductionRest = deductibleRest * marginalRest;
     // Y0 is always one of the years (gift starts in sale year). Years
     // 2..yearCount use the no-recap marginal.
     var deductionValue = deductionY0 + deductionRest * Math.max(0, yearCount - 1);
@@ -343,14 +355,18 @@
         capGainAvoided:   Math.round(capGainAvoided),
         agiCapApplied:    deductibleAmount < amount,
         pctCap:           pctCap,
+        ordPoolCapAppliedY0:   deductibleY0 < deductibleAmount,
+        ordPoolCapAppliedRest: deductibleRest < deductibleAmount,
+        deductibleY0:     Math.round(deductibleY0),
+        deductibleRest:   Math.round(deductibleRest),
         annualGiving:     annual,
         yearCount:        yearCount,
         // ACTION: ordinary income offset — the actual deductible $
-        // applied each year. Constant across years (gift is the same
-        // each year on annual giving). Tab 7 reads these for the
-        // "Ordinary income offset" line.
-        ordOffsetY0:           Math.round(deductibleAmount),
-        ordOffsetRestPerYear:  Math.round(deductibleAmount),
+        // applied each year. Capped per-year at the year's ord pool
+        // (Y0 includes recapture, Y1+ does not) so Tab 7's "Ordinary
+        // income offset" line matches the displayed tax savings.
+        ordOffsetY0:           Math.round(deductibleY0),
+        ordOffsetRestPerYear:  Math.round(deductibleRest),
         // RESULT: tax dollars saved per year. Y0 uses the recap-pushed
         // marginal (top bracket in the sale year); Y1+ uses the no-recap
         // marginal (W-2-only baseline).
@@ -402,7 +418,8 @@
     var year1Accel = depreciableBasis * accelPct;
     var shellBasis = depreciableBasis * (1 - accelPct);
     var shellYr1 = shellBasis * 0.0256;
-    var totalDeduction = year1Accel + shellYr1;
+    var totalDeductionRaw = year1Accel + shellYr1;
+    var totalDeduction = _capDeductionAtOrdPool(cfg, totalDeductionRaw);
     var marginal = _fedMarginal(cfg) + _stateMarginal(cfg);
     var netBenefit = totalDeduction * marginal;
     _writeResult('slot05', {
@@ -412,7 +429,10 @@
       detail: {
         depreciableBasis: Math.round(depreciableBasis),
         accelPct: accelPct,
-        year1Deduction: Math.round(totalDeduction)
+        year1Deduction: Math.round(totalDeduction),
+        year1DeductionUncapped: Math.round(totalDeductionRaw),
+        deductionCappedByOrdPool: totalDeductionRaw > totalDeduction,
+        ordIncomePool: Math.round(_ordIncomePoolY0(cfg))
       }
     });
   }
@@ -507,7 +527,10 @@
     // 2026-05-06; old saved cases with materialPart=true still pass
     // through via the back-compat read below.)
     var active = !!(st.commitHours || st.materialPart);
-    var nonPassive = active ? yr1Loss : 0;
+    var nonPassiveRaw = active ? yr1Loss : 0;
+    // Cap at the Y0 ordinary-income pool — see _capDeductionAtOrdPool
+    // for full rationale. K-1 losses beyond this become unused NOL.
+    var nonPassive = _capDeductionAtOrdPool(cfg, nonPassiveRaw);
     var marginal = _fedMarginal(cfg) + _stateMarginal(cfg);
     _writeResult('slot07', {
       netBenefit: Math.max(0, Math.round(nonPassive * marginal)),
@@ -516,6 +539,9 @@
       detail: {
         yr1Loss: Math.round(yr1Loss),
         nonPassive: Math.round(nonPassive),
+        nonPassiveUncapped: Math.round(nonPassiveRaw),
+        deductionCappedByOrdPool: nonPassiveRaw > nonPassive,
+        ordIncomePool: Math.round(_ordIncomePoolY0(cfg)),
         suspended: active ? 0 : Math.round(yr1Loss)
       }
     });

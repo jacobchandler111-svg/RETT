@@ -2341,30 +2341,29 @@
 
   // Public helper for the Strategy-Selection page (controls.js
   // _refreshCard3Visibility). Returns the same NET BENEFIT that
-  // projection-dashboard would render for a given strategy type,
-  // computed using the optimized cfg (_autoPickSection picks leverage /
-  // horizon / recognition; _scenarioCfgFor builds the type-specific
-  // cfg; _scenarioMetrics returns tax + fee-adjusted net).
+  // projection-dashboard renders for a given strategy type.
   //
-  // This is the SAME math projection-dashboard uses for the scenario
-  // comparison table — so Page 3's "5% rule" visibility check stays
-  // consistent with what Page 4 will display. Returns null if compute
-  // fails (engine unavailable, malformed cfg, etc.).
-  root._computeBestNetForStrategy = function (type, baseCfg) {
-    if (!baseCfg || typeof _autoPickSection !== 'function') return null;
+  // Routes through buildInterestedSummary so the result reflects the
+  // FULL pipeline — _autoPickSection (leverage/horizon/recognition) +
+  // _scenarioMetrics + runBrooklynOptimizer's dial-back. Previous
+  // implementation called only _scenarioMetrics, which omitted the
+  // optimizer pass and could drift ~$15K from the displayed value.
+  // Same rankings either way, so the ±5% visibility band was stable,
+  // but absolute parity is cleaner and lets us reuse the band check
+  // against the actual user-facing number.
+  //
+  // Returns null if compute fails (engine unavailable, malformed cfg,
+  // etc.) or if the type isn't an A/B/C primary strategy.
+  root._computeBestNetForStrategy = function (type) {
+    if (type !== 'A' && type !== 'B' && type !== 'C') return null;
+    if (typeof buildInterestedSummary !== 'function') return null;
     try {
-      var picked = _autoPickSection(type, baseCfg);
-      if (!picked) return null;
-      var userDuration = (baseCfg.structuredSaleDurationMonths || 36);
-      var sectionCfg = Object.assign({}, baseCfg, {
-        horizonYears: picked.horizon,
-        leverage:     picked.shortPct / 100,
-        leverageCap:  picked.shortPct / 100,
-        comboId:      picked.comboId
-      });
-      var cfg = _scenarioCfgFor(type, sectionCfg, picked.bestRecC, userDuration);
-      var m = _scenarioMetrics(cfg);
-      return m && Number.isFinite(Number(m.net)) ? Number(m.net) : null;
+      var summary = buildInterestedSummary();
+      if (!summary || !summary.entries) return null;
+      var entry = summary.entries.find(function (e) { return e.type === type; });
+      if (!entry || !entry.metrics) return null;
+      var net = Number(entry.metrics.net);
+      return Number.isFinite(net) ? net : null;
     } catch (e) {
       return null;
     }
