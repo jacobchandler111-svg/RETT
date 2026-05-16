@@ -3755,7 +3755,9 @@ body { font-size: 16px; }
 }
 .rett-scenario-section-title-text {
     font-family: var(--font-display);
-    font-style: italic;
+    /* Was font-style: italic — Fraunces italic capital J has a long
+       descender swash that reads as malformed. Use upright. */
+    font-style: normal;
     font-weight: 500;
     font-size: 1.55em;
     color: var(--ink);
@@ -3779,7 +3781,8 @@ body { font-size: 16px; }
 .rett-details-section { margin-bottom: 32px; }
 .rett-details-section-title {
     font-family: var(--font-display);
-    font-style: italic;
+    /* Was font-style: italic — Fraunces italic J swash reads as malformed. */
+    font-style: normal;
     font-weight: 500;
     color: var(--ink);
     font-size: 1.4em;
