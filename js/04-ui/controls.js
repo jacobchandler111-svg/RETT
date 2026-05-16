@@ -957,29 +957,36 @@ function bindControls() {
   // of carrying over a Page-2 pill override the user clicked under the
   // old scenario. Without this, loading a saved client and editing
   // their sale price keeps the prior selection locked in.
-  // When the user types a sale/closing date, auto-mirror it into the
-  // strategy implementation date if that field is still blank. The user
-  // can then bump the strategy date later without losing the sale-date
-  // anchor. Once the strategy date has its own value, sale-date edits
-  // do NOT clobber it — that decoupling is the whole point of the field.
-  var saleDateInput = document.getElementById('implementation-date');
-  var strategyDateInput = document.getElementById('strategy-implementation-date');
-  if (saleDateInput && strategyDateInput) {
-    saleDateInput.addEventListener('change', function () {
+  // Each property has its own sale/closing date AND its own strategy
+  // implementation date. When the user types a sale-date, auto-mirror
+  // into THAT property's strategy date if it's still blank.
+  function _wireSaleStrategyMirror(saleId, stratId) {
+    var sd = document.getElementById(saleId);
+    var st = document.getElementById(stratId);
+    if (!sd || !st) return;
+    sd.addEventListener('change', function () {
       if (window.__rettApplyingState) return;
-      if (!strategyDateInput.value && saleDateInput.value) {
-        strategyDateInput.value = saleDateInput.value;
-        strategyDateInput.dispatchEvent(new Event('change', { bubbles: true }));
+      if (!st.value && sd.value) {
+        st.value = sd.value;
+        st.dispatchEvent(new Event('change', { bubbles: true }));
       }
     });
   }
+  _wireSaleStrategyMirror('implementation-date',   'strategy-implementation-date');
+  _wireSaleStrategyMirror('implementation-date-2', 'strategy-implementation-date-2');
+  _wireSaleStrategyMirror('implementation-date-3', 'strategy-implementation-date-3');
+  _wireSaleStrategyMirror('implementation-date-4', 'strategy-implementation-date-4');
+  _wireSaleStrategyMirror('implementation-date-5', 'strategy-implementation-date-5');
 
   ['custodian-select', 'year1', 'filing-status', 'state-code',
    'w2-wages', 'se-income', 'biz-revenue', 'rental-income',
    'dividend-income', 'retirement-distributions',
    'sale-price', 'cost-basis', 'accelerated-depreciation', 'short-term-gain',
    'withhold-yes-no', 'withhold-amount', 'implementation-date',
-   'strategy-implementation-date'
+   'strategy-implementation-date',
+   // Per-property strategy dates trigger re-derivation too.
+   'strategy-implementation-date-2', 'strategy-implementation-date-3',
+   'strategy-implementation-date-4', 'strategy-implementation-date-5'
   ].forEach(function (fid) {
     var el = document.getElementById(fid);
     if (!el) return;
@@ -1307,43 +1314,35 @@ function bindControls() {
     }
   });
 
-  // Strategy Implementation Date can't legally precede ANY property's
-  // Sale / Closing Date — proceeds don't exist to deploy until every
-  // included property has closed. Multi-property (Q1): take the LATEST
-  // active property close date as the floor. Updates whenever ANY of
-  // the per-property sale-date inputs changes.
-  var stratDateEl = document.getElementById('strategy-implementation-date');
-  if (stratDateEl) {
-    var _latestSaleDate = function () {
-      if (typeof window.__rettLatestPropertySaleDate === 'function') {
-        return window.__rettLatestPropertySaleDate();
-      }
-      var el = document.getElementById('implementation-date');
-      return el ? el.value : '';
-    };
-    var syncStrategyMin = function () {
-      var v = _latestSaleDate();
+  // Each property's Strategy Implementation Date can't legally precede
+  // its OWN Sale / Closing Date — that tranche's proceeds don't exist
+  // until the property closes. Per-property clamp (was shared in Q1,
+  // now per-property): each strategy-date min = same property's sale-date.
+  function _perPropertyDateClamp(saleId, stratId) {
+    var sd = document.getElementById(saleId);
+    var st = document.getElementById(stratId);
+    if (!sd || !st) return;
+    var syncMin = function () {
+      var v = sd.value || '';
       if (v) {
-        stratDateEl.min = v;
-        if (stratDateEl.value && stratDateEl.value < v) {
-          stratDateEl.value = v;
-          stratDateEl.dispatchEvent(new Event('change', { bubbles: true }));
+        st.min = v;
+        if (st.value && st.value < v) {
+          st.value = v;
+          st.dispatchEvent(new Event('change', { bubbles: true }));
         }
       } else {
-        stratDateEl.removeAttribute('min');
+        st.removeAttribute('min');
       }
     };
-    // Listen on every property sale-date input.
-    ['implementation-date',
-     'implementation-date-2','implementation-date-3',
-     'implementation-date-4','implementation-date-5'].forEach(function (id) {
-      var el = document.getElementById(id);
-      if (!el) return;
-      el.addEventListener('input', syncStrategyMin);
-      el.addEventListener('change', syncStrategyMin);
-    });
-    syncStrategyMin();
+    sd.addEventListener('input', syncMin);
+    sd.addEventListener('change', syncMin);
+    syncMin();
   }
+  _perPropertyDateClamp('implementation-date',   'strategy-implementation-date');
+  _perPropertyDateClamp('implementation-date-2', 'strategy-implementation-date-2');
+  _perPropertyDateClamp('implementation-date-3', 'strategy-implementation-date-3');
+  _perPropertyDateClamp('implementation-date-4', 'strategy-implementation-date-4');
+  _perPropertyDateClamp('implementation-date-5', 'strategy-implementation-date-5');
 
   // Multi-property (Q1) — Add / Remove handlers + per-property
   // computed-gain readouts. Property 1 keeps its existing computed-gain
@@ -1412,7 +1411,7 @@ function bindControls() {
       // Clear that block's input values so the aggregator doesn't pull
       // stale data when the user toggles it back on later.
       ['sale-price','cost-basis','accelerated-depreciation',
-       'implementation-date'].forEach(function (base) {
+       'implementation-date','strategy-implementation-date'].forEach(function (base) {
         var el = document.getElementById(base + '-' + n);
         if (!el) return;
         el.value = '';

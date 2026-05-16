@@ -46,8 +46,8 @@
   }
   function _stratName(type) {
     return type === 'A' ? 'Cash in Hand'
-      : type === 'B' ? 'Installment Sale'
-      : type === 'C' ? 'Installment Sale — Mitigating Buyer Default Risk' : 'Strategy';
+      : type === 'B' ? 'Payment January 1st'
+      : type === 'C' ? 'Installment Sale' : 'Strategy';
   }
 
   // Empty-state when the user lands on Page 4 without having picked a
@@ -478,8 +478,8 @@
     var dateStr = (today.getMonth()+1) + '/' + today.getDate() + '/' + today.getFullYear();
 
     var stratLabel  = d.entry.type === 'A' ? 'Cash in Hand'
-      : d.entry.type === 'B' ? 'Installment Sale'
-      : 'Installment Sale — Mitigating Buyer Default Risk';
+      : d.entry.type === 'B' ? 'Payment January 1st'
+      : 'Installment Sale';
     var stratNum = d.entry.type === 'A' ? '01' : d.entry.type === 'B' ? '02' : '03';
 
     // Tax comparison row

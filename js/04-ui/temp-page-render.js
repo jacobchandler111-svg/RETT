@@ -212,8 +212,8 @@
 
   function _stratLabel(t) {
     if (t === 'A') return 'Cash in Hand';
-    if (t === 'B') return 'Installment Sale';
-    if (t === 'C') return 'Installment Sale — Mitigating Buyer Default Risk';
+    if (t === 'B') return 'Payment January 1st';
+    if (t === 'C') return 'Installment Sale';
     return null;
   }
 

@@ -295,8 +295,13 @@
     cfg.costBasis = cfg.costBasis || _sumProp('cost-basis');
     cfg.acceleratedDepreciation = cfg.acceleratedDepreciation || _sumProp('accelerated-depreciation');
     cfg.implementationDate = cfg.implementationDate || _earliestDate();
+    // Per-property strategy date: use earliest active property's strategy date
+    // (falls back to Property 1 directly, then to sale date as last resort).
+    var _earliestStrat = (typeof window.__rettEarliestPropertyStrategyDate === 'function')
+      ? window.__rettEarliestPropertyStrategyDate
+      : function () { return (document.getElementById('strategy-implementation-date') || {}).value || ''; };
     cfg.strategyImplementationDate = cfg.strategyImplementationDate
-      || (document.getElementById('strategy-implementation-date') || {}).value
+      || _earliestStrat()
       || cfg.implementationDate || '';
     cfg.baseShortTermGain = cfg.baseShortTermGain
       || parseUSD((document.getElementById('short-term-gain') || {}).value) || 0;

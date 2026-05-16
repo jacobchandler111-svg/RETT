@@ -47,10 +47,10 @@
     // property's currency fields. Per-property visibility is restored
     // post-load by checking if any of the block's fields have data.
     'holding-period-1',
-    'sale-price-2', 'cost-basis-2', 'accelerated-depreciation-2', 'holding-period-2', 'implementation-date-2',
-    'sale-price-3', 'cost-basis-3', 'accelerated-depreciation-3', 'holding-period-3', 'implementation-date-3',
-    'sale-price-4', 'cost-basis-4', 'accelerated-depreciation-4', 'holding-period-4', 'implementation-date-4',
-    'sale-price-5', 'cost-basis-5', 'accelerated-depreciation-5', 'holding-period-5', 'implementation-date-5',
+    'sale-price-2', 'cost-basis-2', 'accelerated-depreciation-2', 'holding-period-2', 'implementation-date-2', 'strategy-implementation-date-2',
+    'sale-price-3', 'cost-basis-3', 'accelerated-depreciation-3', 'holding-period-3', 'implementation-date-3', 'strategy-implementation-date-3',
+    'sale-price-4', 'cost-basis-4', 'accelerated-depreciation-4', 'holding-period-4', 'implementation-date-4', 'strategy-implementation-date-4',
+    'sale-price-5', 'cost-basis-5', 'accelerated-depreciation-5', 'holding-period-5', 'implementation-date-5', 'strategy-implementation-date-5',
     // Page 1: Sale Proceeds questions (drive Available Capital)
     'withhold-yes-no', 'withhold-amount', 'cover-taxes-yes-no',
     // Page 1: Future Sale Loss Target (drives the optimizer's decision
@@ -302,10 +302,12 @@
       var cbVal = state['cost-basis-' + pn];
       var adVal = state['accelerated-depreciation-' + pn];
       var idVal = state['implementation-date-' + pn];
+      var sdVal = state['strategy-implementation-date-' + pn];
       var hasData = (spVal && String(spVal).trim()) ||
                     (cbVal && String(cbVal).trim()) ||
                     (adVal && String(adVal).trim()) ||
-                    (idVal && String(idVal).trim());
+                    (idVal && String(idVal).trim()) ||
+                    (sdVal && String(sdVal).trim());
       if (hasData) {
         var block = document.getElementById('property-' + pn);
         if (block) block.hidden = false;

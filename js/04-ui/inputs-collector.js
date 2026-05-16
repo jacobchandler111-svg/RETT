@@ -58,9 +58,9 @@ function _earliestPropertySaleDate() {
       dates.sort();
       return dates[0] || '';
 }
-// Latest sale date across active properties (used to clamp the shared
-// Strategy Implementation Date — Brooklyn shouldn't deploy before every
-// property has closed).
+// Latest sale date across active properties (used to clamp per-property
+// strategy-impl-date — each tranche shouldn't deploy before that property
+// has closed).
 function _latestPropertySaleDate() {
       const dates = [];
       for (let n = 1; n <= 5; n++) {
@@ -70,6 +70,21 @@ function _latestPropertySaleDate() {
       }
       dates.sort();
       return dates[dates.length - 1] || '';
+}
+// Earliest Strategy Implementation Date across active properties. The
+// engine's cfg.strategyImplementationDate is the FIRST tranche - when
+// Brooklyn opens the position. Subsequent tranches can deposit later
+// per-property, but for the existing single-date engine the earliest is
+// the correct anchor for fee proration + Y0 deployment.
+function _earliestPropertyStrategyDate() {
+      const dates = [];
+      for (let n = 1; n <= 5; n++) {
+            if (!_propertyIsActive(n)) continue;
+            const el = document.getElementById(_propertyFieldId('strategy-implementation-date', n));
+            if (el && el.value) dates.push(el.value);
+      }
+      dates.sort();
+      return dates[0] || '';
 }
 
 // ---- Per-property holding-period routing (Q2) ----
@@ -110,6 +125,7 @@ if (typeof window !== 'undefined') {
       window.__rettSumPropertyField = _sumPropertyField;
       window.__rettEarliestPropertySaleDate = _earliestPropertySaleDate;
       window.__rettLatestPropertySaleDate = _latestPropertySaleDate;
+      window.__rettEarliestPropertyStrategyDate = _earliestPropertyStrategyDate;
       window.__rettPropertyIsActive = _propertyIsActive;
       window.__rettShortTermPropertyGain = _shortTermPropertyGain;
       window.__rettPropertyHoldingPeriod = _propertyHoldingPeriod;
@@ -234,7 +250,12 @@ function collectInputs() {
                 //   cfg.strategyImplementationDate || cfg.implementationDate
                 // so older saved cases (which only carry implementationDate)
                 // continue to work without migration.
-                strategyImplementationDate: _val('strategy-implementation-date') || _val('implementation-date') || '',
+                // Each property has its own Strategy Implementation Date.
+                // For the existing single-date engine, use the EARLIEST
+                // active property's strategy date (when Brooklyn opens
+                // the position - first tranche). Falls back to Property 1's
+                // direct field if helpers haven't loaded yet.
+                strategyImplementationDate: _earliestPropertyStrategyDate() || _val('strategy-implementation-date') || _val('implementation-date') || '',
                 // Structured-sale product term (months from sale date to
                 // maturity). Empty input → 36-month default (regulatory
                 // minimum as of 2026-05-08; 3 years of yearly Jan-1
