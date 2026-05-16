@@ -522,11 +522,13 @@ function _refreshCard3Visibility() {
     || !allFinite
     || (netB > netA);
 
-  // Card 3: C beats BOTH A and B, OR user flagged default-risk concern.
-  // Without finite nets we default to hiding C; it only surfaces when
-  // the engine confirms it leads.
+  // Card 3: C beats BOTH A and B by at least 5%, OR user flagged
+  // default-risk concern. The 5% margin keeps Card 3 from popping in
+  // for trivial wins (where C edges B by a fraction of a percent and
+  // the difference is dominated by rounding / optimizer noise). Without
+  // finite nets we default to hiding C.
   var card3Visible = defaultRiskYes
-    || (allFinite && netC > netA && netC > netB);
+    || (allFinite && netC > netA * 1.05 && netC > netB * 1.05);
 
   // Hide C first so it can't sit beside Card 2 in a weird "C visible but
   // 2 hidden" state. Visible-list math below handles the layout class.
@@ -537,27 +539,32 @@ function _refreshCard3Visibility() {
 
   // Default-risk question visibility — the question is only useful
   // when C is a *latent* option the user could surface manually. The
-  // logic:
-  //   - defaultRiskYes (user opted in)  → KEEP visible so they can
-  //     toggle back off; hiding it would be a dead-end.
-  //   - C dominates on merit             → hide (already showing Card 3
-  //                                         on its own, no need to ask).
-  //   - C trails best A/B by ≥10%        → hide (not worth considering
-  //                                         even as a hedge).
-  //   - C close (within 10%) but loses   → show — this is the case
-  //                                         where the question matters:
-  //                                         a worried-about-default user
-  //                                         can flip to the multi-year
-  //                                         spread option without
-  //                                         sacrificing much net.
+  // toggle lives in a 10% window around the best of A/B: bestAB±5%.
+  //   - defaultRiskYes (user opted in)   → KEEP visible so they can
+  //                                         toggle back off; hiding it
+  //                                         would be a dead-end.
+  //   - C dominates by 5%+               → hide (Card 3 already up on
+  //                                         its own merit, no need
+  //                                         to ask).
+  //   - C is within bestAB ±5%           → show — the band where C is
+  //                                         a meaningful default-risk
+  //                                         hedge without giving up
+  //                                         much net.
+  //   - C trails by >5%                  → hide (gap too large to be
+  //                                         worth considering as a
+  //                                         hedge).
   var hideDefaultRiskQ;
   if (defaultRiskYes) {
     hideDefaultRiskQ = false;
-  } else if (allFinite && netC > netA && netC > netB) {
-    hideDefaultRiskQ = true;
   } else if (allFinite) {
     var bestAB = Math.max(netA, netB);
-    hideDefaultRiskQ = (bestAB > 0 && netC < bestAB * 0.90);
+    if (bestAB > 0 && netC > bestAB * 1.05) {
+      hideDefaultRiskQ = true;          // C dominates → hide
+    } else if (bestAB > 0 && netC >= bestAB * 0.95) {
+      hideDefaultRiskQ = false;         // within ±5% band → show
+    } else {
+      hideDefaultRiskQ = true;          // C trails by >5% → hide
+    }
   } else {
     hideDefaultRiskQ = false;
   }
