@@ -104,6 +104,57 @@ function _propertyHoldingPeriod(n) {
       // today. Only an explicit 'no' selection routes the gain to ST.
       return (el && el.value === 'no') ? 'short' : 'long';
 }
+// ---- Multi-property year-of-sale schedule ----
+// When a client has multiple properties closing in DIFFERENT calendar
+// years (e.g. P1 in 2026 and P2 in 2027), each property's gain belongs
+// in its own tax year — not aggregated into the earliest-year Y0 lump
+// that the engine has historically used. This helper builds a year-
+// offset map of LT gain + recapture + ST property gain so the engine
+// (specifically _baseScenarioForYear in tax-comparison.js) can apply
+// the right gain to the right year.
+//
+// Shape: [{ yearOffset, ltGain, recapture, stPropertyGain, saleDate }, ...]
+// where yearOffset is 0-indexed relative to cfg.year1.
+//
+// Returns [] when every active property closes in the same calendar
+// year — the engine falls through to the legacy aggregate path in
+// that case (no behavior change for the common single-year scenario).
+function _propertyGainSchedule(baseYear) {
+      var byYear = {};
+      var dates = [];
+      for (var n = 1; n <= 5; n++) {
+            if (!_propertyIsActive(n)) continue;
+            var sp   = parseUSD((document.getElementById(_propertyFieldId('sale-price', n)) || {}).value) || 0;
+            var cb   = parseUSD((document.getElementById(_propertyFieldId('cost-basis', n)) || {}).value) || 0;
+            var depr = parseUSD((document.getElementById(_propertyFieldId('accelerated-depreciation', n)) || {}).value) || 0;
+            var dateStr = (document.getElementById(_propertyFieldId('implementation-date', n)) || {}).value || '';
+            if (!dateStr || sp <= 0) continue;
+            var yr = parseInt(dateStr.slice(0, 4), 10);
+            if (!Number.isFinite(yr)) continue;
+            var isShort = _propertyHoldingPeriod(n) === 'short';
+            var rawGain = Math.max(0, sp - cb - depr);
+            byYear[yr] = byYear[yr] || { yearOffset: yr - baseYear, ltGain: 0, recapture: 0, stPropertyGain: 0, saleYears: [] };
+            byYear[yr].recapture += Math.max(0, depr);
+            if (isShort) byYear[yr].stPropertyGain += rawGain;
+            else         byYear[yr].ltGain         += rawGain;
+            byYear[yr].saleYears.push(yr);
+            dates.push(dateStr);
+      }
+      var keys = Object.keys(byYear).map(Number).sort(function (a, b) { return a - b; });
+      // No multi-year split needed when every property lands in the same year.
+      if (keys.length < 2) return [];
+      return keys.map(function (yr) {
+            var b = byYear[yr];
+            return {
+                  yearOffset:     b.yearOffset,
+                  ltGain:         b.ltGain,
+                  recapture:      b.recapture,
+                  stPropertyGain: b.stPropertyGain,
+                  saleYear:       yr
+            };
+      });
+}
+
 // Sum the gain (sale − basis − depr, clamped at 0) for every active
 // property the user marked as short-term-held.
 function _shortTermPropertyGain() {
@@ -253,6 +304,17 @@ function collectInputs() {
                 salePrice:               _sumPropertyField('sale-price'),
                 costBasis:               _sumPropertyField('cost-basis'),
                 acceleratedDepreciation: _sumPropertyField('accelerated-depreciation'),
+                // Multi-property year-of-sale schedule (Q1-extended).
+                // Empty array when every property closes in the same
+                // calendar year — engine falls through to the legacy
+                // aggregate (no behavior change). When non-empty, the
+                // engine routes each year's gain into its own row of
+                // the without-sale baseline instead of stacking the
+                // full aggregate into Y0. See _propertyGainSchedule
+                // above for shape.
+                propertyGainSchedule: _propertyGainSchedule(
+                      parseInt(_val('year1'), 10) || new Date().getFullYear()
+                ),
                 // Per-property holding-period split (Q2). Engine readers
                 // subtract this from the LT-gain formula and add it to
                 // the ST-gain (ordinary-rate) tax base.

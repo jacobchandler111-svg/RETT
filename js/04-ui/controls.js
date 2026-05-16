@@ -1472,6 +1472,24 @@ function bindControls() {
   _perPropertyDateClamp('implementation-date-4', 'strategy-implementation-date-4');
   _perPropertyDateClamp('implementation-date-5', 'strategy-implementation-date-5');
 
+  // Multi-year-sale notice: re-evaluate whenever any property's sale
+  // date or sale price changes. The notice is hidden by default and
+  // shows only when two or more visible properties have sale dates
+  // in DIFFERENT calendar years.
+  ['implementation-date', 'implementation-date-2', 'implementation-date-3',
+   'implementation-date-4', 'implementation-date-5',
+   'sale-price', 'sale-price-2', 'sale-price-3', 'sale-price-4', 'sale-price-5'
+  ].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var evt = (el.tagName === 'SELECT') ? 'change' : 'input';
+    el.addEventListener(evt, function () {
+      if (typeof window.__rettRefreshMultiPropertyMode === 'function') {
+        window.__rettRefreshMultiPropertyMode();
+      }
+    });
+  });
+
   // Multi-property (Q1) — Add / Remove handlers + per-property
   // computed-gain readouts. Property 1 keeps its existing computed-gain
   // listener (managed by recommendation-render.js); Properties 2-5 get
@@ -1503,16 +1521,35 @@ function bindControls() {
       // Inject the Property 1 header lazily — it doesn't exist in the
       // HTML scaffold (Property 1 ships without a header in single mode).
       var p1 = document.getElementById('property-1');
-      if (!p1) return;
-      var existingHeader = p1.querySelector('.property-block-header');
-      if (multi && !existingHeader) {
-        var hdr = document.createElement('div');
-        hdr.className = 'property-block-header';
-        var title = document.createElement('h3');
-        title.className = 'property-block-title';
-        title.textContent = 'Property 1';
-        hdr.appendChild(title);
-        p1.insertBefore(hdr, p1.firstChild);
+      if (p1) {
+        var existingHeader = p1.querySelector('.property-block-header');
+        if (multi && !existingHeader) {
+          var hdr = document.createElement('div');
+          hdr.className = 'property-block-header';
+          var title = document.createElement('h3');
+          title.className = 'property-block-title';
+          title.textContent = 'Property 1';
+          hdr.appendChild(title);
+          p1.insertBefore(hdr, p1.firstChild);
+        }
+      }
+      // Multi-year notice: visible only when two or more visible property
+      // blocks have implementation-date values that fall in DIFFERENT
+      // calendar years. cfg.propertyGainSchedule carries the per-year
+      // data; the engine still aggregates to the earliest year so we
+      // surface the limitation here.
+      var notice = document.getElementById('multi-year-sale-notice');
+      if (notice) {
+        var years = {};
+        _visibleSlots().forEach(function (n) {
+          var dEl = document.getElementById((n === 1) ? 'implementation-date' : ('implementation-date-' + n));
+          var spEl = document.getElementById((n === 1) ? 'sale-price' : ('sale-price-' + n));
+          var sp = spEl ? (parseFloat(String(spEl.value).replace(/[^\d.-]/g, '')) || 0) : 0;
+          if (sp <= 0 || !dEl || !dEl.value) return;
+          var yr = dEl.value.slice(0, 4);
+          if (yr) years[yr] = true;
+        });
+        notice.hidden = Object.keys(years).length < 2;
       }
     }
     function _showNextSlot() {
