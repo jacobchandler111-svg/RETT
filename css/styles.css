@@ -3767,9 +3767,13 @@ body { font-size: 16px; }
     gap: 14px;
 }
 .rett-scenario-section-title-text {
-    font-family: var(--font-display);
-    /* Was font-style: italic — Fraunces italic capital J has a long
-       descender swash that reads as malformed. Use upright. */
+    /* Fraunces capital J — even in upright weight — has a distinctive
+       curled descender that reads as a "weird divot" in titles like
+       "Payment January 1st". Switch this specific title to Georgia
+       (which Fraunces stack falls back to anyway) so the J renders
+       conventionally. Other Fraunces elements (body display, etc.)
+       are unaffected. */
+    font-family: Georgia, 'Times New Roman', serif;
     font-style: normal;
     font-weight: 500;
     font-size: 1.55em;
@@ -3793,8 +3797,9 @@ body { font-size: 16px; }
 /* DETAILS TABLES */
 .rett-details-section { margin-bottom: 32px; }
 .rett-details-section-title {
-    font-family: var(--font-display);
-    /* Was font-style: italic — Fraunces italic J swash reads as malformed. */
+    /* Same Fraunces J issue as .rett-scenario-section-title-text - swap
+       to Georgia so titles containing "January" render with a normal J. */
+    font-family: Georgia, 'Times New Roman', serif;
     font-style: normal;
     font-weight: 500;
     color: var(--ink);
