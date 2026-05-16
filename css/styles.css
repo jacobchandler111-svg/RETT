@@ -3942,6 +3942,17 @@ body { font-size: 16px; }
     width: 90px;
 }
 
+/* When controls.js sets card.hidden = true on Card 3 (5% rule fails AND
+   default-risk = No), the user-agent `[hidden] { display: none }` rule
+   is normally enough. But the .strategy-pick-card rule below sets
+   display: grid with a higher-specificity class selector, which beats
+   the attribute selector and leaves the "hidden" card visible — it
+   falls under Cards 1+2 as an orphan 3rd grid item, breaking the
+   centered 2-card layout. This rule restores the intended hide
+   semantics with !important. */
+.strategy-pick-card[hidden] {
+    display: none !important;
+}
 .strategy-pick-card {
     background: var(--paper);
     border: 1px solid var(--rule);
