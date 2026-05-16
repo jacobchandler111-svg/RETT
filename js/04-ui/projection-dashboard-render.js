@@ -603,13 +603,13 @@
     });
     if (mB) rows.push({
       type: 'B', rec: 2, maxRec: 1,
-      label: 'Payment January 1st',
+      label: 'Installment Sale',
       sub: 'Gain hits Year 2 naturally — no structured-sale product needed',
       metrics: mB
     });
     if (bestC) rows.push({
       type: 'C', rec: bestRecC, maxRec: null,
-      label: 'Installment Sale (' + userDuration + ' months)',
+      label: 'Structured Installment Sale (' + userDuration + ' months)',
       sub: 'Insurance product defers gain to Year ' + bestRecC + ' under the legal window',
       metrics: bestC
     });
@@ -2221,9 +2221,9 @@
     }
 
     var entries = [];
-    if (mA) entries.push({ type: 'A', num: '01', name: 'Cash in Hand',         picked: pickedA.picked, metrics: mA, loss: lossA, payments: '',        cfg: pickedA.cfg, visuals: visualsA });
-    if (mB) entries.push({ type: 'B', num: '02', name: 'Payment January 1st',  picked: pickedB.picked, metrics: mB, loss: lossB, payments: '',        cfg: pickedB.cfg, visuals: visualsB });
-    if (mC) entries.push({ type: 'C', num: '03', name: 'Installment Sale',     picked: pickedC.picked, metrics: mC, loss: lossC, payments: paymentsC, cfg: pickedC.cfg, visuals: visualsC });
+    if (mA) entries.push({ type: 'A', num: '01', name: 'Cash in Hand',                 picked: pickedA.picked, metrics: mA, loss: lossA, payments: '',        cfg: pickedA.cfg, visuals: visualsA });
+    if (mB) entries.push({ type: 'B', num: '02', name: 'Installment Sale',             picked: pickedB.picked, metrics: mB, loss: lossB, payments: '',        cfg: pickedB.cfg, visuals: visualsB });
+    if (mC) entries.push({ type: 'C', num: '03', name: 'Structured Installment Sale',  picked: pickedC.picked, metrics: mC, loss: lossC, payments: paymentsC, cfg: pickedC.cfg, visuals: visualsC });
 
     if (!entries.length) return null;
 

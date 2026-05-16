@@ -3864,15 +3864,47 @@ body { font-size: 16px; }
 
 /* The grid: three equal columns, big enough to take the screen.
    Wraps to a single column under ~1000px so phones / narrow windows
-   still read top-to-bottom. */
+   still read top-to-bottom.
+   .strategy-pick-grid--two-only: applied by controls.js when Card 3
+   (Structured Installment Sale) is hidden. Switches the grid to a
+   centered 2-column auto-width layout so Cards 1 + 2 don't sprawl
+   across the full row. */
 .strategy-pick-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 22px;
     align-items: stretch;
 }
+.strategy-pick-grid--two-only {
+    grid-template-columns: minmax(0, 380px) minmax(0, 380px);
+    justify-content: center;
+}
 @media (max-width: 1000px) {
-    .strategy-pick-grid { grid-template-columns: 1fr; }
+    .strategy-pick-grid,
+    .strategy-pick-grid--two-only { grid-template-columns: 1fr; }
+}
+
+/* Default-risk question on Card 2 — sits above the Interested /
+   Not Interested buttons. Compact horizontal row with the label on
+   the left and the yes/no select on the right. */
+.strategy-default-risk-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 0;
+    margin-top: 8px;
+    border-top: 1px dashed var(--rule);
+}
+.strategy-default-risk-label {
+    font-size: 0.92em;
+    color: var(--ink);
+    font-weight: 600;
+    flex: 1 1 auto;
+}
+.strategy-default-risk-row select.yes-no {
+    flex: 0 0 auto;
+    width: 90px;
 }
 
 .strategy-pick-card {

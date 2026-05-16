@@ -469,6 +469,50 @@ function _refreshStrategyLockupDisplays() {
   }
 }
 
+// Strategy Card 3 (Structured Installment Sale) visibility logic.
+// Card 3 is hidden by default. Reveal when EITHER:
+//   (a) the default-risk-yes-no toggle on Card 2 is "yes", OR
+//   (b) Card 3's net benefit is at least 5% above BOTH Card 1 and Card 2.
+// When Card 3 is hidden, mark the grid with .strategy-pick-grid--two-only
+// so CSS can center Cards 1 + 2.
+function _refreshCard3Visibility() {
+  var c3 = document.getElementById('strategy-pick-C');
+  var grid = document.getElementById('strategy-pick-list');
+  if (!c3 || !grid) return;
+
+  var defaultRiskEl = document.getElementById('default-risk-yes-no');
+  var defaultRiskYes = !!(defaultRiskEl && defaultRiskEl.value === 'yes');
+
+  // 5% net-benefit rule. Compute approximate net = totalSavings for each
+  // scenario via direct engine call. Fees are not subtracted here — for
+  // the visibility threshold check, savings is the right proxy and the
+  // 5% margin is generous enough to absorb fee differences.
+  var fivePctRule = false;
+  try {
+    if (typeof collectInputs === 'function' && typeof window.unifiedTaxComparison === 'function') {
+      var baseCfg = collectInputs();
+      if (baseCfg && (Number(baseCfg.salePrice) || 0) > 0) {
+        var cfgA = Object.assign({}, baseCfg, { recognitionStartYearIndex: 0 });
+        var cfgB = Object.assign({}, baseCfg, { recognitionStartYearIndex: 1, maxRecognitionYearIndex: 1 });
+        var cfgC = Object.assign({}, baseCfg, { recognitionStartYearIndex: 1, structuredSaleDurationMonths: baseCfg.structuredSaleDurationMonths || 36 });
+        var compA = window.unifiedTaxComparison(cfgA);
+        var compB = window.unifiedTaxComparison(cfgB);
+        var compC = window.unifiedTaxComparison(cfgC);
+        var netA = (compA && Number(compA.totalSavings)) || 0;
+        var netB = (compB && Number(compB.totalSavings)) || 0;
+        var netC = (compC && Number(compC.totalSavings)) || 0;
+        if (netC > netA * 1.05 && netC > netB * 1.05) {
+          fivePctRule = true;
+        }
+      }
+    }
+  } catch (e) { fivePctRule = false; }
+
+  var visible = defaultRiskYes || fivePctRule;
+  c3.hidden = !visible;
+  grid.classList.toggle('strategy-pick-grid--two-only', !visible);
+}
+
 function _monthsUntilNextJan1(isoDate) {
   if (!isoDate) return null;
   var d = (typeof window !== 'undefined' && typeof window.parseLocalDate === 'function')
@@ -556,6 +600,13 @@ function showPage(id) {
     } catch (e) { (window.reportFailure || console.warn)('Strategy preview render failed', e); }
     if (typeof _refreshStrategyPickCards === 'function') {
       try { _refreshStrategyPickCards(); } catch (e) { /* */ }
+    }
+    // Evaluate Card 3 visibility on every page-strategies entry:
+    //   - Show if Card 3 net is at least 5% above BOTH Card 1 and Card 2,
+    //   - OR if the user toggled "Is default risk a concern?" to Yes.
+    //   - Otherwise hide; Cards 1 + 2 center via .strategy-pick-grid--two-only.
+    if (typeof _refreshCard3Visibility === 'function') {
+      try { _refreshCard3Visibility(); } catch (e) { /* */ }
     }
   }
 
@@ -1639,6 +1690,13 @@ function bindControls() {
     showPage('page-supplemental');
   });
   var strategiesBack = document.getElementById('strategies-back');
+  // Default-risk toggle on Card 2 — change re-evaluates Card 3 visibility.
+  var defaultRiskEl = document.getElementById('default-risk-yes-no');
+  if (defaultRiskEl) {
+    defaultRiskEl.addEventListener('change', function () {
+      if (typeof _refreshCard3Visibility === 'function') _refreshCard3Visibility();
+    });
+  }
   if (strategiesBack) strategiesBack.addEventListener('click', function () { showPage('page-inputs'); });
   var strategiesContinue = document.getElementById('strategies-continue');
   if (strategiesContinue) strategiesContinue.addEventListener('click', function () { showPage('page-projection'); });
