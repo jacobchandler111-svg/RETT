@@ -3906,6 +3906,13 @@ body { font-size: 16px; }
 .strategy-pick-grid--two-only {
     grid-template-columns: minmax(0, 460px) minmax(0, 460px);
 }
+/* Single-card mode — when Strategy A beats both B and C (and the user
+   hasn't flagged default-risk), Cards 2 and 3 collapse and Card 1
+   centers alone at a slightly larger width so it doesn't feel orphaned
+   in dead space. */
+.strategy-pick-grid--one-only {
+    grid-template-columns: minmax(0, 520px);
+}
 .strategy-pick-grid .strategy-pick-card {
     /* min-width:0 lets the grid track shrink below the card's intrinsic
        min-content width — keeps three cards on one row even when the

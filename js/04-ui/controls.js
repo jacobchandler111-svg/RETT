@@ -469,54 +469,75 @@ function _refreshStrategyLockupDisplays() {
   }
 }
 
-// Strategy Card 3 (Structured Installment Sale) visibility logic.
-// Card 3 is hidden by default. Reveal when EITHER:
-//   (a) the default-risk-yes-no toggle on Card 2 is "yes", OR
-//   (b) Card 3's net benefit is at least 5% above BOTH Card 1 and Card 2.
-// When Card 3 is hidden, mark the grid with .strategy-pick-grid--two-only
-// so CSS can center Cards 1 + 2.
+// Strategy card visibility — per advisor spec the cards are progressive:
+//   Card 1 (Proceeds at Sale)     always visible — the baseline option
+//   Card 2 (Installment Sale)     shown when Strategy B beats A on net
+//                                  benefit (any margin), or when the
+//                                  default-risk toggle is Yes (so the
+//                                  toggle itself stays accessible to flip
+//                                  back off).
+//   Card 3 (Structured Installment Sale) shown when Strategy C beats
+//                                  BOTH A and B (any margin), or when
+//                                  default-risk toggle is Yes.
+//
+// Grid layout classes:
+//   .strategy-pick-grid--one-only  one centered card  (only A wins)
+//   .strategy-pick-grid--two-only  two centered cards (A + B)
+//   (no class)                     three-up           (A + B + C)
+//
+// Net benefits come from window._computeBestNetForStrategy (exposed by
+// projection-dashboard-render.js), which runs the same optimized
+// _autoPickSection -> _scenarioCfgFor -> _scenarioMetrics pipeline the
+// Page 4 dashboard uses. Earlier direct unifiedTaxComparison calls were
+// returning equal netB and netC for many scenarios because they
+// bypassed the optimizer.
 function _refreshCard3Visibility() {
+  var c2 = document.getElementById('strategy-pick-B');
   var c3 = document.getElementById('strategy-pick-C');
   var grid = document.getElementById('strategy-pick-list');
-  if (!c3 || !grid) return;
+  if (!c2 || !c3 || !grid) return;
 
   var defaultRiskEl = document.getElementById('default-risk-yes-no');
   var defaultRiskYes = !!(defaultRiskEl && defaultRiskEl.value === 'yes');
 
-  // 5% net-benefit rule — uses the SAME optimized-cfg + fee-adjusted
-  // net that projection-dashboard renders for the scenario comparison
-  // table. window._computeBestNetForStrategy (exposed from
-  // projection-dashboard-render.js) calls _autoPickSection +
-  // _scenarioCfgFor + _scenarioMetrics so Page 3's visibility check
-  // stays consistent with Page 4's display.
-  //
-  // Earlier naive direct unifiedTaxComparison calls produced equal netB
-  // and netC for many scenarios (engine didn't distinguish Y1-lump-sum
-  // from multi-year-spread without optimization) — the optimized helper
-  // resolves that.
-  var fivePctRule = false;
+  var netA = NaN, netB = NaN, netC = NaN;
   try {
     if (typeof collectInputs === 'function' && typeof window._computeBestNetForStrategy === 'function') {
       var baseCfg = collectInputs();
       if (baseCfg && (Number(baseCfg.salePrice) || 0) > 0) {
-        var netA = window._computeBestNetForStrategy('A', baseCfg);
-        var netB = window._computeBestNetForStrategy('B', baseCfg);
-        var netC = window._computeBestNetForStrategy('C', baseCfg);
-        // Require all three to be finite, positive numbers AND require
-        // C to exceed BOTH A and B by 5%. Any null / zero falls back to
-        // "don't fire" so we don't show C from a stale or partial compute.
-        if (Number.isFinite(netA) && Number.isFinite(netB) && Number.isFinite(netC)
-            && netA > 0 && netB > 0 && netC > 0
-            && netC > netA * 1.05 && netC > netB * 1.05) {
-          fivePctRule = true;
-        }
+        netA = window._computeBestNetForStrategy('A', baseCfg);
+        netB = window._computeBestNetForStrategy('B', baseCfg);
+        netC = window._computeBestNetForStrategy('C', baseCfg);
       }
     }
-  } catch (e) { fivePctRule = false; }
+  } catch (e) { /* swallow — fall through with NaN nets */ }
 
-  var visible = defaultRiskYes || fivePctRule;
-  c3.hidden = !visible;
-  grid.classList.toggle('strategy-pick-grid--two-only', !visible);
+  var allFinite = Number.isFinite(netA) && Number.isFinite(netB) && Number.isFinite(netC);
+
+  // Card 2: B beats A on net benefit, OR user flagged default-risk concern.
+  // If we couldn't compute nets (no sale price yet, engine error, etc.),
+  // fall back to showing Card 2 so the advisor isn't stuck on Card 1
+  // without other options.
+  var card2Visible = defaultRiskYes
+    || !allFinite
+    || (netB > netA);
+
+  // Card 3: C beats BOTH A and B, OR user flagged default-risk concern.
+  // Without finite nets we default to hiding C; it only surfaces when
+  // the engine confirms it leads.
+  var card3Visible = defaultRiskYes
+    || (allFinite && netC > netA && netC > netB);
+
+  // Hide C first so it can't sit beside Card 2 in a weird "C visible but
+  // 2 hidden" state. Visible-list math below handles the layout class.
+  if (!card2Visible && card3Visible) card2Visible = true;
+
+  c2.hidden = !card2Visible;
+  c3.hidden = !card3Visible;
+
+  grid.classList.toggle('strategy-pick-grid--one-only', card2Visible === false);
+  grid.classList.toggle('strategy-pick-grid--two-only',
+    card2Visible === true && card3Visible === false);
 }
 
 function _monthsUntilNextJan1(isoDate) {
