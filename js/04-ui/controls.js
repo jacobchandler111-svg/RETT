@@ -535,6 +535,34 @@ function _refreshCard3Visibility() {
   c2.hidden = !card2Visible;
   c3.hidden = !card3Visible;
 
+  // Default-risk question visibility — the question is only useful
+  // when C is a *latent* option the user could surface manually. The
+  // logic:
+  //   - defaultRiskYes (user opted in)  → KEEP visible so they can
+  //     toggle back off; hiding it would be a dead-end.
+  //   - C dominates on merit             → hide (already showing Card 3
+  //                                         on its own, no need to ask).
+  //   - C trails best A/B by ≥10%        → hide (not worth considering
+  //                                         even as a hedge).
+  //   - C close (within 10%) but loses   → show — this is the case
+  //                                         where the question matters:
+  //                                         a worried-about-default user
+  //                                         can flip to the multi-year
+  //                                         spread option without
+  //                                         sacrificing much net.
+  var hideDefaultRiskQ;
+  if (defaultRiskYes) {
+    hideDefaultRiskQ = false;
+  } else if (allFinite && netC > netA && netC > netB) {
+    hideDefaultRiskQ = true;
+  } else if (allFinite) {
+    var bestAB = Math.max(netA, netB);
+    hideDefaultRiskQ = (bestAB > 0 && netC < bestAB * 0.90);
+  } else {
+    hideDefaultRiskQ = false;
+  }
+  grid.classList.toggle('strategy-pick-grid--no-default-risk', hideDefaultRiskQ);
+
   grid.classList.toggle('strategy-pick-grid--one-only', card2Visible === false);
   grid.classList.toggle('strategy-pick-grid--two-only',
     card2Visible === true && card3Visible === false);

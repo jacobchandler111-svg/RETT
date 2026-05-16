@@ -3913,6 +3913,14 @@ body { font-size: 16px; }
 .strategy-pick-grid--one-only {
     grid-template-columns: minmax(0, 520px);
 }
+/* "Hide default-risk question" mode — applied by controls.js when
+   Card 3 is already shown (C won on its own merits) OR when C trails
+   the best of A/B by ≥10% (not worth considering even as a hedge).
+   Collapses the question row across ALL three cards together so the
+   Interested / Not Interested button row stays aligned horizontally. */
+.strategy-pick-grid--no-default-risk .strategy-default-risk-row {
+    display: none;
+}
 .strategy-pick-grid .strategy-pick-card {
     /* min-width:0 lets the grid track shrink below the card's intrinsic
        min-content width — keeps three cards on one row even when the
