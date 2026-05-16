@@ -3867,17 +3867,27 @@ body { font-size: 16px; }
    still read top-to-bottom.
    .strategy-pick-grid--two-only: applied by controls.js when Card 3
    (Structured Installment Sale) is hidden. Switches the grid to a
-   centered 2-column auto-width layout so Cards 1 + 2 don't sprawl
-   across the full row. */
+   centered 2-column auto-width layout with slightly larger columns
+   so Cards 1 + 2 read as the "primary pair" rather than two leftover
+   cards from a 3-up grid. When Card 3 appears, the two existing cards
+   shrink to make room and the third joins them on the same row. */
 .strategy-pick-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 22px;
     align-items: stretch;
+    justify-content: center;
 }
 .strategy-pick-grid--two-only {
-    grid-template-columns: minmax(0, 380px) minmax(0, 380px);
-    justify-content: center;
+    grid-template-columns: minmax(0, 460px) minmax(0, 460px);
+}
+.strategy-pick-grid .strategy-pick-card {
+    /* min-width:0 lets the grid track shrink below the card's intrinsic
+       min-content width — keeps three cards on one row even when the
+       headline copy or strategy name is long. transition smooths the
+       resize when Card 3 toggles on/off. */
+    min-width: 0;
+    transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s, max-width 0.25s ease;
 }
 @media (max-width: 1000px) {
     .strategy-pick-grid,
