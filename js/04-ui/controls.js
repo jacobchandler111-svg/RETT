@@ -1703,6 +1703,31 @@ function bindControls() {
       if (typeof _refreshCard3Visibility === 'function') _refreshCard3Visibility();
     });
   }
+  // Click-toggle wrapping the hidden <select>. Flip data-state on each
+  // click, write through to the select.value, and fire a synthetic
+  // change so everything downstream (including _refreshCard3Visibility)
+  // sees the new value.
+  var defaultRiskBtn = document.getElementById('default-risk-toggle');
+  if (defaultRiskBtn && defaultRiskEl) {
+    function _toggleDefaultRisk() {
+      var next = (defaultRiskBtn.getAttribute('data-state') === 'yes') ? 'no' : 'yes';
+      defaultRiskBtn.setAttribute('data-state', next);
+      defaultRiskBtn.setAttribute('aria-pressed', next === 'yes' ? 'true' : 'false');
+      defaultRiskBtn.classList.toggle('is-yes', next === 'yes');
+      defaultRiskBtn.textContent = next === 'yes' ? 'Yes' : 'No';
+      defaultRiskEl.value = next;
+      defaultRiskEl.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    defaultRiskBtn.addEventListener('click', _toggleDefaultRisk);
+    // Keyboard support — Space/Enter on a div[role=button] doesn't
+    // fire click natively, wire it explicitly for accessibility.
+    defaultRiskBtn.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+        e.preventDefault();
+        _toggleDefaultRisk();
+      }
+    });
+  }
   if (strategiesBack) strategiesBack.addEventListener('click', function () { showPage('page-inputs'); });
   var strategiesContinue = document.getElementById('strategies-continue');
   if (strategiesContinue) strategiesContinue.addEventListener('click', function () { showPage('page-projection'); });
