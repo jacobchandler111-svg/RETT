@@ -2005,8 +2005,12 @@
     // breakdown table. legendRows / feesCallout are still computed above
     // so the function can be reused if a legend variant is needed later.
     void legendRows; void feesCallout;
+    // viewBox widened from "-90 -10 400 240" to "-150 -10 520 240"
+    // so the right-side "Original income" leader label and left-side
+    // "Money gained" leader label both fit inside the SVG canvas
+    // (they were truncated at the SVG edge by `overflow: hidden`).
     return '<div class="rett-donut-wrap rett-donut-wrap-centered">' +
-      '<svg class="rett-donut" viewBox="-90 -10 400 240" role="img" aria-label="Sale tax breakdown">' +
+      '<svg class="rett-donut" viewBox="-150 -10 520 240" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Sale tax breakdown">' +
         slices +
         callouts +
         '<text x="110" y="120" text-anchor="middle" class="rett-donut-center-pct">' + pctKept + '</text>' +

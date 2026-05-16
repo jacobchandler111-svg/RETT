@@ -55,10 +55,20 @@
     }
   };
 
+  // Temporarily hidden from the UI per advisor (2026-05-16): we only
+  // want Charles Schwab to surface in the dropdown for Vegas. Goldman
+  // Sachs stays in the registry (its strategies + leverage caps are
+  // still authoritative if a saved case references it) but is filtered
+  // out of listCustodians so the dropdown shows Schwab only. Remove
+  // this list to re-enable Goldman.
+  var HIDDEN_FROM_DROPDOWN = ['goldmanSachs'];
+
   function listCustodians() {
-    return Object.keys(CUSTODIANS).map(function (k) {
-      return { id: CUSTODIANS[k].id, label: CUSTODIANS[k].label };
-    });
+    return Object.keys(CUSTODIANS)
+      .filter(function (k) { return HIDDEN_FROM_DROPDOWN.indexOf(k) === -1; })
+      .map(function (k) {
+        return { id: CUSTODIANS[k].id, label: CUSTODIANS[k].label };
+      });
   }
 
   function getCustodian(id) {

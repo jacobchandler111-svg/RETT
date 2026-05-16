@@ -704,13 +704,24 @@ function _populateCustodian() {
   if (!sel) return;
   if (typeof listCustodians !== 'function') return;
   const items = listCustodians();
-  while (sel.options.length > 1) sel.remove(1);
+  // Drop the existing "-- Select Custodian --" placeholder entirely.
+  // With Goldman hidden for Vegas (2026-05-16) there's only one real
+  // option (Schwab), so leaving the empty placeholder allowed users to
+  // clear the custodian and let the engine fall through to the
+  // "variable" no-custodian leverage path — which advisors explicitly
+  // don't want. Replace the dropdown contents with the real custodians
+  // only, then auto-select the first one.
+  while (sel.options.length > 0) sel.remove(0);
   items.forEach(it => {
     const opt = document.createElement('option');
     opt.value = it.id;
     opt.textContent = it.label;
     sel.appendChild(opt);
   });
+  if (items.length > 0 && !sel.value) {
+    sel.value = items[0].id;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+  }
 }
 
 // --- _onCustodianChange helpers ----------------------------------------
