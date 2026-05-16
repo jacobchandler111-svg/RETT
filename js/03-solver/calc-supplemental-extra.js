@@ -76,6 +76,25 @@
   }
   function _stateMarginal(cfg) { return _stateMarginalAt(cfg, null); }
 
+  // Y0 ordinary-income pool available to absorb a one-time deduction.
+  // base W-2/SE/biz income + §1250 recapture (taxed at ordinary rates
+  // in the year of sale). Deductions beyond this pool create an NOL
+  // that has no immediate tax benefit, and NOL carry-forward isn't
+  // modeled in the supplemental engine. Returning 0 means "no cap" —
+  // callers should fall back to the raw deduction in that case.
+  function _ordIncomePoolY0(cfg) {
+    if (!cfg) return 0;
+    return Math.max(0,
+      _num(cfg.baseOrdinaryIncome) +
+      _num(cfg.acceleratedDepreciation)
+    );
+  }
+  function _capDeductionAtOrdPool(cfg, deductionRaw) {
+    var pool = _ordIncomePoolY0(cfg);
+    if (pool > 0 && deductionRaw > pool) return pool;
+    return deductionRaw;
+  }
+
   // QBI applicability shorthand: if the deduction reduces flow-
   // through ordinary income that would otherwise generate a §199A
   // deduction, the net benefit shrinks by ~20% × marginal rate.
@@ -446,6 +465,8 @@
       }
     }
     var marginal = _fedMarginal(cfg) + _stateMarginal(cfg);
+    var yr1DeductionRaw = yr1Deduction;
+    yr1Deduction = _capDeductionAtOrdPool(cfg, yr1Deduction);
     _writeResult('slot06', {
       netBenefit: Math.max(0, Math.round(yr1Deduction * marginal)),
       investment: 0,
@@ -453,6 +474,9 @@
       marginalRate: marginal,
       detail: {
         yr1Deduction: Math.round(yr1Deduction),
+        yr1DeductionUncapped: Math.round(yr1DeductionRaw),
+        deductionCappedByOrdPool: yr1DeductionRaw > yr1Deduction,
+        ordIncomePool: Math.round(_ordIncomePoolY0(cfg)),
         bizUse: bizUse,
         vehicleClass: cls,
         assetCost: Math.round(cost),
@@ -616,12 +640,18 @@
     var cost = Math.max(0, _num(st.aircraftCost));
     if (cost <= 0) return _writeResult('slot10', null);
     var qbu = Math.min(1, Math.max(0, _num(st.qbuPct) / 100));
-    var yr1Deduction;
+    var yr1DeductionRaw;
     if (qbu > 0.50) {
-      yr1Deduction = cost * qbu;
+      yr1DeductionRaw = cost * qbu;
     } else {
-      yr1Deduction = (cost * qbu) / 6;
+      yr1DeductionRaw = (cost * qbu) / 6;
     }
+    // Cap the deduction at Y0 ordinary income pool (W2/SE/biz +
+    // §1250 recapture). Beyond that creates an unmodeled NOL — see
+    // _capDeductionAtOrdPool above for the full rationale. Advisor
+    // PDF flagged this specifically on the Aircraft slot ("plane was
+    // showing a net benefit greater than the original tax in Year 0").
+    var yr1Deduction = _capDeductionAtOrdPool(cfg, yr1DeductionRaw);
     var marginal = _fedMarginal(cfg) + _stateMarginal(cfg);
     _writeResult('slot10', {
       netBenefit: Math.max(0, Math.round(yr1Deduction * marginal)),
@@ -629,7 +659,11 @@
       assetCost: Math.round(cost),
       marginalRate: marginal,
       detail: {
-        qbu: qbu, yr1Deduction: Math.round(yr1Deduction),
+        qbu: qbu,
+        yr1Deduction: Math.round(yr1Deduction),
+        yr1DeductionUncapped: Math.round(yr1DeductionRaw),
+        deductionCappedByOrdPool: yr1DeductionRaw > yr1Deduction,
+        ordIncomePool: Math.round(_ordIncomePoolY0(cfg)),
         method: qbu > 0.50 ? 'MACRS + 100% bonus' : 'ADS (no bonus)',
         assetCost: Math.round(cost)
       }
@@ -656,13 +690,20 @@
     var depreciable = cost * (1 - landPct);
     var year1Accel = depreciable * 0.30;
     var shellYr1 = depreciable * 0.70 * 0.0256;
-    var total = year1Accel + shellYr1;
+    var totalRaw = year1Accel + shellYr1;
+    var total = _capDeductionAtOrdPool(cfg, totalRaw);
     var marginal = _fedMarginal(cfg) + _stateMarginal(cfg);
     _writeResult('slot11', {
       netBenefit: Math.max(0, Math.round(total * marginal)),
       investment: Math.round(cost),
       marginalRate: marginal,
-      detail: { qualifies: true, year1Deduction: Math.round(total) }
+      detail: {
+        qualifies: true,
+        year1Deduction: Math.round(total),
+        year1DeductionUncapped: Math.round(totalRaw),
+        deductionCappedByOrdPool: totalRaw > total,
+        ordIncomePool: Math.round(_ordIncomePoolY0(cfg))
+      }
     });
   }
 
@@ -692,7 +733,8 @@
     var sec179 = Math.min(cost, sec179Cap, bizIncome);
     var residual = cost - sec179;
     var bonus = residual;
-    var total = sec179 + bonus;
+    var totalRaw = sec179 + bonus;
+    var total = _capDeductionAtOrdPool(cfg, totalRaw);
     var marginal = _fedMarginal(cfg) + _stateMarginal(cfg);
     _writeResult('slot12', {
       netBenefit: Math.max(0, Math.round(total * marginal)),
@@ -703,6 +745,9 @@
         sec179:    Math.round(sec179),
         bonus:     Math.round(bonus),
         total:     Math.round(total),
+        totalUncapped: Math.round(totalRaw),
+        deductionCappedByOrdPool: totalRaw > total,
+        ordIncomePool: Math.round(_ordIncomePoolY0(cfg)),
         bizIncome: Math.round(bizIncome),
         bizSource: stBiz > 0 ? 'card override' : 'Page-1 business revenue',
         assetCost: Math.round(cost)
