@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=1777600000320">
+  <link rel="stylesheet" href="css/styles.css?v=1777600000321">
   <!-- html2pdf.js: turns the page-allocator DOM into a downloadable
        PDF on click. Bundled build (includes html2canvas + jsPDF).
        Script loads async/defer-friendly; window.html2pdf is the
@@ -717,7 +717,7 @@
        unchanged â€” the existing baseline-recompute JS still finds
        them by id. -->
   <section id="page-baseline" class="page" role="tabpanel" aria-labelledby="nav-baseline">
-    <h2 class="page-inputs-title">Tax Implications</h2>
+    <h2 class="page-inputs-title">Tax Baseline without Strategies</h2>
 
     <!-- Three-block delta display per Blake's spec: headline is the
          additional tax due to the sale, not the total. Visual reads
@@ -751,45 +751,7 @@
       <div id="baseline-breakdown-list" class="baseline-breakdown-list"></div>
     </div>
 
-    <!-- Full tax-bill table stays in the DOM (collapsed) for advisor QA.
-         Blake's spec hides it from the client-facing view; <details> closed
-         by default satisfies both — invisible to the client, expandable
-         on demand. Existing bt-* IDs unchanged so baseline-table.js
-         keeps populating them in the background. -->
-    <details class="baseline-table-details">
-      <summary>Show full breakdown (advisor)</summary>
-    <div class="baseline-page-wrap">
-      <div class="baseline-table-wrapper" id="baseline-table-wrapper">
-        <div class="section-heading">
-          <h2>Total Tax If You Did Nothing</h2>
-          <span class="num" id="baseline-year-tag">2026 PROJECTION</span>
-        </div>
-        <table class="baseline-table">
-          <tbody>
-            <tr><td>Ordinary Income</td><td id="bt-ord">$0</td></tr>
-            <tr class="indent"><td>W-2 + SE + Business + Rental + Dividend + Retirement</td><td id="bt-ord-sub">$0</td></tr>
-            <tr><td>Short-Term Capital Gain</td><td id="bt-stg">$0</td></tr>
-            <tr><td>Long-Term Capital Gain</td><td id="bt-ltg">$0</td></tr>
-            <tr class="indent"><td>From the property sale (sale &minus; basis &minus; depr)</td><td id="bt-ltg-sub">$0</td></tr>
-            <tr><td>Depreciation Recapture</td><td id="bt-recap">$0</td></tr>
-            <tr class="indent" style="display:none;"><td>&sect;1211(b) capital-loss offset (applied)</td><td id="bt-loss-off">$0</td></tr>
-            <tr class="indent" style="display:none;"><td>Carried forward to next year</td><td id="bt-loss-cfy">$0</td></tr>
-            <tr class="subtotal"><td>Total Taxable Income</td><td id="bt-taxable">$0</td></tr>
-            <tr><td>Federal Income Tax</td><td id="bt-fed">$0</td></tr>
-            <tr class="indent" style="display:none;"><td>&nbsp;&nbsp;Ordinary Income Tax (W-2 + STG)</td><td id="bt-fed-ord">$0</td></tr>
-            <tr class="indent" style="display:none;"><td>&nbsp;&nbsp;Depreciation Recapture Tax (&sect;1250, capped at 25%)</td><td id="bt-fed-recap">$0</td></tr>
-            <tr class="indent" style="display:none;"><td>&nbsp;&nbsp;Long-Term Capital Gains Tax</td><td id="bt-fed-lt">$0</td></tr>
-            <tr class="indent" style="display:none;"><td>&nbsp;&nbsp;AMT Top-up (if applicable)</td><td id="bt-amt">$0</td></tr>
-            <tr><td>State Income Tax</td><td id="bt-state">$0</td></tr>
-            <tr><td>NIIT (3.8%)</td><td id="bt-niit">$0</td></tr>
-            <tr><td>Additional Medicare (0.9%)</td><td id="bt-addmed">$0</td></tr>
-            <tr style="display:none;"><td>Self-Employment Tax (SECA)</td><td id="bt-setax">$0</td></tr>
-            <tr class="total"><td>Total Tax If You Did Nothing</td><td id="bt-tot">$0</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-    </details>
+
 
     <div class="page-actions">
       <div class="actions-left">
@@ -1231,71 +1193,71 @@
   <!-- ============ Subsystem load order: 00 -> 01 -> 02 -> 03 -> 05 -> 04 ============ -->
   <!-- date-utils is loaded ahead of 00-data so schwab-strategies can use the
        shared parseLocalDate global instead of defining its own copy. -->
-  <script src="js/01-brooklyn/date-utils.js?v=1777600000320"></script>
-  <script src="js/00-data/custodians.js?v=1777600000320"></script>
-  <script src="js/00-data/schwab-strategies.js?v=1777600000320"></script>
-  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000320"></script>
-  <script src="js/01-brooklyn/time-weight.js?v=1777600000320"></script>
-  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000320"></script>
-  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000320"></script>
+  <script src="js/01-brooklyn/date-utils.js?v=1777600000321"></script>
+  <script src="js/00-data/custodians.js?v=1777600000321"></script>
+  <script src="js/00-data/schwab-strategies.js?v=1777600000321"></script>
+  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000321"></script>
+  <script src="js/01-brooklyn/time-weight.js?v=1777600000321"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000321"></script>
+  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000321"></script>
 
-  <script src="js/02-tax-engine/tax-data.js?v=1777600000320"></script>
-  <script src="js/02-tax-engine/tax-loader.js?v=1777600000320"></script>
-  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000320"></script>
-  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000320"></script>
-  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000320"></script>
-  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000320"></script>
-  <script src="js/02-tax-engine/engine-self-test.js?v=1777600000320"></script>
+  <script src="js/02-tax-engine/tax-data.js?v=1777600000321"></script>
+  <script src="js/02-tax-engine/tax-loader.js?v=1777600000321"></script>
+  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000321"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000321"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000321"></script>
+  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000321"></script>
+  <script src="js/02-tax-engine/engine-self-test.js?v=1777600000321"></script>
 
-  <script src="js/03-solver/fees.js?v=1777600000320"></script>
-  <script src="js/03-solver/fee-split.js?v=1777600000320"></script>
-  <script src="js/03-solver/brookhaven-fees.js?v=1777600000320"></script>
-  <script src="js/03-solver/single-year-solver.js?v=1777600000320"></script>
-  <script src="js/03-solver/multi-year-solver.js?v=1777600000320"></script>
-  <script src="js/03-solver/structured-sale.js?v=1777600000320"></script>
-  <script src="js/03-solver/calc-oil-gas.js?v=1777600000320"></script>
-  <script src="js/03-solver/calc-delphi.js?v=1777600000320"></script>
-  <script src="js/03-solver/calc-supplemental-extra.js?v=1777600000320"></script>
-  <script src="js/03-solver/decision-engine.js?v=1777600000320"></script>
+  <script src="js/03-solver/fees.js?v=1777600000321"></script>
+  <script src="js/03-solver/fee-split.js?v=1777600000321"></script>
+  <script src="js/03-solver/brookhaven-fees.js?v=1777600000321"></script>
+  <script src="js/03-solver/single-year-solver.js?v=1777600000321"></script>
+  <script src="js/03-solver/multi-year-solver.js?v=1777600000321"></script>
+  <script src="js/03-solver/structured-sale.js?v=1777600000321"></script>
+  <script src="js/03-solver/calc-oil-gas.js?v=1777600000321"></script>
+  <script src="js/03-solver/calc-delphi.js?v=1777600000321"></script>
+  <script src="js/03-solver/calc-supplemental-extra.js?v=1777600000321"></script>
+  <script src="js/03-solver/decision-engine.js?v=1777600000321"></script>
   <!-- Master solver registry + Page-5 supplemental defaults. master-solver
        declares register*/list*/runMasterSolver; supplemental-defaults uses
        those to register Oil & Gas. Future supplemental strategies append
        to supplemental-defaults â€” calc-* modules don't reach into this. -->
-  <script src="js/03-solver/master-solver.js?v=1777600000320"></script>
-  <script src="js/03-solver/supplemental-defaults.js?v=1777600000320"></script>
-  <script src="js/03-solver/supplemental-extra-registry.js?v=1777600000320"></script>
-  <script src="js/03-solver/supplemental-investment-shims.js?v=1777600000320"></script>
+  <script src="js/03-solver/master-solver.js?v=1777600000321"></script>
+  <script src="js/03-solver/supplemental-defaults.js?v=1777600000321"></script>
+  <script src="js/03-solver/supplemental-extra-registry.js?v=1777600000321"></script>
+  <script src="js/03-solver/supplemental-investment-shims.js?v=1777600000321"></script>
 
-  <script src="js/05-projections/carryforward-tracker.js?v=1777600000320"></script>
-  <script src="js/05-projections/projection-engine.js?v=1777600000320"></script>
+  <script src="js/05-projections/carryforward-tracker.js?v=1777600000321"></script>
+  <script src="js/05-projections/projection-engine.js?v=1777600000321"></script>
 
   <!-- format-helpers loads first inside 04-ui so every renderer can use
        fmtUSD / fmtPct / fmtNum directly without a defensive fallback. -->
-  <script src="js/04-ui/format-helpers.js?v=1777600000320"></script>
-  <script src="js/04-ui/money-format.js?v=1777600000320"></script>
-  <script src="js/04-ui/banner.js?v=1777600000320"></script>
-  <script src="js/04-ui/number-animator.js?v=1777600000320"></script>
-  <script src="js/04-ui/case-storage.js?v=1777600000320"></script>
-  <script src="js/04-ui/pill-toggles.js?v=1777600000320"></script>
-  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000320"></script>
-  <script src="js/04-ui/input-validation.js?v=1777600000320"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1777600000320"></script>
-  <script src="js/04-ui/controls.js?v=1777600000320"></script>
-  <script src="js/04-ui/recommendation-render.js?v=1777600000320"></script>
-  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000320"></script>
-  <script src="js/04-ui/savings-ribbon.js?v=1777600000320"></script>
-  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000320"></script>
-  <script src="js/04-ui/narrative-render.js?v=1777600000320"></script>
-  <script src="js/04-ui/strategy-summary-render.js?v=1777600000320"></script>
-  <script src="js/04-ui/baseline-table.js?v=1777600000320"></script>
-  <script src="js/04-ui/supplemental-render.js?v=1777600000320"></script>
-  <script src="js/04-ui/supplemental-extra-render.js?v=1777600000320"></script>
+  <script src="js/04-ui/format-helpers.js?v=1777600000321"></script>
+  <script src="js/04-ui/money-format.js?v=1777600000321"></script>
+  <script src="js/04-ui/banner.js?v=1777600000321"></script>
+  <script src="js/04-ui/number-animator.js?v=1777600000321"></script>
+  <script src="js/04-ui/case-storage.js?v=1777600000321"></script>
+  <script src="js/04-ui/pill-toggles.js?v=1777600000321"></script>
+  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000321"></script>
+  <script src="js/04-ui/input-validation.js?v=1777600000321"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1777600000321"></script>
+  <script src="js/04-ui/controls.js?v=1777600000321"></script>
+  <script src="js/04-ui/recommendation-render.js?v=1777600000321"></script>
+  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000321"></script>
+  <script src="js/04-ui/savings-ribbon.js?v=1777600000321"></script>
+  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000321"></script>
+  <script src="js/04-ui/narrative-render.js?v=1777600000321"></script>
+  <script src="js/04-ui/strategy-summary-render.js?v=1777600000321"></script>
+  <script src="js/04-ui/baseline-table.js?v=1777600000321"></script>
+  <script src="js/04-ui/supplemental-render.js?v=1777600000321"></script>
+  <script src="js/04-ui/supplemental-extra-render.js?v=1777600000321"></script>
 
-  <script src="js/04-ui/pmq-handler.js?v=1777600000320"></script>
-  <script src="js/04-ui/pmq-questions.js?v=1777600000320"></script>
-  <script src="js/04-ui/temp-page-render.js?v=1777600000320"></script>
+  <script src="js/04-ui/pmq-handler.js?v=1777600000321"></script>
+  <script src="js/04-ui/pmq-questions.js?v=1777600000321"></script>
+  <script src="js/04-ui/temp-page-render.js?v=1777600000321"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1777600000320"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1777600000321"></script>
 </body>
 </html>
