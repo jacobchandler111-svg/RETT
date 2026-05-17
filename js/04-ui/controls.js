@@ -646,6 +646,15 @@ function showPage(id) {
       if (typeof window.renderTempPage === 'function') window.renderTempPage();
     } catch(e) { (window.reportFailure || console.warn)('Temporary page render failed', e); }
   }
+  // After every page change, sweep for newly-rendered yes-no selects
+  // (Tab 5 supplemental cards inject their own; Tab 1 +property
+  // reveals add more). Idempotent: already-converted selects are
+  // skipped via data-yes-no-converted="1".
+  try {
+    if (typeof window.__rettConvertYesNoSelects === 'function') {
+      window.__rettConvertYesNoSelects();
+    }
+  } catch (e) { /* */ }
   if (id === 'page-baseline') {
     // Fresh render on entry so the table reflects the latest inputs.
     // Otherwise an edit on Client Inputs followed by an immediate jump
@@ -1473,11 +1482,15 @@ function bindControls() {
   _perPropertyDateClamp('implementation-date-5', 'strategy-implementation-date-5');
 
   // Multi-year-sale notice: re-evaluate whenever any property's sale
-  // date or sale price changes. The notice is hidden by default and
-  // shows only when two or more visible properties have sale dates
-  // in DIFFERENT calendar years.
+  // date, sale price, OR strategy-implementation date changes. The
+  // notice fires when two or more visible properties have sale OR
+  // strategy dates falling in different calendar years (both timing
+  // collapses are limitations of the current engine).
   ['implementation-date', 'implementation-date-2', 'implementation-date-3',
    'implementation-date-4', 'implementation-date-5',
+   'strategy-implementation-date',   'strategy-implementation-date-2',
+   'strategy-implementation-date-3', 'strategy-implementation-date-4',
+   'strategy-implementation-date-5',
    'sale-price', 'sale-price-2', 'sale-price-3', 'sale-price-4', 'sale-price-5'
   ].forEach(function (id) {
     var el = document.getElementById(id);
@@ -1533,23 +1546,28 @@ function bindControls() {
           p1.insertBefore(hdr, p1.firstChild);
         }
       }
-      // Multi-year notice: visible only when two or more visible property
-      // blocks have implementation-date values that fall in DIFFERENT
-      // calendar years. cfg.propertyGainSchedule carries the per-year
-      // data; the engine still aggregates to the earliest year so we
-      // surface the limitation here.
+      // Multi-year notice: visible when two or more visible properties
+      // have EITHER sale dates OR strategy-implementation dates falling
+      // in DIFFERENT calendar years. The strategy engine aggregates all
+      // property gain to the earliest sale year AND aggregates all
+      // Brooklyn deployment to the earliest strategy date — both
+      // collapses are surfaced by this banner so the advisor knows
+      // per-tranche routing isn't yet honored. cfg.propertyGainSchedule
+      // carries the per-year data for the eventual engine consumer.
       var notice = document.getElementById('multi-year-sale-notice');
       if (notice) {
-        var years = {};
+        var saleYears = {};
+        var strategyYears = {};
         _visibleSlots().forEach(function (n) {
-          var dEl = document.getElementById((n === 1) ? 'implementation-date' : ('implementation-date-' + n));
-          var spEl = document.getElementById((n === 1) ? 'sale-price' : ('sale-price-' + n));
+          var dEl  = document.getElementById((n === 1) ? 'implementation-date'          : ('implementation-date-' + n));
+          var sdEl = document.getElementById((n === 1) ? 'strategy-implementation-date' : ('strategy-implementation-date-' + n));
+          var spEl = document.getElementById((n === 1) ? 'sale-price'                   : ('sale-price-' + n));
           var sp = spEl ? (parseFloat(String(spEl.value).replace(/[^\d.-]/g, '')) || 0) : 0;
-          if (sp <= 0 || !dEl || !dEl.value) return;
-          var yr = dEl.value.slice(0, 4);
-          if (yr) years[yr] = true;
+          if (sp <= 0) return;
+          if (dEl  && dEl.value)  { var sy = dEl.value.slice(0, 4);  if (sy) saleYears[sy] = true; }
+          if (sdEl && sdEl.value) { var ty = sdEl.value.slice(0, 4); if (ty) strategyYears[ty] = true; }
         });
-        notice.hidden = Object.keys(years).length < 2;
+        notice.hidden = (Object.keys(saleYears).length < 2 && Object.keys(strategyYears).length < 2);
       }
     }
     function _showNextSlot() {
@@ -1564,6 +1582,13 @@ function bindControls() {
           // fills, but listeners need to know the block exists).
           if (typeof _recomputeAvailableCapital === 'function') {
             _recomputeAvailableCapital();
+          }
+          // The newly-revealed property block contains its own
+          // <select class="yes-no"> elements (holding-period-N,
+          // personal-use-yes-no-N). Convert them to click-toggles now
+          // that they're visible.
+          if (typeof window.__rettConvertYesNoSelects === 'function') {
+            window.__rettConvertYesNoSelects();
           }
           return;
         }
@@ -1836,6 +1861,84 @@ function bindControls() {
       }
     });
   }
+
+  // ===================================================================
+  // Yes/No click-toggle auto-converter (advisor 2026-05-17)
+  // -------------------------------------------------------------------
+  // Find every <select class="yes-no"> in the app, hide it, and insert
+  // a <div role="button"> click-toggle next to it that mirrors the
+  // default-risk-toggle pattern: shaded grey + "No" by default, shaded
+  // BrookHaven blue + "Yes" when active. Click flips state, writes
+  // through to the hidden select.value, and dispatches a synthetic
+  // change event so every downstream listener (engine, conditional
+  // visibility, available-capital recompute) sees the new value.
+  //
+  // Selects that already have a sibling .yes-no-toggle are skipped, so
+  // a New Client / Tab navigation re-init won't double-wire.
+  // The hidden <select> stays in the DOM for case-storage capture/
+  // restore + back-compat with any code that reads the value directly.
+  // ===================================================================
+  function _wireYesNoToggle(sel) {
+    if (!sel) return;
+    if (sel.dataset.yesNoConverted === '1') return;
+    sel.dataset.yesNoConverted = '1';
+
+    // Hide the original select. Use both .hidden and inline display so
+    // any parent CSS that overrides [hidden] (we've seen this on
+    // .input-row and .strategy-pick-card) can't bring it back.
+    sel.hidden = true;
+    sel.style.display = 'none';
+    sel.setAttribute('aria-hidden', 'true');
+
+    var btn = document.createElement('div');
+    btn.className = 'yes-no-toggle';
+    btn.setAttribute('role', 'button');
+    btn.setAttribute('tabindex', '0');
+
+    function _syncFromSelect() {
+      var v = (sel.value === 'yes') ? 'yes' : 'no';
+      btn.setAttribute('data-state', v);
+      btn.setAttribute('aria-pressed', v === 'yes' ? 'true' : 'false');
+      btn.classList.toggle('is-yes', v === 'yes');
+      btn.textContent = v === 'yes' ? 'Yes' : 'No';
+    }
+    function _flip() {
+      var next = (sel.value === 'yes') ? 'no' : 'yes';
+      sel.value = next;
+      _syncFromSelect();
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+      sel.dispatchEvent(new Event('input',  { bubbles: true }));
+    }
+    btn.addEventListener('click', _flip);
+    btn.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+        e.preventDefault();
+        _flip();
+      }
+    });
+
+    // If the select's value changes from elsewhere (case load, JS
+    // setVal, programmatic restore), keep the toggle visual in sync.
+    sel.addEventListener('change', _syncFromSelect);
+    sel.parentNode.insertBefore(btn, sel);
+    _syncFromSelect();
+  }
+
+  function _convertAllYesNoSelects() {
+    var selects = document.querySelectorAll('select.yes-no');
+    Array.prototype.forEach.call(selects, function (sel) {
+      try { _wireYesNoToggle(sel); } catch (e) { /* defensive — one bad select shouldn't block the others */ }
+    });
+  }
+  // Expose FIRST so any caller (showPage, +property reveal) can run it
+  // even if the initial pass below throws on an edge-case element.
+  window.__rettConvertYesNoSelects = _convertAllYesNoSelects;
+  // Run an initial pass against whatever yes-no selects exist in the
+  // static HTML. Tab 5 (Supplemental) injects more yes-no selects when
+  // supplemental-render builds the cards — those get converted on the
+  // showPage('page-supplemental') hook.
+  try { _convertAllYesNoSelects(); } catch (e) { /* */ }
+
   if (strategiesBack) strategiesBack.addEventListener('click', function () { showPage('page-inputs'); });
   var strategiesContinue = document.getElementById('strategies-continue');
   if (strategiesContinue) strategiesContinue.addEventListener('click', function () { showPage('page-projection'); });

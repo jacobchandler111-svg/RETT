@@ -4011,6 +4011,42 @@ body { font-size: 16px; }
     border-color: #1F6FEB;
 }
 
+/* Generic Yes/No click-toggle — auto-inserted by controls.js next to
+   every <select class="yes-no"> in the app. Visually identical to the
+   default-risk toggle on Card 2 so the advisor sees one consistent
+   Yes/No control everywhere. The hidden <select> stays in the DOM
+   for case-storage capture/restore. Per advisor 2026-05-17. */
+.yes-no-toggle {
+    display: inline-block;
+    min-width: 64px;
+    padding: 6px 14px;
+    font-family: var(--font-mono);
+    font-size: 0.78em;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--muted);
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    cursor: pointer;
+    user-select: none;
+    text-align: center;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.yes-no-toggle:hover {
+    border-color: var(--bh-blue-deep, #0B1B3A);
+}
+.yes-no-toggle.is-yes {
+    background: #1F6FEB;
+    color: #ffffff;
+    border-color: #1F6FEB;
+}
+.yes-no-toggle:focus-visible {
+    outline: 2px solid #1F6FEB;
+    outline-offset: 2px;
+}
+
 /* When controls.js sets card.hidden = true on Card 3 (5% rule fails AND
    default-risk = No), the user-agent `[hidden] { display: none }` rule
    is normally enough. But the .strategy-pick-card rule below sets
