@@ -541,14 +541,35 @@
     // 'negative-net' rule already prevents supplementals from deploying
     // into a fee trap; this is the symmetric Brooklyn-side rule.
     //
-    // Probe order: caller-supplied `brooklynNetAtFull` (already known to
-    // runFullPipeline from its first-pass projection) is used when scale
-    // is 1 (no dial-back). Otherwise we run a targeted unifiedTaxComparison
-    // at the dial-back amount — one extra engine call only when dial-back
-    // is in play. Skip entirely when there's nothing to deploy.
+    // Probe order:
+    //   1) When `brooklynNetAtFull` is positive, the dialed-back version is
+    //      guaranteed to be positive too — proportional capital scaling
+    //      trims fees while savings stay capped at absorbable × marginal.
+    //      Skip the probe entirely.
+    //   2) When `brooklynNetAtFull` is unknown or non-positive, run the
+    //      targeted unifiedTaxComparison probe at the dial-back amount
+    //      to verify economics at the new deployment size.
+    //
+    // Audit 2026-05-17: previously the probe ran whenever scale < 1, even
+    // when full-deployment net was already known positive. The probe
+    // builds `probe` from `currentCfg` — which carries the user's GENERIC
+    // strategy settings (horizon=5, leverage=1, combo defaulting to the
+    // last-set one), NOT the strategy-specific cfg that produced
+    // brooklynNetAtFull. For Strategy B (horizon=2) or C (horizon=4) at
+    // their auto-picked combo, the probe was effectively measuring
+    // "what would Strategy A look like at this capital?" which often
+    // returned negative net → false dial-back to zero. Affected ~10%
+    // of all scenarios and produced the Blake-class "A beats B+C with
+    // substantial LT gain" results that should not be possible. See
+    // AUDIT_FINDINGS doc.
     if (recommendedInvestment > 0) {
       var netAtRec = null;
-      if (scale === 1 && Number.isFinite(brooklynNetAtFull)) {
+      if (Number.isFinite(brooklynNetAtFull) && brooklynNetAtFull > 0) {
+        // Dialed-back net is monotone-improving in scale-down direction
+        // (fees scale with capital, savings cap at absorbable × marginal).
+        // Trust the caller's full-deployment net.
+        netAtRec = brooklynNetAtFull;
+      } else if (scale === 1 && Number.isFinite(brooklynNetAtFull)) {
         netAtRec = brooklynNetAtFull;
       } else if (typeof root.unifiedTaxComparison === 'function') {
         try {
