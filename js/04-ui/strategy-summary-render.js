@@ -45,7 +45,7 @@
     return type === 'A' ? '01' : type === 'B' ? '02' : type === 'C' ? '03' : '00';
   }
   function _stratName(type) {
-    return type === 'A' ? 'Cash in Hand'
+    return type === 'A' ? 'Normal Sale'
       : type === 'B' ? 'Installment Sale'
       : type === 'C' ? 'Structured Installment Sale' : 'Strategy';
   }
@@ -477,7 +477,7 @@
     var today = new Date();
     var dateStr = (today.getMonth()+1) + '/' + today.getDate() + '/' + today.getFullYear();
 
-    var stratLabel  = d.entry.type === 'A' ? 'Cash in Hand'
+    var stratLabel  = d.entry.type === 'A' ? 'Normal Sale'
       : d.entry.type === 'B' ? 'Installment Sale'
       : 'Structured Installment Sale';
     var stratNum = d.entry.type === 'A' ? '01' : d.entry.type === 'B' ? '02' : '03';
