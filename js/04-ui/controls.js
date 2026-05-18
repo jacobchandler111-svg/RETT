@@ -46,14 +46,33 @@ function _refreshCaseDropdown(selectName) {
   var store = _caseStore();
   if (!sel || !store) return;
   var names = store.listCases();
-  while (sel.options.length > 1) sel.remove(1);
-  names.forEach(function (n) {
-    var opt = document.createElement('option');
-    opt.value = n;
-    opt.textContent = n;
-    sel.appendChild(opt);
-  });
-  if (selectName != null) sel.value = selectName;
+  // case-load-select was rebuilt as a combobox (<input list> + <datalist>)
+  // per advisor 2026-05-17 so the advisor can either click open the
+  // saved-client dropdown OR type the name directly. Populate the
+  // datalist when the element is an input; fall back to the legacy
+  // <select> option-list behavior for any old layouts still on disk.
+  if (sel.tagName === 'INPUT') {
+    var listId = sel.getAttribute('list');
+    var dl = listId ? document.getElementById(listId) : null;
+    if (dl) {
+      while (dl.firstChild) dl.removeChild(dl.firstChild);
+      names.forEach(function (n) {
+        var opt = document.createElement('option');
+        opt.value = n;
+        dl.appendChild(opt);
+      });
+    }
+    if (selectName != null) sel.value = selectName;
+  } else {
+    while (sel.options.length > 1) sel.remove(1);
+    names.forEach(function (n) {
+      var opt = document.createElement('option');
+      opt.value = n;
+      opt.textContent = n;
+      sel.appendChild(opt);
+    });
+    if (selectName != null) sel.value = selectName;
+  }
 }
 
 function _refreshCaseStatus() {
@@ -1230,12 +1249,13 @@ function bindControls() {
     });
   }
 
-  // Pre-Meeting "Reset Form" button — clears the four PMQ fields
-  // and the status line. Does NOT touch saved cases.
+  // Pre-Meeting "Reset Form" button — clears the contact fields
+  // and the status line. Does NOT touch saved cases or the client
+  // name field (use New Client to detach the active case).
   var pmqResetBtn = document.getElementById('pmq-reset-btn');
   if (pmqResetBtn) {
     pmqResetBtn.addEventListener('click', function () {
-      ['pmq-first-name','pmq-last-name','pmq-email','pmq-phone'].forEach(function (id) {
+      ['pmq-email','pmq-phone'].forEach(function (id) {
         var el = document.getElementById(id);
         if (el) el.value = '';
       });
@@ -1246,22 +1266,21 @@ function bindControls() {
     });
   }
 
-  // Pre-Meeting "Continue" button — combines first/last name into a
-  // case key, then either loads an existing case with that name or
+  // Pre-Meeting "Continue" button — reads the consolidated Client Name
+  // field (was first+last; now single case-name-input per advisor
+  // 2026-05-17) and either loads an existing case with that name or
   // creates a new one. Email + phone are stashed on window for the
   // print-view to pick up; persistence will follow once those fields
   // exist in case-storage's FIELD_IDS.
   var pmqContinueBtn = document.getElementById('pmq-continue-btn');
   if (pmqContinueBtn) {
     pmqContinueBtn.addEventListener('click', function () {
-      var first = ((document.getElementById('pmq-first-name') || {}).value || '').trim();
-      var last  = ((document.getElementById('pmq-last-name')  || {}).value || '').trim();
-      var email = ((document.getElementById('pmq-email')      || {}).value || '').trim();
-      var phone = ((document.getElementById('pmq-phone')      || {}).value || '').trim();
-      var fullName = (first + ' ' + last).replace(/\s+/g, ' ').trim();
+      var rawName = ((document.getElementById('case-name-input') || {}).value || '').trim();
+      var email   = ((document.getElementById('pmq-email')       || {}).value || '').trim();
+      var phone   = ((document.getElementById('pmq-phone')       || {}).value || '').trim();
       // Apply the same sanitization the case-name input uses so the
       // key we look up matches what would be saved by the input.
-      fullName = fullName.replace(/[^A-Za-z0-9 ,.'\-]/g, '').slice(0, 80);
+      var fullName = rawName.replace(/\s+/g, ' ').replace(/[^A-Za-z0-9 ,.'\-]/g, '').slice(0, 80);
 
       window.__rettCaseEmail = email;
       window.__rettCasePhone = phone;
@@ -1327,22 +1346,9 @@ function bindControls() {
     });
   }
 
-  // When the user revisits an existing case from Client Inputs, mirror
-  // the name back into the PMQ first/last fields so the top-left card
-  // reflects the active client. Best-effort: split on the first space.
-  function _syncPmqNameFromCase() {
-    var nameInput = document.getElementById('case-name-input');
-    var first = document.getElementById('pmq-first-name');
-    var last  = document.getElementById('pmq-last-name');
-    if (!nameInput || !first || !last) return;
-    var v = (nameInput.value || '').trim();
-    if (!v) return;
-    if (first.value || last.value) return; // don't clobber user input
-    var sp = v.indexOf(' ');
-    if (sp > 0) { first.value = v.slice(0, sp); last.value = v.slice(sp + 1); }
-    else { first.value = v; }
-  }
-  document.addEventListener('DOMContentLoaded', _syncPmqNameFromCase);
+  // Note: _syncPmqNameFromCase was removed when PMQ consolidated to a
+  // single Client Name field (2026-05-17). The case-name-input IS the
+  // canonical name now — no separate first/last to sync.
   if (navInputs)       navInputs.addEventListener('click', () => showPage('page-inputs'));
   var navBaseline = document.getElementById('nav-baseline');
   if (navBaseline)     navBaseline.addEventListener('click', () => showPage('page-baseline'));
