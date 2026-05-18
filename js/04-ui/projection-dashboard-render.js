@@ -1767,6 +1767,12 @@
     var years = Object.keys(byYear).map(function (k) { return byYear[k]; })
       .sort(function (a, b) { return a.year - b.year; });
 
+    // Total gain in the structured product = sum of all recognized
+    // installments. Used to express each gain row as a % so the advisor
+    // can confirm the schedule against MetLife's canonical caps
+    // (3-yr: 40/40/20; 4-yr+: 50/30/10/10).
+    var totalGainInstallments = years.reduce(function (s, y) { return s + (y.gain || 0); }, 0);
+
     var rows = '';
     var totalCash = 0;
     years.forEach(function (yr) {
@@ -1790,29 +1796,38 @@
         : yr.isClosing
           ? _closingPlusGainNote
           : 'Gain installment';
+      // % of gain column: only meaningful for gain installments. The
+      // closing-day basis + depr cash is principal recovery, not part of
+      // the structured-product gain pool, so it stays blank (em dash).
+      var pctCell;
+      if (yr.gain > 0 && totalGainInstallments > 0) {
+        pctCell = ((yr.gain / totalGainInstallments) * 100).toFixed(1) + '%';
+      } else {
+        pctCell = '<span class="muted">&mdash;</span>';
+      }
       rows += '<tr>' +
         '<td>' + yr.year + '</td>' +
         '<td>' + dateLabel + '</td>' +
         '<td>' + _fmt(cash) + '</td>' +
+        '<td>' + pctCell + '</td>' +
         '<td class="muted">' + note + '</td>' +
       '</tr>';
     });
     rows += '<tr class="rett-payments-total">' +
       '<td colspan="2">Total payments received</td>' +
       '<td>' + _fmt(totalCash) + '</td>' +
+      '<td>100.0%</td>' +
       '<td class="muted">Sum of all installments</td>' +
     '</tr>';
 
     var months = durationMonths || 36;
-    var atMinimum = months <= 18;
-    var termSubtitle = atMinimum
-      ? '<p class="rett-payments-subtitle muted">Sale term: <strong>' + months + ' months</strong> (the regulatory minimum). The engine will recommend a longer term if a transaction this size needs one to satisfy the safe-harbor schedule.</p>'
-      : '<p class="rett-payments-subtitle muted">Sale term: <strong>' + months + ' months</strong> — extended past the 36-month minimum for this transaction size.</p>';
+    var payments = Math.max(1, Math.round(months / 12));
+    var termSubtitle = '<p class="rett-payments-subtitle muted">Sale term: <strong>' + months + ' months</strong> &mdash; ' + payments + ' yearly Jan-1 gain installments.</p>';
     return '<div class="rett-interested-payments">' +
       '<h4>Payment Schedule</h4>' +
       termSubtitle +
       '<table class="rett-payments-table">' +
-        '<thead><tr><th>Year</th><th>Date</th><th>Cash Received</th><th>Notes</th></tr></thead>' +
+        '<thead><tr><th>Year</th><th>Date</th><th>Cash Received</th><th>% of Gain</th><th>Notes</th></tr></thead>' +
         '<tbody>' + rows + '</tbody>' +
       '</table>' +
     '</div>';
