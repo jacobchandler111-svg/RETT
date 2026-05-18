@@ -488,36 +488,35 @@ function _refreshStrategyLockupDisplays() {
   }
 }
 
-// Strategy card visibility — per advisor spec the cards are progressive:
-//   Card 1 (Proceeds at Sale)     always visible — the baseline option
-//   Card 2 (Installment Sale)     shown when Strategy B beats A on net
-//                                  benefit (any margin), or when the
-//                                  default-risk toggle is Yes (so the
-//                                  toggle itself stays accessible to flip
-//                                  back off).
-//   Card 3 (Structured Installment Sale) shown when Strategy C beats
-//                                  BOTH A and B (any margin), or when
-//                                  default-risk toggle is Yes.
+// Strategy card visibility — simplified per advisor 2026-05-17.
+// Progressive layering, strict greater-than, no margin tolerance:
+//   Card 1 (Proceeds at Sale)            ALWAYS visible.
+//   Card 2 (Installment Sale)            visible when netB > netA.
+//   Card 3 (Structured Installment Sale) visible when card 2 is shown
+//                                        AND netC > netB. (Implies
+//                                        netC > netA too — by chain.)
+//   Default-risk toggle                  ALWAYS visible.
+//
+// "Better" means strictly greater net benefit; no ±5% band or other
+// thresholds. The previous logic gated Card 3 on a 5% margin and hid
+// the toggle outside a ±5% band — advisor wanted simpler: each card
+// shows up when it actually beats the prior one, and the default-risk
+// question is always on the table.
 //
 // Grid layout classes:
-//   .strategy-pick-grid--one-only  one centered card  (only A wins)
+//   .strategy-pick-grid--one-only  one centered card  (only A)
 //   .strategy-pick-grid--two-only  two centered cards (A + B)
 //   (no class)                     three-up           (A + B + C)
 //
 // Net benefits come from window._computeBestNetForStrategy (exposed by
 // projection-dashboard-render.js), which runs the same optimized
 // _autoPickSection -> _scenarioCfgFor -> _scenarioMetrics pipeline the
-// Page 4 dashboard uses. Earlier direct unifiedTaxComparison calls were
-// returning equal netB and netC for many scenarios because they
-// bypassed the optimizer.
+// Page 4 dashboard uses.
 function _refreshCard3Visibility() {
   var c2 = document.getElementById('strategy-pick-B');
   var c3 = document.getElementById('strategy-pick-C');
   var grid = document.getElementById('strategy-pick-list');
   if (!c2 || !c3 || !grid) return;
-
-  var defaultRiskEl = document.getElementById('default-risk-yes-no');
-  var defaultRiskYes = !!(defaultRiskEl && defaultRiskEl.value === 'yes');
 
   var netA = NaN, netB = NaN, netC = NaN;
   try {
@@ -537,61 +536,20 @@ function _refreshCard3Visibility() {
 
   var allFinite = Number.isFinite(netA) && Number.isFinite(netB) && Number.isFinite(netC);
 
-  // Card 2: B beats A on net benefit, OR user flagged default-risk concern.
-  // If we couldn't compute nets (no sale price yet, engine error, etc.),
-  // fall back to showing Card 2 so the advisor isn't stuck on Card 1
-  // without other options.
-  var card2Visible = defaultRiskYes
-    || !allFinite
-    || (netB > netA);
-
-  // Card 3: C beats BOTH A and B by at least 5%, OR user flagged
-  // default-risk concern. The 5% margin keeps Card 3 from popping in
-  // for trivial wins (where C edges B by a fraction of a percent and
-  // the difference is dominated by rounding / optimizer noise). Without
-  // finite nets we default to hiding C.
-  var card3Visible = defaultRiskYes
-    || (allFinite && netC > netA * 1.05 && netC > netB * 1.05);
-
-  // Hide C first so it can't sit beside Card 2 in a weird "C visible but
-  // 2 hidden" state. Visible-list math below handles the layout class.
-  if (!card2Visible && card3Visible) card2Visible = true;
+  // Card 2: B better than A.
+  // Without finite nets (no sale price yet), default to showing Card 2
+  // so the advisor isn't stuck on Card 1 with no comparison.
+  var card2Visible = !allFinite || (netB > netA);
+  // Card 3: only shown if card 2 is shown AND C better than B.
+  // Skipping Card 2 to show Card 3 would look like a layout gap.
+  var card3Visible = card2Visible && allFinite && (netC > netB);
 
   c2.hidden = !card2Visible;
   c3.hidden = !card3Visible;
 
-  // Default-risk question visibility — the question is only useful
-  // when C is a *latent* option the user could surface manually. The
-  // toggle lives in a 10% window around the best of A/B: bestAB±5%.
-  //   - defaultRiskYes (user opted in)   → KEEP visible so they can
-  //                                         toggle back off; hiding it
-  //                                         would be a dead-end.
-  //   - C dominates by 5%+               → hide (Card 3 already up on
-  //                                         its own merit, no need
-  //                                         to ask).
-  //   - C is within bestAB ±5%           → show — the band where C is
-  //                                         a meaningful default-risk
-  //                                         hedge without giving up
-  //                                         much net.
-  //   - C trails by >5%                  → hide (gap too large to be
-  //                                         worth considering as a
-  //                                         hedge).
-  var hideDefaultRiskQ;
-  if (defaultRiskYes) {
-    hideDefaultRiskQ = false;
-  } else if (allFinite) {
-    var bestAB = Math.max(netA, netB);
-    if (bestAB > 0 && netC > bestAB * 1.05) {
-      hideDefaultRiskQ = true;          // C dominates → hide
-    } else if (bestAB > 0 && netC >= bestAB * 0.95) {
-      hideDefaultRiskQ = false;         // within ±5% band → show
-    } else {
-      hideDefaultRiskQ = true;          // C trails by >5% → hide
-    }
-  } else {
-    hideDefaultRiskQ = false;
-  }
-  grid.classList.toggle('strategy-pick-grid--no-default-risk', hideDefaultRiskQ);
+  // Default-risk question — ALWAYS visible per advisor spec. Remove the
+  // previous ±5% band gating; let the user click it whenever they want.
+  grid.classList.remove('strategy-pick-grid--no-default-risk');
 
   grid.classList.toggle('strategy-pick-grid--one-only', card2Visible === false);
   grid.classList.toggle('strategy-pick-grid--two-only',
@@ -2111,6 +2069,36 @@ function bindControls() {
   // so changes to those fields must re-trigger Available Capital.
   // Multi-property (Q1) + Q2 holding-period: include Property 2-5 IDs +
   // holding-period toggles so changes anywhere re-derive Available Capital.
+  // Strategy-impacting inputs — changes to any of these invalidate the
+  // user's prior strategy selection on Tab 3. Per advisor 2026-05-17:
+  // when inputs change mid-test, the Tab 3 Interested marks and Tab 6
+  // chosen strategy reset so the user isn't left with a stale pick
+  // (especially important when a card disappears because visibility
+  // logic re-evaluates).
+  function _resetStrategySelection() {
+    var anyMarked =
+      (window.__rettStrategyInterest && (
+        window.__rettStrategyInterest.A === true ||
+        window.__rettStrategyInterest.A === false ||
+        window.__rettStrategyInterest.B === true ||
+        window.__rettStrategyInterest.B === false ||
+        window.__rettStrategyInterest.C === true ||
+        window.__rettStrategyInterest.C === false
+      )) || window.__rettChosenStrategy != null;
+    if (!anyMarked) return;
+    window.__rettStrategyInterest = { A: null, B: null, C: null };
+    window.__rettChosenStrategy   = null;
+    window.__rettCheckedScenarios = null;
+    // Re-render Tab 3 chip state if currently on that page so the
+    // user sees the reset immediately (rather than next nav).
+    if (typeof _refreshStrategyPickCards === 'function') {
+      try { _refreshStrategyPickCards(); } catch (e) { /* */ }
+    }
+    if (typeof window.renderInterestedSnapshot === 'function') {
+      try { window.renderInterestedSnapshot(); } catch (e) { /* */ }
+    }
+  }
+
   [
    'sale-price',   'cost-basis',   'accelerated-depreciation',   'holding-period-1',
    'sale-price-2', 'cost-basis-2', 'accelerated-depreciation-2', 'holding-period-2',
@@ -2128,11 +2116,27 @@ function bindControls() {
    'personal-use-yes-no-5', 'personal-use-amount-5',
    'filing-status', 'state-code', 'year1',
    'w2-wages', 'se-income', 'biz-revenue', 'rental-income',
-   'dividend-income', 'retirement-distributions'].forEach(function (id) {
+   'dividend-income', 'retirement-distributions',
+   // Per-property strategy implementation dates also affect outcomes.
+   'implementation-date', 'implementation-date-2', 'implementation-date-3',
+   'implementation-date-4', 'implementation-date-5',
+   'strategy-implementation-date', 'strategy-implementation-date-2',
+   'strategy-implementation-date-3', 'strategy-implementation-date-4',
+   'strategy-implementation-date-5',
+   // Future-sale toggle + fields rebalance the optimizer.
+   'future-sale-yes-no', 'future-estimated-gain', 'future-sale-date'
+  ].forEach(function (id) {
     const el = document.getElementById(id);
     if (!el) return;
     const evt = (el.tagName === 'SELECT') ? 'change' : 'input';
     el.addEventListener(evt, _recomputeAvailableCapital);
+    // Reset the user's strategy pick on any change — but suppress during
+    // case-load / programmatic restore (__rettApplyingState) so loading
+    // a saved client doesn't wipe their persisted strategy choice.
+    el.addEventListener(evt, function () {
+      if (window.__rettApplyingState) return;
+      _resetStrategySelection();
+    });
   });
   // Initial call so the available-capital is set on first paint when a
   // case-load restored sale-price.
