@@ -518,6 +518,16 @@ function _refreshCard3Visibility() {
   var grid = document.getElementById('strategy-pick-list');
   if (!c2 || !c3 || !grid) return;
 
+  // Default-risk toggle: when Yes, force Card 2 AND Card 3 visible
+  // regardless of math. Without this short-circuit, the simplified
+  // strict greater-than visibility logic (netB > netA / netC > netB)
+  // would leave Card 3 hidden when the user clicks the toggle on a
+  // B-wins scenario — defeating the toggle's whole purpose, which is
+  // to let the advisor explicitly elect the multi-year-spread option
+  // even when C's math doesn't already beat B.
+  var drEl = document.getElementById('default-risk-yes-no');
+  var defaultRiskYes = !!(drEl && drEl.value === 'yes');
+
   var netA = NaN, netB = NaN, netC = NaN;
   try {
     if (typeof collectInputs === 'function' && typeof window._computeBestNetForStrategy === 'function') {
@@ -536,19 +546,19 @@ function _refreshCard3Visibility() {
 
   var allFinite = Number.isFinite(netA) && Number.isFinite(netB) && Number.isFinite(netC);
 
-  // Card 2: B better than A.
+  // Card 2: B better than A, OR default-risk toggled Yes.
   // Without finite nets (no sale price yet), default to showing Card 2
   // so the advisor isn't stuck on Card 1 with no comparison.
-  var card2Visible = !allFinite || (netB > netA);
-  // Card 3: only shown if card 2 is shown AND C better than B.
-  // Skipping Card 2 to show Card 3 would look like a layout gap.
-  var card3Visible = card2Visible && allFinite && (netC > netB);
+  var card2Visible = defaultRiskYes || !allFinite || (netB > netA);
+  // Card 3: C better than B (with Card 2 already shown), OR
+  // default-risk toggled Yes. Skipping Card 2 to show Card 3 would
+  // look like a layout gap.
+  var card3Visible = defaultRiskYes || (card2Visible && allFinite && (netC > netB));
 
   c2.hidden = !card2Visible;
   c3.hidden = !card3Visible;
 
-  // Default-risk question — ALWAYS visible per advisor spec. Remove the
-  // previous ±5% band gating; let the user click it whenever they want.
+  // Default-risk question — ALWAYS visible per advisor spec.
   grid.classList.remove('strategy-pick-grid--no-default-risk');
 
   grid.classList.toggle('strategy-pick-grid--one-only', card2Visible === false);
@@ -2070,13 +2080,14 @@ function bindControls() {
   // Multi-property (Q1) + Q2 holding-period: include Property 2-5 IDs +
   // holding-period toggles so changes anywhere re-derive Available Capital.
   // Strategy-impacting inputs — changes to any of these invalidate the
-  // user's prior strategy selection on Tab 3. Per advisor 2026-05-17:
-  // when inputs change mid-test, the Tab 3 Interested marks and Tab 6
-  // chosen strategy reset so the user isn't left with a stale pick
-  // (especially important when a card disappears because visibility
-  // logic re-evaluates).
+  // user's prior selections on Tabs 3/4/5/6/7. Per advisor 2026-05-17
+  // (extended 2026-05-18 to cover supplementals + default-risk toggle):
+  // when inputs change mid-test, the user's prior picks across every
+  // downstream tab clear so they can re-evaluate cleanly. Re-renders
+  // Tab 3 chips, Page 4 cards, and Tab 5 supp cards so the user sees
+  // the reset immediately rather than on next nav.
   function _resetStrategySelection() {
-    var anyMarked =
+    var primaryDirty =
       (window.__rettStrategyInterest && (
         window.__rettStrategyInterest.A === true ||
         window.__rettStrategyInterest.A === false ||
@@ -2085,17 +2096,68 @@ function bindControls() {
         window.__rettStrategyInterest.C === true ||
         window.__rettStrategyInterest.C === false
       )) || window.__rettChosenStrategy != null;
-    if (!anyMarked) return;
+    // Any supplemental marked interested or not-interested.
+    var suppDirty = false;
+    if (window.__rettSupplementalInterest) {
+      var keys = Object.keys(window.__rettSupplementalInterest);
+      for (var i = 0; i < keys.length; i++) {
+        var v = window.__rettSupplementalInterest[keys[i]];
+        if (v === true || v === false) { suppDirty = true; break; }
+      }
+    }
+    var drEl = document.getElementById('default-risk-yes-no');
+    var drDirty = !!(drEl && drEl.value === 'yes');
+    var absorbDirty = !!window.__rettAbsorbFutureSale;
+    if (!primaryDirty && !suppDirty && !drDirty && !absorbDirty) return;
+
+    // Reset primary strategy state.
     window.__rettStrategyInterest = { A: null, B: null, C: null };
     window.__rettChosenStrategy   = null;
     window.__rettCheckedScenarios = null;
-    // Re-render Tab 3 chip state if currently on that page so the
-    // user sees the reset immediately (rather than next nav).
+    // Reset supplemental state. Keep config defaults intact (don't
+    // wipe maxInvestment / depreciationPct overrides on the cards) —
+    // just clear the Interested / Not-Interested marks so Tab 5 starts
+    // fresh.
+    if (window.__rettSupplementalInterest) {
+      Object.keys(window.__rettSupplementalInterest).forEach(function (k) {
+        window.__rettSupplementalInterest[k] = null;
+      });
+    }
+    // Reset default-risk toggle to "no" — both the hidden select and
+    // its visible button widget. Without this the toggle would stay
+    // blue/Yes after an inputs change while Cards 2+3 visibility re-
+    // evaluates, leaving the UI inconsistent.
+    if (drEl && drEl.value !== 'no') {
+      drEl.value = 'no';
+      drEl.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    var drBtn = document.getElementById('default-risk-toggle');
+    if (drBtn) {
+      drBtn.setAttribute('data-state', 'no');
+      drBtn.setAttribute('aria-pressed', 'false');
+      drBtn.classList.remove('is-yes');
+      drBtn.textContent = 'No';
+    }
+    // Reset future-sale absorb flag (user must re-click Apply on Page 5).
+    window.__rettAbsorbFutureSale = false;
+
+    // Re-render every downstream surface that reflects these picks.
     if (typeof _refreshStrategyPickCards === 'function') {
       try { _refreshStrategyPickCards(); } catch (e) { /* */ }
     }
+    if (typeof _refreshCard3Visibility === 'function') {
+      try { _refreshCard3Visibility(); } catch (e) { /* */ }
+    }
     if (typeof window.renderInterestedSnapshot === 'function') {
       try { window.renderInterestedSnapshot(); } catch (e) { /* */ }
+    }
+    // Tab 5 supplemental cards' Interested/Not-Interested chips read
+    // window.__rettSupplementalInterest on render. Force a re-render
+    // if supplemental-render exposes a refresh hook.
+    if (typeof window.renderSupplementalPage === 'function') {
+      try { window.renderSupplementalPage(); } catch (e) { /* */ }
+    } else if (typeof window.refreshSupplementalCards === 'function') {
+      try { window.refreshSupplementalCards(); } catch (e) { /* */ }
     }
   }
 
