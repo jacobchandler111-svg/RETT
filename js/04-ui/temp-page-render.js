@@ -848,8 +848,13 @@
     // B Y0 baseline equals W-2 only because LT + recap moved out)
     // withStrategy can dip slightly below withoutSale due to bracket-
     // rounding, and a negative withdrawal would be misleading.
-    var saleTax = Math.max(0, taxWithStrat - taxWithoutSale);
-    if (!(saleTax > 0)) return '';
+    // Round to nearest dollar before the threshold check — bracket /
+    // proration math can leave a saleTax like $0.34 that passes a raw
+    // `> 0` test but formats as "$0" in the cell. The user sees a
+    // wasted withdrawal cell with $0 in it. Demand at least $1 of
+    // actual tax to render.
+    var saleTax = Math.round(Math.max(0, taxWithStrat - taxWithoutSale));
+    if (saleTax < 1) return '';
     var dueYear = Number(year) + 1;
     return '' +
       '<div class="temp-year-withdrawal">' +
