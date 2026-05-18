@@ -688,16 +688,32 @@ function unifiedTaxComparison(cfg, opts) {
             ? Math.max(0, _availTotal - basisCash)
             : 0;
 
-      // Recognition window. Immediate forces Y1-only; deferred uses
-      // the structured-sale maturity logic (15-month floor + Jan-1
-      // auto-extend).
+      // Recognition window. Immediate forces Y1-only; deferred starts
+      // recognition at the next Jan 1 after the sale (year1+1) and
+      // takes exactly (durationMonths / 12) yearly Jan-1 payments.
+      // Per advisor 2026-05-18: the prior "15-month hold + sale-date
+      // anchored auto-extend" was not a MetLife product rule. Removed
+      // entirely — first installment is always the Jan 1 immediately
+      // following close, regardless of sale month.
       let startIdx, maturityIdx;
       if (isDeferred) {
             const startIdxRaw = Math.max(1, Math.min(horizon - 1,
                   (cfg.recognitionStartYearIndex != null ? cfg.recognitionStartYearIndex : 1)));
-            const matIdxRaw = _structuredSaleMaturityYearIdx(cfg, horizon);
-            startIdx    = Math.min(startIdxRaw, Math.max(1, matIdxRaw));
-            maturityIdx = Math.max(startIdx, matIdxRaw);
+            const durationMonths = Number(cfg.structuredSaleDurationMonths) || 0;
+            const hasMaxOverride = (cfg.maxRecognitionYearIndex != null);
+            if (!hasMaxOverride && durationMonths > 0) {
+                  // Strategy C: exactly N yearly Jan-1 payments starting at
+                  // year1 + startIdx. 36mo → 3 payments, 48mo → 4, etc.
+                  const durYears = Math.max(1, Math.round(durationMonths / 12));
+                  startIdx    = startIdxRaw;
+                  maturityIdx = Math.min(horizon - 1, startIdxRaw + durYears - 1);
+            } else {
+                  // Strategy B (maxRecognitionYearIndex pinned) or other
+                  // legacy callers: honor the explicit maturity index.
+                  const matIdxRaw = _structuredSaleMaturityYearIdx(cfg, horizon);
+                  startIdx    = Math.min(startIdxRaw, Math.max(1, matIdxRaw));
+                  maturityIdx = Math.max(startIdx, matIdxRaw);
+            }
       } else {
             startIdx = 0;
             maturityIdx = 0;

@@ -988,27 +988,17 @@
           comboId: p.comboId
         });
         if (type === 'C') {
-          // For C, sweep duration AND recognition year together. Each
-          // (duration, recognition) pair gets its own _scenarioMetrics
-          // call so the optimizer always lands on the globally best net,
-          // not just whichever duration the user (or fallback) seeded.
+          // For C, recognition ALWAYS starts at year1+1 (the next Jan 1
+          // after closing) per advisor 2026-05-18 — no 15-month hold,
+          // no recognition-year sweep. Auto-pick only varies duration
+          // (36/48/60/72) and Brooklyn leverage/horizon. bestRecC is
+          // fixed at 2 (= startIdx 1 = year1+1).
           var durationsThisHor = _durationsForHorizon(hor);
           durationsThisHor.forEach(function (durMo) {
-            var pickRec = 2;
-            var bestRecNet = -Infinity;
-            for (var r = 2; r <= Math.min(4, hor); r++) {
-              var cfgR = Object.assign({}, cfgSection, {
-                recognitionStartYearIndex: r - 1,
-                structuredSaleDurationMonths: durMo,
-                maxRecognitionYearIndex: null
-              });
-              var mr = _scenarioMetrics(cfgR);
-              if (mr && mr.net > bestRecNet) { bestRecNet = mr.net; pickRec = r; }
-            }
-            var typedCfg = _scenarioCfgFor(type, cfgSection, pickRec, durMo);
+            var typedCfg = _scenarioCfgFor(type, cfgSection, 2, durMo);
             var m = _scenarioMetrics(typedCfg);
             if (m && (!best || m.net > best.net)) {
-              best = { horizon: hor, shortPct: p.shortPct, comboId: p.comboId, bestRecC: pickRec, net: m.net, durationMonths: durMo };
+              best = { horizon: hor, shortPct: p.shortPct, comboId: p.comboId, bestRecC: 2, net: m.net, durationMonths: durMo };
             }
           });
         } else {
