@@ -1881,6 +1881,23 @@ function bindControls() {
   function _wireYesNoToggle(sel) {
     if (!sel) return;
     if (sel.dataset.yesNoConverted === '1') return;
+
+    // Skip selects that already have a custom toggle wired manually
+    // (default-risk-yes-no is wrapped by .strategy-default-risk-toggle
+    // on Card 2). Detect via: select was pre-hidden in the static HTML
+    // OR a previous sibling is already a button/toggle. Without this
+    // skip the auto-converter inserts a second "No"/"Yes" box next to
+    // the existing manual one — advisor caught two "No" boxes on Card 2.
+    if (sel.getAttribute('hidden') !== null || sel.getAttribute('aria-hidden') === 'true') {
+      sel.dataset.yesNoConverted = '1';
+      return;
+    }
+    var prev = sel.previousElementSibling;
+    if (prev && (prev.classList.contains('yes-no-toggle') || prev.classList.contains('strategy-default-risk-toggle'))) {
+      sel.dataset.yesNoConverted = '1';
+      return;
+    }
+
     sel.dataset.yesNoConverted = '1';
 
     // Hide the original select. Use both .hidden and inline display so
