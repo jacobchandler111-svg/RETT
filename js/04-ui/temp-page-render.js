@@ -810,33 +810,53 @@
 
   // Tax-withdrawal callout (right side of each year card). Shows what
   // comes out of the trust on April 1 of the year AFTER `year` to pay
-  // the prior year's tax liability — but only when the client elected
-  // to "Cover any tax bill from sale" on Page 1. With strategy in place,
-  // the withdrawal = row.withStrategy.total. If they're paying tax from
-  // outside the trust (cover-taxes-yes-no = no), the callout suppresses
-  // so the card layout stays clean for non-covered years.
+  // the SALE-ATTRIBUTABLE tax — when the client elected "Cover any
+  // tax bill from sale" on Page 1.
+  //
+  // Per advisor 2026-05-17: that question is scoped to the SALE,
+  // not the client's full tax bill. W-2 / SE / biz-revenue tax is
+  // already paid out of the client's regular income. The trust only
+  // funds the marginal sale-driven tax. Formula:
+  //
+  //     withdrawal = withStrategy.total − withoutSale.total
+  //
+  // where withoutSale = the baseline that year with no recap, no
+  // sale LT gain, no ST property gain. We compute it via
+  // _recurringBaselineForYear(year, { recap: 0 }) — same helper
+  // used for the synthetic out-of-horizon rows, with the recap
+  // option zeroed.
+  //
+  // Years where the sale contributes nothing (e.g. quiet Y2 in a
+  // Strategy A scenario where all gain hit Y0) yield a $0 withdrawal
+  // and the cell self-suppresses — keeps the card layout clean.
   function _renderWithdrawalCell(row, year, cfg) {
     var covers = cfg && (cfg.coverTaxesFromSale === true || cfg.coverTaxesFromSale === 'yes');
     if (!covers) return '';
-    // Use withStrategy.total when present (engine-row years), else fall
-    // back to baseline.total for synthetic recurring years past the
-    // engine horizon — those years carry no sale-related activity but
-    // the client still owes tax on ordinary income, and if they're
-    // covering tax from the trust the trust still funds that draw.
-    var taxThisYear = 0;
-    if (row && row.withStrategy && Number(row.withStrategy.total) > 0) {
-      taxThisYear = Number(row.withStrategy.total);
-    } else if (row && row.baseline && Number(row.baseline.total) > 0) {
-      taxThisYear = Number(row.baseline.total);
-    }
-    if (!(taxThisYear > 0)) return '';
+    // Tax WITH strategy for this year (engine row when present; for
+    // synthetic out-of-horizon years there's no sale-side activity,
+    // so the marginal sale tax is by definition $0 and the cell
+    // suppresses).
+    var taxWithStrat = (row && row.withStrategy) ? (Number(row.withStrategy.total) || 0) : 0;
+    if (!(taxWithStrat > 0)) return '';
+    // Without-sale tax for this year (W-2 / SE / biz / rental / div
+    // only — no recap, no LT, no ST property gain). The recurring
+    // helper inflates wages + ord at the same 2%/yr the engine uses,
+    // so subtraction stays apples-to-apples.
+    var noSaleBaseline = _recurringBaselineForYear(year, { recap: 0 });
+    var taxWithoutSale = noSaleBaseline ? (Number(noSaleBaseline.total) || 0) : 0;
+    // Sale-attributable tax. Clamp at 0 — in rare years (e.g. Strategy
+    // B Y0 baseline equals W-2 only because LT + recap moved out)
+    // withStrategy can dip slightly below withoutSale due to bracket-
+    // rounding, and a negative withdrawal would be misleading.
+    var saleTax = Math.max(0, taxWithStrat - taxWithoutSale);
+    if (!(saleTax > 0)) return '';
     var dueYear = Number(year) + 1;
     return '' +
       '<div class="temp-year-withdrawal">' +
         '<div class="temp-year-head temp-year-head-withdraw">Trust Withdrawal</div>' +
-        '<div class="temp-withdraw-amt">' + _fmt(taxThisYear) + '</div>' +
+        '<div class="temp-withdraw-amt">' + _fmt(saleTax) + '</div>' +
         '<div class="temp-withdraw-date">April 1, ' + dueYear + '</div>' +
-        '<div class="temp-withdraw-note">paid for ' + year + ' tax liability</div>' +
+        '<div class="temp-withdraw-note">sale-attributable tax for ' + year + '</div>' +
       '</div>';
   }
 
