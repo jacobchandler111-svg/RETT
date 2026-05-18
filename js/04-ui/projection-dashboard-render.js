@@ -1746,7 +1746,17 @@
   function _buildPaymentScheduleHtml(cfg, comp, durationMonths) {
     if (!cfg || !comp) return '';
     var year1 = cfg.year1 || (new Date()).getFullYear();
+    // Closing-day cash = basis recovery + accelerated-depreciation
+    // proceeds. In a structured sale only the LTCG is parked inside
+    // the insurance product; the basis cash AND the depr-equivalent
+    // cash (representing the buyer's payment that corresponds to
+    // recaptured depreciation) both flow to the seller at closing.
+    // Recapture is recognized as Y1 ordinary income in the tax engine,
+    // but the cash itself is delivered up front — so the seller's
+    // closing-day check is basis + accel-depr, not basis alone.
     var basisCash = Math.max(0, Number(cfg.costBasis) || 0);
+    var accelDeprCash = Math.max(0, Number(cfg.acceleratedDepreciation) || 0);
+    var closingCash = basisCash + accelDeprCash;
     var sched = (comp.recognitionSchedule && comp.recognitionSchedule.length)
       ? comp.recognitionSchedule.slice()
       : [];
@@ -1770,7 +1780,7 @@
     var rows = '';
     var totalCash = 0;
     years.forEach(function (yr) {
-      var cash = (yr.isClosing ? basisCash : 0) + yr.gain;
+      var cash = (yr.isClosing ? closingCash : 0) + yr.gain;
       // Suppress zero-cash rows so the table only shows years where the
       // seller actually receives money. Zero rows are honest engine
       // output (the recognitionSchedule pads to horizon) but they add
@@ -1779,10 +1789,16 @@
       if (cash <= 0) return;
       var dateLabel = yr.isClosing ? _fmtClosingDate(cfg.implementationDate, yr.year) : ('Jan 1, ' + yr.year);
       totalCash += cash;
+      var _closingNote = accelDeprCash > 0
+        ? 'Basis + depreciation cash at closing'
+        : 'Basis cash at closing';
+      var _closingPlusGainNote = accelDeprCash > 0
+        ? 'Basis + depreciation cash at closing + gain installment'
+        : 'Basis at closing + gain installment';
       var note = yr.isClosing && yr.gain === 0
-        ? 'Basis cash at closing'
+        ? _closingNote
         : yr.isClosing
-          ? 'Basis at closing + gain installment'
+          ? _closingPlusGainNote
           : 'Gain installment';
       rows += '<tr>' +
         '<td>' + yr.year + '</td>' +
