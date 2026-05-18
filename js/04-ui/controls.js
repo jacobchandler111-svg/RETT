@@ -558,6 +558,30 @@ function _refreshCard3Visibility() {
   c2.hidden = !card2Visible;
   c3.hidden = !card3Visible;
 
+  // When Card 3 is hidden (default-risk = No AND netC not better than
+  // netB), any pre-existing Interested mark on Strategy C is cleared
+  // so a stale selection from an earlier scenario doesn't carry
+  // forward into Tab 4 / Tab 5 while the card itself is invisible.
+  // Suppressed during case-load (__rettApplyingState) so opening a
+  // saved client doesn't blow away its persisted C selection.
+  // Same scrub applied to __rettChosenStrategy when it points to C —
+  // a hidden card can't be the chosen strategy.
+  if (!card3Visible && !window.__rettApplyingState) {
+    if (window.__rettStrategyInterest && window.__rettStrategyInterest.C != null) {
+      window.__rettStrategyInterest.C = null;
+      try { localStorage.setItem('_strategyInterest', JSON.stringify(window.__rettStrategyInterest)); } catch (e) { /* */ }
+      // Re-paint Card 3's chip state so an Interested button isn't left
+      // pressed when the card flips back into view later.
+      if (typeof _refreshStrategyPickCards === 'function') {
+        try { _refreshStrategyPickCards(); } catch (e) { /* */ }
+      }
+    }
+    if (window.__rettChosenStrategy === 'C') {
+      window.__rettChosenStrategy = null;
+      try { localStorage.removeItem('_chosenStrategy'); } catch (e) { /* */ }
+    }
+  }
+
   // Default-risk question — ALWAYS visible per advisor spec.
   grid.classList.remove('strategy-pick-grid--no-default-risk');
 
