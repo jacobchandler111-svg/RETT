@@ -8038,6 +8038,11 @@ body { font-size: 16px; }
 }
 .rett-admin-badge:hover { background: #991b1b; }
 .rett-admin-badge:focus-visible { outline: 2px solid #fca5a5; outline-offset: 2px; }
+/* Explicit hide rule - the .rett-admin-badge display: inline-block above
+   has higher specificity than the user-agent [hidden] { display: none }
+   default, so without this the badge stays visible after _lock() sets
+   the hidden attribute. */
+.rett-admin-badge[hidden] { display: none; }
 
 .admin-math-panel {
     margin: 32px auto 64px;
