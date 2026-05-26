@@ -8010,3 +8010,116 @@ body { font-size: 16px; }
     font-style: italic;
     padding-top: 6px;
 }
+
+/* ============================================================
+   ADMIN math reveal panel (admin-math-panel.js, Chunk 0).
+   Hidden by default; appears below the active page when admin
+   mode is unlocked via dbl-click on the RETT logo. Visually
+   distinct from client-facing UI so it's never mistaken for
+   something to show the client during a live demo.
+   ============================================================ */
+.rett-admin-trigger { cursor: pointer; user-select: none; }
+
+.rett-admin-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    margin-right: 12px;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: #fff;
+    background: #b91c1c;
+    border: 1px solid #7f1d1d;
+    border-radius: 4px;
+    cursor: pointer;
+    vertical-align: middle;
+    transition: background-color 120ms ease;
+}
+.rett-admin-badge:hover { background: #991b1b; }
+.rett-admin-badge:focus-visible { outline: 2px solid #fca5a5; outline-offset: 2px; }
+
+.admin-math-panel {
+    margin: 32px auto 64px;
+    padding: 24px 28px;
+    max-width: 1280px;
+    background: #0f172a;
+    color: #e2e8f0;
+    border: 1px solid #334155;
+    border-top: 4px dashed #b91c1c;
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+.admin-math-panel[hidden] { display: none; }
+
+.admin-math-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #334155;
+}
+.admin-math-header h3 {
+    margin: 0;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #f1f5f9;
+    letter-spacing: 0.02em;
+}
+.admin-math-flag {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    color: #fca5a5;
+    background: rgba(185, 28, 28, 0.22);
+    border: 1px solid rgba(185, 28, 28, 0.5);
+    padding: 3px 8px;
+    border-radius: 3px;
+}
+
+.admin-math-body {
+    color: #cbd5e1;
+}
+.admin-math-body p { margin: 6px 0; }
+.admin-math-body strong { color: #f1f5f9; }
+.admin-math-body table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0;
+}
+.admin-math-body th,
+.admin-math-body td {
+    padding: 6px 10px;
+    text-align: left;
+    border-bottom: 1px solid #1e293b;
+    vertical-align: top;
+}
+.admin-math-body th {
+    color: #94a3b8;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    background: rgba(30, 41, 59, 0.5);
+}
+.admin-math-empty {
+    color: #64748b;
+    font-style: italic;
+}
+.admin-math-error {
+    color: #fca5a5;
+    font-weight: 600;
+}
+
+/* Print: hide entirely so the leave-behind PDF never shows the
+   admin drawer to the client. */
+@media print {
+    .admin-math-panel { display: none !important; }
+    .rett-admin-badge { display: none !important; }
+}

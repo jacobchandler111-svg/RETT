@@ -720,6 +720,16 @@ function showPage(id) {
       (window.reportFailure || console.warn)('Could not run the projection pipeline', e, { level: 'error' });
     }
   }
+
+  // Admin math panel (admin-math-panel.js). No-op when admin mode is
+  // locked; otherwise shows the per-page math drawer below the active
+  // page. Wrapped in try/catch so a panel-rendering bug can never
+  // affect normal page navigation.
+  try {
+    if (typeof window.renderAdminMath === 'function') window.renderAdminMath(id);
+  } catch (e) {
+    if (typeof console !== 'undefined') console.warn('Admin math panel render failed:', e);
+  }
 }
 
 // --- Custodian wiring ---------------------------------------------------
