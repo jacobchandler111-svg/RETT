@@ -678,12 +678,41 @@ function unifiedTaxComparison(cfg, opts) {
       const _availTotal = (cfg.investment != null) ? Math.max(0, Number(cfg.investment))
                        : (cfg.investedCapital != null ? Math.max(0, Number(cfg.investedCapital)) : 0);
       const _basisFull  = Math.max(0, cfg.costBasis || 0);
-      const basisCash   = isDeferred ? Math.min(_basisFull, _availTotal) : _availTotal;
+      // Strategy C model (advisor 2026-05-26):
+      //   The seller can park UP TO totalLT inside the MetLife product
+      //   - cost basis and depreciation recapture CANNOT be parked
+      //   (basis is principal recovery; recap is §1250 ordinary at Y1).
+      //   The seller can choose to park LESS than totalLT, taking the
+      //   remainder as Y1 LT closing cash. Example: $900K basis + $3M
+      //   gain + $1M availableCapital -> park $2.9M in product, $100K
+      //   of gain comes out as closing cash + $900K basis = $1M Y1
+      //   Brooklyn deployment.
+      //
+      //   Optimal strategy: minimize parkedGain so Y1 Brooklyn deploys
+      //   as much availableCapital as possible, since Y1 has the
+      //   highest loss rate (year-0 tranches) and absorbs both the
+      //   recapture (ordinary) and the unparked gain (LT) immediately.
+      //
+      //   Prior model: basisCash = min(basis, avail), gain auto-parked
+      //   100% - which left Y1 Brooklyn at $0 for low-basis sales and
+      //   force-recognized everything at maturity with no offset.
+      let basisCash, _unparkedY1Gain, _parkedGain;
+      if (isDeferred) {
+            const _basisAndRecap = _basisFull + Math.max(0, recapture);
+            _unparkedY1Gain = Math.max(0, Math.min(totalLT, _availTotal - _basisAndRecap));
+            _parkedGain = Math.max(0, totalLT - _unparkedY1Gain);
+            basisCash = Math.min(_availTotal, _basisAndRecap + _unparkedY1Gain);
+      } else {
+            basisCash = _availTotal;
+            _unparkedY1Gain = 0;
+            _parkedGain = 0;
+      }
       const tranches = [];
       if (basisCash > 0) tranches.push({ capital: basisCash, startIdx: 0 });
-      // Reinvest budget = remaining "keep proceeds" room. Immediate
-      // mode always 0 because availableCapital is the sale-day deposit
-      // total — there's no separate proceeds stream to redeploy.
+      // Reinvest budget = remaining "keep proceeds" room for redeploying
+      // installment payouts as they arrive. Immediate mode always 0
+      // (availableCapital is fully deployed at Y1). Deferred mode: any
+      // availableCapital not consumed by the Y1 tranche.
       let _remainingReinvestCap = isDeferred
             ? Math.max(0, _availTotal - basisCash)
             : 0;
@@ -838,24 +867,43 @@ function unifiedTaxComparison(cfg, opts) {
                   ? _metlifeRulesForTerm(cfg.structuredSaleDurationMonths)
                   : null;
             let gainRecThisYear = 0;
+            // Unparked-gain Y1 recognition (deferred mode only). The
+            // portion of total LT gain the seller chose NOT to park in
+            // the MetLife product comes out as Y1 closing cash and is
+            // taxed as Y1 LT. The structured-sale schedule below only
+            // covers the parked portion. See _parkedGain / _unparkedY1Gain
+            // computation at tranche setup above. Skipped in immediate
+            // mode (_unparkedY1Gain = 0 there).
+            if (i === 0 && isDeferred && _unparkedY1Gain > 0) {
+                  gainRecThisYear += _unparkedY1Gain;
+                  gainRemaining   -= _unparkedY1Gain;
+            }
             if (i >= startIdx && i <= maturityIdx && gainRemaining > 0) {
                   const maxAbsorbable = Math.max(0, (stCF + existingLoss - _recapDrag) / denom);
                   let cap = Math.min(gainRemaining, maxAbsorbable);
                   if (_metlifeRules) {
+                        // METLIFE caps apply to the PARKED portion only -
+                        // the unparked Y1 gain is closing cash, not part
+                        // of the insurance product's payment schedule.
+                        // For immediate-mode safety, _parkedGain defaults
+                        // to 0 there and these branches are bypassed
+                        // (deferred-only via _isMetLifeConstrained gate).
+                        const _metlifeBase = _parkedGain;
                         // First-payment cap (term-specific):
                         //   3-yr: 40%, 4-yr+: 50%
                         if (i === startIdx) {
-                              const firstCap = totalGainBucket * _metlifeRules.firstPaymentMaxPct;
+                              const firstCap = _metlifeBase * _metlifeRules.firstPaymentMaxPct;
                               cap = Math.min(cap, firstCap);
                         }
                         // First-two-payments combined cap (universal: 80%).
-                        // gainRemaining at this point includes whatever Y1
-                        // already took, so cumulative-recognized = total -
+                        // gainRemaining at this point reflects parked-only
+                        // (unparked Y1 was already subtracted above), so
+                        // cumulative-parked-recognized = _parkedGain -
                         // gainRemaining. Y2 can take at most
-                        // (80% × total) - cumulativeRecognized.
+                        // (80% × _parkedGain) - cumulativeRecognized.
                         if (i === startIdx + 1) {
-                              const combinedCap = totalGainBucket * _metlifeRules.firstTwoPaymentsMaxPct;
-                              const cumulativeRecognized = totalGainBucket - gainRemaining;
+                              const combinedCap = _metlifeBase * _metlifeRules.firstTwoPaymentsMaxPct;
+                              const cumulativeRecognized = _parkedGain - gainRemaining;
                               const maxY2 = Math.max(0, combinedCap - cumulativeRecognized);
                               cap = Math.min(cap, maxY2);
                         }
@@ -864,7 +912,7 @@ function unifiedTaxComparison(cfg, opts) {
                         // Don't apply on the maturity year itself — it
                         // takes the residual anyway.
                         if (i < maturityIdx) {
-                              const lastReserve = totalGainBucket * _metlifeRules.lastPaymentMinPct;
+                              const lastReserve = _metlifeBase * _metlifeRules.lastPaymentMinPct;
                               const maxAllowed  = Math.max(0, gainRemaining - lastReserve);
                               cap = Math.min(cap, maxAllowed);
                         }
