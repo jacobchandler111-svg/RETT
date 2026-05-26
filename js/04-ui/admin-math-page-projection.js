@@ -75,7 +75,7 @@
         '<thead><tr>' +
           '<th>Year</th>' +
           '<th class="admin-math-num">Gain Recog.</th>' +
-          '<th class="admin-math-num">Brooklyn Loss</th>' +
+          '<th class="admin-math-num">Brooklyn ST Loss</th>' +
           '<th class="admin-math-num">Baseline Tax</th>' +
           '<th class="admin-math-num">With-Strat Tax</th>' +
           '<th class="admin-math-num">Savings</th>' +
@@ -140,12 +140,26 @@
     var scaleNote = analysis.optScale < 1
       ? 'Optimizer dialed back to ' + scalePct + ' of available - reduces fees'
       : 'Full deployment (no dial-back)';
+    var combo = (p.comboId && typeof root.getSchwabCombo === 'function')
+      ? root.getSchwabCombo(p.comboId) : null;
+    var comboLabel = combo ? (combo.leverageLabel + ' (' + combo.strategyLabel + ')') : (p.comboId || '—');
+    var y0LossRate = combo && combo.lossByYear ? combo.lossByYear[0] : null;
+    var lossRateRow = y0LossRate != null
+      ? _autoPickRow('Loss rate (Y0)', (y0LossRate * 100).toFixed(1) + '%',
+                     'First-year loss/$ ratio under ' + comboLabel + ' - decays each subsequent year (see per-year table for actuals)')
+      : _autoPickRow('Loss rate (Y0)', '—', null);
+    var feeRateRow = combo
+      ? _autoPickRow('Brooklyn fee rate', (combo.feeRate * 100).toFixed(2) + '%',
+                     'Per-year fee on deployed capital under ' + comboLabel)
+      : _autoPickRow('Brooklyn fee rate', '—', null);
     var pickRows = [
-      _autoPickRow('Brooklyn combo',     p.comboId || (p.shortPct + '/' + (100 - p.shortPct)),
+      _autoPickRow('Brooklyn combo',     comboLabel,
                                          'Best-net combo from the auto-pick sweep across leverage tiers'),
       _autoPickRow('Horizon',            p.horizon + ' year' + (p.horizon === 1 ? '' : 's'), null),
       _autoPickRow('Recognition shape',  lockupHint, null),
       _autoPickRow('Optimizer scale',    scalePct, scaleNote),
+      lossRateRow,
+      feeRateRow,
       _autoPickRow('Cover taxes',        cfg.coverTaxesFromSale ? 'Yes' : 'No',
                                          cfg.coverTaxesFromSale ? 'Y0-only tax-reserve tranche added (withdraws Apr 1 Y1)' : null),
       _autoPickRow('Available capital',  _fmtUSD(_num(cfg.availableCapital)),
@@ -162,7 +176,7 @@
         '</tbody>' +
       '</table>';
     return '<div class="admin-math-section">' +
-      '<h4>Strategy ' + letter + ' &mdash; ' + _esc(name) + '</h4>' +
+      '<h4>Strategy ' + letter + ' &mdash; ' + _esc(name) + ' &mdash; ' + _esc(comboLabel) + '</h4>' +
       '<table class="admin-math-table">' +
         '<thead><tr><th>Auto-pick</th><th class="admin-math-num">Value</th><th>Note</th></tr></thead>' +
         '<tbody>' + pickRows.join('') + '</tbody>' +
