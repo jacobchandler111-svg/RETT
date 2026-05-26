@@ -688,6 +688,31 @@ function unifiedTaxComparison(cfg, opts) {
       //   Prior model: basisCash = min(basis, avail), gain auto-parked
       //   100% - which left Y1 Brooklyn at $0 for low-basis sales and
       //   force-recognized everything at maturity with no offset.
+      // Tier-jumping combo list MUST be set up before the tranche
+      // creation below, because the Y1 tranche tags itself with the
+      // combo its cumulative deposit qualifies for. Schwab-combo cfgs
+      // only - non-Schwab cfgs leave _tieringCombos empty and the
+      // tranche-tag falls back to null (engine uses the legacy curve).
+      const combo = (cfg.comboId && typeof getSchwabCombo === 'function')
+            ? getSchwabCombo(cfg.comboId) : null;
+      var _tieringCombos = (function () {
+            if (!combo || typeof listSchwabCombosForStrategy !== 'function') return [];
+            var stratKey = combo.strategyKey;
+            var userCap = combo.leverage;
+            var all = listSchwabCombosForStrategy(stratKey) || [];
+            return all
+                  .filter(function (c) { return c && c.leverage <= userCap + 1e-6; })
+                  .sort(function (a, b) { return a.minInvestment - b.minInvestment; });
+      })();
+      function _pickComboForCumulative(cumulative) {
+            if (!_tieringCombos.length) return combo;
+            var picked = _tieringCombos[0];
+            for (var k = 0; k < _tieringCombos.length; k++) {
+                  if (cumulative + 0.01 >= _tieringCombos[k].minInvestment) picked = _tieringCombos[k];
+            }
+            return picked;
+      }
+
       let basisCash, _unparkedY1Gain, _parkedGain;
       if (isDeferred) {
             const _basisAndRecap = _basisFull + Math.max(0, recapture);
@@ -700,7 +725,22 @@ function unifiedTaxComparison(cfg, opts) {
             _parkedGain = 0;
       }
       const tranches = [];
-      if (basisCash > 0) tranches.push({ capital: basisCash, startIdx: 0 });
+      if (basisCash > 0) {
+            // Tag the initial tranche with the combo its cumulative deposit
+            // qualifies for. For a $1.5M Y1 tranche under a 200/100-selected
+            // cfg this picks 145/45 (auto-downgrade since $1.5M < $3M);
+            // for a $5M Y1 tranche it picks 200/100. Non-Schwab cfgs leave
+            // the tranche untagged so _trancheLossRate falls back to the
+            // legacy single curve.
+            var _y1Combo = _pickComboForCumulative(basisCash);
+            tranches.push({
+                  capital: basisCash,
+                  startIdx: 0,
+                  comboId: _y1Combo ? _y1Combo.id : null,
+                  comboLossByYear: _y1Combo && _y1Combo.lossByYear ? _y1Combo.lossByYear.slice() : null,
+                  comboFeeRate: _y1Combo ? _y1Combo.feeRate : null
+            });
+      }
       // Reinvest budget = remaining "keep proceeds" room for redeploying
       // installment payouts as they arrive. Immediate mode always 0
       // (availableCapital is fully deployed at Y1). Deferred mode: any
@@ -740,15 +780,17 @@ function unifiedTaxComparison(cfg, opts) {
             maturityIdx = 0;
       }
 
-      // Loss-rate function — shared. Same Schwab combo / proxy decay
-      // helper both engines call.
+      // Loss-rate function — shared baseline used when tier-jumping
+      // is unavailable (non-Schwab cfgs or saved cases without comboId).
+      // Schwab-combo cfgs override per-tranche below via _trancheLossRate.
       const lossRateForTrancheYear = _buildLossRateByAge(cfg, yfImpl) || function () { return 0; };
 
       // Fee rate — unified regression first, then combo-direct, then
       // tier interpolation, then 0. Mirrors the deferred-path's
       // fallback chain (already established as the source of truth).
-      const combo = (cfg.comboId && typeof getSchwabCombo === 'function')
-            ? getSchwabCombo(cfg.comboId) : null;
+      // Note: `combo` was hoisted above the tranche-setup block to
+      // support tier-jumping (which tags each tranche with its combo
+      // at creation time).
       const feeRate = (function () {
             var lp, sp;
             if (combo) { lp = combo.longPct; sp = combo.shortPct; }
@@ -766,6 +808,45 @@ function unifiedTaxComparison(cfg, opts) {
             }
             return 0;
       })();
+
+      // Per-tranche loss rate. When tier-jumping is active (Schwab combo
+      // cfg) we read the tranche's combo.lossByYear; otherwise we fall
+      // back to the cfg-wide curve (unchanged legacy behavior).
+      //
+      // Tier-jumping rationale (advisor 2026-05-26): each tranche uses
+      // the highest-leverage Schwab combo whose minInvestment <=
+      // cumulative deposit AT THE TIME the tranche opens, capped at the
+      // user-selected combo's leverage. So a $1.5M Y1 deposit -> 145/45
+      // (min $1M, 200/100's $3M not yet met). A $1.5M reinvest tranche
+      // at Y2 -> cumulative now $3M -> 200/100 (its 0.59 Y1 loss rate
+      // applies to THIS tranche at trancheAge=0). Capped-at-user-
+      // selection means: if the user picked 145/45, engine never jumps
+      // to 200/100. Setup for _tieringCombos / _pickComboForCumulative
+      // is at the top of unifiedTaxComparison (hoisted to be ready by
+      // the time the Y1 tranche is created).
+      function _trancheLossRate(t, age) {
+            if (_tieringCombos.length && t && t.comboLossByYear && t.comboLossByYear.length) {
+                  var arr = t.comboLossByYear;
+                  var safeAge = Math.max(0, age | 0);
+                  var lastIdx = arr.length - 1;
+                  var yfForThis = (t.startIdx === 0 && safeAge === 0) ? yfImpl : 1;
+                  if (safeAge === 0) return (arr[0] || 0) * yfForThis;
+                  var prev = arr[Math.min(safeAge - 1, lastIdx)] || 0;
+                  var curr = arr[Math.min(safeAge, lastIdx)] || 0;
+                  return (1 - yfForThis) * prev + yfForThis * curr;
+            }
+            return lossRateForTrancheYear(age);
+      }
+
+      // Per-tranche fee rate. With tier-jumping, each tranche pays its
+      // own combo's feeRate; without, all tranches share the cfg-wide
+      // feeRate computed above.
+      function _trancheFeeRate(t) {
+            if (_tieringCombos.length && t && typeof t.comboFeeRate === 'number') {
+                  return t.comboFeeRate;
+            }
+            return feeRate;
+      }
 
       // Per-tranche tax carve-out for "cover taxes from sale" toggle
       // (deferred only). Rate held constant across the recognition
@@ -814,9 +895,12 @@ function unifiedTaxComparison(cfg, opts) {
                   tranches.forEach(function (t) {
                         const trancheAge = i - t.startIdx;
                         if (trancheAge < 0) return;
-                        existingLoss += t.capital * lossRateForTrancheYear(trancheAge);
+                        // Per-tranche loss rate honors tier-jumping when a
+                        // Schwab combo cfg is present; falls back to the
+                        // single legacy curve otherwise.
+                        existingLoss += t.capital * _trancheLossRate(t, trancheAge);
                         const _trancheYf = (t.startIdx === 0 && trancheAge === 0) ? yfImpl : 1;
-                        existingFee += t.capital * feeRate * _trancheYf;
+                        existingFee += t.capital * _trancheFeeRate(t) * _trancheYf;
                         existingInvested += t.capital;
                   });
                   // Y1 loss override (immediate mode, not below-min): replace
@@ -926,13 +1010,37 @@ function unifiedTaxComparison(cfg, opts) {
                   reinvested = Math.min(reinvested, _remainingReinvestCap);
                   _remainingReinvestCap = Math.max(0, _remainingReinvestCap - reinvested);
             }
+            // Tier-jumping: pick the new reinvest tranche's combo based on
+            // cumulative deposit INCLUDING this reinvest. So a Y2 reinvest
+            // that pushes cumulative across the $3M threshold lands the new
+            // tranche on 200/100 with its 0.59 Y1 loss rate, while the
+            // existing Y1 tranche stays on its original 145/45 curve.
+            var _reinvestCombo = null;
+            var _newTrancheLossRate = year1Rate;
+            var _newTrancheFeeRate  = feeRate;
             if (reinvested > 0) {
-                  tranches.push({ capital: reinvested, startIdx: i });
+                  var _existingCumulative = tranches.reduce(function (s, t) { return s + (t.capital || 0); }, 0);
+                  var _cumulativeWithThis = _existingCumulative + reinvested;
+                  _reinvestCombo = _pickComboForCumulative(_cumulativeWithThis);
+                  if (_tieringCombos.length && _reinvestCombo && _reinvestCombo.lossByYear) {
+                        _newTrancheLossRate = _reinvestCombo.lossByYear[0] || 0;
+                        _newTrancheFeeRate  = _reinvestCombo.feeRate || feeRate;
+                  }
+                  tranches.push({
+                        capital: reinvested,
+                        startIdx: i,
+                        comboId: _reinvestCombo ? _reinvestCombo.id : null,
+                        comboLossByYear: _reinvestCombo && _reinvestCombo.lossByYear ? _reinvestCombo.lossByYear.slice() : null,
+                        comboFeeRate: _reinvestCombo ? _reinvestCombo.feeRate : null
+                  });
             }
 
             // Step 4 — recompute year totals INCLUDING the new tranche.
-            const newTrancheLoss = reinvested * year1Rate;
-            const newTrancheFee  = reinvested * feeRate;
+            // The new tranche operates at age=0 with its own combo's Y1
+            // loss rate (which may differ from existing tranches' rates
+            // under tier-jumping).
+            const newTrancheLoss = reinvested * _newTrancheLossRate;
+            const newTrancheFee  = reinvested * _newTrancheFeeRate;
             const yearLoss     = existingLoss + newTrancheLoss;
             const yearFee      = existingFee + newTrancheFee;
             const yearInvested = existingInvested + reinvested;
