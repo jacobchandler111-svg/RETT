@@ -546,38 +546,58 @@ function _refreshCard3Visibility() {
 
   var allFinite = Number.isFinite(netA) && Number.isFinite(netB) && Number.isFinite(netC);
 
-  // Card 2: B better than A, OR default-risk toggled Yes.
-  // Without finite nets (no sale price yet), default to showing Card 2
-  // so the advisor isn't stuck on Card 1 with no comparison.
-  var card2Visible = defaultRiskYes || !allFinite || (netB > netA);
-  // Card 3: C better than B (with Card 2 already shown), OR
-  // default-risk toggled Yes. Skipping Card 2 to show Card 3 would
-  // look like a layout gap.
-  var card3Visible = defaultRiskYes || (card2Visible && allFinite && (netC > netB));
+  // Negative-net hide rule (advisor 2026-05-26): a strategy whose net
+  // benefit is <= 0 (savings minus all fees) is never shown. Brookhaven
+  // plus Brooklyn fees can eat a small sale's savings, and surfacing a
+  // losing strategy as if it were an option is misleading to the client.
+  // Applies to ALL three cards including Card 1 (Normal Sale). When
+  // every strategy nets <= 0, Page 2 ends up empty - intentional: there
+  // is no recommendable option and the advisor should say so verbally.
+  // Bypass while allFinite is false (no sale entered yet) so the page
+  // doesn't go blank during initial form-fill.
+  var c1 = document.getElementById('strategy-pick-A');
+  var card1Visible = !allFinite || (netA > 0);
+  // Card 2: B better than A AND B has positive net, OR default-risk.
+  var card2Visible = defaultRiskYes || !allFinite ||
+                     ((netB > 0) && (netB > netA));
+  // Card 3: C better than B AND C has positive net AND card 2 shown,
+  // OR default-risk toggled Yes.
+  var card3Visible = defaultRiskYes ||
+                     (card2Visible && allFinite && (netC > 0) && (netC > netB));
 
+  if (c1) c1.hidden = !card1Visible;
   c2.hidden = !card2Visible;
   c3.hidden = !card3Visible;
 
-  // When Card 3 is hidden (default-risk = No AND netC not better than
-  // netB), any pre-existing Interested mark on Strategy C is cleared
-  // so a stale selection from an earlier scenario doesn't carry
-  // forward into Tab 4 / Tab 5 while the card itself is invisible.
-  // Suppressed during case-load (__rettApplyingState) so opening a
-  // saved client doesn't blow away its persisted C selection.
-  // Same scrub applied to __rettChosenStrategy when it points to C —
-  // a hidden card can't be the chosen strategy.
-  if (!card3Visible && !window.__rettApplyingState) {
-    if (window.__rettStrategyInterest && window.__rettStrategyInterest.C != null) {
-      window.__rettStrategyInterest.C = null;
+  // Hidden cards clear their Interested mark + chosen-strategy pointer
+  // so stale selections from earlier scenarios don't carry into Tab 4
+  // / Tab 5 while the cards themselves are invisible. Suppressed during
+  // case-load (__rettApplyingState) so opening a saved client doesn't
+  // blow away its persisted selections.
+  if (!window.__rettApplyingState) {
+    var interestChanged = false;
+    var chosenChanged = false;
+    function _maybeClear(letter, visible) {
+      if (visible) return;
+      if (window.__rettStrategyInterest && window.__rettStrategyInterest[letter] != null) {
+        window.__rettStrategyInterest[letter] = null;
+        interestChanged = true;
+      }
+      if (window.__rettChosenStrategy === letter) {
+        window.__rettChosenStrategy = null;
+        chosenChanged = true;
+      }
+    }
+    _maybeClear('A', card1Visible);
+    _maybeClear('B', card2Visible);
+    _maybeClear('C', card3Visible);
+    if (interestChanged) {
       try { localStorage.setItem('_strategyInterest', JSON.stringify(window.__rettStrategyInterest)); } catch (e) { /* */ }
-      // Re-paint Card 3's chip state so an Interested button isn't left
-      // pressed when the card flips back into view later.
       if (typeof _refreshStrategyPickCards === 'function') {
         try { _refreshStrategyPickCards(); } catch (e) { /* */ }
       }
     }
-    if (window.__rettChosenStrategy === 'C') {
-      window.__rettChosenStrategy = null;
+    if (chosenChanged) {
       try { localStorage.removeItem('_chosenStrategy'); } catch (e) { /* */ }
     }
   }
@@ -585,9 +605,13 @@ function _refreshCard3Visibility() {
   // Default-risk question — ALWAYS visible per advisor spec.
   grid.classList.remove('strategy-pick-grid--no-default-risk');
 
-  grid.classList.toggle('strategy-pick-grid--one-only', card2Visible === false);
-  grid.classList.toggle('strategy-pick-grid--two-only',
-    card2Visible === true && card3Visible === false);
+  // Grid layout class driven by visible-card count, not which cards
+  // specifically. Now that Card 1 can hide too (negative-net rule),
+  // we can have configurations like only-B-visible or B+C-with-A-
+  // hidden that the old "card2Visible-only" logic didn't handle.
+  var visibleCount = (card1Visible ? 1 : 0) + (card2Visible ? 1 : 0) + (card3Visible ? 1 : 0);
+  grid.classList.toggle('strategy-pick-grid--one-only', visibleCount === 1);
+  grid.classList.toggle('strategy-pick-grid--two-only', visibleCount === 2);
 }
 
 function _monthsUntilNextJan1(isoDate) {
