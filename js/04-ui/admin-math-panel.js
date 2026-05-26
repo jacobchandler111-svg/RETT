@@ -147,9 +147,9 @@
     var existingHash;
     try { existingHash = localStorage.getItem(LS_HASH); } catch (e) { existingHash = null; }
     if (!existingHash) {
-      var newPass = prompt('Set admin passcode (8+ characters):');
-      if (!newPass || newPass.length < 8) {
-        if (newPass != null) alert('Passcode must be at least 8 characters.');
+      var newPass = prompt('Set admin passcode (4+ characters):');
+      if (!newPass || newPass.length < 4) {
+        if (newPass != null) alert('Passcode must be at least 4 characters.');
         return Promise.resolve();
       }
       return _hash(newPass).then(function (h) {
