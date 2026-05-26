@@ -35,37 +35,39 @@
   function _chosenAnalysis() {
     var chosen = root.__rettChosenStrategy;
     if (!chosen) return { error: 'No strategy chosen yet (click "Use This Strategy" on Tab 4)' };
-    if (typeof root.collectInputs !== 'function' ||
-        typeof root._autoPickSection !== 'function' ||
-        typeof root._scenarioCfgFor !== 'function' ||
-        typeof root.unifiedTaxComparison !== 'function') {
-      return { error: 'engine helpers unavailable' };
+    if (typeof root.buildInterestedSummary !== 'function') {
+      return { error: 'buildInterestedSummary unavailable' };
     }
-    var baseCfg;
-    try { baseCfg = root.collectInputs(); } catch (e) { return { error: 'collectInputs threw: ' + (e.message || e) }; }
-    var picked;
-    try { picked = root._autoPickSection(chosen, baseCfg); }
-    catch (e) { return { error: 'auto-pick threw: ' + (e.message || e) }; }
-    var sectionCfg = Object.assign({}, baseCfg, {
-      horizonYears: picked.horizon,
-      leverage:     picked.shortPct / 100,
-      leverageCap:  picked.shortPct / 100,
-      comboId:      picked.comboId
-    });
-    var typedCfg = root._scenarioCfgFor(chosen, sectionCfg, picked.bestRecC, picked.durationMonths);
-    var cmp;
-    try { cmp = root.unifiedTaxComparison(typedCfg); }
-    catch (e) { return { error: 'engine threw: ' + (e.message || e) }; }
+    var summary;
+    try { summary = root.buildInterestedSummary(); }
+    catch (e) { return { error: 'buildInterestedSummary threw: ' + (e.message || e) }; }
+    if (!summary) return { error: 'no summary (no inputs?)' };
+    var entry = (summary.entries || []).find(function (e) { return e.type === chosen; });
+    if (!entry) return { error: 'no entry for chosen strategy ' + chosen };
+    var m = entry.metrics || {};
+    // Read post-optimizer values so the hero reconciliation matches
+    // what the Page 5 hero actually displays.
+    var savings = _num(m.savings != null ? m.savings : m._savingsAtFull);
+    var brooklynFees = _num(m.brooklynFees);
+    var brookhavenFees = _num(m.brookhavenFees);
+    var allFees = _num(m.fees);
+    var net = _num(m.net);
+    // doNothing on metrics is the baseline tax; with-strategy tax is
+    // doNothing - savings.
+    var baselineTax = _num(m.doNothing);
+    var withStrategyTax = baselineTax - savings;
     return {
       chosen: chosen,
-      picked: picked,
-      cfg: typedCfg,
-      cmp: cmp,
-      savings:        _num(cmp.totalSavings),
-      brooklynFees:   _num(cmp.totalFees),
-      brookhavenFees: _num(cmp.totalBrookhavenFees),
-      allFees:        _num(cmp.totalAllFees),
-      primaryNet:     _num(cmp.totalSavings) - _num(cmp.totalAllFees)
+      picked: entry.picked || {},
+      cfg: entry.cfg || {},
+      baselineTax: baselineTax,
+      withStrategyTax: withStrategyTax,
+      savings: savings,
+      brooklynFees: brooklynFees,
+      brookhavenFees: brookhavenFees,
+      allFees: allFees,
+      primaryNet: net,
+      optScale: entry._optScale != null ? entry._optScale : 1
     };
   }
 
@@ -77,24 +79,29 @@
       '</div>';
     }
     var nameMap = { A: 'Normal Sale', B: 'Installment Sale', C: 'Structured Installment Sale' };
+    var scalePct = (a.optScale * 100).toFixed(0) + '%';
+    var scaleNote = a.optScale < 1
+      ? 'Optimizer dialed back to ' + scalePct + ' of available - reduces fees while still absorbing gain'
+      : 'Full deployment';
     return '<div class="admin-math-section">' +
       '<h4>Hero Reconciliation &mdash; Chosen Strategy ' + a.chosen + ' (' + nameMap[a.chosen] + ')</h4>' +
       '<table class="admin-math-table">' +
         '<thead><tr><th>Component</th><th class="admin-math-num">Value</th><th>Notes</th></tr></thead>' +
         '<tbody>' +
-          _row('Baseline tax (do nothing)',   _fmtUSD(_num(a.cmp.totalBaseline)),
+          _row('Optimizer scale',             scalePct, scaleNote) +
+          _row('Baseline tax (do nothing)',   _fmtUSD(a.baselineTax),
                                               'What the client owes WITHOUT any strategy') +
-          _row('With-strategy tax',           _fmtUSD(_num(a.cmp.totalWithStrategy)),
-                                              'What they owe WITH the chosen strategy') +
+          _row('With-strategy tax',           _fmtUSD(a.withStrategyTax),
+                                              'What they owe WITH the chosen strategy (post-optimizer)') +
           _row('Gross tax savings',           _fmtUSD(a.savings),
                                               'baseline − with-strategy') +
-          _row('Brooklyn fees',               _fmtUSD(a.brooklynFees), null) +
+          _row('Brooklyn fees',               _fmtUSD(a.brooklynFees), 'Post-optimizer (scaled if dialed back)') +
           _row('Brookhaven fees',             _fmtUSD(a.brookhavenFees), null) +
           _row('Total fees',                  _fmtUSD(a.allFees),
                                               'Brooklyn + Brookhaven') +
           '<tr class="admin-math-total"><td><strong>NET BENEFIT (hero)</strong></td>' +
             '<td class="admin-math-num"><strong>' + _fmtUSD(a.primaryNet) + '</strong></td>' +
-            '<td class="admin-math-note-cell">savings &minus; total fees</td></tr>' +
+            '<td class="admin-math-note-cell">savings &minus; total fees (matches Page 5 hero)</td></tr>' +
         '</tbody>' +
       '</table>' +
     '</div>';

@@ -23,29 +23,40 @@
   }
   function _num(v) { var n = Number(v); return isFinite(n) ? n : 0; }
 
-  function _strategyAnalysis(type, baseCfg) {
-    if (typeof root._autoPickSection !== 'function') return { error: '_autoPickSection unavailable' };
-    if (typeof root.unifiedTaxComparison !== 'function') return { error: 'unifiedTaxComparison unavailable' };
-    if (typeof root._scenarioCfgFor !== 'function') return { error: '_scenarioCfgFor unavailable' };
-    var picked;
-    try { picked = root._autoPickSection(type, baseCfg); }
-    catch (e) { return { error: 'auto-pick threw: ' + (e.message || e) }; }
-    if (!picked) return { error: 'no auto-pick result' };
-    var sectionCfg = Object.assign({}, baseCfg, {
-      horizonYears: picked.horizon,
-      leverage:     picked.shortPct / 100,
-      leverageCap:  picked.shortPct / 100,
-      comboId:      picked.comboId
-    });
-    var typedCfg = root._scenarioCfgFor(type, sectionCfg, picked.bestRecC, picked.durationMonths);
+  // Same approach as Tab 3: read post-optimizer entries from
+  // buildInterestedSummary so the headline net matches the card.
+  // We ALSO call unifiedTaxComparison(entry.cfg) to get the per-year
+  // engine row breakdown - those are pre-optimizer rows but they
+  // represent the raw engine output the CPA wants to see. The
+  // headline net + savings + fees reflect the post-optimizer values.
+  function _strategyAnalysis(type) {
+    if (typeof root.buildInterestedSummary !== 'function') {
+      return { error: 'buildInterestedSummary unavailable' };
+    }
+    if (typeof root.unifiedTaxComparison !== 'function') {
+      return { error: 'unifiedTaxComparison unavailable' };
+    }
+    var summary;
+    try { summary = root.buildInterestedSummary(); }
+    catch (e) { return { error: 'buildInterestedSummary threw: ' + (e.message || e) }; }
+    if (!summary) return { error: 'no summary (no inputs?)' };
+    var entry = (summary.entries || []).find(function (e) { return e.type === type; });
+    if (!entry) return { error: 'no entry for ' + type };
+
     var cmp;
-    try { cmp = root.unifiedTaxComparison(typedCfg); }
+    try { cmp = root.unifiedTaxComparison(entry.cfg); }
     catch (e) { return { error: 'engine threw: ' + (e.message || e) }; }
+    var m = entry.metrics || {};
     return {
-      picked: picked,
-      cfg: typedCfg,
+      picked: entry.picked || {},
+      cfg: entry.cfg || {},
       cmp: cmp,
-      net: _num(cmp.totalSavings) - _num(cmp.totalAllFees)
+      optScale: entry._optScale != null ? entry._optScale : 1,
+      // Post-optimizer headline values (match Page 3 cards):
+      cardSavings: _num(m.savings != null ? m.savings : m._savingsAtFull),
+      cardBrooklynFees: _num(m.brooklynFees),
+      cardBrookhavenFees: _num(m.brookhavenFees),
+      cardNet: _num(m.net)
     };
   }
 
@@ -125,38 +136,47 @@
     if (letter === 'A') lockupHint = 'Y0 lump-sum';
     else if (letter === 'B') lockupHint = (p.bestRecC | 0) + ' yearly Jan-1 payment' + (p.bestRecC === 1 ? '' : 's');
     else lockupHint = (p.durationMonths || 36) + 'mo structured-sale (40/40/20 over 3 yrs)';
+    var scalePct = (analysis.optScale * 100).toFixed(0) + '%';
+    var scaleNote = analysis.optScale < 1
+      ? 'Optimizer dialed back to ' + scalePct + ' of available - reduces fees'
+      : 'Full deployment (no dial-back)';
     var pickRows = [
       _autoPickRow('Brooklyn combo',     p.comboId || (p.shortPct + '/' + (100 - p.shortPct)),
                                          'Best-net combo from the auto-pick sweep across leverage tiers'),
       _autoPickRow('Horizon',            p.horizon + ' year' + (p.horizon === 1 ? '' : 's'), null),
       _autoPickRow('Recognition shape',  lockupHint, null),
+      _autoPickRow('Optimizer scale',    scalePct, scaleNote),
       _autoPickRow('Cover taxes',        cfg.coverTaxesFromSale ? 'Yes' : 'No',
                                          cfg.coverTaxesFromSale ? 'Y0-only tax-reserve tranche added (withdraws Apr 1 Y1)' : null),
       _autoPickRow('Available capital',  _fmtUSD(_num(cfg.availableCapital)),
                                          'Total Brooklyn investment commitment')
     ];
+    var cardSummary =
+      '<p class="admin-math-subtitle" style="margin-top:10px;">Page 3 card values (post-optimizer):</p>' +
+      '<table class="admin-math-table">' +
+        '<tbody>' +
+          '<tr><td>Gross tax savings</td><td class="admin-math-num">' + _fmtUSD(analysis.cardSavings) + '</td><td class="admin-math-note-cell">post-optimizer</td></tr>' +
+          '<tr><td>Brooklyn fees</td><td class="admin-math-num">' + _fmtUSD(analysis.cardBrooklynFees) + '</td><td class="admin-math-note-cell">post-optimizer</td></tr>' +
+          '<tr><td>Brookhaven fees</td><td class="admin-math-num">' + _fmtUSD(analysis.cardBrookhavenFees) + '</td><td></td></tr>' +
+          '<tr class="admin-math-total"><td><strong>NET BENEFIT (on card)</strong></td><td class="admin-math-num"><strong>' + _fmtUSD(analysis.cardNet) + '</strong></td><td class="admin-math-note-cell">savings − fees</td></tr>' +
+        '</tbody>' +
+      '</table>';
     return '<div class="admin-math-section">' +
       '<h4>Strategy ' + letter + ' &mdash; ' + _esc(name) + '</h4>' +
       '<table class="admin-math-table">' +
         '<thead><tr><th>Auto-pick</th><th class="admin-math-num">Value</th><th>Note</th></tr></thead>' +
         '<tbody>' + pickRows.join('') + '</tbody>' +
       '</table>' +
-      '<p class="admin-math-subtitle" style="margin-top:10px;">Per-year engine output:</p>' +
+      cardSummary +
+      '<p class="admin-math-subtitle" style="margin-top:10px;">Per-year engine output (pre-optimizer, full-deployment):</p>' +
       _perYearTable(cmp) +
     '</div>';
   }
 
   function _renderProjection() {
-    if (typeof root.collectInputs !== 'function') {
-      return '<p class="admin-math-error">collectInputs() unavailable.</p>';
-    }
-    var baseCfg;
-    try { baseCfg = root.collectInputs(); }
-    catch (e) { return '<p class="admin-math-error">collectInputs() threw: ' + _esc(e.message || e) + '</p>'; }
-
-    return _strategySection('A', 'Normal Sale',                  _strategyAnalysis('A', baseCfg))
-         + _strategySection('B', 'Installment Sale (§453)',       _strategyAnalysis('B', baseCfg))
-         + _strategySection('C', 'Structured Installment Sale',   _strategyAnalysis('C', baseCfg));
+    return _strategySection('A', 'Normal Sale',                  _strategyAnalysis('A'))
+         + _strategySection('B', 'Installment Sale (§453)',       _strategyAnalysis('B'))
+         + _strategySection('C', 'Structured Installment Sale',   _strategyAnalysis('C'));
   }
 
   root._registerPageMath('page-projection', _renderProjection);

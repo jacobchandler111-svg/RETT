@@ -2423,8 +2423,9 @@
   // the nominal combo's net is negative but the auto-picked combo's
   // net is positive, the pipeline dials Brooklyn to $0 while Page-5
   // continues to render the auto-picked combo's positive net (F20).
-  root._autoPickSection = _autoPickSection;
-  root._scenarioCfgFor  = _scenarioCfgFor;
+  root._autoPickSection      = _autoPickSection;
+  root._scenarioCfgFor       = _scenarioCfgFor;
+  root.buildInterestedSummary = buildInterestedSummary;
 
   // Public helper for the Strategy-Selection page (controls.js
   // _refreshCard3Visibility). Returns the same NET BENEFIT that

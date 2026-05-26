@@ -36,45 +36,41 @@
       (note ? '<td class="admin-math-note-cell">' + note + '</td>' : '<td></td>') + '</tr>';
   }
 
-  // Run the same _autoPickSection + unifiedTaxComparison the dashboard
-  // uses, then surface the chosen combo + horizon + per-year totals.
-  function _strategyAnalysis(type, baseCfg) {
-    if (typeof root._autoPickSection !== 'function') return { error: '_autoPickSection unavailable' };
-    if (typeof root.unifiedTaxComparison !== 'function') return { error: 'unifiedTaxComparison unavailable' };
-    var picked;
-    try { picked = root._autoPickSection(type, baseCfg); }
-    catch (e) { return { error: 'auto-pick threw: ' + (e.message || e) }; }
-    if (!picked) return { error: 'no auto-pick result' };
-
-    // Build the strategy cfg the same way projection-dashboard-render does.
-    var sectionCfg = Object.assign({}, baseCfg, {
-      horizonYears: picked.horizon,
-      leverage:     picked.shortPct / 100,
-      leverageCap:  picked.shortPct / 100,
-      comboId:      picked.comboId
-    });
-    // _scenarioCfgFor expects (type, currentCfg, bestRecC, userDuration).
-    var typedCfg;
-    if (typeof root._scenarioCfgFor === 'function') {
-      typedCfg = root._scenarioCfgFor(type, sectionCfg, picked.bestRecC, picked.durationMonths);
-    } else {
-      typedCfg = sectionCfg;
+  // Pull the dashboard's post-optimizer entry for a strategy so the
+  // admin panel's net matches what the Page 3 cards display. The
+  // entries returned by buildInterestedSummary have been through
+  // runBrooklynOptimizer (which can dial Brooklyn deployment back
+  // when that produces a better net), so reading metrics directly
+  // from unifiedTaxComparison would diverge for any strategy whose
+  // optimizer applied a scale less than 1.
+  function _strategyAnalysis(type) {
+    if (typeof root.buildInterestedSummary !== 'function') {
+      return { error: 'buildInterestedSummary unavailable' };
     }
-    var cmp;
-    try { cmp = root.unifiedTaxComparison(typedCfg); }
-    catch (e) { return { error: 'unifiedTaxComparison threw: ' + (e.message || e) }; }
-
-    var totalLoss = (cmp.rows || []).reduce(function (s, r) { return s + (_num(r.lossGenerated) || 0); }, 0);
-    var totalRecognized = (cmp.recognitionSchedule || []).reduce(function (s, r) { return s + _num(r.gainRecognized); }, 0);
-    var totalRecap = _num(typedCfg.acceleratedDepreciation);
+    var summary;
+    try { summary = root.buildInterestedSummary(); }
+    catch (e) { return { error: 'buildInterestedSummary threw: ' + (e.message || e) }; }
+    if (!summary) return { error: 'no summary (no inputs?)' };
+    var entry = (summary.entries || []).find(function (e) { return e.type === type; });
+    if (!entry) return { error: 'no entry for ' + type };
+    var m = entry.metrics || {};
+    var picked = entry.picked || {};
+    var cfg = entry.cfg || {};
     return {
       picked: picked,
-      cfg: typedCfg,
-      cmp: cmp,
-      totalLoss: totalLoss,
-      totalRecognized: totalRecognized,
-      totalRecap: totalRecap,
-      net: _num(cmp.totalSavings) - _num(cmp.totalAllFees)
+      cfg: cfg,
+      // Post-optimizer metrics (what the card shows):
+      savings:      _num(m.savings != null ? m.savings : m._savingsAtFull),
+      brooklynFees: _num(m.brooklynFees),
+      brookhavenFees: _num(m.brookhavenFees),
+      allFees:      _num(m.fees),
+      net:          _num(m.net),
+      doNothing:    _num(m.doNothing),
+      tax:          _num(m.tax),
+      optScale:     entry._optScale != null ? entry._optScale : 1,
+      totalLoss:    _num(entry.loss),
+      totalRecognized: 0,  // not directly available on metrics; would need a separate engine call
+      totalRecap:   _num(cfg.acceleratedDepreciation)
     };
   }
 
@@ -115,37 +111,34 @@
         '<p class="admin-math-error">' + _esc(analysis.error) + '</p>' +
       '</div>';
     }
-    var p = analysis.picked, cfg = analysis.cfg, cmp = analysis.cmp;
-    var brooklynFees = _num(cmp.totalFees);
-    var brookhavenFees = _num(cmp.totalBrookhavenFees);
-    var savings = _num(cmp.totalSavings);
-    var net = analysis.net;
+    var p = analysis.picked, cfg = analysis.cfg;
     var lockupHint;
     if (letter === 'A') lockupHint = 'Y0 lump-sum (sell now)';
     else if (letter === 'B') lockupHint = (p.bestRecC | 0) + ' yearly Jan-1 payment' + (p.bestRecC === 1 ? '' : 's');
     else lockupHint = (p.durationMonths || 36) + 'mo structured-sale (40/40/20 over 3 yrs)';
+    var scalePct = (analysis.optScale * 100).toFixed(0) + '%';
+    var scaleNote = analysis.optScale < 1
+      ? 'Optimizer dialed Brooklyn deployment back to ' + scalePct + ' of available - reduces fees while still absorbing gain'
+      : 'Full deployment (optimizer found no benefit to dialing back)';
 
     var rows = [
-      _row('Auto-pick combo',     p.comboId || _esc(String(p.shortPct) + '/' + String(100 - p.shortPct)),
-                                  'Highest-net combo from the auto-pick sweep'),
-      _row('Horizon',             p.horizon + ' year' + (p.horizon === 1 ? '' : 's'),
-                                  'Number of projection years this strategy operates over'),
-      _row('Recognition shape',   lockupHint, null),
-      _row('Total gain recognized', _fmtUSD(analysis.totalRecognized),
-                                  'Sum of LT gain hitting in years ' + cfg.year1 + '–' + (cfg.year1 + p.horizon - 1)),
+      _row('Auto-pick combo',      p.comboId || _esc(String(p.shortPct) + '/' + String(100 - p.shortPct)),
+                                   'Highest-net combo from the auto-pick sweep'),
+      _row('Horizon',              p.horizon + ' year' + (p.horizon === 1 ? '' : 's'),
+                                   'Number of projection years this strategy operates over'),
+      _row('Recognition shape',    lockupHint, null),
+      _row('Optimizer scale',      scalePct, scaleNote),
       _row('Recapture (§1250 ord)', _fmtUSD(analysis.totalRecap),
-                                  'Recognized Y0 as ordinary income regardless of strategy'),
+                                    'Recognized Y0 as ordinary income regardless of strategy'),
       _row('Total Brooklyn loss',  _fmtUSD(analysis.totalLoss),
-                                  'Sum of per-year loss across all tranches'),
-      _row('Tax savings (gross)',  _fmtUSD(savings),
-                                  'Baseline tax − With-strategy tax = ' +
-                                  _fmtUSD(_num(cmp.totalBaseline)) + ' − ' +
-                                  _fmtUSD(_num(cmp.totalWithStrategy))),
-      _row('Brooklyn fees',        _fmtUSD(brooklynFees), null),
-      _row('Brookhaven fees',      _fmtUSD(brookhavenFees), null),
+                                   'Sum of per-year loss across all tranches (post-optimizer)'),
+      _row('Tax savings (gross)',  _fmtUSD(analysis.savings),
+                                   'doNothing tax − with-strategy tax (post-optimizer)'),
+      _row('Brooklyn fees',        _fmtUSD(analysis.brooklynFees), 'Post-optimizer'),
+      _row('Brookhaven fees',      _fmtUSD(analysis.brookhavenFees), null),
       '<tr class="admin-math-total"><td><strong>NET BENEFIT</strong></td>' +
-        '<td class="admin-math-num"><strong>' + _fmtUSD(net) + '</strong></td>' +
-        '<td class="admin-math-note-cell">savings &minus; fees</td></tr>'
+        '<td class="admin-math-num"><strong>' + _fmtUSD(analysis.net) + '</strong></td>' +
+        '<td class="admin-math-note-cell">savings &minus; fees (matches Page 3 card)</td></tr>'
     ];
     return '<div class="admin-math-section">' +
       '<h4>Strategy ' + letter + ' &mdash; ' + _esc(name) + '</h4>' +
@@ -160,13 +153,9 @@
     if (typeof root.collectInputs !== 'function') {
       return '<p class="admin-math-error">collectInputs() unavailable.</p>';
     }
-    var baseCfg;
-    try { baseCfg = root.collectInputs(); }
-    catch (e) { return '<p class="admin-math-error">collectInputs() threw: ' + _esc(e.message || e) + '</p>'; }
-
-    var aA = _strategyAnalysis('A', baseCfg);
-    var aB = _strategyAnalysis('B', baseCfg);
-    var aC = _strategyAnalysis('C', baseCfg);
+    var aA = _strategyAnalysis('A');
+    var aB = _strategyAnalysis('B');
+    var aC = _strategyAnalysis('C');
     var netA = aA.net || 0, netB = aB.net || 0, netC = aC.net || 0;
 
     var drEl = document.getElementById('default-risk-yes-no');
