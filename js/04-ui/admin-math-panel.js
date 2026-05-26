@@ -231,6 +231,27 @@
     if (badge) badge.addEventListener('click', _lock);
   }
 
+  // Debounced live re-render of the active page's panel. Hooked to
+  // document-wide input + change events so editing any field on the
+  // current page (sale price, cost basis, custodian dropdown, etc.)
+  // re-runs the admin renderer with fresh data. Without this the
+  // panel renders once on showPage() and stays stale until the user
+  // navigates away and back. No-op when admin is locked.
+  var _liveRerenderTimer = null;
+  function _scheduleLiveRerender() {
+    if (!root.__rettAdmin) return;
+    if (_liveRerenderTimer) clearTimeout(_liveRerenderTimer);
+    _liveRerenderTimer = setTimeout(function () {
+      _liveRerenderTimer = null;
+      try {
+        var active = document.querySelector('section.page.active');
+        if (active && active.id) renderAdminMath(active.id);
+      } catch (e) {
+        if (typeof console !== 'undefined') console.warn('Admin live re-render failed:', e);
+      }
+    }, 350);
+  }
+
   function _init() {
     _rehydrate();
     _wireTriggers();
@@ -238,6 +259,13 @@
       _injectPanels();
       _refreshBadge();
     }
+    // Live re-render hook. Capture phase so it runs even when the
+    // event target's own listeners stop propagation. 350ms debounce
+    // matches the rough cadence of the existing auto-save hook
+    // (300ms there) - panel updates a touch later than auto-save so
+    // it picks up post-save state.
+    document.addEventListener('input',  _scheduleLiveRerender, true);
+    document.addEventListener('change', _scheduleLiveRerender, true);
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', _init);
