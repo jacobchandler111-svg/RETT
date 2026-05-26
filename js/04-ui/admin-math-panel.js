@@ -192,17 +192,39 @@
     });
   }
 
-  // Wire double-click on the RETT logo + click on the ADMIN badge.
+  // Click-count tracker so the RETT logo can drive both unlock
+  // (2 quick clicks when locked) and lock (3 quick clicks when
+  // unlocked) without conflicting handlers. Window for grouping
+  // clicks together is 500ms.
   function _wireTriggers() {
     var logo = document.querySelector('header.header .header-left h1');
     if (logo) {
       logo.classList.add('rett-admin-trigger');
-      logo.title = 'Double-click for admin mode';
-      logo.addEventListener('dblclick', function (e) {
+      logo.title = 'Double-click to unlock admin mode • Triple-click to log out';
+      var _clickCount = 0;
+      var _clickTimer = null;
+      logo.addEventListener('click', function (e) {
         e.preventDefault();
-        _unlockFlow().catch(function (err) {
-          if (typeof console !== 'undefined') console.warn('Admin unlock failed:', err);
-        });
+        _clickCount += 1;
+        if (_clickTimer) clearTimeout(_clickTimer);
+        _clickTimer = setTimeout(function () {
+          var n = _clickCount;
+          _clickCount = 0;
+          _clickTimer = null;
+          // 3+ clicks while admin is ON -> log out. The user explicitly
+          // requested this gesture so the badge clears without having
+          // to hunt for the small badge button in the corner.
+          if (n >= 3 && root.__rettAdmin) {
+            _lock();
+            return;
+          }
+          // Exactly 2 clicks while admin is OFF -> open the unlock prompt.
+          if (n === 2 && !root.__rettAdmin) {
+            _unlockFlow().catch(function (err) {
+              if (typeof console !== 'undefined') console.warn('Admin unlock failed:', err);
+            });
+          }
+        }, 500);
       });
     }
     var badge = document.getElementById('rett-admin-badge');

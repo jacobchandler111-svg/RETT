@@ -930,38 +930,18 @@
     var stratKey = baseCfg.tierKey || 'beta1';
     var custId = baseCfg.custodian || '';
     var pcts = _candidateShortPctsLocal(stratKey, custId);
-    // Horizons set updated 2026-05-08 — MetLife approved 36mo (3-yr) as
-    // the new minimum (was 48mo). Year-aligned with yearly-Jan-1-payment
-    // model:
-    //   • horizon=1 — Strategy A (Sell-Now lump-sum, position closes Y1)
-    //   • horizon=2 — Strategy B (Seller-Finance §453, Y0 recap +
-    //                              Y1 LT recognition + 1 buffer)
-    //   • horizon=4 — Strategy C with 36mo dur (recognition Y1-Y3)
-    //   • horizon=5 — Strategy C with up to 48mo dur (Y1-Y4)
-    //   • horizon=6 — Strategy C with up to 60mo dur
-    //   • horizon=7 — Strategy C with up to 72mo dur
-    // 72mo is the carrier's effective ceiling — anything longer is too
-    // long for the client and rarely helps net benefit.
-    var horizons = [1, 2, 4, 5, 6, 7];
-    // Structured-sale duration: 36-month minimum (was 48mo prior to
-    // MetLife's 2026-05-08 approval), 72-month ceiling, year-aligned
-    // 12-month buckets. Returns [] when the horizon can't fit a 36mo
-    // window past Y0 (i.e., hor < 4) so auto-picker naturally skips
-    // Strategy C there. Recognition starts Y1 (sale year is Y0), so:
-    //   • 36mo dur needs maturity at Y3 → horizon=4 minimum
-    //   • 48mo → horizon=5
-    //   • 60mo → horizon=6
-    //   • 72mo → horizon=7
+    // Per advisor 2026-05-26: structured sale is locked to a single
+    // 3-year 40/40/20 schedule. The 4-year+ duration options were
+    // removed. Strategy C only runs with horizon=4 (one Y0 sale year
+    // + Y1/Y2/Y3 recognition).
+    //   • horizon=1 — Strategy A (Sell-Now lump-sum)
+    //   • horizon=2 — Strategy B (Seller-Finance §453, Y0 recap + Y1 LT)
+    //   • horizon=4 — Strategy C (36mo dur, recognition Y1-Y3)
+    var horizons = [1, 2, 4];
     function _durationsForHorizon(hor) {
-      // Y0 reserved for sale-year tax events; Y1+ available for
-      // recognition. Duration / 12 = recognition years required.
-      var availableRecYears = Math.max(0, (hor || 5) - 1);
-      var maxByHor = availableRecYears * 12;
-      if (maxByHor < 36) return [];
-      var maxMo = Math.min(72, maxByHor);
-      var arr = [];
-      for (var m = 36; m <= maxMo; m += 12) arr.push(m);
-      return arr;
+      // Only 36mo offered. Returns [] when horizon can't fit it so
+      // auto-picker naturally skips Strategy C in those configs.
+      return (hor >= 4) ? [36] : [];
     }
     var userDurationFallback = baseCfg.structuredSaleDurationMonths || 36;
     var best = null;

@@ -37,33 +37,25 @@
 // Strategy B (Seller Finance §453, sets maxRecognitionYearIndex) bypass
 // because they don't route through the MetLife product.
 // =============================================================================
+// Per advisor 2026-05-26: structured sale is locked to a single 3-year
+// 40/40/20 schedule. The prior 4-year+ branch (50/30/10/10) was
+// removed since the advisor confirmed the product offering is 3-year
+// only. Code paths still accept durationMonths so saved cases with
+// e.g. 48mo aren't rejected outright - they're coerced to 36mo math.
 var METLIFE_RULES = {
-      // Default rule (used when term-years can't be determined). Matches
-      // the looser 4-yr+ caps so it doesn't accidentally over-constrain.
-      firstPaymentMaxPct:        0.50,
+      firstPaymentMaxPct:        0.40,
       firstTwoPaymentsMaxPct:    0.80,
-      lastPaymentMinPct:         0.10
+      lastPaymentMinPct:         0.20
 };
 
-// Returns the rule object for a given structured-sale duration in months.
-// 36mo → 3-yr rule, 48+ → 4-yr+ rule. The 80% combined Y1+Y2 cap is
-// universal (same for both terms).
 function _metlifeRulesForTerm(durationMonths) {
-      var months = Number(durationMonths) || 0;
-      if (months > 0 && months < 48) {
-            // 3-year (36mo) — tighter Y1 cap + higher last-floor because
-            // there are only 3 payments to absorb 100% of gain.
-            return {
-                  firstPaymentMaxPct:     0.40,
-                  firstTwoPaymentsMaxPct: 0.80,
-                  lastPaymentMinPct:      0.20
-            };
-      }
-      // 4-year and longer terms.
+      // Always return the canonical 3-year rule. durationMonths is
+      // accepted for backwards compatibility but ignored - all
+      // structured sales are 3-year.
       return {
-            firstPaymentMaxPct:     0.50,
+            firstPaymentMaxPct:     0.40,
             firstTwoPaymentsMaxPct: 0.80,
-            lastPaymentMinPct:      0.10
+            lastPaymentMinPct:      0.20
       };
 }
 
