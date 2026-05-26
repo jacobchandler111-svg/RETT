@@ -146,12 +146,44 @@ function _bindCaseControls() {
         }
       }
       _flashSaved(result.mode === 'case' ? result.name : '');
-    } catch (e) { (window.reportFailure || console.warn)('Auto-save failed', e); }
+    } catch (e) {
+      // Auto-save failure is silent (console only). The prior
+      // reportFailure call popped a banner on every keystroke when
+      // the save path threw - intrusive without being actionable.
+      // The user can't fix the underlying issue from a popup, and
+      // the next successful save (or manual export) will recover.
+      try { console.warn('Auto-save failed:', e); } catch (_) {}
+    }
   }, 300);
   document.addEventListener('input',  debouncedAutoSave, true);
   document.addEventListener('change', debouncedAutoSave, true);
 
-  setTimeout(function () { window.__rettSuppressAutoSave = false; }, 800);
+  setTimeout(function () {
+    window.__rettSuppressAutoSave = false;
+    // Belt-and-suspenders re-render of the active page after boot
+    // stabilization. The showPage() call at the end of bindControls
+    // fires while restoreOnPageLoad is still propagating form-restore
+    // events; the first render of Projection / Strategy Summary can
+    // capture pre-settled state (cover-taxes carve-out not yet
+    // applied, auto-pick using stale availableCapital, etc.) leaving
+    // the cards stuck at $0. Trigger a fresh render here so the
+    // cards reflect the settled state. Idempotent and cheap. Hard-
+    // refresh-zeros bug per advisor 2026-05-26.
+    try {
+      var activeId = (document.querySelector('section.page.active') || {}).id;
+      if (activeId === 'page-projection') {
+        if (typeof runFullPipeline === 'function') runFullPipeline();
+        if (typeof renderInterestedSnapshot === 'function') renderInterestedSnapshot();
+      } else if (activeId === 'page-allocator') {
+        if (typeof runFullPipeline === 'function') runFullPipeline();
+        if (typeof renderStrategySummary === 'function') renderStrategySummary();
+      } else if (activeId === 'page-baseline') {
+        if (typeof window.renderBaselineTable === 'function') window.renderBaselineTable();
+      }
+    } catch (e) {
+      if (typeof console !== 'undefined') console.warn('Boot re-render failed:', e);
+    }
+  }, 800);
 
   // ---- Client Name input ------------------------------------------------
   // Typing a name turns the un-named draft into a named case. If the user
