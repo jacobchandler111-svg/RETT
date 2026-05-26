@@ -1492,7 +1492,7 @@ function bindControls() {
   // state.
   var suppResetBtn = document.getElementById('supp-reset-selections-btn');
   if (suppResetBtn) suppResetBtn.addEventListener('click', function () {
-    if (!window.confirm('Reset all supplemental strategy selections on this page? Dollar inputs will be cleared (rate defaults preserved).')) return;
+    if (!window.confirm('Reset all supplemental strategy selections on this page? Dollar inputs will be cleared (rate defaults preserved). Hidden cards will reappear.')) return;
     if (typeof window.resetSupplementalExtra === 'function') {
       try { window.resetSupplementalExtra(); } catch (e) { /* */ }
     }
@@ -1501,6 +1501,13 @@ function bindControls() {
     }
     if (typeof window.resetSupplementalEnabledOverride === 'function') {
       try { window.resetSupplementalEnabledOverride(); } catch (e) { /* */ }
+    }
+    // Clear the click-to-hide state per advisor 2026-05-26 so hidden
+    // cards reappear when the advisor hits Reset. Re-render so the
+    // visible grid + dynamic numbering refresh.
+    window.__rettSuppHidden = {};
+    if (typeof window.renderSupplementalPage === 'function') {
+      try { window.renderSupplementalPage(); } catch (e) { /* */ }
     }
     if (typeof window.runFullPipeline === 'function') {
       try { window.runFullPipeline(); } catch (e) { /* */ }

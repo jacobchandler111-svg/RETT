@@ -1852,15 +1852,26 @@
 
     var rows = '';
     var totalCash = 0;
-    // Y0 closing row only when depr > 0 (recap recognized at Y0 as
-    // ordinary per §453(i); separately from the installment schedule).
+    // Y0 closing row only when depr > 0 (recap recognized as ordinary
+    // per §453(i)). For Strategy B's "delayed close" model, the engine
+    // sets cfg.implementationDate to Jan 1 of year+1 - so we derive
+    // BOTH the year and date columns from that date for self-consistency
+    // (prior code used year1 in the Year column + cfg.implementationDate
+    // in the Date column, giving Year 2026 / Date Jan 1 2027 - confusing).
     if (depr > 0) {
+      var closingYear = year1;
+      try {
+        if (typeof root.parseLocalDate === 'function' && cfg.implementationDate) {
+          var d = root.parseLocalDate(cfg.implementationDate);
+          if (d && !isNaN(d.getTime())) closingYear = d.getFullYear();
+        }
+      } catch (e) { /* fall back to year1 */ }
       rows += '<tr>' +
-        '<td>' + year1 + '</td>' +
-        '<td>' + _fmtClosingDate(cfg.implementationDate, year1) + '</td>' +
+        '<td>' + closingYear + '</td>' +
+        '<td>' + _fmtClosingDate(cfg.implementationDate, closingYear) + '</td>' +
         '<td>' + _fmt(depr) + '</td>' +
         '<td><span class="muted">&mdash;</span></td>' +
-        '<td class="muted">Depreciation recapture (Y0 ordinary)</td>' +
+        '<td class="muted">Depreciation recapture at closing (§453(i) ordinary)</td>' +
       '</tr>';
     }
     for (var i = 0; i < N; i++) {

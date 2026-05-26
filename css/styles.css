@@ -8187,3 +8187,32 @@ body { font-size: 16px; }
     .admin-math-panel { display: none !important; }
     .rett-admin-badge { display: none !important; }
 }
+
+/* ============================================================
+   Supplemental cards: click-to-hide + dynamic numbering (advisor
+   2026-05-26). Clicking the SUPPLEMENTAL number badge sets the
+   card's is-supp-hidden class (handled in JS); CSS hides the card
+   and a counter renumbers the remaining visible cards across the
+   unified .supp-all-grid.
+   ============================================================ */
+.supp-all-grid { counter-reset: supp-num; }
+.supp-strategy-card { counter-increment: supp-num; }
+.supp-strategy-card.is-supp-hidden { display: none; counter-increment: none; }
+/* Inject the dynamic number into the empty .num-big span. The
+   leading-zero formatter matches the prior hard-coded "01"/"02" style. */
+.supp-strategy-card .strategy-pick-num .num-big::before {
+    content: counter(supp-num, decimal-leading-zero);
+}
+/* Clickable affordance on the badge. */
+.supp-strategy-card .supp-num-clickable {
+    cursor: pointer;
+    user-select: none;
+    transition: opacity 120ms ease;
+}
+.supp-strategy-card .supp-num-clickable:hover {
+    opacity: 0.7;
+}
+.supp-strategy-card .supp-num-clickable:focus-visible {
+    outline: 2px solid var(--brookhaven-blue, #1a4480);
+    outline-offset: 2px;
+}

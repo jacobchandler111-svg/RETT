@@ -652,10 +652,11 @@
       }
     }
 
+    var hiddenCls = (root.__rettSuppHidden && root.__rettSuppHidden[spec.id]) ? ' is-supp-hidden' : '';
     return '' +
-      '<div class="strategy-pick-card supp-strategy-card ' + interestCls + '" data-supx-strategy="' + spec.id + '">' +
+      '<div class="strategy-pick-card supp-strategy-card ' + interestCls + hiddenCls + '" data-supx-strategy="' + spec.id + '" data-supp-strategy="' + spec.id + '">' +
         '<div class="strategy-pick-card-header">' +
-          '<div class="strategy-pick-num">SUPPLEMENTAL <span class="num-big">' + spec.num + '</span></div>' +
+          '<div class="strategy-pick-num supp-num-clickable" role="button" tabindex="0" title="Click to hide this card" data-supp-hide-target="' + spec.id + '">SUPPLEMENTAL <span class="num-big"></span></div>' +
           (isPlaceholder ? '<span class="supx-placeholder-tag">Coming Soon</span>' : '') +
         '</div>' +
         '<h3 class="strategy-pick-name">' + spec.name + '</h3>' +
@@ -712,6 +713,23 @@
     host.addEventListener('click', function (ev) {
       var t = ev.target;
       if (!t || !t.closest) return;
+
+      // Click the SUPPLEMENTAL number badge to hide the card (advisor
+      // 2026-05-26). Visual hide only - Interested state preserved.
+      // Cleared by the "Reset supplemental selections" button.
+      var hideBtn = t.closest('[data-supp-hide-target]');
+      if (hideBtn) {
+        var hideId = hideBtn.getAttribute('data-supp-hide-target');
+        if (!root.__rettSuppHidden) root.__rettSuppHidden = {};
+        root.__rettSuppHidden[hideId] = true;
+        // Re-render both hosts so CSS counter renumbers remaining cards.
+        if (typeof root.renderSupplementalPage === 'function') {
+          try { root.renderSupplementalPage(); } catch (e) { _render(); }
+        } else {
+          _render();
+        }
+        return;
+      }
 
       var pickBtn = t.closest('[data-supx-pick-action]');
       if (pickBtn) {

@@ -257,10 +257,11 @@
     var maxInvDisplay = _fmtUSD(st.maxInvestment);
     var deprPctDisplay = Math.round(st.depreciationPct * 100);
 
+    var hiddenCls = (root.__rettSuppHidden && root.__rettSuppHidden.oilGas) ? ' is-supp-hidden' : '';
     return '' +
-      '<div class="strategy-pick-card supp-strategy-card ' + interestCls + '" data-supp-strategy="oilGas">' +
+      '<div class="strategy-pick-card supp-strategy-card ' + interestCls + hiddenCls + '" data-supp-strategy="oilGas">' +
         '<div class="strategy-pick-card-header">' +
-          '<div class="strategy-pick-num">SUPPLEMENTAL <span class="num-big">01</span></div>' +
+          '<div class="strategy-pick-num supp-num-clickable" role="button" tabindex="0" title="Click to hide this card" data-supp-hide-target="oilGas">SUPPLEMENTAL <span class="num-big"></span></div>' +
         '</div>' +
         '<h3 class="strategy-pick-name">Oil &amp; Gas Working Interest</h3>' +
         '<div class="strategy-keyaspect">' +
@@ -337,10 +338,11 @@
       ? '<p class="supp-min-warning">Below the ' + _fmtUSD(meta.minInvestment) + ' minimum for ' + meta.name + '. Math runs proportionally; fund won&rsquo;t accept the subscription as-is.</p>'
       : '';
 
+    var hiddenCls = (root.__rettSuppHidden && root.__rettSuppHidden.delphi) ? ' is-supp-hidden' : '';
     return '' +
-      '<div class="strategy-pick-card supp-strategy-card ' + interestCls + '" data-supp-strategy="delphi">' +
+      '<div class="strategy-pick-card supp-strategy-card ' + interestCls + hiddenCls + '" data-supp-strategy="delphi">' +
         '<div class="strategy-pick-card-header">' +
-          '<div class="strategy-pick-num">SUPPLEMENTAL <span class="num-big">02</span></div>' +
+          '<div class="strategy-pick-num supp-num-clickable" role="button" tabindex="0" title="Click to hide this card" data-supp-hide-target="delphi">SUPPLEMENTAL <span class="num-big"></span></div>' +
         '</div>' +
         '<h3 class="strategy-pick-name">Delphi Fund</h3>' +
         '<div class="strategy-keyaspect">' +
@@ -459,6 +461,30 @@
     host.addEventListener('click', function (ev) {
       var t = ev.target;
       if (!t) return;
+
+      // Click the SUPPLEMENTAL number badge to hide the card.
+      // Independent of Interested/Not Interested state - just a visual
+      // hide so the advisor can quickly cull cards during a meeting.
+      // The "Reset supplemental selections" button at the top brings
+      // hidden cards back along with clearing all other supp state.
+      var hideBtn = t.closest && t.closest('[data-supp-hide-target]');
+      if (hideBtn) {
+        var hideId = hideBtn.getAttribute('data-supp-hide-target');
+        if (!root.__rettSuppHidden) root.__rettSuppHidden = {};
+        root.__rettSuppHidden[hideId] = true;
+        // Re-render both hosts so the CSS counter renumbers the
+        // remaining visible cards across the unified grid.
+        if (typeof root.renderSupplementalPage === 'function') {
+          try { root.renderSupplementalPage(); } catch (e) { _renderHost(); }
+        } else {
+          _renderHost();
+          if (typeof root.renderSupplementalExtra === 'function') {
+            try { root.renderSupplementalExtra(); } catch (e) { /* */ }
+          }
+        }
+        _persist();
+        return;
+      }
 
       // Interested / Not Interested
       var pickBtn = t.closest && t.closest('[data-supp-pick-action]');
