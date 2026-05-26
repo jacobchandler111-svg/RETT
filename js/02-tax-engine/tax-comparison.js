@@ -713,8 +713,29 @@ function unifiedTaxComparison(cfg, opts) {
             return picked;
       }
 
+      // Installment-sale mode (Strategy B, §453). Set via
+      // cfg.installmentPayments = N (1, 2, or 3). When active, the
+      // engine:
+      //   - Does NOT deploy a Y0 Brooklyn tranche (no closing-day cash;
+      //     buyer pays in installments starting Y1 Jan 1).
+      //   - Recognizes totalLT / N as LT gain each year for N years
+      //     starting at Y1. Equivalent to applying the §453 gross-profit
+      //     ratio to N equal payments of (salePrice - acceleratedDepr) / N.
+      //   - Creates a Brooklyn tranche each payment year sized to the
+      //     installment payment (basis + gain combined), capped by
+      //     remaining availableCapital.
+      //   - Recapture stays as Y0 ordinary income per §453(i).
+      //   - Bypasses unparked-Y1-gain logic and MetLife schedule caps;
+      //     those are Strategy C concerns.
+      const _installmentPayments = (cfg.installmentPayments | 0) || 0;
+      const _isInstallment = isDeferred && _installmentPayments >= 1;
+
       let basisCash, _unparkedY1Gain, _parkedGain;
-      if (isDeferred) {
+      if (_isInstallment) {
+            basisCash = 0;
+            _unparkedY1Gain = 0;
+            _parkedGain = 0;
+      } else if (isDeferred) {
             const _basisAndRecap = _basisFull + Math.max(0, recapture);
             _unparkedY1Gain = Math.max(0, Math.min(totalLT, _availTotal - _basisAndRecap));
             _parkedGain = Math.max(0, totalLT - _unparkedY1Gain);
@@ -724,6 +745,14 @@ function unifiedTaxComparison(cfg, opts) {
             _unparkedY1Gain = 0;
             _parkedGain = 0;
       }
+
+      // Installment-mode per-payment amount = (salePrice - accelDepr) / N.
+      // The recap portion (accelDepr) is excluded from the contract price
+      // for LT-gain GP-ratio purposes because §453(i) fully recognizes it
+      // at Y0 separately.
+      const _installmentPayment = _isInstallment
+            ? Math.max(0, ((cfg.salePrice || 0) - Math.max(0, recapture)) / _installmentPayments)
+            : 0;
       const tranches = [];
       if (basisCash > 0) {
             // Tag the initial tranche with the combo its cumulative deposit
@@ -757,7 +786,14 @@ function unifiedTaxComparison(cfg, opts) {
       // entirely — first installment is always the Jan 1 immediately
       // following close, regardless of sale month.
       let startIdx, maturityIdx;
-      if (isDeferred) {
+      if (_isInstallment) {
+            // Installment-sale spans exactly N years starting Y1. Engine
+            // recognizes totalLT/N at each year - see recognition loop.
+            const startIdxRaw = Math.max(1, Math.min(horizon - 1,
+                  (cfg.recognitionStartYearIndex != null ? cfg.recognitionStartYearIndex : 1)));
+            startIdx    = startIdxRaw;
+            maturityIdx = Math.min(horizon - 1, startIdxRaw + _installmentPayments - 1);
+      } else if (isDeferred) {
             const startIdxRaw = Math.max(1, Math.min(horizon - 1,
                   (cfg.recognitionStartYearIndex != null ? cfg.recognitionStartYearIndex : 1)));
             const durationMonths = Number(cfg.structuredSaleDurationMonths) || 0;
@@ -943,18 +979,29 @@ function unifiedTaxComparison(cfg, opts) {
                   ? _metlifeRulesForTerm(cfg.structuredSaleDurationMonths)
                   : null;
             let gainRecThisYear = 0;
-            // Unparked-gain Y1 recognition (deferred mode only). The
+            // Installment-sale recognition (Strategy B, §453). Each year
+            // in [startIdx, maturityIdx] recognizes totalLT/N as LT
+            // gain - equivalent to applying the gross-profit ratio
+            // (totalLT / (salePrice - accelDepr)) to N equal payments of
+            // (salePrice - accelDepr) / N. Brooklyn's loss capacity
+            // doesn't gate recognition here (unlike Strategy C, where
+            // recognition is capped by absorbable); whatever Brooklyn
+            // doesn't absorb is just taxed at LT rates.
+            if (_isInstallment && i >= startIdx && i <= maturityIdx) {
+                  var _installmentGainThisYear = totalLT / _installmentPayments;
+                  gainRecThisYear += _installmentGainThisYear;
+                  gainRemaining   -= _installmentGainThisYear;
+            }
+            // Unparked-gain Y1 recognition (Strategy C only). The
             // portion of total LT gain the seller chose NOT to park in
             // the MetLife product comes out as Y1 closing cash and is
             // taxed as Y1 LT. The structured-sale schedule below only
-            // covers the parked portion. See _parkedGain / _unparkedY1Gain
-            // computation at tranche setup above. Skipped in immediate
-            // mode (_unparkedY1Gain = 0 there).
-            if (i === 0 && isDeferred && _unparkedY1Gain > 0) {
+            // covers the parked portion.
+            if (i === 0 && isDeferred && !_isInstallment && _unparkedY1Gain > 0) {
                   gainRecThisYear += _unparkedY1Gain;
                   gainRemaining   -= _unparkedY1Gain;
             }
-            if (i >= startIdx && i <= maturityIdx && gainRemaining > 0) {
+            if (!_isInstallment && i >= startIdx && i <= maturityIdx && gainRemaining > 0) {
                   const maxAbsorbable = Math.max(0, (stCF + existingLoss - _recapDrag) / denom);
                   let cap = Math.min(gainRemaining, maxAbsorbable);
                   if (_metlifeRules) {
@@ -1004,8 +1051,21 @@ function unifiedTaxComparison(cfg, opts) {
             // (deferred only). Immediate mode skips: _gainTaxRate=0
             // and _remainingReinvestCap=0, so trancheTaxCarve=0 and
             // reinvested clamps to 0 even before the cap check.
+            //
+            // Installment mode (Strategy B): the buyer's payment this
+            // year is the FULL _installmentPayment (basis + gain), not
+            // just the gain. The seller deploys the whole payment to
+            // Brooklyn (minus the gain-portion tax carve when "cover
+            // taxes" is on). This is bigger than Strategy C's reinvest
+            // because basis recovery is also cash, not just principal
+            // returned silently.
             const trancheTaxCarve = gainRecThisYear * _gainTaxRate;
-            let reinvested = Math.max(0, gainRecThisYear - trancheTaxCarve);
+            let reinvested;
+            if (_isInstallment && i >= startIdx && i <= maturityIdx) {
+                  reinvested = Math.max(0, _installmentPayment - trancheTaxCarve);
+            } else {
+                  reinvested = Math.max(0, gainRecThisYear - trancheTaxCarve);
+            }
             if (_remainingReinvestCap !== null) {
                   reinvested = Math.min(reinvested, _remainingReinvestCap);
                   _remainingReinvestCap = Math.max(0, _remainingReinvestCap - reinvested);

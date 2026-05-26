@@ -787,38 +787,39 @@
       });
     }
     if (type === 'B') {
-      // Seller-Finance (B) is a true §453 installment sale where the
-      // buyer pays the full sale amount on Jan 1 of the year following
-      // the close. Per §453(i), DEPRECIATION RECAPTURE must be
-      // recognized in the YEAR OF SALE (Y0) at ordinary rates — even
-      // though no cash arrives until Y1. The deferred LT gain is
-      // recognized when the buyer pays (Y1, Jan 1 of next year).
+      // Strategy B - §453 installment sale (advisor 2026-05-26):
       //
-      // Engine routing: recognitionStartYearIndex=1 puts the path
-      // through the deferred branch, which automatically files recap
-      // in row[0] (year of sale, ordinary rates) and LT gain in row[1]
-      // (Jan 1 payment year). maxRecognitionYearIndex=1 forces full
-      // gain into Y1 — no multi-year spread (this is NOT a MetLife
-      // structured sale). structuredSaleDurationMonths is intentionally
-      // NOT set so the MetLife payment-schedule caps don't apply.
+      // Buyer pays N equal installments on Jan 1 of each year following
+      // the close, where N ∈ {1, 2, 3} - chosen by the auto-picker for
+      // highest net benefit. Each installment recognizes:
+      //   gain = paymentAmount × (totalLT / (salePrice - accelDepr))
+      //   basis = paymentAmount × ((salePrice - accelDepr - totalLT) / (salePrice - accelDepr))
+      // Equivalently, totalLT / N is recognized as LT gain each year.
       //
-      // Brooklyn opens Jan 1 of Y1 (when the buyer's payment lands and
-      // capital is available to deploy). yfImpl=1 → full-year fees in
-      // Y1 — the whole point of "delaying" the close.
+      // Per §453(i), depreciation recapture is recognized in the YEAR
+      // OF SALE (Y0) at ordinary rates - separately from the installment
+      // schedule. The engine handles this via the existing _recapDrag
+      // path in unifiedTaxComparison.
       //
-      // Horizon: must be ≥2 so the engine sees both Y0 (recap-only)
-      // and Y1 (Brooklyn + LT recognition). We clamp up here as a
-      // safety net; the auto-picker sweep also skips horizon=1 for B
-      // for the same reason.
+      // Engine routing: cfg.installmentPayments = N triggers the
+      // installment-sale path. No structuredSaleDurationMonths (this
+      // is NOT a MetLife product), no maxRecognitionYearIndex (the
+      // installment path sets its own maturityIdx from N).
+      //
+      // Horizon: must be ≥ N+1 so engine sees Y0 (recap) + N payment
+      // years. _userDurationParam (the bestRecC slot) is repurposed as
+      // the installment-payment count, passed via _scenarioCfgFor's
+      // bestRecC argument from _autoPickSection.
       var bYear = (currentCfg.year1 || (new Date()).getFullYear()) + 1;
+      var bPayments = Math.max(1, Math.min(3, (bestRecC | 0) || 1));
       return Object.assign({}, currentCfg, {
         recognitionStartYearIndex: 1,
-        maxRecognitionYearIndex:   1,
-        horizonYears: Math.max(2, Number(currentCfg.horizonYears) || 2),
+        maxRecognitionYearIndex:   null,
+        installmentPayments:       bPayments,
+        horizonYears: Math.max(bPayments + 1, Number(currentCfg.horizonYears) || (bPayments + 1)),
         implementationDate:         bYear + '-01-01',
         strategyImplementationDate: bYear + '-01-01'
-        // year1 stays at original sale year so Y0 = year of sale (recap)
-        // and Y1 = year1+1 = Jan-1 close year (LT gain).
+        // year1 stays at original sale year so Y0 = year of sale (recap).
       });
     }
     if (type === 'C') {
@@ -931,13 +932,12 @@
     var custId = baseCfg.custodian || '';
     var pcts = _candidateShortPctsLocal(stratKey, custId);
     // Per advisor 2026-05-26: structured sale is locked to a single
-    // 3-year 40/40/20 schedule. The 4-year+ duration options were
-    // removed. Strategy C only runs with horizon=4 (one Y0 sale year
-    // + Y1/Y2/Y3 recognition).
+    // 3-year 40/40/20 schedule.
     //   • horizon=1 — Strategy A (Sell-Now lump-sum)
-    //   • horizon=2 — Strategy B (Seller-Finance §453, Y0 recap + Y1 LT)
-    //   • horizon=4 — Strategy C (36mo dur, recognition Y1-Y3)
-    var horizons = [1, 2, 4];
+    //   • horizon=2 — Strategy B (§453 installment, N=1 yearly payment)
+    //   • horizon=3 — Strategy B (N=2 yearly payments)
+    //   • horizon=4 — Strategy B (N=3) + Strategy C (36mo, Y1-Y3 recog)
+    var horizons = [1, 2, 3, 4];
     function _durationsForHorizon(hor) {
       // Only 36mo offered. Returns [] when horizon can't fit it so
       // auto-picker naturally skips Strategy C in those configs.
@@ -981,9 +981,23 @@
               best = { horizon: hor, shortPct: p.shortPct, comboId: p.comboId, bestRecC: 2, net: m.net, durationMonths: durMo };
             }
           });
+        } else if (type === 'B') {
+          // For B (§453 installment), each horizon iteration tries
+          // exactly one N value (N = hor - 1, so Y0 + N payment years).
+          // The outer horizons sweep [2, 3, 4] covers N=1/2/3 - this
+          // avoids running the engine with a horizon larger than the
+          // installment needs (which would just add wasted Brookhaven
+          // fees). bestRecC slot carries N into _scenarioCfgFor.
+          var nForHor = hor - 1;
+          if (nForHor < 1 || nForHor > 3) return;
+          var typedCfgB = _scenarioCfgFor('B', cfgSection, nForHor, userDurationFallback);
+          var mB = _scenarioMetrics(typedCfgB);
+          if (mB && (!best || mB.net > best.net)) {
+            best = { horizon: hor, shortPct: p.shortPct, comboId: p.comboId, bestRecC: nForHor, net: mB.net, durationMonths: userDurationFallback };
+          }
         } else {
-          // A and B don't use a deferred-sale duration — pass through
-          // the cfg fallback so downstream callers always have something.
+          // A doesn't use a deferred-sale duration — pass through the
+          // cfg fallback so downstream callers always have something.
           var typedCfg2 = _scenarioCfgFor(type, cfgSection, 2, userDurationFallback);
           var m2 = _scenarioMetrics(typedCfg2);
           if (m2 && (!best || m2.net > best.net)) {
@@ -1813,6 +1827,71 @@
     '</div>';
   }
 
+  // Strategy B payment schedule (§453 installment sale - advisor
+  // 2026-05-26). Different from Strategy C: basis recovery happens
+  // PER PAYMENT (proportionally per gross-profit ratio), not all at
+  // closing. Each year's cash = (salePrice - accelDepr) / N. Of that:
+  //   gain portion = paymentAmount * GP_ratio   (taxed as LT)
+  //   basis portion = paymentAmount * (1 - GP_ratio)  (principal recovery)
+  // GP_ratio = totalLT / (salePrice - accelDepr) per §453(c).
+  function _buildBPaymentScheduleHtml(cfg) {
+    if (!cfg) return '';
+    var N = (cfg.installmentPayments | 0) || 1;
+    if (N < 1) return '';
+    var year1 = cfg.year1 || (new Date()).getFullYear();
+    var salePrice = Math.max(0, Number(cfg.salePrice) || 0);
+    var basis = Math.max(0, Number(cfg.costBasis) || 0);
+    var depr = Math.max(0, Number(cfg.acceleratedDepreciation) || 0);
+    var totalLT = Math.max(0, salePrice - basis - depr);
+    var contractPriceForLT = Math.max(0, salePrice - depr);
+    if (contractPriceForLT <= 0) return '';
+    var paymentAmount = contractPriceForLT / N;
+    var gpRatio = totalLT / contractPriceForLT;
+    var basisPerPayment = paymentAmount * (1 - gpRatio);
+    var gainPerPayment = paymentAmount * gpRatio;
+
+    var rows = '';
+    var totalCash = 0;
+    // Y0 closing row only when depr > 0 (recap recognized at Y0 as
+    // ordinary per §453(i); separately from the installment schedule).
+    if (depr > 0) {
+      rows += '<tr>' +
+        '<td>' + year1 + '</td>' +
+        '<td>' + _fmtClosingDate(cfg.implementationDate, year1) + '</td>' +
+        '<td>' + _fmt(depr) + '</td>' +
+        '<td><span class="muted">&mdash;</span></td>' +
+        '<td class="muted">Depreciation recapture (Y0 ordinary)</td>' +
+      '</tr>';
+    }
+    for (var i = 0; i < N; i++) {
+      var paymentYear = year1 + 1 + i;
+      totalCash += paymentAmount;
+      rows += '<tr>' +
+        '<td>' + paymentYear + '</td>' +
+        '<td>Jan 1, ' + paymentYear + '</td>' +
+        '<td>' + _fmt(paymentAmount) + '</td>' +
+        '<td>' + (gpRatio * 100).toFixed(1) + '%</td>' +
+        '<td class="muted">' + _fmt(basisPerPayment) + ' basis + ' + _fmt(gainPerPayment) + ' LT gain</td>' +
+      '</tr>';
+    }
+    rows += '<tr class="rett-payments-total">' +
+      '<td colspan="2">Total payments received</td>' +
+      '<td>' + _fmt(totalCash) + '</td>' +
+      '<td><span class="muted">&mdash;</span></td>' +
+      '<td class="muted">' + N + ' yearly installment' + (N === 1 ? '' : 's') + '</td>' +
+    '</tr>';
+
+    var subtitle = '<p class="rett-payments-subtitle muted">§453 installment sale &mdash; <strong>' + N + ' yearly Jan-1 payment' + (N === 1 ? '' : 's') + '</strong>. Gross-profit ratio = <strong>' + (gpRatio * 100).toFixed(1) + '%</strong> applied to each payment.</p>';
+    return '<div class="rett-interested-payments">' +
+      '<h4>Payment Schedule</h4>' +
+      subtitle +
+      '<table class="rett-payments-table">' +
+        '<thead><tr><th>Year</th><th>Date</th><th>Cash Received</th><th>% LT Gain</th><th>Notes</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+      '</table>' +
+    '</div>';
+  }
+
   // -------------------------------------------------------------------
   // Sale-only donut chart. The pie's whole-circle quantity is the
   // GAIN FROM THE SALE alone — LT gain + recapture + ST gain. Ordinary
@@ -2040,8 +2119,12 @@
     if (typeLabel === 'A') {
       lockupValue = 'None &ndash; Cash up front';
     } else if (typeLabel === 'B') {
-      var bMonths = _bMonthsUntilJan1(currentCfg);
-      lockupValue = (bMonths != null ? bMonths : '—') + ' months';
+      // Strategy B is now a §453 installment sale with N=1, 2, or 3
+      // yearly Jan-1 payments (auto-pick chooses N via bestRecC).
+      // Lockup line shows the auto-picked payment count.
+      var bN = (picked && picked.bestRecC) | 0;
+      if (!bN || bN < 1) bN = 1;
+      lockupValue = bN + ' yearly Jan-1 payment' + (bN === 1 ? '' : 's');
     } else {
       var pickedDur = (picked && picked.durationMonths) || durationMonths || 36;
       lockupValue = pickedDur + ' months';
@@ -2058,12 +2141,13 @@
         (chosen ? '✓ Selected &mdash; continue to Supplemental' : 'Use This Strategy &rarr;') +
       '</button>';
     var donutHtml = (visuals && visuals.donut) ? visuals.donut : '';
-    // Payment schedule (C only) lives BELOW the Use This Strategy
+    // Payment schedule (B + C - per advisor 2026-05-26 B now has a
+    // multi-year payment cadence too) lives BELOW the Use This Strategy
     // button as a small chevron-only toggle, so the button line stays
     // aligned across all three cards. A presenter can click it during
     // the meeting if a payment-cadence question comes up; otherwise
     // it stays out of the way.
-    var paymentArrow = (typeLabel === 'C' && paymentScheduleHtml)
+    var paymentArrow = ((typeLabel === 'B' || typeLabel === 'C') && paymentScheduleHtml)
       ? '<details class="rett-interested-paysched-arrow">' +
           '<summary aria-label="Show payment schedule"><span class="rett-paysched-arrow-glyph" aria-hidden="true"></span></summary>' +
           paymentScheduleHtml +
@@ -2210,6 +2294,7 @@
     var mB = (!_skipB && pickedB) ? _scenarioMetrics(pickedB.cfg) : null;
     var lossB = mB ? _scenarioLossSum(pickedB.cfg) : 0;
     var visualsB = mB ? _buildVisuals('B', mB, pickedB.cfg, null) : null;
+    var paymentsB = (mB && pickedB) ? _buildBPaymentScheduleHtml(pickedB.cfg) : '';
 
     var pickedC = _skipC ? null : _bestPickedCfgLocal('C');
     var mC = (!_skipC && pickedC) ? _scenarioMetrics(pickedC.cfg) : null;
@@ -2227,7 +2312,7 @@
 
     var entries = [];
     if (mA) entries.push({ type: 'A', num: '01', name: 'Normal Sale',                  picked: pickedA.picked, metrics: mA, loss: lossA, payments: '',        cfg: pickedA.cfg, visuals: visualsA });
-    if (mB) entries.push({ type: 'B', num: '02', name: 'Installment Sale',             picked: pickedB.picked, metrics: mB, loss: lossB, payments: '',        cfg: pickedB.cfg, visuals: visualsB });
+    if (mB) entries.push({ type: 'B', num: '02', name: 'Installment Sale',             picked: pickedB.picked, metrics: mB, loss: lossB, payments: paymentsB, cfg: pickedB.cfg, visuals: visualsB });
     if (mC) entries.push({ type: 'C', num: '03', name: 'Structured Installment Sale',  picked: pickedC.picked, metrics: mC, loss: lossC, payments: paymentsC, cfg: pickedC.cfg, visuals: visualsC });
 
     if (!entries.length) return null;
