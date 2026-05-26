@@ -753,23 +753,50 @@ function unifiedTaxComparison(cfg, opts) {
       const _installmentPayment = _isInstallment
             ? Math.max(0, ((cfg.salePrice || 0) - Math.max(0, recapture)) / _installmentPayments)
             : 0;
-      const tranches = [];
-      if (basisCash > 0) {
-            // Tag the initial tranche with the combo its cumulative deposit
-            // qualifies for. For a $1.5M Y1 tranche under a 200/100-selected
-            // cfg this picks 145/45 (auto-downgrade since $1.5M < $3M);
-            // for a $5M Y1 tranche it picks 200/100. Non-Schwab cfgs leave
-            // the tranche untagged so _trancheLossRate falls back to the
-            // legacy single curve.
-            var _y1Combo = _pickComboForCumulative(basisCash);
-            tranches.push({
-                  capital: basisCash,
-                  startIdx: 0,
-                  comboId: _y1Combo ? _y1Combo.id : null,
-                  comboLossByYear: _y1Combo && _y1Combo.lossByYear ? _y1Combo.lossByYear.slice() : null,
-                  comboFeeRate: _y1Combo ? _y1Combo.feeRate : null
-            });
+      // Cover-taxes-from-sale Y0-only tranche (advisor 2026-05-26):
+      // when the user toggles "cover taxes from sale", the tax-reserve
+      // money deploys to Brooklyn at Y0 alongside the rest of the sale
+      // proceeds. April 1 of Y1 (right before April 15 taxes are due)
+      // the reserve gets pulled out to pay taxes - modeled here as a
+      // Y0-only tranche (maxAgeInclusive: 0) so it generates Y0 loss +
+      // fees but contributes nothing in Y1+.
+      //
+      // Tax-reserve estimate: Y0-recognized LT gain + recapture, taxed
+      // at the engine's LT marginal estimate. Slight underestimate of
+      // recap (taxed at ordinary, not LT) but acceptable approximation -
+      // the alternative would be a circular dependency (tax depends on
+      // tranches, tranches depend on tax).
+      //
+      // Skipped in installment mode (Strategy B has no Y0 Brooklyn
+      // tranche to split).
+      var _taxReserveY0 = 0;
+      if (cfg.coverTaxesFromSale && !_isInstallment && basisCash > 0) {
+            var _y0RecognizedLT = isDeferred ? _unparkedY1Gain : totalLT;
+            var _y0TaxableEstimate = _y0RecognizedLT + Math.max(0, recapture);
+            var _y0EstimatedRate = (typeof _estimateGainTaxRate === 'function')
+                  ? _estimateGainTaxRate(cfg) : 0.25;
+            _taxReserveY0 = Math.min(basisCash, _y0TaxableEstimate * _y0EstimatedRate);
       }
+      var _permanentBasis = Math.max(0, basisCash - _taxReserveY0);
+
+      const tranches = [];
+      // Tier-jumping decision is made on TOTAL Y0 deployment (basisCash)
+      // since both tranches are physically deployed at the same time -
+      // cumulative deposit for tier purposes is the sum.
+      var _y0Combo = (basisCash > 0) ? _pickComboForCumulative(basisCash) : null;
+      function _y0TrancheTemplate(cap, isTaxReserve) {
+            var t = {
+                  capital: cap,
+                  startIdx: 0,
+                  comboId: _y0Combo ? _y0Combo.id : null,
+                  comboLossByYear: _y0Combo && _y0Combo.lossByYear ? _y0Combo.lossByYear.slice() : null,
+                  comboFeeRate: _y0Combo ? _y0Combo.feeRate : null
+            };
+            if (isTaxReserve) t.maxAgeInclusive = 0;
+            return t;
+      }
+      if (_permanentBasis > 0) tranches.push(_y0TrancheTemplate(_permanentBasis, false));
+      if (_taxReserveY0  > 0) tranches.push(_y0TrancheTemplate(_taxReserveY0,  true));
       // Reinvest budget = remaining "keep proceeds" room for redeploying
       // installment payouts as they arrive. Immediate mode always 0
       // (availableCapital is fully deployed at Y1). Deferred mode: any
@@ -931,6 +958,12 @@ function unifiedTaxComparison(cfg, opts) {
                   tranches.forEach(function (t) {
                         const trancheAge = i - t.startIdx;
                         if (trancheAge < 0) return;
+                        // Tax-reserve Y0-only tranche (cover-taxes-from-sale):
+                        // capital withdrew April 1 of Y1 to pay taxes, so it
+                        // contributes nothing once trancheAge exceeds the
+                        // maxAgeInclusive cap. Other tranches don't set
+                        // this field and contribute their full lifecycle.
+                        if (typeof t.maxAgeInclusive === 'number' && trancheAge > t.maxAgeInclusive) return;
                         // Per-tranche loss rate honors tier-jumping when a
                         // Schwab combo cfg is present; falls back to the
                         // single legacy curve otherwise.

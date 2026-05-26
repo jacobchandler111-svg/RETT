@@ -2130,23 +2130,25 @@ function bindControls() {
       if (errEl) errEl.hidden = true;
     }
 
-    const taxCarveOut = wantsCoverTaxes ? _estimatedSaleTax() : 0;
+    // Cover-taxes-from-sale (advisor 2026-05-26): the tax-reserve money
+    // DEPLOYS to Brooklyn at Y0 alongside the rest of the proceeds. The
+    // engine models the withdrawal at April 1 of Y1 (right before
+    // April 15 taxes are due) as a Y0-only tranche. So Available Capital
+    // here is no longer reduced by the tax estimate - the form shows
+    // the full amount the seller is putting in. The toggle now just
+    // signals the engine to model the Y1 withdrawal.
 
-    // Drive available-capital from sale - keep - tax-carve-out always.
+    // Drive available-capital from sale - keep always.
     // Available Capital is a fully-derived field — no UI for the user to
     // edit it directly (the input lives hidden inside
     // #full-projection-region as an engine-only field). The model is:
     //   • "Investing everything?" = Yes  →  avail = sale (keep=0)
     //   • "Investing everything?" = No   →  avail = sale − amount-to-keep
-    //   • "Cover taxes from sale?" = Yes →  additionally subtract est. tax
-    // Re-derive on every watched-field change so the value tracks the
-    // toggles without going stale. Earlier code gated this on (empty OR
-    // hasSubtraction) to "protect a manual override," but the field has
-    // no edit UI now — the gate just trapped saved cases at stale or
-    // glitched values (e.g. "jared smith" stuck at $1 → Page 3 showed $0
-    // across all strategies with no recovery).
+    //   • "Cover taxes from sale?" = Yes →  engine adds a Y0-only tax-
+    //                                       reserve tranche (does NOT
+    //                                       reduce avail here).
     if (!hasError && saleVal > 0) {
-      const newAvailNum = Math.max(0, saleVal - keep - taxCarveOut);
+      const newAvailNum = Math.max(0, saleVal - keep);
       const newAvail = (typeof fmtUSD === 'function')
         ? fmtUSD(newAvailNum)
         : String(newAvailNum);
