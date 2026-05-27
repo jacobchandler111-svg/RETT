@@ -568,8 +568,9 @@
         comboId:      picked.comboId
       });
       var pr = (type === 'C' && Number.isFinite(picked.parkRatio)) ? picked.parkRatio : null;
+      var iw = (type === 'B' && Array.isArray(picked.installmentWeights)) ? picked.installmentWeights : null;
       return {
-        cfg: _scenarioCfgFor(type, sectionCfg, picked.bestRecC, userDuration, pr),
+        cfg: _scenarioCfgFor(type, sectionCfg, picked.bestRecC, userDuration, pr, iw),
         picked: picked
       };
     }
@@ -779,7 +780,7 @@
   // __rettStrategyInterest.B = true and checking entry.cfg.year1 ===
   // currentYear+1. (Bug verified 2026-05-06; no fix needed — working as
   // designed, just non-obvious from a probe-the-dropdown angle.)
-  function _scenarioCfgFor(type, currentCfg, bestRecC, userDuration, parkRatio) {
+  function _scenarioCfgFor(type, currentCfg, bestRecC, userDuration, parkRatio, installmentWeights) {
     if (!currentCfg) return null;
     if (type === 'A') {
       // F2 (2026-05-27): explicitly clear cross-strategy fields so
@@ -822,7 +823,20 @@
       // bestRecC argument from _autoPickSection.
       var bYear = (currentCfg.year1 || (new Date()).getFullYear()) + 1;
       var bPayments = Math.max(1, Math.min(3, (bestRecC | 0) || 1));
-      return Object.assign({}, currentCfg, {
+      // Installment weights (advisor 2026-05-27): when the auto-picker
+      // passes a custom weight array, use it; otherwise the engine
+      // defaults to equal split (1/N each year). Each weight is the
+      // FRACTION of (salePrice − recap) paid that year. Weights must
+      // sum to ~1.0 and have length == bPayments.
+      var bWeights = null;
+      if (Array.isArray(installmentWeights) && installmentWeights.length === bPayments) {
+        var _wSum = installmentWeights.reduce(function (s, w) { return s + (Number(w) || 0); }, 0);
+        if (Math.abs(_wSum - 1) < 0.01) {
+          // Normalize defensively against minor rounding drift.
+          bWeights = installmentWeights.map(function (w) { return Number(w) / _wSum; });
+        }
+      }
+      var bCfg = Object.assign({}, currentCfg, {
         recognitionStartYearIndex: 1,
         maxRecognitionYearIndex:   null,
         installmentPayments:       bPayments,
@@ -835,6 +849,8 @@
         strategyImplementationDate: bYear + '-01-01'
         // year1 stays at original sale year so Y0 = year of sale (recap).
       });
+      if (bWeights) bCfg.installmentScheduleWeights = bWeights;
+      return bCfg;
     }
     if (type === 'C') {
       var _pr = (parkRatio != null && Number.isFinite(Number(parkRatio)))
@@ -1092,16 +1108,87 @@
         } else if (type === 'B') {
           // For B (§453 installment), each horizon iteration tries
           // exactly one N value (N = hor - 1, so Y0 + N payment years).
-          // The outer horizons sweep [2, 3, 4] covers N=1/2/3 - this
-          // avoids running the engine with a horizon larger than the
-          // installment needs (which would just add wasted Brookhaven
-          // fees). bestRecC slot carries N into _scenarioCfgFor.
+          // The outer horizons sweep [2, 3, 4] covers N=1/2/3. bestRecC
+          // slot carries N into _scenarioCfgFor.
+          //
+          // §453 weight sweep (advisor 2026-05-27): §453 contracts
+          // don't require equal payments — the buyer can pay e.g. 80%
+          // Y1 + 20% Y2, which can let the Y1 payment qualify for a
+          // higher-leverage Schwab combo ($3M+ → 200/100 at 0.59 Y0
+          // loss rate vs 145/45 at 0.322). For N=2 and N=3, the auto-
+          // picker now sweeps weight allocations to find the highest-
+          // net split. 2-pass: coarse 0.10 step, fine 0.02 step around
+          // winner. Skipped for N=1 (only one valid weight = [1.0]).
           var nForHor = hor - 1;
           if (nForHor < 1 || nForHor > 3) return;
-          var typedCfgB = _scenarioCfgFor('B', cfgSection, nForHor, userDurationFallback);
-          var mB = _scenarioMetrics(typedCfgB);
-          if (mB && (!best || mB.net > best.net)) {
-            best = { horizon: hor, shortPct: p.shortPct, comboId: p.comboId, bestRecC: nForHor, net: mB.net, durationMonths: userDurationFallback };
+
+          function _evalB(weights) {
+            var typedCfgB = _scenarioCfgFor('B', cfgSection, nForHor, userDurationFallback, null, weights);
+            var mB = _scenarioMetrics(typedCfgB);
+            return mB ? { metrics: mB, weights: weights } : null;
+          }
+          function _maybeUpdateBest(out) {
+            if (!out) return;
+            if (!best || out.metrics.net > best.net) {
+              best = { horizon: hor, shortPct: p.shortPct, comboId: p.comboId,
+                bestRecC: nForHor, net: out.metrics.net, durationMonths: userDurationFallback,
+                installmentWeights: out.weights };
+            }
+          }
+
+          if (nForHor === 1) {
+            _maybeUpdateBest(_evalB(null));
+          } else if (nForHor === 2) {
+            // 1D sweep over w1 (w2 = 1 − w1). Coarse 0.10, fine 0.02
+            // around coarse winner. Avoid degenerate w1=0 or w1=1
+            // (those collapse to N=1).
+            var coarseW2 = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+            var coarseBestB2 = null;
+            coarseW2.forEach(function (w1) {
+              var out = _evalB([w1, 1 - w1]);
+              if (out && (!coarseBestB2 || out.metrics.net > coarseBestB2.metrics.net)) coarseBestB2 = out;
+              _maybeUpdateBest(out);
+            });
+            if (coarseBestB2) {
+              var w1Center = coarseBestB2.weights[0];
+              for (var step2 = 1; step2 <= 4; step2++) {
+                [-1, 1].forEach(function (sign) {
+                  var w1Fine = Math.round((w1Center + sign * step2 * 0.02) * 100) / 100;
+                  if (w1Fine <= 0.05 || w1Fine >= 0.95) return;
+                  _maybeUpdateBest(_evalB([w1Fine, 1 - w1Fine]));
+                });
+              }
+            }
+          } else { // nForHor === 3
+            // 2D sweep over (w1, w2) with w3 = 1 − w1 − w2. Coarse 0.10
+            // grid skipping degenerate corners, then fine 0.02 around
+            // the coarse winner along both axes.
+            var coarseW3 = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8];
+            var coarseBestB3 = null;
+            coarseW3.forEach(function (w1) {
+              coarseW3.forEach(function (w2) {
+                var w3 = 1 - w1 - w2;
+                if (w3 < 0.05 || w3 > 0.9) return;
+                var out = _evalB([w1, w2, w3]);
+                if (out && (!coarseBestB3 || out.metrics.net > coarseBestB3.metrics.net)) coarseBestB3 = out;
+                _maybeUpdateBest(out);
+              });
+            });
+            if (coarseBestB3) {
+              var w1c = coarseBestB3.weights[0];
+              var w2c = coarseBestB3.weights[1];
+              for (var s1 = -4; s1 <= 4; s1++) {
+                for (var s2 = -4; s2 <= 4; s2++) {
+                  if (s1 === 0 && s2 === 0) continue;
+                  var w1f = Math.round((w1c + s1 * 0.02) * 100) / 100;
+                  var w2f = Math.round((w2c + s2 * 0.02) * 100) / 100;
+                  var w3f = Math.round((1 - w1f - w2f) * 100) / 100;
+                  if (w1f < 0.05 || w2f < 0.05 || w3f < 0.05) continue;
+                  if (w1f > 0.9 || w2f > 0.9 || w3f > 0.9) continue;
+                  _maybeUpdateBest(_evalB([w1f, w2f, w3f]));
+                }
+              }
+            }
           }
         } else {
           // A doesn't use a deferred-sale duration — pass through the
@@ -2389,8 +2476,9 @@
         ? picked.durationMonths
         : userDuration;
       var pr = (type === 'C' && Number.isFinite(picked.parkRatio)) ? picked.parkRatio : null;
+      var iw = (type === 'B' && Array.isArray(picked.installmentWeights)) ? picked.installmentWeights : null;
       return {
-        cfg: _scenarioCfgFor(type, sectionCfg, picked.bestRecC, dur, pr),
+        cfg: _scenarioCfgFor(type, sectionCfg, picked.bestRecC, dur, pr, iw),
         picked: picked
       };
     }

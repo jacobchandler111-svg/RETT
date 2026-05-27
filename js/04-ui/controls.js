@@ -1090,6 +1090,18 @@ function runFullPipeline() {
               if (chosenStrat === 'C' && Number.isFinite(apk.parkRatio)) {
                 cfg.parkRatio = apk.parkRatio;
               }
+              // Strategy B: thread the chosen installment payment count
+              // AND the auto-picked weight allocation (advisor 2026-05-27).
+              // Without these, runFullPipeline would re-run the engine
+              // with the form's default cfg and miss the auto-picked
+              // weight optimization.
+              if (chosenStrat === 'B' && Number.isFinite(apk.bestRecC)) {
+                cfg.installmentPayments = apk.bestRecC;
+                cfg.recognitionStartYearIndex = 1;
+              }
+              if (chosenStrat === 'B' && Array.isArray(apk.installmentWeights)) {
+                cfg.installmentScheduleWeights = apk.installmentWeights;
+              }
             }
           } catch (apErr) { /* leave cfg unchanged on auto-pick failure */ }
         }

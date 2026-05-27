@@ -330,7 +330,23 @@
     var p = analysis.picked, cfg = analysis.cfg, cmp = analysis.cmp;
     var lockupHint;
     if (letter === 'A') lockupHint = 'Y0 lump-sum';
-    else if (letter === 'B') lockupHint = (p.bestRecC | 0) + ' yearly Jan-1 payment' + (p.bestRecC === 1 ? '' : 's');
+    else if (letter === 'B') {
+      var bN = (p.bestRecC | 0);
+      lockupHint = bN + ' yearly Jan-1 payment' + (bN === 1 ? '' : 's');
+      // §453 weight split (advisor 2026-05-27): when N>1, show the
+      // auto-picked weight allocation. Sums to ~100%; if equal split
+      // would have been chosen the row shows '1/N each'.
+      if (bN > 1) {
+        var weights = (cfg && Array.isArray(cfg.installmentScheduleWeights)) ? cfg.installmentScheduleWeights : null;
+        if (weights && weights.length === bN) {
+          lockupHint += ' &mdash; split ' + weights.map(function (w) {
+            return Math.round(w * 100) + '%';
+          }).join(' / ');
+        } else {
+          lockupHint += ' &mdash; equal split (' + Math.round(100 / bN) + '% each)';
+        }
+      }
+    }
     else lockupHint = (p.durationMonths || 36) + 'mo structured-sale (40/40/20 over 3 yrs)';
     var scalePct = (analysis.optScale * 100).toFixed(0) + '%';
     var scaleNote = analysis.optScale < 1

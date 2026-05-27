@@ -825,6 +825,26 @@ function unifiedTaxComparison(cfg, opts) {
       //     those are Strategy C concerns.
       const _installmentPayments = (cfg.installmentPayments | 0) || 0;
       const _isInstallment = isDeferred && _installmentPayments >= 1;
+      // Installment schedule weights (advisor 2026-05-27): §453 contracts
+      // don't require equal payments — buyer can pay e.g. 80% Y1 + 20%
+      // Y2. cfg.installmentScheduleWeights is an array of N positive
+      // weights summing to 1.0. When absent, the engine falls back to
+      // equal split (1/N per year). Auto-picker (_autoPickSection's B
+      // branch in projection-dashboard-render.js) sweeps weight space
+      // to find the highest-net allocation; engine just consumes the
+      // chosen weights. Each year's payment = (salePrice − recap) ×
+      // weight[i]; each year's recognized gain = totalLT × weight[i]
+      // (per §453 gross-profit ratio — the GP ratio is constant across
+      // payments, so applying the same weight to both the cash and the
+      // gain preserves the ratio mathematically).
+      function _weightForPaymentIdx(pIdx) {
+            var w = (Array.isArray(cfg.installmentScheduleWeights)
+                  && pIdx >= 0 && pIdx < cfg.installmentScheduleWeights.length
+                  && Number.isFinite(Number(cfg.installmentScheduleWeights[pIdx])))
+                  ? Math.max(0, Number(cfg.installmentScheduleWeights[pIdx]))
+                  : (_installmentPayments > 0 ? 1 / _installmentPayments : 0);
+            return w;
+      }
 
       let basisCash, _unparkedY1Gain, _parkedGain;
       if (_isInstallment) {
@@ -867,13 +887,18 @@ function unifiedTaxComparison(cfg, opts) {
             _parkedGain = 0;
       }
 
-      // Installment-mode per-payment amount = (salePrice - accelDepr) / N.
-      // The recap portion (accelDepr) is excluded from the contract price
-      // for LT-gain GP-ratio purposes because §453(i) fully recognizes it
-      // at Y0 separately.
-      const _installmentPayment = _isInstallment
-            ? Math.max(0, ((cfg.salePrice || 0) - Math.max(0, recapture)) / _installmentPayments)
+      // Installment-mode per-payment amount = (salePrice - accelDepr) ×
+      // weight[i]. The recap portion (accelDepr) is excluded from the
+      // contract price for LT-gain GP-ratio purposes because §453(i)
+      // fully recognizes it at Y0 separately. Per-payment amount now
+      // varies by weight (advisor 2026-05-27); the helper below returns
+      // the payment for payment index pIdx (0-based from startIdx).
+      const _installmentContractPrice = _isInstallment
+            ? Math.max(0, (cfg.salePrice || 0) - Math.max(0, recapture))
             : 0;
+      function _installmentPaymentForIdx(pIdx) {
+            return _installmentContractPrice * _weightForPaymentIdx(pIdx);
+      }
       // Cover-taxes-from-sale Y0-only tranche (advisor 2026-05-26):
       // when the user toggles "cover taxes from sale", the tax-reserve
       // money deploys to Brooklyn at Y0 alongside the rest of the sale
@@ -1235,7 +1260,11 @@ function unifiedTaxComparison(cfg, opts) {
             // recognition is capped by absorbable); whatever Brooklyn
             // doesn't absorb is just taxed at LT rates.
             if (_isInstallment && i >= startIdx && i <= maturityIdx) {
-                  var _installmentGainThisYear = totalLT / _installmentPayments;
+                  // Per-year gain recognition uses the weight for this
+                  // payment index (0-based from startIdx). Equal-split
+                  // fallback returns 1/N so existing scenarios match.
+                  var _pIdx = i - startIdx;
+                  var _installmentGainThisYear = totalLT * _weightForPaymentIdx(_pIdx);
                   gainRecThisYear += _installmentGainThisYear;
                   gainRemaining   -= _installmentGainThisYear;
             }
@@ -1309,7 +1338,10 @@ function unifiedTaxComparison(cfg, opts) {
             const trancheTaxCarve = gainRecThisYear * _gainTaxRate;
             let reinvested;
             if (_isInstallment && i >= startIdx && i <= maturityIdx) {
-                  reinvested = Math.max(0, _installmentPayment - trancheTaxCarve);
+                  // Per-year installment payment uses the same weight as
+                  // the gain recognition above (preserves §453 GP ratio).
+                  reinvested = Math.max(0,
+                        _installmentPaymentForIdx(i - startIdx) - trancheTaxCarve);
             } else {
                   reinvested = Math.max(0, gainRecThisYear - trancheTaxCarve);
             }
