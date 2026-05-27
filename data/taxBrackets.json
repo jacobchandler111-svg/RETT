@@ -2323,9 +2323,10 @@
         },
         "flatRate": true,
         "standardDeduction": {
-          "single": 15000,
-          "married_joint": 30000
-        }
+          "single": 16100,
+          "married_joint": 32200
+        },
+        "_source": "AZ HB 2898 (2021) — flat 2.50% effective 2023+. ARS §43-1042(A)(1) ties state std ded to federal §63. 2026 std ded values from Rev. Proc. 2025-32 §3.16. Verified 2026-05-27."
       },
       "AR": {
         "brackets": {
@@ -2472,9 +2473,10 @@
         },
         "flatRate": true,
         "standardDeduction": {
-          "single": 15000,
-          "married_joint": 30000
-        }
+          "single": 16100,
+          "married_joint": 32200
+        },
+        "_source": "CO flat 4.40% per CRS §39-22-104; rate temporarily 4.25% in 2024 only, reverted Jan 2025. Std ded shown here mirrors federal 2026 (Rev. Proc. 2025-32 §3.16) because CO starts from federal taxable income — engine arithmetic needs the federal std ded subtracted upstream. Verified 2026-05-27."
       },
       "CT": {
         "brackets": {
