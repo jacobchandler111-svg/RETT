@@ -593,9 +593,10 @@ function _refreshCard3Visibility() {
   // doesn't go blank during initial form-fill.
   var c1 = document.getElementById('strategy-pick-A');
   var card1Visible = !allFinite || (netA > 0);
-  // Card 2: B better than A AND B has positive net, OR default-risk.
-  var card2Visible = defaultRiskYes || !allFinite ||
-                     ((netB > 0) && (netB > netA));
+  // Card 2: B visible only when math says it's worth showing — B has
+  // positive net AND B > A. Default-risk toggle does NOT force B
+  // visible (advisor 2026-05-27): the toggle is a C-specific switch.
+  var card2Visible = !allFinite || ((netB > 0) && (netB > netA));
   // Card 3: ONLY visible when default-risk toggle = 'yes'. The math-
   // based "C beats B" path is retired (advisor 2026-05-27): B's solver
   // now searches the same space C does (variable weights + Y0 down),
