@@ -569,8 +569,9 @@
       });
       var pr = (type === 'C' && Number.isFinite(picked.parkRatio)) ? picked.parkRatio : null;
       var iw = (type === 'B' && Array.isArray(picked.installmentWeights)) ? picked.installmentWeights : null;
+      var y0d = (type === 'C' && Number.isFinite(picked.y0DownPayment)) ? picked.y0DownPayment : null;
       return {
-        cfg: _scenarioCfgFor(type, sectionCfg, picked.bestRecC, userDuration, pr, iw),
+        cfg: _scenarioCfgFor(type, sectionCfg, picked.bestRecC, userDuration, pr, iw, y0d),
         picked: picked
       };
     }
@@ -780,7 +781,7 @@
   // __rettStrategyInterest.B = true and checking entry.cfg.year1 ===
   // currentYear+1. (Bug verified 2026-05-06; no fix needed — working as
   // designed, just non-obvious from a probe-the-dropdown angle.)
-  function _scenarioCfgFor(type, currentCfg, bestRecC, userDuration, parkRatio, installmentWeights) {
+  function _scenarioCfgFor(type, currentCfg, bestRecC, userDuration, parkRatio, installmentWeights, y0DownPayment) {
     if (!currentCfg) return null;
     if (type === 'A') {
       // F2 (2026-05-27): explicitly clear cross-strategy fields so
@@ -874,6 +875,12 @@
       // Brooklyn tranche when that beats deferring everything.
       // Default 0 means recap-only at Y0, all gain via 40/40/20.
       var cYear = (currentCfg.year1 || (new Date()).getFullYear()) + 1;
+      // Y0 down-payment knob (advisor 2026-05-27): when the solver
+      // passes a positive value, the engine recognizes (D × GP ratio)
+      // of LT gain at Y0 and opens a Brooklyn tranche of size D — see
+      // tax-comparison.js `_y0DownPayment` handling. Default 0 keeps
+      // the recap-only Y0 behavior.
+      var _y0Down = Math.max(0, Number(y0DownPayment) || 0);
       var cCfg = Object.assign({}, currentCfg, {
         recognitionStartYearIndex: 1,
         maxRecognitionYearIndex:   null,
@@ -883,6 +890,7 @@
         structuredSaleDurationMonths: userDuration || 36,
         // parkRatio retired for C.
         parkRatio:                  null,
+        y0DownPayment:              _y0Down,
         horizonYears: Math.max(4, Number(currentCfg.horizonYears) || 4),
         implementationDate:         cYear + '-01-01',
         strategyImplementationDate: cYear + '-01-01'
@@ -1032,16 +1040,75 @@
           // (advisor 2026-05-27, RE-SPEC).
           //
           // Routed through the §453 installment engine with LOCKED
-          // [0.40, 0.40, 0.20] weights. Solver picks best combo only —
-          // no parkRatio sweep (basis no longer parked at Y0; see
-          // _scenarioCfgFor('C',...) for rationale).
+          // [0.40, 0.40, 0.20] weights. Solver sweeps:
+          //   (1) combo (handled by outer pcts loop)
+          //   (2) y0DownPayment — optional Y0 cash beyond recap that
+          //       opens a Brooklyn Y0 tranche + recognizes
+          //       (D × GP_ratio) of LT gain at Y0. Range: 0 to
+          //       (salePrice − recap). 3-pass: coarse 10% of contract
+          //       price, fine 2%, ultra-fine 0.5%.
           //
-          // Y0 down-payment sweep is a follow-on optimization (next
-          // commit); this pass uses y0DownPayment = 0 (recap-only Y0).
-          var typedCfg = _scenarioCfgFor(type, cfgSection, 3, 36);
-          var m = _scenarioMetrics(typedCfg);
-          if (m && (!best || m.net > best.net)) {
-            best = { horizon: hor, shortPct: p.shortPct, comboId: p.comboId, bestRecC: 3, net: m.net, durationMonths: 36, parkRatio: null };
+          // Custodian min: any D in (0, $1M) is illegal — Schwab
+          // won't open a sub-$1M tranche. Skip D values that fall in
+          // the gap so we pick either D=0 or D >= $1M.
+          var _contractPrice = Math.max(0, Number(cfgSection.salePrice || 0)
+                - Number(cfgSection.acceleratedDepreciation || 0));
+          var _availTotal = Math.max(0, Number(cfgSection.availableCapital || 0));
+          // D cap = min(contract price, available capital) — can't pay
+          // a down beyond what cash the buyer brings, and can't fund
+          // Brooklyn beyond availableCapital.
+          var _dMax = Math.min(_contractPrice, _availTotal);
+          var _smallestMin = 1000000;
+          function _isLegalDown(D) { return (D <= 0.5 || D >= _smallestMin); }
+
+          var _evalD = function (D) {
+            var typedCfg = _scenarioCfgFor(type, cfgSection, 3, 36, null, null, D);
+            var m = _scenarioMetrics(typedCfg);
+            if (m && (!best || m.net > best.net)) {
+              best = {
+                horizon: hor, shortPct: p.shortPct, comboId: p.comboId,
+                bestRecC: 3, net: m.net, durationMonths: 36,
+                parkRatio: null, y0DownPayment: D
+              };
+            }
+            return m;
+          };
+
+          // Coarse pass at 0%, 10%, 20%, ..., 100% of D_max.
+          var coarseBest = null;
+          for (var ci = 0; ci <= 10; ci++) {
+            var D = Math.round(_dMax * (ci / 10));
+            if (!_isLegalDown(D)) continue;
+            var mc = _evalD(D);
+            if (mc && (!coarseBest || mc.net > coarseBest.net)) {
+              coarseBest = { D: D, net: mc.net };
+            }
+          }
+          // Fine pass ±10% of D_max in 2% steps around coarse peak.
+          var fineBest = coarseBest;
+          if (coarseBest) {
+            for (var fstep = 1; fstep <= 5; fstep++) {
+              [-1, 1].forEach(function (sign) {
+                var D = Math.round(coarseBest.D + sign * fstep * 0.02 * _dMax);
+                if (D < 0 || D > _dMax) return;
+                if (!_isLegalDown(D)) return;
+                var mf = _evalD(D);
+                if (mf && (!fineBest || mf.net > fineBest.net)) {
+                  fineBest = { D: D, net: mf.net };
+                }
+              });
+            }
+          }
+          // Ultra-fine ±2% in 0.5% steps.
+          if (fineBest) {
+            for (var ustep = 1; ustep <= 4; ustep++) {
+              [-1, 1].forEach(function (sign) {
+                var D = Math.round(fineBest.D + sign * ustep * 0.005 * _dMax);
+                if (D < 0 || D > _dMax) return;
+                if (!_isLegalDown(D)) return;
+                _evalD(D);
+              });
+            }
           }
         } else if (type === 'B') {
           // For B (§453 installment), each horizon iteration tries
@@ -2454,8 +2521,9 @@
         : userDuration;
       var pr = (type === 'C' && Number.isFinite(picked.parkRatio)) ? picked.parkRatio : null;
       var iw = (type === 'B' && Array.isArray(picked.installmentWeights)) ? picked.installmentWeights : null;
+      var y0d = (type === 'C' && Number.isFinite(picked.y0DownPayment)) ? picked.y0DownPayment : null;
       return {
-        cfg: _scenarioCfgFor(type, sectionCfg, picked.bestRecC, dur, pr, iw),
+        cfg: _scenarioCfgFor(type, sectionCfg, picked.bestRecC, dur, pr, iw, y0d),
         picked: picked
       };
     }

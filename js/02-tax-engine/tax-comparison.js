@@ -846,9 +846,20 @@ function unifiedTaxComparison(cfg, opts) {
             return w;
       }
 
+      // Strategy C Y0 down-payment (advisor 2026-05-27): optional extra
+      // cash paid at closing beyond recap, recognized via §453 GP ratio.
+      // Solver-optimized — when D > 0, a Y0 Brooklyn tranche of size D
+      // opens to absorb the D × GP_ratio of Y0 LT gain. Capped at
+      // (salePrice − recap) so we never exceed the contract price.
+      const _y0DownPaymentRaw = Math.max(0, Number(cfg.y0DownPayment) || 0);
+      const _y0DownPaymentCap = Math.max(0, (cfg.salePrice || 0) - Math.max(0, recapture));
+      const _y0DownPayment = (_installmentPayments >= 1)
+            ? Math.min(_y0DownPaymentRaw, _y0DownPaymentCap)
+            : 0;
+
       let basisCash, _unparkedY1Gain, _parkedGain;
       if (_isInstallment) {
-            basisCash = 0;
+            basisCash = _y0DownPayment;
             _unparkedY1Gain = 0;
             _parkedGain = 0;
       } else if (isDeferred) {
@@ -896,8 +907,11 @@ function unifiedTaxComparison(cfg, opts) {
       const _installmentContractPrice = _isInstallment
             ? Math.max(0, (cfg.salePrice || 0) - Math.max(0, recapture))
             : 0;
+      // Y0 down-payment shrinks the cash available to the weight
+      // schedule — (contract − D) is what gets paid across the
+      // weighted installments. With D > 0 each Y1+ payment is smaller.
       function _installmentPaymentForIdx(pIdx) {
-            return _installmentContractPrice * _weightForPaymentIdx(pIdx);
+            return Math.max(0, _installmentContractPrice - _y0DownPayment) * _weightForPaymentIdx(pIdx);
       }
       // Cover-taxes-from-sale Y0-only tranche (advisor 2026-05-26):
       // when the user toggles "cover taxes from sale", the tax-reserve
@@ -1281,12 +1295,28 @@ function unifiedTaxComparison(cfg, opts) {
             // doesn't gate recognition here (unlike Strategy C, where
             // recognition is capped by absorbable); whatever Brooklyn
             // doesn't absorb is just taxed at LT rates.
+            // Y0 down-payment gain (Strategy C optional, Strategy B in
+            // principle): D dollars of cash at closing × GP ratio is
+            // recognized as Y0 LT gain. GP ratio is constant for the
+            // entire §453 contract — applies identically to Y0 down
+            // and to each Y1+ installment.
+            if (i === 0 && _isInstallment && _y0DownPayment > 0 && _installmentContractPrice > 0) {
+                  var _gpRatioY0 = totalLT / _installmentContractPrice;
+                  var _y0DownGain = _y0DownPayment * _gpRatioY0;
+                  gainRecThisYear += _y0DownGain;
+                  gainRemaining   -= _y0DownGain;
+            }
             if (_isInstallment && i >= startIdx && i <= maturityIdx) {
                   // Per-year gain recognition uses the weight for this
-                  // payment index (0-based from startIdx). Equal-split
-                  // fallback returns 1/N so existing scenarios match.
+                  // payment index (0-based from startIdx). Weights apply
+                  // to (contract − Y0 down) — see _installmentPaymentForIdx
+                  // above. Net effect: weights scale the post-Y0 portion
+                  // of LT gain, identical math to pre-Y0-down behavior
+                  // when D = 0.
                   var _pIdx = i - startIdx;
-                  var _installmentGainThisYear = totalLT * _weightForPaymentIdx(_pIdx);
+                  var _postDownLT = Math.max(0, totalLT - (_y0DownPayment > 0 && _installmentContractPrice > 0
+                        ? _y0DownPayment * (totalLT / _installmentContractPrice) : 0));
+                  var _installmentGainThisYear = _postDownLT * _weightForPaymentIdx(_pIdx);
                   gainRecThisYear += _installmentGainThisYear;
                   gainRemaining   -= _installmentGainThisYear;
             }
@@ -1359,11 +1389,21 @@ function unifiedTaxComparison(cfg, opts) {
             // returned silently.
             const trancheTaxCarve = gainRecThisYear * _gainTaxRate;
             let reinvested;
-            if (_isInstallment && i >= startIdx && i <= maturityIdx) {
-                  // Per-year installment payment uses the same weight as
-                  // the gain recognition above (preserves §453 GP ratio).
-                  reinvested = Math.max(0,
-                        _installmentPaymentForIdx(i - startIdx) - trancheTaxCarve);
+            if (_isInstallment) {
+                  // Installment mode: Brooklyn deploys per-payment.
+                  //   • i = startIdx..maturityIdx: yearly installment
+                  //     creates a new tranche of (payment − taxCarve)
+                  //     dollars (basis + gain combined per §453).
+                  //   • i = 0 (sale year): no reinvest tranche. Any
+                  //     Y0 cash from a down-payment was already deployed
+                  //     as the basisCash tranche at engine setup;
+                  //     recognizing Y0 gain on it doesn't add new cash.
+                  if (i >= startIdx && i <= maturityIdx) {
+                        reinvested = Math.max(0,
+                              _installmentPaymentForIdx(i - startIdx) - trancheTaxCarve);
+                  } else {
+                        reinvested = 0;
+                  }
             } else {
                   reinvested = Math.max(0, gainRecThisYear - trancheTaxCarve);
             }
