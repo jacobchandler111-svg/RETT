@@ -47,10 +47,33 @@
     try { cmp = root.unifiedTaxComparison(entry.cfg, { includeTrancheBreakdown: true }); }
     catch (e) { return { error: 'engine threw: ' + (e.message || e) }; }
     var m = entry.metrics || {};
+    // Strategy A immediate path: card reads brooklynFees from
+    // ProjectionEngine.run (actual-hold-period close), NOT from
+    // unifiedTaxComparison.totalFees (annualized accrual). These
+    // disagree by $30K+ on canonical scenarios. Pull the ProjectionEngine
+    // per-year fees here so the admin tables can substitute them and
+    // reconcile to the card.
+    var projFees = null;
+    if (type === 'A' && typeof ProjectionEngine !== 'undefined' && ProjectionEngine.run) {
+      try {
+        var flavoredCfg = (typeof root.rettFlavorEngineCfg === 'function')
+          ? root.rettFlavorEngineCfg(entry.cfg) : entry.cfg;
+        var proj = ProjectionEngine.run(flavoredCfg);
+        if (proj && Array.isArray(proj.years)) {
+          projFees = {
+            byYear: {},
+            total: (proj.totals && proj.totals.cumulativeFees) || 0
+          };
+          proj.years.forEach(function (y) { projFees.byYear[y.year] = _num(y.fee); });
+        }
+      } catch (e) { projFees = null; }
+    }
     return {
+      type: type,
       picked: entry.picked || {},
       cfg: entry.cfg || {},
       cmp: cmp,
+      projFees: projFees,
       optScale: entry._optScale != null ? entry._optScale : 1,
       _opt: entry._opt || null,
       // Post-optimizer headline values (match Page 3 cards):
@@ -67,9 +90,10 @@
       (note ? '<td class="admin-math-note-cell">' + note + '</td>' : '<td></td>') + '</tr>';
   }
 
-  function _perYearTable(cmp) {
+  function _perYearTable(cmp, projFees, optScale) {
     var rows = cmp.rows || [];
     if (!rows.length) return '<p class="admin-math-empty">No per-year rows from engine.</p>';
+    var scale = (typeof optScale === 'number' && isFinite(optScale)) ? optScale : 1;
     var totS = 0, totF = 0, totFH = 0, totL = 0, totG = 0, totR = 0, totWd = 0;
     var cumL = 0, cumS = 0, cumFAll = 0;
     var prevCumInv = 0;
@@ -107,7 +131,16 @@
       var b = _num(r.doNothingBaseline && r.doNothingBaseline.total);
       var w = _num(r.withStrategy && r.withStrategy.total);
       var s = b - w;
-      var f = _num(r.fee);
+      // Strategy A: substitute the ProjectionEngine per-year fee (the
+      // value the card actually uses) for unifiedTaxComparison's
+      // annualized accrual. Without this the per-year fee column shows
+      // $84,815 while the card reads $54,733 — same scenario, two
+      // different engines, a $30K phantom gap that looked like a bug.
+      // B/C: scale by optimizer dial-back so deferred-mode rows also
+      // reconcile to the card.
+      var f = (projFees && projFees.byYear && projFees.byYear[r.year] != null)
+        ? _num(projFees.byYear[r.year])
+        : _num(r.fee) * scale;
       var fh = _num(r.brookhavenFee);
       totG += g; totL += l; totS += s; totF += f; totFH += fh; totR += newDep; totWd += withdrawn;
       cumL += l; cumS += s; cumFAll += (f + fh);
@@ -151,7 +184,7 @@
         '<td class="admin-math-num"><strong>' + _fmtUSD(net) + '</strong></td>' +
       '</tr>' +
       '<tr class="admin-math-total">' +
-        '<td colspan="13"><strong>Raw engine net</strong> &mdash; pre-optimizer, full-year fee accrual (may differ from <em>Net benefit (on card)</em> above; the card uses ProjectionEngine\'s actual-hold-period fees while this table uses unifiedTaxComparison\'s annualized fee per row)</td>' +
+        '<td colspan="13"><strong>Raw engine net</strong> &mdash; sum of per-year (savings &minus; fees), pre-optimizer</td>' +
         '<td class="admin-math-num"><strong>' + _fmtUSD(net) + '</strong></td>' +
       '</tr>' +
       '</tbody></table>' +
@@ -164,9 +197,20 @@
   // contribution. Lets a CPA see "tranche 1 at age 0 produced X loss, at
   // age 1 produced Y loss" etc. Engine populates r.trancheBreakdown when
   // opts.includeTrancheBreakdown is set (admin path opts in).
-  function _perTrancheTable(cmp) {
+  function _perTrancheTable(cmp, projFees, optScale) {
     var rows = cmp.rows || [];
     if (!rows.length) return '';
+    // A: scale tranche-level fees by (projFees.total / sum of unified
+    //    fees) so the per-tranche grid also reconciles to the card.
+    //    A is single-tranche / single-year so this is a straight
+    //    substitution in practice — kept as a ratio for safety.
+    // B/C: scale by optScale to absorb optimizer dial-back.
+    var feeScale = (typeof optScale === 'number' && isFinite(optScale)) ? optScale : 1;
+    if (projFees && projFees.total != null) {
+      var unifiedFeeTotal = 0;
+      rows.forEach(function (r) { unifiedFeeTotal += _num(r.fee); });
+      if (unifiedFeeTotal > 0) feeScale = projFees.total / unifiedFeeTotal;
+    }
     // Pivot: collect all tranches across all years, keyed by trancheIdx.
     var trancheMap = {};
     var orderedKeys = [];
@@ -186,7 +230,7 @@
           orderedKeys.push(key);
         }
         trancheMap[key].perYear[r.year] = {
-          age: tr.age, loss: tr.loss, fee: tr.fee,
+          age: tr.age, loss: tr.loss, fee: tr.fee * feeScale,
           lossRate: tr.lossRate, feeRate: tr.feeRate, yf: tr.yf
         };
       });
@@ -395,10 +439,10 @@
       '</table>' +
       cardSummary +
       _fullyWipedCallout(analysis, cfg) +
-      '<p class="admin-math-subtitle" style="margin-top:10px;">Per-year engine output (pre-optimizer, full-deployment):</p>' +
-      _perYearTable(cmp) +
+      '<p class="admin-math-subtitle" style="margin-top:10px;">Per-year engine output (Brooklyn fee reconciled to card; other columns are raw engine pre-optimizer):</p>' +
+      _perYearTable(cmp, analysis.projFees, analysis.optScale) +
       '<p class="admin-math-subtitle" style="margin-top:10px;">Per-tranche breakdown (each Brooklyn deposit aged through every year):</p>' +
-      _perTrancheTable(cmp) +
+      _perTrancheTable(cmp, analysis.projFees, analysis.optScale) +
       '<p class="admin-math-subtitle" style="margin-top:10px;">Brookhaven planning fee schedule (setup + quarterly accrual):</p>' +
       _brookhavenTable(cmp) +
     '</div>';

@@ -65,11 +65,30 @@
       try { cmp = root.unifiedTaxComparison(entry.cfg); }
       catch (e) { cmp = null; }
     }
+    // Strategy A immediate path: card's brooklynFees come from
+    // ProjectionEngine.run (actual-hold-period close), not from
+    // unifiedTaxComparison.totalFees. Pull the ProjectionEngine
+    // per-year fees so the Brooklyn breakdown table reconciles to the
+    // hero row above it. Without this the hero shows $54K and the
+    // breakdown 4 rows below shows $85K — same panel, two numbers.
+    var projFees = null;
+    if (chosen === 'A' && typeof ProjectionEngine !== 'undefined' && ProjectionEngine.run) {
+      try {
+        var flavoredCfg = (typeof root.rettFlavorEngineCfg === 'function')
+          ? root.rettFlavorEngineCfg(entry.cfg) : entry.cfg;
+        var proj = ProjectionEngine.run(flavoredCfg);
+        if (proj && Array.isArray(proj.years)) {
+          projFees = { byYear: {}, total: (proj.totals && proj.totals.cumulativeFees) || 0 };
+          proj.years.forEach(function (y) { projFees.byYear[y.year] = _num(y.fee); });
+        }
+      } catch (e) { projFees = null; }
+    }
     return {
       chosen: chosen,
       picked: entry.picked || {},
       cfg: entry.cfg || {},
       cmp: cmp,
+      projFees: projFees,
       baselineTax: baselineTax,
       withStrategyTax: withStrategyTax,
       savings: savings,
@@ -269,8 +288,19 @@
     }
     var tableRows = '';
     var sumFee = 0;
+    var projFees = a.projFees;
+    // Reconcile to the hero row above. Two effects to capture:
+    //   A: cmp.rows[].fee comes from unifiedTaxComparison (annualized),
+    //      but the card reads ProjectionEngine.cumulativeFees (actual
+    //      hold-period). projFees.byYear holds the engine values.
+    //   B/C: the optimizer can dial back deployment (e.g. 99% of
+    //      available), which the card scales but the cmp does not.
+    //      Apply optScale to make the per-year rows reconcile.
+    var optScale = _num(a.optScale != null ? a.optScale : 1);
     rows.forEach(function (r) {
-      var fee = _num(r.fee);
+      var fee = (projFees && projFees.byYear && projFees.byYear[r.year] != null)
+        ? _num(projFees.byYear[r.year])
+        : _num(r.fee) * optScale;
       // F6 fix (Round 5): engine row field is `investmentThisYear`
       // (cumulative deployed capital), not `invested`. The old typo
       // showed $0 for every year and an empty Calc column despite
