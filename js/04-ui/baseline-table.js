@@ -259,6 +259,11 @@
     if (Math.abs(delta_fedOrd)   > 0.5) deltaParts.push('Ord ' + _fmt(delta_fedOrd));
     _set('bt-delta-sub', deltaParts.length ? deltaParts.join(' · ') : 'No sale entered');
 
+    // Pie chart: share of sale price kept (blue) vs paid in tax (red).
+    // Per advisor 2026-05-26 - denominator is salePrice so the chart
+    // tells the client "you keep X% of your sale; Y% goes to tax."
+    _renderPieChart(sale, delta_total);
+
     // -----------------------------------------------------------------
     // Q3: Per-property tax breakdown (double-click middle tile reveals).
     // For each active property, compute its marginal tax contribution =
@@ -378,6 +383,73 @@
     });
     // Initial paint.
     render();
+  }
+
+  // Pie chart renderer (advisor 2026-05-26). Two-slice pie:
+  //   blue (keep) = (salePrice − taxDueFromSale) / salePrice
+  //   red  (tax)  = taxDueFromSale / salePrice
+  // Drawn as SVG arcs into #bt-pie-slices. Center text shows the
+  // keep percent (the optimistic number). Legend amounts + percents
+  // populated alongside.
+  function _renderPieChart(salePrice, taxDueFromSale) {
+    var slicesEl = document.getElementById('bt-pie-slices');
+    if (!slicesEl) return;
+    var sp = Math.max(0, Number(salePrice) || 0);
+    var tax = Math.max(0, Number(taxDueFromSale) || 0);
+    // Clip tax at sale so the pie can't exceed 100%.
+    var taxBounded = Math.min(tax, sp);
+    var keep = Math.max(0, sp - taxBounded);
+    var keepPct = sp > 0 ? (keep / sp) : 0;
+    var taxPct  = sp > 0 ? (taxBounded / sp) : 0;
+
+    // SVG geometry: 200x200 viewBox, donut centered at (100, 100),
+    // outer radius 88, inner radius 56 (matches the existing ribbon
+    // donut style). Slices drawn clockwise starting at 12 o'clock.
+    var cx = 100, cy = 100, R = 88, r = 56;
+    function _arc(startA, sweepA, fillCss) {
+      if (sweepA <= 0.0001) return '';
+      // Full-circle short-circuit (single slice covering 100%): draw
+      // two half-arcs to avoid the degenerate "zero-length arc" SVG
+      // rendering issue.
+      if (sweepA >= Math.PI * 2 - 0.0001) {
+        return '<circle cx="' + cx + '" cy="' + cy + '" r="' + R + '" fill="' + fillCss + '"/>' +
+               '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="#fff"/>';
+      }
+      var endA = startA + sweepA;
+      var x1 = cx + R * Math.cos(startA);
+      var y1 = cy + R * Math.sin(startA);
+      var x2 = cx + R * Math.cos(endA);
+      var y2 = cy + R * Math.sin(endA);
+      var xi1 = cx + r * Math.cos(endA);
+      var yi1 = cy + r * Math.sin(endA);
+      var xi2 = cx + r * Math.cos(startA);
+      var yi2 = cy + r * Math.sin(startA);
+      var large = sweepA > Math.PI ? 1 : 0;
+      var d = 'M ' + x1 + ' ' + y1 +
+              ' A ' + R + ' ' + R + ' 0 ' + large + ' 1 ' + x2 + ' ' + y2 +
+              ' L ' + xi1 + ' ' + yi1 +
+              ' A ' + r + ' ' + r + ' 0 ' + large + ' 0 ' + xi2 + ' ' + yi2 +
+              ' Z';
+      return '<path d="' + d + '" fill="' + fillCss + '"/>';
+    }
+
+    // Start at 12 o'clock = -90 deg = -π/2 radians.
+    var start = -Math.PI / 2;
+    var keepSweep = keepPct * Math.PI * 2;
+    var taxSweep  = taxPct * Math.PI * 2;
+    var svg = '';
+    svg += _arc(start, keepSweep, '#2563eb');                  // blue (keep)
+    svg += _arc(start + keepSweep, taxSweep, '#dc2626');       // red (tax)
+    slicesEl.innerHTML = svg;
+
+    var centerEl = document.getElementById('bt-pie-center');
+    if (centerEl) {
+      centerEl.textContent = sp > 0 ? (keepPct * 100).toFixed(1) + '%' : '—';
+    }
+    _set('bt-pie-keep-amt', _fmt(keep));
+    _set('bt-pie-keep-pct', (keepPct * 100).toFixed(1) + '%');
+    _set('bt-pie-tax-amt', _fmt(taxBounded));
+    _set('bt-pie-tax-pct', (taxPct * 100).toFixed(1) + '%');
   }
 
   if (document.readyState === 'loading') {

@@ -8216,3 +8216,132 @@ body { font-size: 16px; }
     outline: 2px solid var(--brookhaven-blue, #1a4480);
     outline-offset: 2px;
 }
+
+/* ============================================================
+   Tab 2 (Tax Baseline) redesigned per advisor 2026-05-26: replace
+   the 3-tile equation (without + delta = total) with a single big
+   "Tax Due from the Sale" hero card on the left + a pie chart on
+   the right showing keep% vs tax% of the sale price.
+   ============================================================ */
+.baseline-pie-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    gap: 28px;
+    align-items: stretch;
+    max-width: 1100px;
+    margin: 24px auto 32px;
+}
+.baseline-tile--hero {
+    padding: 36px 40px;
+    background: linear-gradient(135deg, #fff 0%, #fef3f2 100%);
+    border: 1px solid #fecaca;
+    border-radius: 16px;
+    box-shadow: 0 4px 18px rgba(220, 38, 38, 0.08);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 14px;
+}
+.baseline-tile--hero .baseline-tile-label {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #6b7280;
+    letter-spacing: 0.01em;
+}
+.baseline-tile--hero .baseline-tile-value {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 3.4rem;
+    font-weight: 600;
+    line-height: 1.05;
+    color: #b91c1c;
+}
+.baseline-tile--hero .baseline-tile-sub {
+    color: var(--muted, #6b7280);
+    font-size: 0.92rem;
+}
+
+.baseline-pie-card {
+    padding: 28px 28px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05);
+}
+.baseline-pie-label {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #1f2937;
+    letter-spacing: 0.01em;
+}
+.baseline-pie-wrap {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 24px;
+    align-items: center;
+}
+.baseline-pie-svg {
+    width: 200px;
+    height: 200px;
+}
+.baseline-pie-center {
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-size: 30px;
+    font-weight: 700;
+    fill: #1f2937;
+}
+.baseline-pie-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.baseline-pie-legend-row {
+    display: grid;
+    grid-template-columns: 14px 1fr auto auto;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid #f3f4f6;
+}
+.baseline-pie-legend-row:last-child {
+    border-bottom: none;
+}
+.baseline-pie-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    display: inline-block;
+}
+.baseline-pie-swatch--keep { background: #2563eb; }
+.baseline-pie-swatch--tax  { background: #dc2626; }
+.baseline-pie-legend-label {
+    font-size: 0.95rem;
+    color: #374151;
+    font-weight: 500;
+}
+.baseline-pie-legend-amt {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.95rem;
+    color: #1f2937;
+    font-weight: 600;
+}
+.baseline-pie-legend-pct {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.92rem;
+    color: #6b7280;
+    margin-left: 10px;
+    min-width: 50px;
+    text-align: right;
+}
+
+@media (max-width: 880px) {
+    .baseline-pie-row {
+        grid-template-columns: 1fr;
+    }
+    .baseline-pie-wrap {
+        grid-template-columns: 1fr;
+        justify-items: center;
+    }
+}
