@@ -2848,18 +2848,21 @@
     //     CTA back to Page 2 (P1-2) instead of a blank page.
     var interest = (typeof window !== 'undefined' && window.__rettStrategyInterest) || {};
 
-    // Filter semantics per advisor 2026-05-16:
-    //   - If AT LEAST ONE strategy is marked Interested (=== true)
-    //     → show only those Interested cards (the user has narrowed
-    //     down their choices, respect that).
-    //   - Otherwise (no Interested clicks yet) → show every card the
-    //     user didn't explicitly opt out of (Not Interested).
-    // Previous behavior showed every non-opted-out card always, which
-    // surprised the advisor: clicking Interested on just Card 1 still
-    // surfaced Cards 2 and 3 on Page 4.
+    // Filter semantics per advisor 2026-05-27 RE-SPEC:
+    //   - At least one Interested → show only those.
+    //   - Some Not Interested but none Interested → show the leftovers
+    //     (the user implicitly ruled out the others).
+    //   - Nothing clicked at all → empty state. The advisor wants
+    //     Projections to be a "you must commit" step, not a passive
+    //     dump of all three strategies. Forces deliberate selection
+    //     on Page 3 before the multi-year detail.
     var anyInterested = ['A', 'B', 'C'].some(function (t) {
       return interest[t] === true;
     });
+    var anyNotInterested = ['A', 'B', 'C'].some(function (t) {
+      return interest[t] === false;
+    });
+    var nothingClicked = !anyInterested && !anyNotInterested;
     var filtered = anyInterested
       ? entries.filter(function (e) { return interest[e.type] === true; })
       : entries.filter(function (e) { return interest[e.type] !== false; });
@@ -2870,15 +2873,17 @@
     // grid during presentations.
     var hint = '';
 
-    if (!filtered.length) {
-      // Empty state per P1-2: every strategy was clicked Not Interested
-      // (or the recommended one was opted out and nothing else was
-      // marked Interested). Surface a CTA back to Page 2 rather than
-      // rendering a blank page.
+    if (nothingClicked || !filtered.length) {
+      // Empty state — either user landed on Projections without
+      // making a selection, or every strategy was clicked Not
+      // Interested. Either way, surface a polite CTA back to Page 3.
+      var msg = nothingClicked
+        ? 'Please select a strategy on the previous page before continuing.'
+        : 'No strategies are selected. Mark at least one as <strong>Interested</strong>, or unmark the ones you ruled out.';
       host.innerHTML =
         '<div class="rett-interested-hint" style="padding:24px;text-align:center;">' +
-        '<p style="margin:0 0 12px 0;">No strategies are selected. Mark at least one as <strong>Interested</strong> on the Strategies page, or unmark the ones you ruled out.</p>' +
-        '<button type="button" class="cta-btn" onclick="document.getElementById(\'nav-strategies\').click()">Go to Strategies &rarr;</button>' +
+        '<p style="margin:0 0 12px 0;">' + msg + '</p>' +
+        '<button type="button" class="cta-btn" onclick="document.getElementById(\'nav-strategies\').click()">&larr; Return to Strategies</button>' +
         '</div>';
       return;
     }

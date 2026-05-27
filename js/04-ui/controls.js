@@ -523,20 +523,21 @@ function _refreshStrategyLockupDisplays() {
   }
 }
 
-// Strategy card visibility — simplified per advisor 2026-05-17.
-// Progressive layering, strict greater-than, no margin tolerance:
-//   Card 1 (Proceeds at Sale)            ALWAYS visible.
-//   Card 2 (Installment Sale)            visible when netB > netA.
-//   Card 3 (Structured Installment Sale) visible when card 2 is shown
-//                                        AND netC > netB. (Implies
-//                                        netC > netA too — by chain.)
-//   Default-risk toggle                  ALWAYS visible.
+// Strategy card visibility — per advisor 2026-05-27 RE-SPEC:
+//   Card 1 (Traditional Sale)             visible when netA > 0.
+//   Card 2 (Installment Sale)             visible when netB > netA
+//                                         (B beats A → worth showing).
+//   Card 3 (Structured Installment Sale)  visible ONLY when default-risk
+//                                         toggle = 'yes'. Math-based
+//                                         "C beats B" path retired —
+//                                         B's solver now subsumes C's
+//                                         search space, so the only
+//                                         reason to surface C is the
+//                                         buyer-default protection the
+//                                         MetLife wrapper provides.
+//   Default-risk toggle                   ALWAYS visible.
 //
-// "Better" means strictly greater net benefit; no ±5% band or other
-// thresholds. The previous logic gated Card 3 on a 5% margin and hid
-// the toggle outside a ±5% band — advisor wanted simpler: each card
-// shows up when it actually beats the prior one, and the default-risk
-// question is always on the table.
+// "Better" means strictly greater net benefit; no ±5% band.
 //
 // Grid layout classes:
 //   .strategy-pick-grid--one-only  one centered card  (only A)
@@ -595,10 +596,12 @@ function _refreshCard3Visibility() {
   // Card 2: B better than A AND B has positive net, OR default-risk.
   var card2Visible = defaultRiskYes || !allFinite ||
                      ((netB > 0) && (netB > netA));
-  // Card 3: C better than B AND C has positive net AND card 2 shown,
-  // OR default-risk toggled Yes.
-  var card3Visible = defaultRiskYes ||
-                     (card2Visible && allFinite && (netC > 0) && (netC > netB));
+  // Card 3: ONLY visible when default-risk toggle = 'yes'. The math-
+  // based "C beats B" path is retired (advisor 2026-05-27): B's solver
+  // now searches the same space C does (variable weights + Y0 down),
+  // so the only reason to show C is the MetLife default-protection
+  // wrapper the advisor explicitly elects via the toggle.
+  var card3Visible = defaultRiskYes;
 
   if (c1) c1.hidden = !card1Visible;
   c2.hidden = !card2Visible;
