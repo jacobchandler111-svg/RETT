@@ -339,6 +339,9 @@ function resetAllInputs(skipConfirm) {
     // Page 1: Income
     'w2-wages', 'se-income', 'biz-revenue', 'rental-income',
     'dividend-income', 'retirement-distributions',
+    // 2026-05-27 inert placeholder fields (UI only, engine ignores).
+    'interest-income', 'qualified-dividends', 'social-security',
+    'business-income-amount',
     // Page 1: Appreciated Assets
     'sale-price', 'cost-basis', 'accelerated-depreciation',
     'computed-gain', 'short-term-gain', 'long-term-gain',

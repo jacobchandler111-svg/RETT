@@ -3016,6 +3016,44 @@ body { font-size: 16px; }
     line-height: 1.5;
 }
 
+/* Business Income conditional type-reveal — appears when amount > 0. */
+.business-type-reveal {
+    margin: 6px 0 14px;
+    padding: 14px 16px;
+    border-left: 3px solid var(--rule);
+    background: rgba(0,0,0,0.02);
+}
+.business-type-reveal[hidden] { display: none !important; }
+.business-type-prompt {
+    font-family: var(--font-mono);
+    font-size: 0.72em;
+    color: var(--muted);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+}
+.business-type-opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 7px 0;
+    font-family: var(--font-body);
+    font-size: 0.95em;
+    color: var(--ink);
+    cursor: pointer;
+    line-height: 1.4;
+}
+.business-type-opt input[type="radio"] {
+    margin-top: 4px;
+    flex: 0 0 auto;
+}
+.business-type-opt em {
+    font-style: normal;
+    color: var(--muted);
+    font-size: 0.9em;
+}
+
 .input-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 240px;

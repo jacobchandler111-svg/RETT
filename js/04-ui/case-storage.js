@@ -38,8 +38,14 @@
     // Page 1: Filing
     'year1', 'filing-status', 'state-code',
     // Page 1: Income
-    'w2-wages', 'se-income', 'biz-revenue', 'rental-income',
+    'w2-wages', 'rental-income',
     'dividend-income', 'retirement-distributions',
+    // 2026-05-27 income-section restructure. Legacy se-income and
+    // biz-revenue removed from persistence — they remain in the DOM as
+    // hidden inputs reading 0 until the engine bot reroutes through the
+    // new business-income block. See INCOME_SOURCES_RESEARCH.md.
+    'interest-income', 'qualified-dividends', 'social-security',
+    'business-income-amount',
     // Page 1: Real Estate Sale Details — Property 1 (always visible)
     'sale-price', 'cost-basis', 'accelerated-depreciation', 'short-term-gain',
     // Page 1: Real Estate Sale Details — Properties 2..5 (multi-property Q1).

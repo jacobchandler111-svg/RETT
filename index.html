@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=1777600000397">
+  <link rel="stylesheet" href="css/styles.css?v=1777600000399">
   <!-- html2pdf.js: turns the page-allocator DOM into a downloadable
        PDF on click. Bundled build (includes html2canvas + jsPDF).
        Script loads async/defer-friendly; window.html2pdf is the
@@ -294,50 +294,97 @@
           </div>
         </div>
 
-        <!-- ====== Income Sources ====== -->
+        <!-- ====== Income Sources ======
+             Reordered 2026-05-27 to follow Form 1040 line order. New fields
+             marked data-inert="true" are visual placeholders only — they
+             are NOT read by inputs-collector.js and have NO effect on
+             engine math. See INCOME_SOURCES_RESEARCH.md for the engine
+             bot's wiring proposal. Legacy IDs se-income and biz-revenue
+             are kept (hidden) so existing engine wiring continues to read
+             0 from them until the engine bot reroutes through the new
+             business-income block. -->
         <div class="input-section">
           <div class="section-heading">
             <h2>Income Sources</h2>
             <span class="num">SECTION 02</span>
           </div>
           <div class="section-body">
+            <!-- 1040 Line 1a -->
             <div class="input-row">
               <div class="label">W-2 Wages</div>
               <div class="currency-input"><input type="text" id="w2-wages" placeholder="0" inputmode="numeric" autocomplete="off"></div>
             </div>
+            <!-- 1040 Line 2b — INERT placeholder -->
             <div class="input-row">
-              <div class="label">Self-Employment Income</div>
-              <div class="currency-input"><input type="text" id="se-income" placeholder="0" inputmode="numeric" autocomplete="off"></div>
+              <div class="label">Interest Income<span class="sub">Taxable — 1040 Line 2b</span></div>
+              <div class="currency-input"><input type="text" id="interest-income" placeholder="0" inputmode="numeric" autocomplete="off" data-inert="true"></div>
             </div>
+            <!-- 1040 Line 3b -->
             <div class="input-row">
-              <div class="label">Business Income</div>
-              <div class="currency-input"><input type="text" id="biz-revenue" placeholder="0" inputmode="numeric" autocomplete="off"></div>
-            </div>
-            <div class="input-row">
-              <div class="label">Rental Income</div>
-              <div class="currency-input"><input type="text" id="rental-income" placeholder="0" inputmode="numeric" autocomplete="off"></div>
-            </div>
-            <div class="input-row">
-              <div class="label">Dividend / Interest</div>
+              <div class="label">Ordinary Dividends<span class="sub">Non-qualified — 1040 Line 3b</span></div>
               <div class="currency-input"><input type="text" id="dividend-income" placeholder="0" inputmode="numeric" autocomplete="off"></div>
             </div>
+            <!-- 1040 Line 3a — INERT placeholder -->
             <div class="input-row">
-              <div class="label">Retirement Distributions</div>
+              <div class="label">Qualified Dividends<span class="sub">Preferential rate — 1040 Line 3a</span></div>
+              <div class="currency-input"><input type="text" id="qualified-dividends" placeholder="0" inputmode="numeric" autocomplete="off" data-inert="true"></div>
+            </div>
+            <!-- 1040 Line 4b/5b -->
+            <div class="input-row">
+              <div class="label">Retirement Distributions<span class="sub">Taxable portion — 1040 Line 4b/5b</span></div>
               <div class="currency-input"><input type="text" id="retirement-distributions" placeholder="0" inputmode="numeric" autocomplete="off"></div>
             </div>
+            <!-- 1040 Line 6a (gross) — INERT placeholder. Engine bot will
+                 apply §86 taxability worksheet to derive Line 6b. -->
             <div class="input-row">
-              <div class="label">Short-Term Capital Gain</div>
+              <div class="label">Social Security<span class="sub">Gross benefits — 1040 Line 6a</span></div>
+              <div class="currency-input"><input type="text" id="social-security" placeholder="0" inputmode="numeric" autocomplete="off" data-inert="true"></div>
+            </div>
+            <!-- Schedule E Part I -->
+            <div class="input-row">
+              <div class="label">Rental Income<span class="sub">Net — Schedule E</span></div>
+              <div class="currency-input"><input type="text" id="rental-income" placeholder="0" inputmode="numeric" autocomplete="off"></div>
+            </div>
+            <!-- Schedule D Part I -->
+            <div class="input-row">
+              <div class="label">Short-Term Capital Gain<span class="sub">Loss enters as negative</span></div>
               <div class="currency-input"><input type="text" id="short-term-gain" placeholder="0" inputmode="numeric" autocomplete="off"></div>
             </div>
-            <!-- Q7: Long-Term Capital Gain income — non-property LT cap gain
-                 (stocks held >1yr, crypto, partnership distributions, etc.).
-                 Engine treats this as recurring annual LT income (parallels
-                 baseShortTermGain). Property-derived LT gain flows
-                 separately via cfg.salePrice − costBasis − depreciation. -->
+            <!-- Schedule D Part II — non-property LT cap gain
+                 (stocks held >1yr, crypto, fund distributions, etc.).
+                 Engine treats as recurring annual LT income via
+                 cfg.baseLongTermGain. Property-derived LT gain from the
+                 real-estate sale flows SEPARATELY via
+                 cfg.salePrice − costBasis − depreciation and never
+                 touches this field. -->
             <div class="input-row">
-              <div class="label">Long-Term Capital Gain</div>
+              <div class="label">Long-Term Capital Gain<span class="sub">Non-property — stocks, funds, crypto</span></div>
               <div class="currency-input"><input type="text" id="long-term-gain" placeholder="0" inputmode="numeric" autocomplete="off"></div>
             </div>
+
+            <!-- Business Income block — INERT
+                 Amount field is visible. When value > 0, the type
+                 selector reveals (toggled by inline JS at the bottom of
+                 this section). Engine bot will use the type to route
+                 to SE-tax vs K-1 paths per IRC §1401 / §1402(a)(13).
+                 Legacy se-income and biz-revenue inputs preserved
+                 (hidden) so existing engine code keeps reading 0. -->
+            <div class="input-row">
+              <div class="label">Business Income<span class="sub">Schedule C or K-1</span></div>
+              <div class="currency-input"><input type="text" id="business-income-amount" placeholder="0" inputmode="numeric" autocomplete="off" data-inert="true"></div>
+            </div>
+            <div class="business-type-reveal" id="business-income-type-wrap" hidden>
+              <div class="business-type-prompt">What type?</div>
+              <label class="business-type-opt"><input type="radio" name="business-income-type" value="se" data-inert="true"> <span>Self-employment / Schedule C <em>(sole prop, 1099, single-member LLC)</em></span></label>
+              <label class="business-type-opt"><input type="radio" name="business-income-type" value="k1-scorp" data-inert="true"> <span>K-1 — S-corp distribution</span></label>
+              <label class="business-type-opt"><input type="radio" name="business-income-type" value="k1-partnership-lp" data-inert="true"> <span>K-1 — Partnership / LLC <em>(limited partner)</em></span></label>
+              <label class="business-type-opt"><input type="radio" name="business-income-type" value="k1-partnership-gp" data-inert="true"> <span>K-1 — Partnership <em>(general partner / active)</em></span></label>
+            </div>
+
+            <!-- Legacy inputs preserved for back-compat with existing
+                 engine wiring (inputs-collector.js still reads these). -->
+            <input type="hidden" id="se-income" value="">
+            <input type="hidden" id="biz-revenue" value="">
           </div>
         </div>
 
@@ -1263,78 +1310,103 @@
   <!-- ============ Subsystem load order: 00 -> 01 -> 02 -> 03 -> 05 -> 04 ============ -->
   <!-- date-utils is loaded ahead of 00-data so schwab-strategies can use the
        shared parseLocalDate global instead of defining its own copy. -->
-  <script src="js/01-brooklyn/date-utils.js?v=1777600000397"></script>
-  <script src="js/00-data/custodians.js?v=1777600000397"></script>
-  <script src="js/00-data/schwab-strategies.js?v=1777600000397"></script>
-  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000397"></script>
-  <script src="js/01-brooklyn/time-weight.js?v=1777600000397"></script>
-  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000397"></script>
-  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000397"></script>
+  <script src="js/01-brooklyn/date-utils.js?v=1777600000399"></script>
+  <script src="js/00-data/custodians.js?v=1777600000399"></script>
+  <script src="js/00-data/schwab-strategies.js?v=1777600000399"></script>
+  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000399"></script>
+  <script src="js/01-brooklyn/time-weight.js?v=1777600000399"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000399"></script>
+  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000399"></script>
 
-  <script src="js/02-tax-engine/tax-data.js?v=1777600000397"></script>
-  <script src="js/02-tax-engine/tax-loader.js?v=1777600000397"></script>
-  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000397"></script>
-  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000397"></script>
-  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000397"></script>
-  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000397"></script>
-  <script src="js/02-tax-engine/engine-self-test.js?v=1777600000397"></script>
+  <script src="js/02-tax-engine/tax-data.js?v=1777600000399"></script>
+  <script src="js/02-tax-engine/tax-loader.js?v=1777600000399"></script>
+  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000399"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000399"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000399"></script>
+  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000399"></script>
+  <script src="js/02-tax-engine/engine-self-test.js?v=1777600000399"></script>
 
-  <script src="js/03-solver/fees.js?v=1777600000397"></script>
-  <script src="js/03-solver/fee-split.js?v=1777600000397"></script>
-  <script src="js/03-solver/brookhaven-fees.js?v=1777600000397"></script>
-  <script src="js/03-solver/single-year-solver.js?v=1777600000397"></script>
-  <script src="js/03-solver/multi-year-solver.js?v=1777600000397"></script>
-  <script src="js/03-solver/structured-sale.js?v=1777600000397"></script>
-  <script src="js/03-solver/calc-oil-gas.js?v=1777600000397"></script>
-  <script src="js/03-solver/calc-delphi.js?v=1777600000397"></script>
-  <script src="js/03-solver/calc-supplemental-extra.js?v=1777600000397"></script>
-  <script src="js/03-solver/decision-engine.js?v=1777600000397"></script>
+  <script src="js/03-solver/fees.js?v=1777600000399"></script>
+  <script src="js/03-solver/fee-split.js?v=1777600000399"></script>
+  <script src="js/03-solver/brookhaven-fees.js?v=1777600000399"></script>
+  <script src="js/03-solver/single-year-solver.js?v=1777600000399"></script>
+  <script src="js/03-solver/multi-year-solver.js?v=1777600000399"></script>
+  <script src="js/03-solver/structured-sale.js?v=1777600000399"></script>
+  <script src="js/03-solver/calc-oil-gas.js?v=1777600000399"></script>
+  <script src="js/03-solver/calc-delphi.js?v=1777600000399"></script>
+  <script src="js/03-solver/calc-supplemental-extra.js?v=1777600000399"></script>
+  <script src="js/03-solver/decision-engine.js?v=1777600000399"></script>
   <!-- Master solver registry + Page-5 supplemental defaults. master-solver
        declares register*/list*/runMasterSolver; supplemental-defaults uses
        those to register Oil & Gas. Future supplemental strategies append
        to supplemental-defaults â€” calc-* modules don't reach into this. -->
-  <script src="js/03-solver/master-solver.js?v=1777600000397"></script>
-  <script src="js/03-solver/supplemental-defaults.js?v=1777600000397"></script>
-  <script src="js/03-solver/supplemental-extra-registry.js?v=1777600000397"></script>
-  <script src="js/03-solver/supplemental-investment-shims.js?v=1777600000397"></script>
+  <script src="js/03-solver/master-solver.js?v=1777600000399"></script>
+  <script src="js/03-solver/supplemental-defaults.js?v=1777600000399"></script>
+  <script src="js/03-solver/supplemental-extra-registry.js?v=1777600000399"></script>
+  <script src="js/03-solver/supplemental-investment-shims.js?v=1777600000399"></script>
 
-  <script src="js/05-projections/carryforward-tracker.js?v=1777600000397"></script>
-  <script src="js/05-projections/projection-engine.js?v=1777600000397"></script>
+  <script src="js/05-projections/carryforward-tracker.js?v=1777600000399"></script>
+  <script src="js/05-projections/projection-engine.js?v=1777600000399"></script>
 
   <!-- format-helpers loads first inside 04-ui so every renderer can use
        fmtUSD / fmtPct / fmtNum directly without a defensive fallback. -->
-  <script src="js/04-ui/format-helpers.js?v=1777600000397"></script>
-  <script src="js/04-ui/money-format.js?v=1777600000397"></script>
-  <script src="js/04-ui/banner.js?v=1777600000397"></script>
-  <script src="js/04-ui/number-animator.js?v=1777600000397"></script>
-  <script src="js/04-ui/case-storage.js?v=1777600000397"></script>
-  <script src="js/04-ui/pill-toggles.js?v=1777600000397"></script>
-  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000397"></script>
-  <script src="js/04-ui/input-validation.js?v=1777600000397"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1777600000397"></script>
-  <script src="js/04-ui/controls.js?v=1777600000397"></script>
-  <script src="js/04-ui/recommendation-render.js?v=1777600000397"></script>
-  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000397"></script>
-  <script src="js/04-ui/savings-ribbon.js?v=1777600000397"></script>
-  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000397"></script>
-  <script src="js/04-ui/narrative-render.js?v=1777600000397"></script>
-  <script src="js/04-ui/strategy-summary-render.js?v=1777600000397"></script>
-  <script src="js/04-ui/baseline-table.js?v=1777600000397"></script>
-  <script src="js/04-ui/supplemental-render.js?v=1777600000397"></script>
-  <script src="js/04-ui/supplemental-extra-render.js?v=1777600000397"></script>
+  <script src="js/04-ui/format-helpers.js?v=1777600000399"></script>
+  <script src="js/04-ui/money-format.js?v=1777600000399"></script>
+  <script src="js/04-ui/banner.js?v=1777600000399"></script>
+  <script src="js/04-ui/number-animator.js?v=1777600000399"></script>
+  <script src="js/04-ui/case-storage.js?v=1777600000399"></script>
+  <script src="js/04-ui/pill-toggles.js?v=1777600000399"></script>
+  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000399"></script>
+  <script src="js/04-ui/input-validation.js?v=1777600000399"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1777600000399"></script>
+  <script src="js/04-ui/controls.js?v=1777600000399"></script>
+  <script src="js/04-ui/recommendation-render.js?v=1777600000399"></script>
+  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000399"></script>
+  <script src="js/04-ui/savings-ribbon.js?v=1777600000399"></script>
+  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000399"></script>
+  <script src="js/04-ui/narrative-render.js?v=1777600000399"></script>
+  <script src="js/04-ui/strategy-summary-render.js?v=1777600000399"></script>
+  <script src="js/04-ui/baseline-table.js?v=1777600000399"></script>
+  <script src="js/04-ui/supplemental-render.js?v=1777600000399"></script>
+  <script src="js/04-ui/supplemental-extra-render.js?v=1777600000399"></script>
 
-  <script src="js/04-ui/pmq-handler.js?v=1777600000397"></script>
-  <script src="js/04-ui/pmq-questions.js?v=1777600000397"></script>
-  <script src="js/04-ui/temp-page-render.js?v=1777600000397"></script>
-  <script src="js/04-ui/admin-math-panel.js?v=1777600000397"></script>
-  <script src="js/04-ui/admin-math-page-inputs.js?v=1777600000397"></script>
-  <script src="js/04-ui/admin-math-page-baseline.js?v=1777600000397"></script>
-  <script src="js/04-ui/admin-math-page-strategies.js?v=1777600000397"></script>
-  <script src="js/04-ui/admin-math-page-projection.js?v=1777600000397"></script>
-  <script src="js/04-ui/admin-math-page-supplemental.js?v=1777600000397"></script>
-  <script src="js/04-ui/admin-math-page-allocator.js?v=1777600000397"></script>
+  <script src="js/04-ui/pmq-handler.js?v=1777600000399"></script>
+  <script src="js/04-ui/pmq-questions.js?v=1777600000399"></script>
+  <script src="js/04-ui/temp-page-render.js?v=1777600000399"></script>
+  <script src="js/04-ui/admin-math-panel.js?v=1777600000399"></script>
+  <script src="js/04-ui/admin-math-page-inputs.js?v=1777600000399"></script>
+  <script src="js/04-ui/admin-math-page-baseline.js?v=1777600000399"></script>
+  <script src="js/04-ui/admin-math-page-strategies.js?v=1777600000399"></script>
+  <script src="js/04-ui/admin-math-page-projection.js?v=1777600000399"></script>
+  <script src="js/04-ui/admin-math-page-supplemental.js?v=1777600000399"></script>
+  <script src="js/04-ui/admin-math-page-allocator.js?v=1777600000399"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1777600000397"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1777600000399"></script>
+
+  <!-- Business Income conditional reveal: show type selector when amount > 0.
+       UI-only; engine math unchanged. -->
+  <script>
+    (function () {
+      function _hasValue(v) {
+        if (!v) return false;
+        var n = parseFloat(String(v).replace(/[^0-9.\-]/g, ''));
+        return isFinite(n) && n > 0;
+      }
+      function _sync() {
+        var amt = document.getElementById('business-income-amount');
+        var wrap = document.getElementById('business-income-type-wrap');
+        if (!amt || !wrap) return;
+        wrap.hidden = !_hasValue(amt.value);
+      }
+      document.addEventListener('DOMContentLoaded', function () {
+        var amt = document.getElementById('business-income-amount');
+        if (!amt) return;
+        amt.addEventListener('input', _sync);
+        amt.addEventListener('change', _sync);
+        _sync();
+      });
+    })();
+  </script>
 </body>
 </html>
