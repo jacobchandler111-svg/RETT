@@ -837,6 +837,12 @@
           bWeights = installmentWeights.map(function (w) { return Number(w) / _wSum; });
         }
       }
+      // Y0 down-payment for B (advisor 2026-05-27): §453 doesn't
+      // require deferring all sale proceeds to future installments —
+      // the buyer can also pay a Y0 portion at closing. Same engine
+      // handling as C; B's solver search subsumes C's whenever B
+      // also has this knob.
+      var bY0Down = Math.max(0, Number(y0DownPayment) || 0);
       var bCfg = Object.assign({}, currentCfg, {
         recognitionStartYearIndex: 1,
         maxRecognitionYearIndex:   null,
@@ -845,6 +851,7 @@
         // entry.cfg unambiguously identifies B.
         structuredSaleDurationMonths: 0,
         parkRatio:                  null,
+        y0DownPayment:              bY0Down,
         horizonYears: Math.max(bPayments + 1, Number(currentCfg.horizonYears) || (bPayments + 1)),
         implementationDate:         bYear + '-01-01',
         strategyImplementationDate: bYear + '-01-01'
@@ -1127,22 +1134,73 @@
           var nForHor = hor - 1;
           if (nForHor < 1 || nForHor > 3) return;
 
-          function _evalB(weights) {
-            var typedCfgB = _scenarioCfgFor('B', cfgSection, nForHor, userDurationFallback, null, weights);
+          function _evalB(weights, D) {
+            var typedCfgB = _scenarioCfgFor('B', cfgSection, nForHor, userDurationFallback, null, weights, D || 0);
             var mB = _scenarioMetrics(typedCfgB);
-            return mB ? { metrics: mB, weights: weights } : null;
+            return mB ? { metrics: mB, weights: weights, D: D || 0 } : null;
           }
           function _maybeUpdateBest(out) {
             if (!out) return;
             if (!best || out.metrics.net > best.net) {
               best = { horizon: hor, shortPct: p.shortPct, comboId: p.comboId,
                 bestRecC: nForHor, net: out.metrics.net, durationMonths: userDurationFallback,
-                installmentWeights: out.weights };
+                installmentWeights: out.weights, y0DownPayment: out.D };
+            }
+          }
+          // Y0 down-payment sweep for B (advisor 2026-05-27): §453
+          // allows a Y0 cash payment alongside the future installments.
+          // Without this knob, Strategy C (which has it) could beat B
+          // in scenarios where Y0 down captures a higher Brooklyn loss
+          // rate. With this knob, B's search space subsumes C's: B can
+          // always at least match C by choosing locked weights + the
+          // same D, and usually beats by tuning weights.
+          var _bContractPrice = Math.max(0, Number(cfgSection.salePrice || 0)
+                - Number(cfgSection.acceleratedDepreciation || 0));
+          var _bAvail = Math.max(0, Number(cfgSection.availableCapital || 0));
+          var _bDMax = Math.min(_bContractPrice, _bAvail);
+          var _bSmallestMin = 1000000;
+          function _isLegalDownB(D) { return (D <= 0.5 || D >= _bSmallestMin); }
+          function _sweepBD(lockedWeights) {
+            if (_bDMax <= 0) return;
+            // Coarse 10% steps.
+            var coarseBest = null;
+            for (var ci = 0; ci <= 10; ci++) {
+              var D = Math.round(_bDMax * (ci / 10));
+              if (!_isLegalDownB(D)) continue;
+              var m = _evalB(lockedWeights, D);
+              if (m && (!coarseBest || m.metrics.net > coarseBest.metrics.net)) coarseBest = m;
+              _maybeUpdateBest(m);
+            }
+            // Fine ±10% in 2% steps.
+            var fineBest = coarseBest;
+            if (coarseBest) {
+              for (var f = 1; f <= 5; f++) {
+                [-1, 1].forEach(function (sign) {
+                  var D = Math.round(coarseBest.D + sign * f * 0.02 * _bDMax);
+                  if (D < 0 || D > _bDMax) return;
+                  if (!_isLegalDownB(D)) return;
+                  var m = _evalB(lockedWeights, D);
+                  if (m && (!fineBest || m.metrics.net > fineBest.metrics.net)) fineBest = m;
+                  _maybeUpdateBest(m);
+                });
+              }
+            }
+            // Ultra ±2% in 0.5% steps.
+            if (fineBest) {
+              for (var u = 1; u <= 4; u++) {
+                [-1, 1].forEach(function (sign) {
+                  var D = Math.round(fineBest.D + sign * u * 0.005 * _bDMax);
+                  if (D < 0 || D > _bDMax) return;
+                  if (!_isLegalDownB(D)) return;
+                  _maybeUpdateBest(_evalB(lockedWeights, D));
+                });
+              }
             }
           }
 
           if (nForHor === 1) {
-            _maybeUpdateBest(_evalB(null));
+            _maybeUpdateBest(_evalB([1]));
+            _sweepBD([1]);
           } else if (nForHor === 2) {
             // 3-pass 1D sweep on w1 (w2 = 1 − w1):
             //   coarse 0.10 step over [0.1, 0.9]            (9 evals)
@@ -1179,6 +1237,9 @@
                 if (w1U <= 0.05 || w1U >= 0.95) continue;
                 _maybeUpdateBest(_evalB([w1U, Math.round((1 - w1U) * 1000) / 1000]));
               }
+              // Y0 down sweep on the locally-best weights from the
+              // ultra-fine pass.
+              _sweepBD(fineBestB2.weights);
             }
           } else { // nForHor === 3
             // 3-pass 2D sweep on (w1, w2) with w3 = 1 − w1 − w2:
@@ -1232,6 +1293,9 @@
                   _maybeUpdateBest(_evalB([w1uf, w2uf, w3uf]));
                 }
               }
+              // Y0 down sweep on locally-best N=3 weights from the
+              // 2D ultra-fine pass.
+              _sweepBD(fineBestB3.weights);
             }
           }
         } else {
