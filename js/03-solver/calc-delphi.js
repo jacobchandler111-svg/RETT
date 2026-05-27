@@ -79,44 +79,55 @@
   // ST loss / LT gain / qdiv allocations change the investment-income
   // mix. Single source of truth: the Page-1 form fields.
   function _readSnapshot() {
+    var snap = (typeof window.rettY0BaselineSnapshot === 'function')
+      ? window.rettY0BaselineSnapshot() : null;
+    if (snap) {
+      // rentalInvestmentIncome = investment-flavored ordinary that
+      // persists in NIIT base after Delphi shifts LT/ST/qdiv. The
+      // engine's niitBase includes everything; subtract the LT/ST/recap/
+      // qualified-div portions to isolate the ordinary-flavored remainder
+      // (rental + ord div + interest).
+      var rentalInv = Math.max(0,
+        snap.niitBase
+        - Math.max(0, snap.ltGain)
+        - Math.max(0, snap.stGain)
+        - Math.max(0, snap.recap)
+        - Math.max(0, snap.qualifiedDividend || 0));
+      return {
+        year: snap.year, status: snap.status, state: snap.state,
+        ordTotal: snap.ordTotal, recap: snap.recap,
+        stGain: snap.stGain, ltGain: snap.ltGain,
+        wages: snap.wages, seInc: snap.seInc,
+        rentalInvestmentIncome: rentalInv
+      };
+    }
+    // Fallback: direct DOM reads with the new income fields included.
     var year   = parseInt(_val('year1'), 10) || (new Date()).getFullYear();
     var status = _val('filing-status') || 'mfj';
     var state  = _val('state-code') || 'NONE';
-
-    var ordIds = ['w2-wages', 'se-income', 'biz-revenue',
-                  'rental-income', 'dividend-income',
-                  'retirement-distributions'];
+    var ordIds = ['w2-wages', 'rental-income', 'dividend-income',
+                  'retirement-distributions', 'interest-income',
+                  'business-income-amount'];
     var ordTotal = 0;
     for (var i = 0; i < ordIds.length; i++) ordTotal += _safe(ordIds[i]);
-
-    // Q1 multi-property + Q2 holding-period: sum across all active
-    // property blocks and route ST-held property gain to the ST bucket.
     var _sumProp = (typeof window.__rettSumPropertyField === 'function')
-      ? window.__rettSumPropertyField
-      : function (id) { return _safe(id); };
+      ? window.__rettSumPropertyField : function (id) { return _safe(id); };
     var _stPropGain = (typeof window.__rettShortTermPropertyGain === 'function')
       ? window.__rettShortTermPropertyGain() : 0;
     var stGain = _safe('short-term-gain') + _stPropGain;
-    var sale   = _sumProp('sale-price');
-    var basis  = _sumProp('cost-basis');
-    var depr   = _sumProp('accelerated-depreciation');
+    var sale = _sumProp('sale-price'), basis = _sumProp('cost-basis'), depr = _sumProp('accelerated-depreciation');
     var ltGain = sale - basis - depr - _stPropGain;
-    var recap  = depr;
-
-    var wages  = _safe('w2-wages');
-    var seInc  = _safe('se-income');
-
-    // Ordinary-flavored investment income that's part of the §1411
-    // NIIT base (Form 8960). Carved out separately so we can rebuild
-    // niitBase after Delphi shifts LT, ST, and qdiv.
-    var rentalInvestmentIncome = _safe('rental-income') + _safe('dividend-income');
-
+    var biRad = document.querySelector('input[name="business-income-type"]:checked');
+    var biType = biRad ? biRad.value : null;
+    var seInc = (biType === 'se' || biType === 'k1-partnership-gp')
+      ? _safe('business-income-amount') : 0;
+    var rentalInv = _safe('rental-income') + _safe('dividend-income') + _safe('interest-income');
     return {
       year: year, status: status, state: state,
-      ordTotal: ordTotal, recap: recap,
+      ordTotal: ordTotal, recap: depr,
       stGain: stGain, ltGain: ltGain,
-      wages: wages, seInc: seInc,
-      rentalInvestmentIncome: rentalInvestmentIncome
+      wages: _safe('w2-wages'), seInc: seInc,
+      rentalInvestmentIncome: rentalInv
     };
   }
 

@@ -39,91 +39,84 @@
   }
 
   function render() {
-    var year = parseInt(_val('year1'), 10) || (new Date()).getFullYear();
-    var status = _val('filing-status') || 'mfj';
-    var state = _val('state-code') || 'NONE';
+    // Canonical Y0 snapshot from the engine (handles all the new
+    // income fields: interest, qualified-div, §86 SS, business +
+    // SE-tax routing). Falls back to direct DOM reads when the
+    // engine helper isn't loaded yet (boot timing race).
+    var snap = (typeof window.rettY0BaselineSnapshot === 'function')
+      ? window.rettY0BaselineSnapshot() : null;
+    var year   = snap ? snap.year   : (parseInt(_val('year1'), 10) || (new Date()).getFullYear());
+    var status = snap ? snap.status : (_val('filing-status') || 'mfj');
+    var state  = snap ? snap.state  : (_val('state-code') || 'NONE');
 
     // Year tag in the section heading
     _set('baseline-year-tag', year + ' PROJECTION');
 
-    // Sum ordinary income sources. Positive-only fields (W-2, SE,
-    // dividend, retirement) clamp at $0; biz-revenue and rental-income
-    // pass through SIGNED so Schedule C / Schedule E losses can offset
-    // other ordinary income. (Bug #14.)
-    var ordSourcesPos    = ['w2-wages', 'se-income', 'dividend-income',
-                            'retirement-distributions'];
-    var ordSourcesSigned = ['biz-revenue', 'rental-income'];
-    var ordTotal = 0;
-    ordSourcesPos.forEach(function (id)    { ordTotal += Math.max(0, _num(id)); });
-    ordSourcesSigned.forEach(function (id) { ordTotal += _num(id); });
-
-    // Multi-property aggregation (Q1): sum across all active property blocks.
+    // Property-sale-derived gains (kept separate for the visible
+    // breakdown rows). Multi-property aggregation honored.
     var sumProp = (typeof window.__rettSumPropertyField === 'function')
       ? window.__rettSumPropertyField
       : function (id) { return Math.max(0, _num(id)); };
     var sale  = Math.max(0, sumProp('sale-price'));
     var basis = Math.max(0, sumProp('cost-basis'));
     var depr  = Math.max(0, sumProp('accelerated-depreciation'));
-    // Q2: ST-held property gain is taxed as ordinary (added to STG bucket
-    // below) and removed from the LT bucket via the formula below.
-    // Separate stGainSec02 (Section 02 non-property STG) from stPropGain
-    // (sale-derived ST) so the "without sale" counterfactual can correctly
-    // exclude the property portion.
     var stPropGain = (typeof window.__rettShortTermPropertyGain === 'function')
       ? window.__rettShortTermPropertyGain()
       : 0;
-    var stGainSec02 = Math.max(0, _num('short-term-gain'));
-    var stGain = stGainSec02 + stPropGain;
-    // Q7: non-property Long-Term Capital Gain (stocks, crypto, etc.).
-    // Adds to the LT bucket alongside any property LT gain. Persists
-    // even in the "without sale" counterfactual (it's annual income,
-    // not sale-derived).
-    var ltGainIncome = Math.max(0, _num('long-term-gain'));
-    // Long-term gain is SIGNED — a property sale at a loss (sale < basis)
-    // yields a negative number, which IRC §1211(b) lets us offset against
-    // ordinary income up to $3,000 ($1,500 MFS). Previously the UI
-    // clamped to 0 and silently dropped the loss. (P0-4.)
-    // STG is NO LONGER subtracted from the property LT gain — it's now
-    // an independent income item under "Income Sources" representing
-    // ANY short-term capital gain the client recognized this year
-    // (stock sales, crypto, etc.), not a slice of the property sale.
-    // Q2: subtract ST-held property gain — it lives in stGain bucket.
-    // Q7: add non-property LT-gain income (stocks/crypto >1yr).
-    var ltGainSigned = (sale - basis - depr - stPropGain) + ltGainIncome;
-    // For the displayed "Long-Term Capital Gain" row, show the signed
-    // value so users see the loss explicitly. The bracket math will
-    // clamp at 0 internally and surface the offset on a separate row.
-    var ltGain = ltGainSigned;
-    var recap  = depr;  // recapture treated as ordinary
 
-    // Wage base for Additional Medicare = W-2 + SE × 0.9235.
-    var wages = Math.max(0, _num('w2-wages'));
-    var seInc = Math.max(0, _num('se-income'));
-    // NIIT base = LT (clamped to 0 — losses don't add to investment
-    // income) + ST + §1250 unrecaptured gain + investment-flavored
-    // ordinary (rental + dividend). Per §1411, depreciation recapture
-    // from a property sale IS net investment income (gain from
-    // disposition of property held in a passive activity / investment),
-    // so it belongs in the NIIT base. Previously omitted, which under-
-    // reported NIIT on recapture-heavy scenarios — and made the Page-1
-    // "did nothing" baseline disagree with the Tab-7 (engine) baseline
-    // by $20K+ for a typical $500K-recap client.
-    var nIIT_base = Math.max(0, ltGain) + stGain + recap
-                  + Math.max(0, _num('rental-income'))
-                  + Math.max(0, _num('dividend-income'));
+    var ordTotal, stGain, ltGain, qualDiv, wages, seInc, nIIT_base, recap;
+    if (snap) {
+      // Use the engine snapshot. Pulls in §86 taxable SS (already in
+      // scenario.ordinaryIncome), business-income (in baseOrdinaryIncome
+      // upstream), interest (in baseOrdinaryIncome + investmentIncome),
+      // qualified-div (separate field for LTCG bracket routing), SE
+      // (wages stays W-2 only; engine folds SE × 0.9235 internally).
+      ordTotal = snap.ordTotal;
+      stGain   = snap.stGain;
+      ltGain   = snap.ltGain;
+      qualDiv  = snap.qualifiedDividend;
+      wages    = snap.wages;
+      seInc    = snap.seInc;
+      nIIT_base = snap.niitBase;
+      recap    = snap.recap;
+    } else {
+      // Legacy direct-DOM fallback. Mirrors the prior behavior for
+      // safety - missing the new income fields but never crashes.
+      var ordSourcesPos    = ['w2-wages', 'dividend-income',
+                              'retirement-distributions', 'interest-income',
+                              'business-income-amount'];
+      var ordSourcesSigned = ['rental-income'];
+      ordTotal = 0;
+      ordSourcesPos.forEach(function (id)    { ordTotal += Math.max(0, _num(id)); });
+      ordSourcesSigned.forEach(function (id) { ordTotal += _num(id); });
+      stGain = Math.max(0, _num('short-term-gain')) + stPropGain;
+      var ltGainIncome = Math.max(0, _num('long-term-gain'));
+      ltGain = (sale - basis - depr - stPropGain) + ltGainIncome;
+      qualDiv = Math.max(0, _num('qualified-dividends'));
+      wages = Math.max(0, _num('w2-wages'));
+      // Fallback derives SE from business-income radio if available.
+      var biRad = document.querySelector('input[name="business-income-type"]:checked');
+      var biType = biRad ? biRad.value : null;
+      seInc = (biType === 'se' || biType === 'k1-partnership-gp')
+        ? Math.max(0, _num('business-income-amount')) : 0;
+      recap = depr;
+      nIIT_base = Math.max(0, ltGain) + stGain + recap + qualDiv
+                + Math.max(0, _num('rental-income'))
+                + Math.max(0, _num('dividend-income'))
+                + Math.max(0, _num('interest-income'));
+    }
 
     // Federal tax via the engine's breakdown. STG and depreciation
     // recapture both go through opts so the engine can apply special
     // treatment (recap caps at §1250 25%; STG folds into the ordinary
-    // stack). Earlier this fn pre-stacked recap into 'ord', which
-    // silently bypassed the §1250 cap — high-bracket clients were
-    // taxed on recapture at full marginal rates up to 37%.
+    // stack).
     var ord = ordTotal;
     var fedB = (typeof computeFederalTaxBreakdown === 'function')
       ? computeFederalTaxBreakdown(ord, year, status, {
-          longTermGain: ltGain,        // signed — loss flows through to §1211(b) offset
+          longTermGain: ltGain,
           shortTermGain: stGain,
           depreciationRecapture: recap,
+          qualifiedDividend: qualDiv,
           investmentIncome: nIIT_base,
           wages: wages,
           seIncome: seInc
@@ -202,14 +195,23 @@
     // property-derived ST gain (stPropGain) doesn't exist without the sale.
     // Q7: non-property LT income (ltGainIncome) persists in the without-
     // sale scenario since it's recurring income, not sale-derived.
-    var niitBase_nosale = stGainSec02 + ltGainIncome
-                                      + Math.max(0, _num('rental-income'))
-                                      + Math.max(0, _num('dividend-income'));
+    // Re-derived from form (snapshot only carries the with-sale totals):
+    var stGainSec02 = Math.max(0, _num('short-term-gain'));
+    var ltGainIncome = Math.max(0, _num('long-term-gain'));
+    // NIIT base sans-sale = recurring portfolio income only (interest +
+    // ord div + qualified div + rental + recurring LT/ST). No property
+    // gain, no recapture. Mirrors what the engine would set if cfg had
+    // sale=basis (zero gain).
+    var niitBase_nosale = stGainSec02 + ltGainIncome + qualDiv
+                        + Math.max(0, _num('rental-income'))
+                        + Math.max(0, _num('dividend-income'))
+                        + Math.max(0, _num('interest-income'));
     var fedB_nosale = (typeof computeFederalTaxBreakdown === 'function')
       ? computeFederalTaxBreakdown(ord, year, status, {
           longTermGain: ltGainIncome,
           shortTermGain: stGainSec02,
           depreciationRecapture: 0,
+          qualifiedDividend: qualDiv,
           investmentIncome: niitBase_nosale,
           wages: wages,
           seIncome: seInc
@@ -313,14 +315,16 @@
           // income — it persists whether or not THIS property exists, so
           // add it to the LT bucket in the "without property N" scenario.
           var ltGainX = Math.max(0, saleX - basisX - deprX - stPropX) + ltGainIncome;
-          var niitBaseX = ltGainX + stGainX + deprX
+          var niitBaseX = ltGainX + stGainX + deprX + qualDiv
                         + Math.max(0, _num('rental-income'))
-                        + Math.max(0, _num('dividend-income'));
+                        + Math.max(0, _num('dividend-income'))
+                        + Math.max(0, _num('interest-income'));
           var fedX = (typeof computeFederalTaxBreakdown === 'function')
             ? computeFederalTaxBreakdown(ord, year, status, {
                 longTermGain: ltGainX,
                 shortTermGain: stGainX,
                 depreciationRecapture: deprX,
+                qualifiedDividend: qualDiv,
                 investmentIncome: niitBaseX,
                 wages: wages,
                 seIncome: seInc

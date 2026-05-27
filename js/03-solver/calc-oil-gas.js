@@ -38,46 +38,53 @@
   }
   function _safe(id) { return Math.max(0, _num(id)); }
 
-  // Read the same baseline the live "Tax If You Did Nothing" panel
-  // reads on Page 1. Single source of truth: the form fields. Keeping
-  // the read-shape in sync with baseline-table.js means a change to
-  // either flows through both panels identically.
+  // Read the canonical Y0 baseline snapshot. Single source of truth:
+  // the engine's rettY0BaselineSnapshot() helper, which builds from
+  // collectInputs() and includes ALL income fields (interest,
+  // qualified-div, §86 taxable SS, business + SE routing).
+  // Falls back to direct DOM reads for boot-timing safety.
   function readBaselineSnapshot() {
+    var snap = (typeof window.rettY0BaselineSnapshot === 'function')
+      ? window.rettY0BaselineSnapshot() : null;
+    if (snap) {
+      return {
+        year: snap.year, status: snap.status, state: snap.state,
+        ordTotal: snap.ordTotal, recap: snap.recap,
+        stGain: snap.stGain, ltGain: snap.ltGain,
+        wages: snap.wages, seInc: snap.seInc,
+        qualifiedDividend: snap.qualifiedDividend,
+        niitBase: snap.niitBase
+      };
+    }
+    // Fallback - direct DOM, includes new income fields.
     var year   = parseInt(_val('year1'), 10) || (new Date()).getFullYear();
     var status = _val('filing-status') || 'mfj';
     var state  = _val('state-code') || 'NONE';
-
-    var ordIds = ['w2-wages', 'se-income', 'biz-revenue',
-                  'rental-income', 'dividend-income',
-                  'retirement-distributions'];
+    var ordIds = ['w2-wages', 'rental-income', 'dividend-income',
+                  'retirement-distributions', 'interest-income',
+                  'business-income-amount'];
     var ordTotal = 0;
     for (var i = 0; i < ordIds.length; i++) ordTotal += _safe(ordIds[i]);
-
-    // Q1 multi-property + Q2 holding-period: aggregate across all active
-    // property blocks and route ST-held property gain to ST bucket.
     var _sumProp = (typeof window.__rettSumPropertyField === 'function')
-      ? window.__rettSumPropertyField
-      : function (id) { return _safe(id); };
+      ? window.__rettSumPropertyField : function (id) { return _safe(id); };
     var _stPropGain = (typeof window.__rettShortTermPropertyGain === 'function')
       ? window.__rettShortTermPropertyGain() : 0;
     var stGain = _safe('short-term-gain') + _stPropGain;
-    var sale   = _sumProp('sale-price');
-    var basis  = _sumProp('cost-basis');
-    var depr   = _sumProp('accelerated-depreciation');
-    // Long-term gain is signed — sale at a loss is a real §1211(b) item.
+    var sale = _sumProp('sale-price'), basis = _sumProp('cost-basis'), depr = _sumProp('accelerated-depreciation');
     var ltGain = sale - basis - depr - _stPropGain;
-    var recap  = depr;          // depreciation recapture is ordinary
-
-    var wages  = _safe('w2-wages');
-    var seInc  = _safe('se-income');
-    var niitBase = Math.max(0, ltGain) + stGain
-                 + _safe('rental-income') + _safe('dividend-income');
-
+    var biRad = document.querySelector('input[name="business-income-type"]:checked');
+    var biType = biRad ? biRad.value : null;
+    var seInc = (biType === 'se' || biType === 'k1-partnership-gp')
+      ? _safe('business-income-amount') : 0;
+    var qualDiv = _safe('qualified-dividends');
+    var niitBase = Math.max(0, ltGain) + stGain + qualDiv
+                 + _safe('rental-income') + _safe('dividend-income') + _safe('interest-income');
     return {
       year: year, status: status, state: state,
-      ordTotal: ordTotal, recap: recap,
+      ordTotal: ordTotal, recap: depr,
       stGain: stGain, ltGain: ltGain,
-      wages: wages, seInc: seInc, niitBase: niitBase
+      wages: _safe('w2-wages'), seInc: seInc,
+      qualifiedDividend: qualDiv, niitBase: niitBase
     };
   }
 
@@ -93,6 +100,7 @@
     var fedB = computeFederalTaxBreakdown(ord, snap.year, snap.status, {
       longTermGain:    snap.ltGain,
       shortTermGain:   snap.stGain,
+      qualifiedDividend: snap.qualifiedDividend || 0,
       investmentIncome: snap.niitBase,
       wages:           snap.wages,
       seIncome:        snap.seInc

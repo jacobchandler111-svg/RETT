@@ -264,6 +264,62 @@ function _baseScenarioForYear(cfg, yr, gainTakenThisYear, recaptureThisYear) {
       };
 }
 
+// Public Y0 baseline snapshot helper. Returns the income shape every
+// "did nothing" tax reader (baseline-table.js, calc-oil-gas.js,
+// calc-delphi.js, temp-page-render.js, supplementals) needs, derived
+// from the live form via collectInputs() and the engine's own
+// _baseScenarioForYear. Single source of truth so the new income
+// fields (interest, qualified-div, §86 SS, business-income SE) flow
+// to every downstream consumer automatically.
+//
+// Returns null when collectInputs is unavailable. Returned shape:
+//   {
+//     cfg, scenario,       // the underlying cfg + full scenario object
+//     year, status, state,
+//     ordTotal,            // ordinary income incl. §86 taxable SS
+//     recap,               // §1250 depreciation recapture (Y0 ordinary)
+//     stGain, ltGain,      // property-sale derived + recurring income
+//     qualifiedDividend,   // recurring qualified div (preferential rate)
+//     niitBase,            // §1411 NIIT base (inv income)
+//     wages,               // W-2 only — engine folds SE × 0.9235 in
+//     seInc,               // SE-eligible portion (drives §1401 SE tax)
+//     taxableSS, grossSS   // §86 derivation values for admin display
+//   }
+function rettY0BaselineSnapshot() {
+      if (typeof window === 'undefined' || typeof window.collectInputs !== 'function') return null;
+      var cfg;
+      try { cfg = window.collectInputs(); } catch (e) { return null; }
+      if (!cfg) return null;
+      var year = cfg.year1 || (new Date()).getFullYear();
+      var sp = Math.max(0, Number(cfg.salePrice) || 0);
+      var cb = Math.max(0, Number(cfg.costBasis) || 0);
+      var ad = Math.max(0, Number(cfg.acceleratedDepreciation) || 0);
+      var stpg = Math.max(0, Number(cfg.shortTermPropertyGain) || 0);
+      var ltGainProperty = Math.max(0, sp - cb - ad - stpg);
+      var recapture = ad;
+      var scenario = _baseScenarioForYear(cfg, year, ltGainProperty, recapture);
+      return {
+            cfg: cfg,
+            scenario: scenario,
+            year: year,
+            status: cfg.filingStatus || 'mfj',
+            state: cfg.state || 'NONE',
+            ordTotal: scenario.ordinaryIncome,
+            recap: scenario.depreciationRecapture,
+            stGain: scenario.shortTermGain,
+            ltGain: scenario.longTermGain,
+            qualifiedDividend: scenario.qualifiedDividend || 0,
+            niitBase: scenario.investmentIncome,
+            wages: scenario.wages,
+            seInc: scenario.seIncome || 0,
+            taxableSS: scenario._taxableSocialSecurity || 0,
+            grossSS:   scenario._grossSocialSecurity || 0
+      };
+}
+if (typeof window !== 'undefined') {
+      window.rettY0BaselineSnapshot = rettY0BaselineSnapshot;
+}
+
 function _yearTaxes(scenario) {
       // Guard: defensive defaults so a partially-built scenario can't
       // produce NaN or null for the federal/state/total numbers

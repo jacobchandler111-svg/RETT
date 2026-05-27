@@ -55,12 +55,26 @@
   }
 
   function _recurringOrdinary() {
+    // Mirrors inputs-collector.js _sumIncomeSources for the new income
+    // shape: W-2 + ord-div + retirement + interest + business-income,
+    // plus signed rental. Legacy se-income / biz-revenue removed
+    // (always 0; replaced by #business-income-amount).
     var ord = 0;
-    ['w2-wages','se-income','dividend-income','retirement-distributions'].forEach(function (id) {
+    ['w2-wages','dividend-income','retirement-distributions',
+     'interest-income','business-income-amount'].forEach(function (id) {
       ord += Math.max(0, _readNum(id));
     });
-    ['biz-revenue','rental-income'].forEach(function (id) { ord += _readNum(id); });
+    ['rental-income'].forEach(function (id) { ord += _readNum(id); });
     return ord;
+  }
+  function _recurringSeIncome() {
+    var biRad = document.querySelector('input[name="business-income-type"]:checked');
+    var biType = biRad ? biRad.value : null;
+    return (biType === 'se' || biType === 'k1-partnership-gp')
+      ? Math.max(0, _readNum('business-income-amount')) : 0;
+  }
+  function _recurringQualDiv() {
+    return Math.max(0, _readNum('qualified-dividends'));
   }
 
   // Compute a baseline for a given absolute year using the form's
@@ -83,16 +97,21 @@
     var ord    = _recurringOrdinary() * _inflF;
     var stGain = Math.max(0, _readNum('short-term-gain'));
     var wages  = Math.max(0, _readNum('w2-wages')) * _inflF;
-    var seInc  = Math.max(0, _readNum('se-income')) * _inflF;
-    // Passive investment income (rental + dividend) inflated alongside ord.
-    // stGain is asset-specific, not inflated (no recurring annual gain to grow).
-    var nIIT_base = stGain
+    var seInc  = _recurringSeIncome() * _inflF;
+    var qualDiv = _recurringQualDiv() * _inflF;
+    // Passive investment income (rental + dividend + interest)
+    // inflated alongside ord. stGain is asset-specific, not inflated
+    // (no recurring annual gain to grow). Qualified-div goes in
+    // separately for LTCG bracket routing AND NIIT base.
+    var nIIT_base = stGain + qualDiv
                   + Math.max(0, _readNum('rental-income'))  * _inflF
                   + Math.max(0, _readNum('dividend-income')) * _inflF
+                  + Math.max(0, _readNum('interest-income')) * _inflF
                   + recap;
     var fedB = (typeof root.computeFederalTaxBreakdown === 'function')
       ? root.computeFederalTaxBreakdown(ord, year, status, {
           longTermGain: 0, shortTermGain: stGain, depreciationRecapture: recap,
+          qualifiedDividend: qualDiv,
           investmentIncome: nIIT_base, wages: wages, seIncome: seInc
         })
       : null;
