@@ -131,8 +131,11 @@
       ? _row('Loss rate (Y0)', (y0LossRate * 100).toFixed(1) + '%',
              'Combo ' + _esc(comboLabel) + ' first-year loss/$ ratio &mdash; decays in subsequent years')
       : _row('Loss rate (Y0)', '—', 'No Schwab combo (non-tier or below-min)');
+    var _comboFeeRate = (combo && typeof root.brooklynFeeRateFor === 'function')
+      ? (root.brooklynFeeRateFor(combo.longPct, combo.shortPct) || 0)
+      : 0;
     var feeRateRow = combo
-      ? _row('Brooklyn fee rate', (combo.feeRate * 100).toFixed(2) + '%',
+      ? _row('Brooklyn fee rate', (_comboFeeRate * 100).toFixed(2) + '%',
              'Per-year fee on deployed capital under ' + _esc(comboLabel))
       : _row('Brooklyn fee rate', '—', null);
 

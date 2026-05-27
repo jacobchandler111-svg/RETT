@@ -155,8 +155,6 @@ const ProjectionEngine = {
       let fee = 0;
       if (_schwabCombo && typeof window.brooklynFeeRateFor === 'function') {
         fee = cfg.investment * window.brooklynFeeRateFor(_schwabCombo.longPct, _schwabCombo.shortPct) * _yfImplPE;
-      } else if (_schwabCombo) {
-        fee = cfg.investment * (_schwabCombo.feeRate || 0) * _yfImplPE;
       } else {
         fee = brooklynFee(cfg.tierKey, cfg.leverage, cfg.investment) * _yfImplPE;
       }

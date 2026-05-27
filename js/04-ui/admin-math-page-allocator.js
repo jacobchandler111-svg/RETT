@@ -277,7 +277,9 @@
     if (a.error) return '';
     var combo = (a.picked && a.picked.comboId && typeof root.getSchwabCombo === 'function')
       ? root.getSchwabCombo(a.picked.comboId) : null;
-    var feeRate = combo ? combo.feeRate : 0;
+    var feeRate = (combo && typeof root.brooklynFeeRateFor === 'function')
+      ? (root.brooklynFeeRateFor(combo.longPct, combo.shortPct) || 0)
+      : 0;
     var comboLabel = combo ? (combo.leverageLabel + ' (' + combo.strategyLabel + ')') : 'unknown';
     var rows = (a.cmp && a.cmp.rows) || [];
     if (!rows.length) {

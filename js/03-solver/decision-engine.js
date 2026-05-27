@@ -154,7 +154,7 @@
         // published rate. See fees.js docstring.
         var comboFeeRate = (typeof root.brooklynFeeRateFor === 'function')
           ? root.brooklynFeeRateFor(combo.longPct, combo.shortPct)
-          : (combo.feeRate || 0);
+          : 0;
         var comboFees = investedCapital * comboFeeRate;
         stage1Combo = {
           mode: 'schwab-combo',

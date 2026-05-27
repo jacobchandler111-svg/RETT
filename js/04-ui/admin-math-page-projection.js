@@ -404,8 +404,11 @@
       ? _autoPickRow('Loss rate (Y0)', (y0LossRate * 100).toFixed(1) + '%',
                      'First-year loss/$ ratio under ' + comboLabel + ' - decays each subsequent year (see per-year table for actuals)')
       : _autoPickRow('Loss rate (Y0)', '—', null);
+    var _comboFeeRate = (combo && typeof root.brooklynFeeRateFor === 'function')
+      ? (root.brooklynFeeRateFor(combo.longPct, combo.shortPct) || 0)
+      : 0;
     var feeRateRow = combo
-      ? _autoPickRow('Brooklyn fee rate', (combo.feeRate * 100).toFixed(2) + '%',
+      ? _autoPickRow('Brooklyn fee rate', (_comboFeeRate * 100).toFixed(2) + '%',
                      'Per-year fee on deployed capital under ' + comboLabel)
       : _autoPickRow('Brooklyn fee rate', '—', null);
     var pickRows = [

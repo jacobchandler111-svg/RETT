@@ -957,7 +957,7 @@ function unifiedTaxComparison(cfg, opts) {
                   startIdx: 0,
                   comboId: _y0Combo ? _y0Combo.id : null,
                   comboLossByYear: _y0Combo && _y0Combo.lossByYear ? _y0Combo.lossByYear.slice() : null,
-                  comboFeeRate: _y0Combo ? _y0Combo.feeRate : null
+                  comboFeeRate: _y0Combo ? _comboFeeRate(_y0Combo) : null
             };
             // Tax-reserve tranche is always Y0-only. The permanent basis
             // tranche also closes after Y0 when the no-park degeneracy
@@ -1026,6 +1026,14 @@ function unifiedTaxComparison(cfg, opts) {
       // Note: `combo` was hoisted above the tranche-setup block to
       // support tier-jumping (which tags each tranche with its combo
       // at creation time).
+      // fee-split.js is the single source of truth for Brooklyn fee
+      // rates (see fees.js docstring). Stale `combo.feeRate` was deleted
+      // from schwab-strategies.js 2026-05-27 — any combo passed in here
+      // must be resolved via brooklynFeeRateFor(longPct, shortPct).
+      function _comboFeeRate(c) {
+            if (!c || typeof window.brooklynFeeRateFor !== 'function') return 0;
+            return window.brooklynFeeRateFor(c.longPct, c.shortPct) || 0;
+      }
       const feeRate = (function () {
             var lp, sp;
             if (combo) { lp = combo.longPct; sp = combo.shortPct; }
@@ -1036,7 +1044,6 @@ function unifiedTaxComparison(cfg, opts) {
             if (typeof window.brooklynFeeRateFor === 'function' && lp != null && sp != null) {
                   return window.brooklynFeeRateFor(lp, sp);
             }
-            if (combo) return combo.feeRate || 0;
             if (typeof brooklynInterpolate === 'function') {
                   var snap = brooklynInterpolate(cfg.tierKey || 'beta1', _defaultLeverage(cfg));
                   return snap ? (snap.feeRate || 0) : 0;
@@ -1378,14 +1385,14 @@ function unifiedTaxComparison(cfg, opts) {
                   _reinvestCombo = _pickComboForCumulative(_cumulativeWithThis);
                   if (_tieringCombos.length && _reinvestCombo && _reinvestCombo.lossByYear) {
                         _newTrancheLossRate = _reinvestCombo.lossByYear[0] || 0;
-                        _newTrancheFeeRate  = _reinvestCombo.feeRate || feeRate;
+                        _newTrancheFeeRate  = _comboFeeRate(_reinvestCombo) || feeRate;
                   }
                   tranches.push({
                         capital: reinvested,
                         startIdx: i,
                         comboId: _reinvestCombo ? _reinvestCombo.id : null,
                         comboLossByYear: _reinvestCombo && _reinvestCombo.lossByYear ? _reinvestCombo.lossByYear.slice() : null,
-                        comboFeeRate: _reinvestCombo ? _reinvestCombo.feeRate : null
+                        comboFeeRate: _reinvestCombo ? _comboFeeRate(_reinvestCombo) : null
                   });
             }
 

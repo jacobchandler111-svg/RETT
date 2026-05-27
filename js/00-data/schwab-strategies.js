@@ -22,8 +22,15 @@
 //                         (where tranche N runs from day 365*(N-1) to
 //                         day 365*N from the implementation date).
 //                         **Leverage is already baked into these factors.**
-//   - feeRate           : annual fee as fraction of invested capital
 //   - minInvestment     : Schwab-required minimum investment for this combo
+//
+// Fee rate is intentionally NOT stored here. The canonical source is
+// fee-split.js (`brooklynFeeRateFor(longPct, shortPct)`), which decomposes
+// Brooklyn management + custodian margin spread per the Brooklyn advisor
+// rate card. Prior versions of this file carried a `feeRate` field that
+// diverged from fee-split.js by ~30–55% — removed 2026-05-27 to enforce
+// a single source of truth. Any caller that needs a per-combo fee should
+// call `brooklynFeeRateFor(combo.longPct, combo.shortPct)`.
 //
 // The 365-day tranche model: when a client deposits on date D, days
 // 0..364 from D are taxed at lossByYear[0]; days 365..729 use lossByYear[1];
@@ -53,7 +60,6 @@
       longPct: 145,
       shortPct: 45,
       lossByYear: [0.322, 0.268, 0.233, 0.214, 0.212, 0.205, 0.197, 0.191, 0.186, 0.181],
-      feeRate: 0.0094,
       minInvestment: 1000000,
     },
     beta1_200_100: {
@@ -65,7 +71,6 @@
       longPct: 200,
       shortPct: 100,
       lossByYear: [0.590, 0.492, 0.427, 0.393, 0.389, 0.376, 0.363, 0.351, 0.342, 0.334],
-      feeRate: 0.0203,
       minInvestment: 3000000
     }
   };

@@ -154,16 +154,49 @@
     without._year = withSale._year = cfg.year1;
     var delta = withSale.sum - without.sum;
 
+    // Per-source income breakdown so the advisor can see exactly which
+    // form fields rolled into baseOrdinaryIncome / wages /
+    // investmentIncomeOrdinary. Tab 1's admin had this; Tab 2 was just
+    // showing the aggregate which made it look like individual fields
+    // weren't being taxed (they were — just lumped into the totals).
+    function _dom(id){ return _domNum(id); }
+    var rW2     = _dom('w2-wages');
+    var rInt    = _dom('interest-income');
+    var rDiv    = _dom('dividend-income');
+    var rRet    = _dom('retirement-distributions');
+    var rSSGr   = _dom('social-security');
+    var rRent   = _dom('rental-income');
+    var rBiz    = _dom('business-income-amount');
+    var niitBase = _num(cfg.investmentIncomeOrdinary);
+
+    var incomeBreakdown =
+      '<div class="admin-math-section">' +
+        '<h4>Income Sources (each field → cfg routing)</h4>' +
+        '<table class="admin-math-table">' +
+          '<thead><tr><th>Field</th><th class="admin-math-num">Amount</th><th>Routes to</th></tr></thead>' +
+          '<tbody>' +
+            '<tr><td>W-2 Wages</td><td class="admin-math-num">' + _fmtUSD(rW2) + '</td><td>baseOrdinaryIncome + wages (Add\'l Medicare)</td></tr>' +
+            '<tr><td>Interest Income</td><td class="admin-math-num">' + _fmtUSD(rInt) + '</td><td>baseOrdinaryIncome + investmentIncomeOrdinary (NIIT)</td></tr>' +
+            '<tr><td>Dividends</td><td class="admin-math-num">' + _fmtUSD(rDiv) + '</td><td>baseOrdinaryIncome + investmentIncomeOrdinary (NIIT)</td></tr>' +
+            '<tr><td>Retirement Distributions</td><td class="admin-math-num">' + _fmtUSD(rRet) + '</td><td>baseOrdinaryIncome only (§1411(c)(5) excludes from NIIT)</td></tr>' +
+            '<tr><td>Social Security (gross)</td><td class="admin-math-num">' + _fmtUSD(rSSGr) + '</td><td>§86 worksheet → taxable portion into ordinary income (not NIIT, not Add\'l Medicare)</td></tr>' +
+            '<tr><td>Rental Income</td><td class="admin-math-num">' + _fmtUSD(rRent) + '</td><td>baseOrdinaryIncome + investmentIncomeOrdinary (NIIT)</td></tr>' +
+            '<tr><td>Business Income</td><td class="admin-math-num">' + _fmtUSD(rBiz) + '</td><td>baseOrdinaryIncome only</td></tr>' +
+          '</tbody>' +
+        '</table>' +
+      '</div>';
+
     var preface =
       '<div class="admin-math-section">' +
-        '<h4>Inputs to Tax Engine</h4>' +
+        '<h4>Inputs to Tax Engine (aggregated)</h4>' +
         '<table class="admin-math-table">' +
           '<tbody>' +
             '<tr><td>Year</td><td class="admin-math-num">' + _esc(cfg.year1) + '</td><td>cfg.year1</td></tr>' +
             '<tr><td>Filing status</td><td class="admin-math-num">' + _esc(cfg.filingStatus) + '</td><td>cfg.filingStatus</td></tr>' +
             '<tr><td>State</td><td class="admin-math-num">' + _esc(cfg.state) + '</td><td>cfg.state</td></tr>' +
-            '<tr><td>Base ordinary income</td><td class="admin-math-num">' + _fmtUSD(cfg.baseOrdinaryIncome) + '</td><td>cfg.baseOrdinaryIncome</td></tr>' +
-            '<tr><td>Wages (Add\'l Medicare base)</td><td class="admin-math-num">' + _fmtUSD(cfg.wages) + '</td><td>cfg.wages</td></tr>' +
+            '<tr><td>Base ordinary income</td><td class="admin-math-num">' + _fmtUSD(cfg.baseOrdinaryIncome) + '</td><td>cfg.baseOrdinaryIncome &mdash; sum of W-2 + interest + div + retirement + SS taxable portion + rental + biz</td></tr>' +
+            '<tr><td>Wages (Add\'l Medicare base)</td><td class="admin-math-num">' + _fmtUSD(cfg.wages) + '</td><td>cfg.wages &mdash; W-2 only</td></tr>' +
+            '<tr><td>Investment income (NIIT base)</td><td class="admin-math-num">' + _fmtUSD(niitBase) + '</td><td>cfg.investmentIncomeOrdinary &mdash; interest + div + rental</td></tr>' +
             '<tr><td>Annual ST gain</td><td class="admin-math-num">' + _fmtUSD(cfg.baseShortTermGain) + '</td><td>cfg.baseShortTermGain</td></tr>' +
             '<tr><td>Annual LT gain (non-property)</td><td class="admin-math-num">' + _fmtUSD(cfg.baseLongTermGain) + '</td><td>cfg.baseLongTermGain</td></tr>' +
             '<tr><td>Property LT gain (from sale)</td><td class="admin-math-num">' + _fmtUSD(ltGain) + '</td><td>salePrice &minus; costBasis &minus; acceleratedDepreciation &minus; shortTermPropertyGain</td></tr>' +
@@ -172,6 +205,7 @@
           '</tbody>' +
         '</table>' +
       '</div>';
+    preface = incomeBreakdown + preface;
 
     var deltaSection =
       '<div class="admin-math-section">' +
