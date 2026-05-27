@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=1777600000414">
+  <link rel="stylesheet" href="css/styles.css?v=1777600000415">
   <!-- html2pdf.js: turns the page-allocator DOM into a downloadable
        PDF on click. Bundled build (includes html2canvas + jsPDF).
        Script loads async/defer-friendly; window.html2pdf is the
@@ -153,7 +153,7 @@
         <div class="section-body">
           <div class="input-row">
             <div class="label">Tax Year</div>
-            <select id="pmq-year1">
+            <select id="year1">
               <option value="2026" selected>2026</option>
               <option value="2027">2027</option>
               <option value="2025">2025</option>
@@ -161,7 +161,7 @@
           </div>
           <div class="input-row">
             <div class="label">Filing Status</div>
-            <select id="pmq-filing-status">
+            <select id="filing-status">
               <option value="single">Single</option>
               <option value="mfj" selected>Married Filing Jointly</option>
               <option value="mfs">Married Filing Separately</option>
@@ -170,7 +170,7 @@
           </div>
           <div class="input-row">
             <div class="label">State</div>
-            <select id="pmq-state-code"></select>
+            <select id="state-code"></select>
           </div>
         </div>
       </div>
@@ -241,94 +241,10 @@
     <div class="inputs-2col">
       <div class="inputs-stack">
 
-        <!-- ====== Custodian & Filing Information ======
-             Custodian + tax year + filing status + state in one
-             section so the four "who is this client" fields read as
-             a single unit instead of two stacked cards. -->
-        <div class="input-section">
-          <div class="section-heading">
-            <h2>Filing Information</h2>
-            <span class="num">SECTION 01</span>
-          </div>
-          <div class="section-body">
-            <!-- Custodian moved to Tab 0 Client Information per advisor
-                 2026-05-26. This section now holds Tax Year + Filing
-                 Status only. -->
-            <div class="input-row">
-              <div class="label">Tax Year</div>
-              <select id="year1">
-                <option value="2026" selected>2026</option>
-                <option value="2027">2027</option>
-                <option value="2025">2025</option>
-              </select>
-            </div>
-            <div class="input-row">
-              <div class="label">Filing Status</div>
-              <select id="filing-status">
-                <option value="single">Single</option>
-                <option value="mfj" selected>Married Filing Jointly</option>
-                <option value="mfs">Married Filing Separately</option>
-                <option value="hoh">Head of Household</option>
-              </select>
-            </div>
-            <div class="input-row">
-              <div class="label">State</div>
-              <select id="state-code">
-          <option value="AL">Alabama</option>
-          <option value="AK">Alaska</option>
-          <option value="AZ">Arizona</option>
-          <option value="AR">Arkansas</option>
-          <option value="CA">California</option>
-          <option value="CO">Colorado</option>
-          <option value="CT">Connecticut</option>
-          <option value="DE">Delaware</option>
-          <option value="DC">District of Columbia</option>
-          <option value="FL">Florida</option>
-          <option value="GA">Georgia</option>
-          <option value="HI">Hawaii</option>
-          <option value="ID">Idaho</option>
-          <option value="IL">Illinois</option>
-          <option value="IN">Indiana</option>
-          <option value="IA">Iowa</option>
-          <option value="KS">Kansas</option>
-          <option value="KY">Kentucky</option>
-          <option value="LA">Louisiana</option>
-          <option value="ME">Maine</option>
-          <option value="MD">Maryland</option>
-          <option value="MA">Massachusetts</option>
-          <option value="MI">Michigan</option>
-          <option value="MN">Minnesota</option>
-          <option value="MS">Mississippi</option>
-          <option value="MO">Missouri</option>
-          <option value="MT">Montana</option>
-          <option value="NE">Nebraska</option>
-          <option value="NV">Nevada</option>
-          <option value="NH">New Hampshire</option>
-          <option value="NJ">New Jersey</option>
-          <option value="NM">New Mexico</option>
-          <option value="NY" selected>New York</option>
-          <option value="NC">North Carolina</option>
-          <option value="ND">North Dakota</option>
-          <option value="OH">Ohio</option>
-          <option value="OK">Oklahoma</option>
-          <option value="OR">Oregon</option>
-          <option value="PA">Pennsylvania</option>
-          <option value="RI">Rhode Island</option>
-          <option value="SC">South Carolina</option>
-          <option value="SD">South Dakota</option>
-          <option value="TN">Tennessee</option>
-          <option value="TX">Texas</option>
-          <option value="UT">Utah</option>
-          <option value="VT">Vermont</option>
-          <option value="VA">Virginia</option>
-          <option value="WA">Washington</option>
-          <option value="WV">West Virginia</option>
-          <option value="WI">Wisconsin</option>
-          <option value="WY">Wyoming</option>
-              </select>
-            </div>
-          </div>
-        </div>
+        <!-- Filing Information moved to Tab 0 Pre-Meeting (2026-05-27
+             per advisor). The canonical IDs year1, filing-status,
+             state-code now live on Pre-Meeting's Filing Information
+             card. Section 01 here is now Income Sources. -->
 
         <!-- ====== Income Sources ======
              Reordered 2026-05-27 to follow Form 1040 line order. New fields
@@ -342,7 +258,7 @@
         <div class="input-section">
           <div class="section-heading">
             <h2>Income Sources</h2>
-            <span class="num">SECTION 02</span>
+            <span class="num">SECTION 01</span>
           </div>
           <div class="section-body">
             <!-- 1040 Line 1a -->
@@ -446,7 +362,7 @@
         <div class="input-section">
           <div class="section-heading">
             <h2>Real Estate Sale Proceeds</h2>
-            <span class="num">SECTION 03</span>
+            <span class="num">SECTION 02</span>
           </div>
           <div class="section-body">
 
@@ -749,7 +665,7 @@
         <div class="input-section">
           <div class="section-heading">
             <h2>Future Sale</h2>
-            <span class="num">SECTION 04</span>
+            <span class="num">SECTION 03</span>
           </div>
           <div class="section-body">
             <div class="input-row">
@@ -1352,136 +1268,85 @@
   <!-- ============ Subsystem load order: 00 -> 01 -> 02 -> 03 -> 05 -> 04 ============ -->
   <!-- date-utils is loaded ahead of 00-data so schwab-strategies can use the
        shared parseLocalDate global instead of defining its own copy. -->
-  <script src="js/01-brooklyn/date-utils.js?v=1777600000414"></script>
-  <script src="js/00-data/custodians.js?v=1777600000414"></script>
-  <script src="js/00-data/schwab-strategies.js?v=1777600000414"></script>
-  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000414"></script>
-  <script src="js/01-brooklyn/time-weight.js?v=1777600000414"></script>
-  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000414"></script>
-  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000414"></script>
+  <script src="js/01-brooklyn/date-utils.js?v=1777600000415"></script>
+  <script src="js/00-data/custodians.js?v=1777600000415"></script>
+  <script src="js/00-data/schwab-strategies.js?v=1777600000415"></script>
+  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000415"></script>
+  <script src="js/01-brooklyn/time-weight.js?v=1777600000415"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000415"></script>
+  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000415"></script>
 
-  <script src="js/02-tax-engine/tax-data.js?v=1777600000414"></script>
-  <script src="js/02-tax-engine/tax-loader.js?v=1777600000414"></script>
-  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000414"></script>
-  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000414"></script>
-  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000414"></script>
-  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000414"></script>
-  <script src="js/02-tax-engine/engine-self-test.js?v=1777600000414"></script>
+  <script src="js/02-tax-engine/tax-data.js?v=1777600000415"></script>
+  <script src="js/02-tax-engine/tax-loader.js?v=1777600000415"></script>
+  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000415"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000415"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000415"></script>
+  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000415"></script>
+  <script src="js/02-tax-engine/engine-self-test.js?v=1777600000415"></script>
 
-  <script src="js/03-solver/fees.js?v=1777600000414"></script>
-  <script src="js/03-solver/fee-split.js?v=1777600000414"></script>
-  <script src="js/03-solver/brookhaven-fees.js?v=1777600000414"></script>
-  <script src="js/03-solver/single-year-solver.js?v=1777600000414"></script>
-  <script src="js/03-solver/multi-year-solver.js?v=1777600000414"></script>
-  <script src="js/03-solver/structured-sale.js?v=1777600000414"></script>
-  <script src="js/03-solver/calc-oil-gas.js?v=1777600000414"></script>
-  <script src="js/03-solver/calc-delphi.js?v=1777600000414"></script>
-  <script src="js/03-solver/calc-supplemental-extra.js?v=1777600000414"></script>
-  <script src="js/03-solver/decision-engine.js?v=1777600000414"></script>
+  <script src="js/03-solver/fees.js?v=1777600000415"></script>
+  <script src="js/03-solver/fee-split.js?v=1777600000415"></script>
+  <script src="js/03-solver/brookhaven-fees.js?v=1777600000415"></script>
+  <script src="js/03-solver/single-year-solver.js?v=1777600000415"></script>
+  <script src="js/03-solver/multi-year-solver.js?v=1777600000415"></script>
+  <script src="js/03-solver/structured-sale.js?v=1777600000415"></script>
+  <script src="js/03-solver/calc-oil-gas.js?v=1777600000415"></script>
+  <script src="js/03-solver/calc-delphi.js?v=1777600000415"></script>
+  <script src="js/03-solver/calc-supplemental-extra.js?v=1777600000415"></script>
+  <script src="js/03-solver/decision-engine.js?v=1777600000415"></script>
   <!-- Master solver registry + Page-5 supplemental defaults. master-solver
        declares register*/list*/runMasterSolver; supplemental-defaults uses
        those to register Oil & Gas. Future supplemental strategies append
        to supplemental-defaults â€” calc-* modules don't reach into this. -->
-  <script src="js/03-solver/master-solver.js?v=1777600000414"></script>
-  <script src="js/03-solver/supplemental-defaults.js?v=1777600000414"></script>
-  <script src="js/03-solver/supplemental-extra-registry.js?v=1777600000414"></script>
-  <script src="js/03-solver/supplemental-investment-shims.js?v=1777600000414"></script>
+  <script src="js/03-solver/master-solver.js?v=1777600000415"></script>
+  <script src="js/03-solver/supplemental-defaults.js?v=1777600000415"></script>
+  <script src="js/03-solver/supplemental-extra-registry.js?v=1777600000415"></script>
+  <script src="js/03-solver/supplemental-investment-shims.js?v=1777600000415"></script>
 
-  <script src="js/05-projections/carryforward-tracker.js?v=1777600000414"></script>
-  <script src="js/05-projections/projection-engine.js?v=1777600000414"></script>
+  <script src="js/05-projections/carryforward-tracker.js?v=1777600000415"></script>
+  <script src="js/05-projections/projection-engine.js?v=1777600000415"></script>
 
   <!-- format-helpers loads first inside 04-ui so every renderer can use
        fmtUSD / fmtPct / fmtNum directly without a defensive fallback. -->
-  <script src="js/04-ui/format-helpers.js?v=1777600000414"></script>
-  <script src="js/04-ui/money-format.js?v=1777600000414"></script>
-  <script src="js/04-ui/banner.js?v=1777600000414"></script>
-  <script src="js/04-ui/number-animator.js?v=1777600000414"></script>
-  <script src="js/04-ui/case-storage.js?v=1777600000414"></script>
-  <script src="js/04-ui/pill-toggles.js?v=1777600000414"></script>
-  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000414"></script>
-  <script src="js/04-ui/input-validation.js?v=1777600000414"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1777600000414"></script>
-  <script src="js/04-ui/controls.js?v=1777600000414"></script>
-  <script src="js/04-ui/recommendation-render.js?v=1777600000414"></script>
-  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000414"></script>
-  <script src="js/04-ui/savings-ribbon.js?v=1777600000414"></script>
-  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000414"></script>
-  <script src="js/04-ui/narrative-render.js?v=1777600000414"></script>
-  <script src="js/04-ui/strategy-summary-render.js?v=1777600000414"></script>
-  <script src="js/04-ui/baseline-table.js?v=1777600000414"></script>
-  <script src="js/04-ui/supplemental-render.js?v=1777600000414"></script>
-  <script src="js/04-ui/supplemental-extra-render.js?v=1777600000414"></script>
+  <script src="js/04-ui/format-helpers.js?v=1777600000415"></script>
+  <script src="js/04-ui/money-format.js?v=1777600000415"></script>
+  <script src="js/04-ui/banner.js?v=1777600000415"></script>
+  <script src="js/04-ui/number-animator.js?v=1777600000415"></script>
+  <script src="js/04-ui/case-storage.js?v=1777600000415"></script>
+  <script src="js/04-ui/pill-toggles.js?v=1777600000415"></script>
+  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000415"></script>
+  <script src="js/04-ui/input-validation.js?v=1777600000415"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1777600000415"></script>
+  <script src="js/04-ui/controls.js?v=1777600000415"></script>
+  <script src="js/04-ui/recommendation-render.js?v=1777600000415"></script>
+  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000415"></script>
+  <script src="js/04-ui/savings-ribbon.js?v=1777600000415"></script>
+  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000415"></script>
+  <script src="js/04-ui/narrative-render.js?v=1777600000415"></script>
+  <script src="js/04-ui/strategy-summary-render.js?v=1777600000415"></script>
+  <script src="js/04-ui/baseline-table.js?v=1777600000415"></script>
+  <script src="js/04-ui/supplemental-render.js?v=1777600000415"></script>
+  <script src="js/04-ui/supplemental-extra-render.js?v=1777600000415"></script>
 
-  <script src="js/04-ui/pmq-handler.js?v=1777600000414"></script>
-  <script src="js/04-ui/pmq-questions.js?v=1777600000414"></script>
-  <script src="js/04-ui/temp-page-render.js?v=1777600000414"></script>
-  <script src="js/04-ui/admin-math-panel.js?v=1777600000414"></script>
-  <script src="js/04-ui/admin-math-page-inputs.js?v=1777600000414"></script>
-  <script src="js/04-ui/admin-math-page-baseline.js?v=1777600000414"></script>
-  <script src="js/04-ui/admin-math-page-strategies.js?v=1777600000414"></script>
-  <script src="js/04-ui/admin-math-page-projection.js?v=1777600000414"></script>
-  <script src="js/04-ui/admin-math-page-supplemental.js?v=1777600000414"></script>
-  <script src="js/04-ui/admin-math-page-allocator.js?v=1777600000414"></script>
+  <script src="js/04-ui/pmq-handler.js?v=1777600000415"></script>
+  <script src="js/04-ui/pmq-questions.js?v=1777600000415"></script>
+  <script src="js/04-ui/temp-page-render.js?v=1777600000415"></script>
+  <script src="js/04-ui/admin-math-panel.js?v=1777600000415"></script>
+  <script src="js/04-ui/admin-math-page-inputs.js?v=1777600000415"></script>
+  <script src="js/04-ui/admin-math-page-baseline.js?v=1777600000415"></script>
+  <script src="js/04-ui/admin-math-page-strategies.js?v=1777600000415"></script>
+  <script src="js/04-ui/admin-math-page-projection.js?v=1777600000415"></script>
+  <script src="js/04-ui/admin-math-page-supplemental.js?v=1777600000415"></script>
+  <script src="js/04-ui/admin-math-page-allocator.js?v=1777600000415"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1777600000414"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1777600000415"></script>
 
-  <!-- Tab 0 Filing Information wiring.
-       (1) Clone 50-state <option> list from Tab 1 #state-code → Tab 0.
-       (2) Seed Tab 0 fields from Tab 1 current values (case load).
-       (3) Mirror Tab 0 changes → Tab 1 + fire events (engine reads
-           Tab 1 IDs so this is what makes Tab 0 drive recompute).
-       (4) Mirror Tab 1 changes → Tab 0 without re-firing (silent —
-           handles programmatic writes from case-storage, tax-doc
-           import, reset). -->
-  <script>
-    (function () {
-      var PAIRS = [
-        ['year1',         'pmq-year1'],
-        ['filing-status', 'pmq-filing-status'],
-        ['state-code',    'pmq-state-code']
-      ];
-      function _cloneStateOptions() {
-        var src = document.getElementById('state-code');
-        var dst = document.getElementById('pmq-state-code');
-        if (!src || !dst || dst.options.length > 0) return;
-        for (var i = 0; i < src.options.length; i++) {
-          var o = src.options[i];
-          var n = document.createElement('option');
-          n.value = o.value;
-          n.textContent = o.textContent;
-          if (o.selected) n.selected = true;
-          dst.appendChild(n);
-        }
-      }
-      function _mirror(fromId, toId, fireEvents) {
-        var from = document.getElementById(fromId);
-        var to   = document.getElementById(toId);
-        if (!from || !to) return;
-        if (to.value === from.value) return;
-        to.value = from.value;
-        if (fireEvents) {
-          to.dispatchEvent(new Event('input',  { bubbles: true }));
-          to.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-      }
-      document.addEventListener('DOMContentLoaded', function () {
-        _cloneStateOptions();
-        PAIRS.forEach(function (p) { _mirror(p[0], p[1], false); });
-        PAIRS.forEach(function (p) {
-          var tab1 = document.getElementById(p[0]);
-          var tab0 = document.getElementById(p[1]);
-          if (!tab1 || !tab0) return;
-          var t0Handler = function () { _mirror(p[1], p[0], true); };
-          tab0.addEventListener('change', t0Handler);
-          tab0.addEventListener('input',  t0Handler);
-          var t1Handler = function () { _mirror(p[0], p[1], false); };
-          tab1.addEventListener('change', t1Handler);
-          tab1.addEventListener('input',  t1Handler);
-        });
-      });
-    })();
-  </script>
+  <!-- Tab 0 Filing Information: populate the State <select> from a
+       small JS array (Tab 1 source no longer exists — that section
+       was deleted 2026-05-27). Mirror logic removed: Tab 0 IS the
+       canonical source now (#year1, #filing-status, #state-code). -->
+  <script src="js/04-ui/us-states.js?v=1777600000415"></script>
 
   <!-- Business Income conditional reveal: show type selector when amount > 0.
        UI-only; engine math unchanged. -->

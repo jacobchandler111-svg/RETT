@@ -2963,15 +2963,16 @@ body { font-size: 16px; }
    vertical stacks of input-sections (no sticky baseline panel on the
    right anymore — that lives on its own page now). Columns collapse
    to a single stack below 1100px. */
+/* Tab 1 form layout (2026-05-27): flattened to single full-width
+   column so the advisor scrolls top-to-bottom through Income Sources
+   → Real Estate Sale Proceeds → Future Sale. Two inner .inputs-stack
+   wrappers still exist in HTML but collapse to one visual flow. */
 .inputs-2col {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 22px 24px;
+    grid-template-columns: 1fr;
+    gap: 22px;
     align-items: start;
     margin-top: 12px;
-}
-@media (max-width: 1100px) {
-    .inputs-2col { grid-template-columns: 1fr; }
 }
 .inputs-stack { display: flex; flex-direction: column; gap: 22px; }
 
