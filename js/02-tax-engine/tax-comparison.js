@@ -1045,8 +1045,16 @@ function unifiedTaxComparison(cfg, opts) {
             let existingLoss = 0;
             let existingFee = 0;
             let existingInvested = 0;
+            // Per-tranche breakdown (opt-in via opts.includeTrancheBreakdown).
+            // CPA-facing admin reveal needs to see each tranche's per-year
+            // contribution to loss + fees - reconstructing externally would
+            // duplicate engine logic and drift. Push records into trancheRows
+            // when the flag is set; otherwise leave undefined (no perf hit
+            // on the normal path).
+            const _includeTrancheBreakdown = !!opts.includeTrancheBreakdown;
+            const trancheRows = _includeTrancheBreakdown ? [] : null;
             if (!_belowMin) {
-                  tranches.forEach(function (t) {
+                  tranches.forEach(function (t, tIdx) {
                         const trancheAge = i - t.startIdx;
                         if (trancheAge < 0) return;
                         // Tax-reserve Y0-only tranche (cover-taxes-from-sale):
@@ -1058,10 +1066,29 @@ function unifiedTaxComparison(cfg, opts) {
                         // Per-tranche loss rate honors tier-jumping when a
                         // Schwab combo cfg is present; falls back to the
                         // single legacy curve otherwise.
-                        existingLoss += t.capital * _trancheLossRate(t, trancheAge);
+                        const _trancheLossRateV = _trancheLossRate(t, trancheAge);
+                        const _trancheFeeRateV = _trancheFeeRate(t);
                         const _trancheYf = (t.startIdx === 0 && trancheAge === 0) ? yfImpl : 1;
-                        existingFee += t.capital * _trancheFeeRate(t) * _trancheYf;
+                        const _tLoss = t.capital * _trancheLossRateV;
+                        const _tFee = t.capital * _trancheFeeRateV * _trancheYf;
+                        existingLoss += _tLoss;
+                        existingFee += _tFee;
                         existingInvested += t.capital;
+                        if (trancheRows) {
+                              trancheRows.push({
+                                    trancheIdx: tIdx,
+                                    openYear: _y0 + t.startIdx,
+                                    capital: t.capital,
+                                    age: trancheAge,
+                                    comboId: t.comboId || null,
+                                    lossRate: _trancheLossRateV,
+                                    feeRate: _trancheFeeRateV,
+                                    yf: _trancheYf,
+                                    loss: _tLoss,
+                                    fee: _tFee,
+                                    isTaxReserve: typeof t.maxAgeInclusive === 'number' && t.maxAgeInclusive === 0 && t.startIdx === 0 && tIdx > 0
+                              });
+                        }
                   });
                   // Y1 loss override (immediate mode, not below-min): replace
                   // the tranche-derived Y1 loss with the caller-supplied
@@ -1274,6 +1301,26 @@ function unifiedTaxComparison(cfg, opts) {
 
             const bh = brookhavenSchedule ? brookhavenSchedule.perYear[i] : { setup: 0, quarterly: 0, total: 0 };
 
+            // Append the new reinvest tranche to the per-year breakdown
+            // (it opened THIS year so its trancheAge=0 and gets the new-
+            // tranche loss rate / fee rate calculated above).
+            if (trancheRows && reinvested > 0) {
+                  trancheRows.push({
+                        trancheIdx: tranches.length - 1,
+                        openYear: year,
+                        capital: reinvested,
+                        age: 0,
+                        comboId: _reinvestCombo ? _reinvestCombo.id : null,
+                        lossRate: _newTrancheLossRate,
+                        feeRate: _newTrancheFeeRate,
+                        yf: 1,
+                        loss: newTrancheLoss,
+                        fee: newTrancheFee,
+                        isTaxReserve: false,
+                        isNew: true
+                  });
+            }
+
             rows.push({
                   year: year,
                   gainRecognized: gainRecThisYear,
@@ -1283,6 +1330,7 @@ function unifiedTaxComparison(cfg, opts) {
                   lossApplied: withStrat._lossUsed || 0,
                   stCarryForward: stCF,
                   investmentThisYear: yearInvested,
+                  trancheBreakdown: trancheRows,
                   fee: yearFee,
                   brookhavenFee: bh.total,
                   brookhavenSetupFee: bh.setup,

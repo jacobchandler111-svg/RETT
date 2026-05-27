@@ -44,7 +44,7 @@
     if (!entry) return { error: 'no entry for ' + type };
 
     var cmp;
-    try { cmp = root.unifiedTaxComparison(entry.cfg); }
+    try { cmp = root.unifiedTaxComparison(entry.cfg, { includeTrancheBreakdown: true }); }
     catch (e) { return { error: 'engine threw: ' + (e.message || e) }; }
     var m = entry.metrics || {};
     return {
@@ -52,6 +52,7 @@
       cfg: entry.cfg || {},
       cmp: cmp,
       optScale: entry._optScale != null ? entry._optScale : 1,
+      _opt: entry._opt || null,
       // Post-optimizer headline values (match Page 3 cards):
       cardSavings: _num(m.savings != null ? m.savings : m._savingsAtFull),
       cardBrooklynFees: _num(m.brooklynFees),
@@ -158,6 +159,167 @@
     return html;
   }
 
+  // Per-tranche breakdown: for each tranche (Y0 basis, [Y0 tax-reserve if
+  // cover-taxes is on], each Y1+ reinvest), show year-by-year loss + fee
+  // contribution. Lets a CPA see "tranche 1 at age 0 produced X loss, at
+  // age 1 produced Y loss" etc. Engine populates r.trancheBreakdown when
+  // opts.includeTrancheBreakdown is set (admin path opts in).
+  function _perTrancheTable(cmp) {
+    var rows = cmp.rows || [];
+    if (!rows.length) return '';
+    // Pivot: collect all tranches across all years, keyed by trancheIdx.
+    var trancheMap = {};
+    var orderedKeys = [];
+    rows.forEach(function (r) {
+      var br = r.trancheBreakdown || [];
+      br.forEach(function (tr) {
+        var key = tr.trancheIdx + '|' + tr.openYear;
+        if (!(key in trancheMap)) {
+          trancheMap[key] = {
+            trancheIdx:  tr.trancheIdx,
+            openYear:    tr.openYear,
+            capital:     tr.capital,
+            comboId:     tr.comboId,
+            isTaxReserve: tr.isTaxReserve,
+            perYear:     {} // year -> { loss, fee, age, lossRate, feeRate, yf }
+          };
+          orderedKeys.push(key);
+        }
+        trancheMap[key].perYear[r.year] = {
+          age: tr.age, loss: tr.loss, fee: tr.fee,
+          lossRate: tr.lossRate, feeRate: tr.feeRate, yf: tr.yf
+        };
+      });
+    });
+    if (!orderedKeys.length) {
+      return '<p class="admin-math-empty">No tranches deployed (Strategy B basisCash=0 or below-min lifecycle).</p>';
+    }
+    var years = rows.map(function (r) { return r.year; });
+    var html =
+      '<div class="admin-math-scroll">' +
+      '<table class="admin-math-table admin-math-table-wide">' +
+        '<thead><tr>' +
+          '<th>Tranche</th>' +
+          '<th>Opened</th>' +
+          '<th class="admin-math-num">Capital</th>' +
+          '<th>Combo</th>';
+    years.forEach(function (y) {
+      html += '<th class="admin-math-num">' + _esc(y) + ' Loss</th>' +
+              '<th class="admin-math-num">' + _esc(y) + ' Fee</th>';
+    });
+    html += '<th class="admin-math-num">Cum. Loss</th><th class="admin-math-num">Cum. Fee</th>' +
+      '</tr></thead><tbody>';
+    var grandLoss = 0, grandFee = 0;
+    orderedKeys.forEach(function (key, idx) {
+      var t = trancheMap[key];
+      var combo = (t.comboId && typeof root.getSchwabCombo === 'function')
+        ? root.getSchwabCombo(t.comboId) : null;
+      var comboLabel = combo ? combo.leverageLabel : (t.comboId || '—');
+      var label = (idx === 0 ? 'Y0 basis' : 't' + (idx + 1));
+      if (t.isTaxReserve) label = 'Tax reserve (Y0-only)';
+      var cumL = 0, cumF = 0;
+      var cells = '';
+      years.forEach(function (y) {
+        var yd = t.perYear[y];
+        if (yd) {
+          cumL += yd.loss; cumF += yd.fee;
+          var lossNote = '@ ' + (yd.lossRate * 100).toFixed(1) + '%' +
+            (yd.yf < 1 ? ' × yf=' + yd.yf.toFixed(2) : '') +
+            ' (age ' + yd.age + ')';
+          cells += '<td class="admin-math-num" title="' + _esc(lossNote) + '">' + _fmtUSD(yd.loss) + '</td>';
+          cells += '<td class="admin-math-num">' + _fmtUSD(yd.fee) + '</td>';
+        } else {
+          cells += '<td class="admin-math-num">—</td><td class="admin-math-num">—</td>';
+        }
+      });
+      grandLoss += cumL; grandFee += cumF;
+      html +=
+        '<tr>' +
+          '<td><strong>' + _esc(label) + '</strong></td>' +
+          '<td>' + _esc(t.openYear) + '</td>' +
+          '<td class="admin-math-num">' + _fmtUSD(t.capital) + '</td>' +
+          '<td>' + _esc(comboLabel) + '</td>' +
+          cells +
+          '<td class="admin-math-num"><strong>' + _fmtUSD(cumL) + '</strong></td>' +
+          '<td class="admin-math-num"><strong>' + _fmtUSD(cumF) + '</strong></td>' +
+        '</tr>';
+    });
+    // Totals
+    html += '<tr class="admin-math-subtotal"><td colspan="4"><strong>All tranches</strong></td>';
+    years.forEach(function (y) {
+      var yLoss = 0, yFee = 0;
+      orderedKeys.forEach(function (key) {
+        var yd = trancheMap[key].perYear[y];
+        if (yd) { yLoss += yd.loss; yFee += yd.fee; }
+      });
+      html += '<td class="admin-math-num"><strong>' + _fmtUSD(yLoss) + '</strong></td>' +
+              '<td class="admin-math-num"><strong>' + _fmtUSD(yFee) + '</strong></td>';
+    });
+    html += '<td class="admin-math-num"><strong>' + _fmtUSD(grandLoss) + '</strong></td>' +
+            '<td class="admin-math-num"><strong>' + _fmtUSD(grandFee) + '</strong></td></tr>';
+    html += '</tbody></table></div>';
+    return html;
+  }
+
+  // Brookhaven fee schedule per-year breakdown (setup + quarterly + total).
+  function _brookhavenTable(cmp) {
+    var rows = cmp.rows || [];
+    if (!rows.length) return '';
+    var html =
+      '<table class="admin-math-table">' +
+        '<thead><tr>' +
+          '<th>Year</th>' +
+          '<th class="admin-math-num">Setup</th>' +
+          '<th class="admin-math-num">Quarterly</th>' +
+          '<th class="admin-math-num">Annual Total</th>' +
+          '<th class="admin-math-num">Cum. Total</th>' +
+        '</tr></thead><tbody>';
+    var cum = 0, totSetup = 0, totQ = 0, totT = 0;
+    rows.forEach(function (r) {
+      var setup = _num(r.brookhavenSetupFee);
+      var q = _num(r.brookhavenQuarterlyFee);
+      var t = _num(r.brookhavenFee);
+      cum += t; totSetup += setup; totQ += q; totT += t;
+      html +=
+        '<tr>' +
+          '<td>' + _esc(r.year) + '</td>' +
+          '<td class="admin-math-num">' + _fmtUSD(setup) + '</td>' +
+          '<td class="admin-math-num">' + _fmtUSD(q) + '</td>' +
+          '<td class="admin-math-num">' + _fmtUSD(t) + '</td>' +
+          '<td class="admin-math-num"><strong>' + _fmtUSD(cum) + '</strong></td>' +
+        '</tr>';
+    });
+    html +=
+      '<tr class="admin-math-subtotal">' +
+        '<td><strong>Totals</strong></td>' +
+        '<td class="admin-math-num"><strong>' + _fmtUSD(totSetup) + '</strong></td>' +
+        '<td class="admin-math-num"><strong>' + _fmtUSD(totQ) + '</strong></td>' +
+        '<td class="admin-math-num"><strong>' + _fmtUSD(totT) + '</strong></td>' +
+        '<td class="admin-math-num"><strong>' + _fmtUSD(cum) + '</strong></td>' +
+      '</tr>' +
+      '</tbody></table>';
+    return html;
+  }
+
+  // When Brooklyn fully absorbs the gain AND the optimizer dialed back,
+  // surface the unused capital so the advisor sees "you have $X sitting on
+  // the side". Reads from entry._opt + cfg.availableCapital.
+  function _fullyWipedCallout(analysis, cfg) {
+    var opt = (analysis && analysis._opt) || null;
+    var availCap = _num(cfg.availableCapital);
+    if (!opt || availCap <= 0) return '';
+    var rec = _num(opt.recommendedInvestment);
+    var dialBack = !!opt.dialBack;
+    var leftover = Math.max(0, availCap - rec);
+    if (!dialBack || leftover < 1000) return '';
+    return '<div class="admin-math-callout">' +
+      '<strong>Gain absorbed in full; ' + _fmtUSD(leftover) + ' freed up.</strong> ' +
+      'Optimizer dial-back: <code>' + (opt.recommendedScale * 100).toFixed(1) + '%</code> of available capital deployed. ' +
+      'Remaining ' + _fmtUSD(leftover) + ' is not invested in Brooklyn (no fees, no losses, sitting in trust). ' +
+      'Reason: <code>' + _esc(opt.reason) + '</code>' +
+      '</div>';
+  }
+
   function _strategySection(letter, name, analysis) {
     if (analysis.error) {
       return '<div class="admin-math-section">' +
@@ -216,8 +378,13 @@
         '<tbody>' + pickRows.join('') + '</tbody>' +
       '</table>' +
       cardSummary +
+      _fullyWipedCallout(analysis, cfg) +
       '<p class="admin-math-subtitle" style="margin-top:10px;">Per-year engine output (pre-optimizer, full-deployment):</p>' +
       _perYearTable(cmp) +
+      '<p class="admin-math-subtitle" style="margin-top:10px;">Per-tranche breakdown (each Brooklyn deposit aged through every year):</p>' +
+      _perTrancheTable(cmp) +
+      '<p class="admin-math-subtitle" style="margin-top:10px;">Brookhaven planning fee schedule (setup + quarterly accrual):</p>' +
+      _brookhavenTable(cmp) +
     '</div>';
   }
 
