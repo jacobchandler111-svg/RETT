@@ -853,17 +853,40 @@
       return bCfg;
     }
     if (type === 'C') {
-      var _pr = (parkRatio != null && Number.isFinite(Number(parkRatio)))
-        ? Math.max(0, Math.min(1, Number(parkRatio))) : null;
+      // Strategy C — MetLife structured installment sale
+      // (advisor 2026-05-27, RE-SPEC):
+      //
+      // Routed through the §453 installment engine with LOCKED 40/40/20
+      // weights. Recap stays Y0 ordinary per §453(i). Basis recovery
+      // flows proportionally with each installment per the §453 GP ratio
+      // — basis is contractually inside the insurance product, NOT
+      // parked in Brooklyn.
+      //
+      // The prior model (parkRatio + basisCash = basis + recap +
+      // (1-pr)·LT deployed at Y0) was wrong: it treated cost basis as
+      // deployable Brooklyn capital. The MetLife product can hold sale
+      // proceeds (basis + LT), but basis returns to the seller as
+      // non-taxable principal recovery with each installment, not as a
+      // Y0 lump that can be invested in Brooklyn.
+      //
+      // Y0 down-payment (cfg.y0DownPayment) is an OPTIONAL knob the
+      // solver may sweep — recognizing some gain early to open a Y0
+      // Brooklyn tranche when that beats deferring everything.
+      // Default 0 means recap-only at Y0, all gain via 40/40/20.
+      var cYear = (currentCfg.year1 || (new Date()).getFullYear()) + 1;
       var cCfg = Object.assign({}, currentCfg, {
-        recognitionStartYearIndex: (bestRecC || 2) - 1,
+        recognitionStartYearIndex: 1,
+        maxRecognitionYearIndex:   null,
+        installmentPayments:       3,
+        installmentScheduleWeights: [0.4, 0.4, 0.2],
+        // Display-only label hint — engine ignores in installment path.
         structuredSaleDurationMonths: userDuration || 36,
-        maxRecognitionYearIndex: null,
-        // F2: C is structured sale, not §453 installment. Clear so
-        // entry.cfg unambiguously identifies C.
-        installmentPayments: null
+        // parkRatio retired for C.
+        parkRatio:                  null,
+        horizonYears: Math.max(4, Number(currentCfg.horizonYears) || 4),
+        implementationDate:         cYear + '-01-01',
+        strategyImplementationDate: cYear + '-01-01'
       });
-      if (_pr !== null) cCfg.parkRatio = _pr;
       return cCfg;
     }
     return null;
@@ -1005,106 +1028,21 @@
           comboId: p.comboId
         });
         if (type === 'C') {
-          // For C, recognition ALWAYS starts at year1+1 (the next Jan 1
-          // after closing) per advisor 2026-05-18 — no 15-month hold,
-          // no recognition-year sweep. Auto-pick varies duration
-          // (36/48/60/72), Brooklyn leverage/horizon, and parkRatio
-          // (how much gain to park in MetLife vs unpark as Y0 cash).
-          // bestRecC is fixed at 2 (= startIdx 1 = year1+1).
+          // Strategy C — MetLife structured installment sale
+          // (advisor 2026-05-27, RE-SPEC).
           //
-          // parkRatio sweep (advisor 2026-05-27): the engine used to
-          // hardcode "unpark as much as availableCapital allows," which
-          // is correct for early-year sales (Y0 tranche at near-full
-          // loss rate) but breaks for late-year sales where Y0's yfImpl
-          // collapses the loss rate. Sweeping parkRatio lets the
-          // optimizer pick "park everything" for December sales so Y1+
-          // tranches at full-year rates absorb the recognition stream.
+          // Routed through the §453 installment engine with LOCKED
+          // [0.40, 0.40, 0.20] weights. Solver picks best combo only —
+          // no parkRatio sweep (basis no longer parked at Y0; see
+          // _scenarioCfgFor('C',...) for rationale).
           //
-          // 3-pass sweep: coarse [0, 0.25, 0.5, 0.75, 1.0] finds the
-          // right neighborhood; fine ±0.20 in 0.05 steps refines; ultra-
-          // fine ±0.04 in 0.01 steps lands on the precise peak. Single-
-          // pass coarse left up to $489K on the table for non-trivial
-          // scenarios (true optimum frequently 0.85-0.95). 0.01 step
-          // chosen so post-optimizer net curve is flat enough at the
-          // peak that finer search wouldn't change displayed dollars.
-          // Total cost ~21 engine calls per (horizon, combo) - still
-          // <100ms total on typical scenarios.
-          // Custodian min check (advisor 2026-05-27): Schwab won't open
-          // a Y0 tranche with 0 < basisCash < lowest_combo_min ($1M for
-          // 145/45). If the auto-pick lands a parkRatio that produces
-          // basisCash in that gap, the displayed net is fictional - the
-          // tranche couldn't legally exist. Skip those parkRatios so the
-          // solver picks either (a) a parkRatio with basisCash >= $1M
-          // (legitimate Y0 opening) or (b) parkRatio that gives basisCash
-          // = 0 (no Y0 deposit at all, full park). User intent: solve
-          // for highest net considering only legally-realistic options.
-          var _basisFull = Math.max(0, Number(cfgSection.costBasis) || 0);
-          var _recap = Math.max(0, Number(cfgSection.acceleratedDepreciation) || 0);
-          var _totalLT = Math.max(0,
-            (Number(cfgSection.salePrice) || 0) - _basisFull - _recap
-            - (Number(cfgSection.shortTermPropertyGain) || 0));
-          var _availTotal = Math.max(0, Number(cfgSection.availableCapital) || 0);
-          var _basisAndRecap = _basisFull + _recap;
-          var _smallestCustodianMin = 1000000;
-          function _basisCashForParkRatio(pr) {
-            var maxUnpark = Math.max(0, _availTotal - _basisAndRecap);
-            var desiredUnpark = _totalLT * (1 - pr);
-            var unparked = Math.min(desiredUnpark, maxUnpark, _totalLT);
-            return Math.min(_availTotal, _basisAndRecap + unparked);
+          // Y0 down-payment sweep is a follow-on optimization (next
+          // commit); this pass uses y0DownPayment = 0 (recap-only Y0).
+          var typedCfg = _scenarioCfgFor(type, cfgSection, 3, 36);
+          var m = _scenarioMetrics(typedCfg);
+          if (m && (!best || m.net > best.net)) {
+            best = { horizon: hor, shortPct: p.shortPct, comboId: p.comboId, bestRecC: 3, net: m.net, durationMonths: 36, parkRatio: null };
           }
-          function _isLegalParkRatio(pr) {
-            var bc = _basisCashForParkRatio(pr);
-            return (bc <= 0 || bc >= _smallestCustodianMin);
-          }
-          var durationsThisHor = _durationsForHorizon(hor);
-          var coarseRatios = [0, 0.25, 0.5, 0.75, 1.0];
-          durationsThisHor.forEach(function (durMo) {
-            var coarseBest = null;
-            coarseRatios.forEach(function (pr) {
-              if (!_isLegalParkRatio(pr)) return;
-              var typedCfg = _scenarioCfgFor(type, cfgSection, 2, durMo, pr);
-              var m = _scenarioMetrics(typedCfg);
-              if (m && (!coarseBest || m.net > coarseBest.net)) {
-                coarseBest = { pr: pr, net: m.net };
-              }
-              if (m && (!best || m.net > best.net)) {
-                best = { horizon: hor, shortPct: p.shortPct, comboId: p.comboId, bestRecC: 2, net: m.net, durationMonths: durMo, parkRatio: pr };
-              }
-            });
-            var fineBest = coarseBest;
-            if (coarseBest) {
-              for (var step = 1; step <= 4; step++) {
-                [-1, 1].forEach(function (sign) {
-                  var pr = Math.round((coarseBest.pr + sign * step * 0.05) * 100) / 100;
-                  if (pr < 0 || pr > 1) return;
-                  if (coarseRatios.indexOf(pr) !== -1) return;
-                  if (!_isLegalParkRatio(pr)) return;
-                  var typedCfg = _scenarioCfgFor(type, cfgSection, 2, durMo, pr);
-                  var m = _scenarioMetrics(typedCfg);
-                  if (m && m.net > fineBest.net) {
-                    fineBest = { pr: pr, net: m.net };
-                  }
-                  if (m && (!best || m.net > best.net)) {
-                    best = { horizon: hor, shortPct: p.shortPct, comboId: p.comboId, bestRecC: 2, net: m.net, durationMonths: durMo, parkRatio: pr };
-                  }
-                });
-              }
-            }
-            if (fineBest) {
-              for (var ustep = 1; ustep <= 4; ustep++) {
-                [-1, 1].forEach(function (sign) {
-                  var pr = Math.round((fineBest.pr + sign * ustep * 0.01) * 100) / 100;
-                  if (pr < 0 || pr > 1) return;
-                  if (!_isLegalParkRatio(pr)) return;
-                  var typedCfg = _scenarioCfgFor(type, cfgSection, 2, durMo, pr);
-                  var m = _scenarioMetrics(typedCfg);
-                  if (m && (!best || m.net > best.net)) {
-                    best = { horizon: hor, shortPct: p.shortPct, comboId: p.comboId, bestRecC: 2, net: m.net, durationMonths: durMo, parkRatio: pr };
-                  }
-                });
-              }
-            }
-          });
         } else if (type === 'B') {
           // For B (§453 installment), each horizon iteration tries
           // exactly one N value (N = hor - 1, so Y0 + N payment years).
