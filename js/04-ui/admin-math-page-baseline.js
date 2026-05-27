@@ -87,6 +87,8 @@
     var fedRcap = _num(fed.recapTax);
     var fedLt   = _num(fed.ltTax);
     var amt     = _num(fed.amtTopUp);
+    var tmt     = _num(fed.tentativeMinimumTax);
+    var regFed  = _num(fed.regularFederalTax);
     var niit    = _num(fed.niit);
     var addmed  = _num(fed.addlMedicare);
     var seTax   = _num(fed.seTax);
@@ -95,7 +97,8 @@
     return {
       fed: fed, state: stateTax, sum: sum,
       buckets: { fedOrd: fedOrd, fedRcap: fedRcap, fedLt: fedLt,
-                 amt: amt, niit: niit, addmed: addmed, seTax: seTax }
+                 amt: amt, tmt: tmt, regFed: regFed,
+                 niit: niit, addmed: addmed, seTax: seTax }
     };
   }
 
@@ -119,7 +122,9 @@
           _bucketRow('Federal ordinary tax',       b.fedOrd,  '2026 bracket stack on baseOrdinaryIncome + STG (after §1211(b) loss offset)') +
           _bucketRow('Federal §1250 recap tax',    b.fedRcap, 'Capped at 25% per §1(h)(1)(E); 0 in without-sale') +
           _bucketRow('Federal LT cap gain tax',    b.fedLt,   '0% / 15% / 20% stack on max(0, longTermGain)') +
-          _bucketRow('AMT top-up',                 b.amt,     '§55 alt min tax &ndash; difference vs regular if higher') +
+          '<tr class="admin-math-amt-detail"><td><em>&nbsp;&nbsp;Regular federal tax</em></td><td class="admin-math-num"><em>' + _fmtUSD(b.regFed) + '</em></td><td>= ordinary + recap + LT (used as the AMT comparison base)</td></tr>' +
+          '<tr class="admin-math-amt-detail"><td><em>&nbsp;&nbsp;Tentative Minimum Tax (TMT)</em></td><td class="admin-math-num"><em>' + _fmtUSD(b.tmt) + '</em></td><td>§55(b) AMT on (ordinary + std-ded add-back) at 26/28% + LT layered at preferential rate</td></tr>' +
+          _bucketRow('AMT top-up',                 b.amt,     '= max(0, TMT &minus; Regular federal) = max(0, ' + _fmtUSD(b.tmt) + ' &minus; ' + _fmtUSD(b.regFed) + ')') +
           '<tr class="admin-math-subtotal"><td><strong>Federal subtotal</strong></td><td class="admin-math-num"><strong>' + _fmtUSD(fedTotal) + '</strong></td><td>fedOrd + fedRcap + fedLt + amt</td></tr>' +
           _bucketRow('NIIT (3.8%)',                b.niit,    '§1411 on LT + STG + recap + rental + dividend above MAGI threshold') +
           _bucketRow('Add\'l Medicare (0.9%)',     b.addmed,  '§3101(b)(2) on wages + SE&times;0.9235 above threshold') +

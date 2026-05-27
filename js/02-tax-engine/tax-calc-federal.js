@@ -477,12 +477,22 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       }
 
       const total = ordinaryTax + recapTax + ltTax + amtTopUp + niit + addlMed + seTax;
+      // Expose AMT internals so the admin panel can show how the top-up
+      // was derived (advisor wants to see TMT vs regular side-by-side).
+      // tentativeMinimumTax = §55(b) total under the alt-min regime
+      // (AMT applied to ordinary slice + preferential LTCG layered on
+      // top). regularFederalTax = the §1 stack that AMT is compared to.
+      // amtTopUp = max(0, tentativeMinimumTax - regularFederalTax).
+      const regularFederalTax = ordinaryTax + recapTax + ltTax;
+      const tentativeMinimumTax = amtTotal;
       return {
             ordinaryTax: ordinaryTax,
             recapTax: recapTax,
             ltTax: ltTax,
             seTax: seTax,
             amtTopUp: amtTopUp,
+            tentativeMinimumTax: tentativeMinimumTax,
+            regularFederalTax: regularFederalTax,
             niit: niit,
             addlMedicare: addlMed,
             // Surface the §1211(b) accounting so callers can render a
