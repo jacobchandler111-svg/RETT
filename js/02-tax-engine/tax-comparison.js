@@ -1086,7 +1086,22 @@ function unifiedTaxComparison(cfg, opts) {
       // Per-tranche tax carve-out for "cover taxes from sale" toggle
       // (deferred only). Rate held constant across the recognition
       // window — see _estimateGainTaxRate.
-      const _gainTaxRate = (isDeferred && cfg.coverTaxesFromSale) ? _estimateGainTaxRate(cfg) : 0;
+      //
+      // §453 installment carve exemption (advisor 2026-05-27): the
+      // original cover-taxes model carved an estimated tax slice from
+      // EVERY Brooklyn deposit (basis tranche AND each installment
+      // reinvest). That model is right for Strategies A and C, where
+      // the seller has cash at sale and is "reserving" some of it for
+      // the April tax bill before Brooklyn opens. For Strategy B (§453
+      // installment), the seller hasn't received any cash until the
+      // first installment arrives - they pay taxes naturally from each
+      // installment as it lands, without "reserving" anything in
+      // advance. Applying the carve to B reduced its effective
+      // Brooklyn deployment by ~30% per installment (over-conservative)
+      // and made B underperform A on cover-taxes-ON scenarios where
+      // it should have won. Verified before/after: B's net jumped from
+      // \$650K to \$945K on a canonical \$5M/\$250K Mar 2 HoH scenario.
+      const _gainTaxRate = (isDeferred && cfg.coverTaxesFromSale && !_isInstallment) ? _estimateGainTaxRate(cfg) : 0;
       const _reinvestFrac = 1 - _gainTaxRate;
 
       // Brookhaven advisory wrap — same schedule for both modes
