@@ -55,6 +55,49 @@ function _flatBracketTax(amount, brackets) {
           return tax;
 }
 
+// Per-slice bracket tax with a per-slice rate ceiling. Used for §1250
+// unrecaptured gain (advisor-confirmed methodology 2026-05-27): the
+// recap slice stacks on top of ordinary income (W-2 etc.), each
+// bracket slot it touches is taxed at min(slot rate, rateCap). Where
+// the bracket rate is below the cap, that slice pays the bracket rate;
+// once the recap slice crosses into a bracket above the cap, the cap
+// kicks in for the remainder. This is taxpayer-favorable vs the IRS
+// Schedule D Tax Worksheet's "min(stacked-at-ordinary, cap × recap)"
+// total-comparison approach. Advisor chose this method to match how
+// the strategy is presented to clients.
+//   amount           — width of the slice to tax
+//   baseAlreadyTaxed — top of the ordinary stack the slice sits on top of
+//   brackets         — same [[cap, rate], ...] shape as _flatBracketTax
+//   rateCap          — per-slice ceiling (0.25 for §1250)
+function _flatBracketTaxCapped(amount, baseAlreadyTaxed, brackets, rateCap) {
+          if (amount <= 0 || !brackets || !brackets.length) return 0;
+          let tax = 0;
+          let remaining = amount;
+          let cursor = Math.max(0, baseAlreadyTaxed);
+          let prevMax = 0;
+          for (const b of brackets) {
+                        const cap = b[0], rate = b[1];
+                        if (remaining <= 0.005) break;
+                        if (cap <= cursor) { prevMax = cap; continue; }
+                        const sliceFloor = Math.max(prevMax, cursor);
+                        const sliceTop   = Math.min(cap, cursor + remaining);
+                        const width      = sliceTop - sliceFloor;
+                        if (width > 0) {
+                                    tax += width * Math.min(rate, rateCap);
+                                    remaining -= width;
+                                    cursor = sliceTop;
+                        }
+                        prevMax = cap;
+          }
+          // If recap extends past the top declared bracket, anything left
+          // pays at the top bracket's rate capped at rateCap.
+          if (remaining > 0.005 && brackets.length) {
+                        const topRate = brackets[brackets.length - 1][1];
+                        tax += remaining * Math.min(topRate, rateCap);
+          }
+          return tax;
+}
+
 function _amtForYearStatus(year, status) {
           const k = fsKey(status);
           const factor = _yearProjectionFactor(year);
@@ -383,21 +426,27 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       const _deductionConsumedOnOrd = Math.max(0, ordinaryGross - taxableOrdinary - _carriedLossOrdOffset);
       const _leftoverDeduction = Math.max(0, deduction - _deductionConsumedOnOrd);
 
-      // §1(h)(1)(E) — unrecaptured §1250 gain caps at 25%. Compute
-      // the bracket tax on taxableOrdinary BOTH including and
-      // excluding the recapture slice, then attribute the difference
-      // to recapTaxAtOrdinary. The §1250 cap floors that slice at
-      // 25% × recapture; ordinary income outside the recapture slice
-      // pays normal marginal rates.
+      // §1(h)(1)(E) unrecaptured §1250 gain — PER-SLICE 25% cap
+      // (advisor methodology, confirmed 2026-05-27). Recap stacks on
+      // top of taxableOrdinary minus recap (= W-2/STG/etc. after std
+      // deduction). For each ordinary bracket the recap slice touches,
+      // that piece is taxed at min(bracket rate, 25%). Differs from
+      // the IRS Schedule D Tax Worksheet, which uses a total-comparison
+      // cap (min(stacked-at-ordinary, 25% × recap)); the per-slice
+      // method is taxpayer-favorable for scenarios where part of recap
+      // falls into a bracket above 25% (the over-25% portion gets
+      // capped; the below-25% portion does NOT get pulled up to 25%
+      // by the worksheet's all-or-nothing comparison).
       const _recapInTaxable = Math.min(_recap, taxableOrdinary);
       const _taxableOrdExRecap = Math.max(0, taxableOrdinary - _recapInTaxable);
       const ordinaryTaxExRecap = _flatBracketTax(_taxableOrdExRecap, ordBrk);
       const ordinaryTaxIncRecap = _flatBracketTax(taxableOrdinary, ordBrk);
+      const recapTax = (_recapInTaxable > 0)
+            ? _flatBracketTaxCapped(_recapInTaxable, _taxableOrdExRecap, ordBrk, 0.25)
+            : 0;
+      // Keep these for AMT-comparison and other call sites that read them.
       const _recapTaxAtOrdinary = Math.max(0, ordinaryTaxIncRecap - ordinaryTaxExRecap);
       const _recapTaxCapped = _recapInTaxable * 0.25;
-      const recapTax = (_recapInTaxable > 0)
-            ? Math.min(_recapTaxAtOrdinary, _recapTaxCapped)
-            : 0;
       const ordinaryTax = ordinaryTaxExRecap;
 
       let ltTax = 0;
