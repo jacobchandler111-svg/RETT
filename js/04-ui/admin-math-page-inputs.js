@@ -105,7 +105,7 @@
       _row('W-2 Wages',                w2,      '#w2-wages — IRC §61(a)(1); ordinary brackets + Additional Medicare base'),
       _row('Interest Income',          interest,'#interest-income — IRC §61(a)(4); ordinary brackets + NIIT base per §1411(c)(1)(A)(i)'),
       _row('Ordinary Dividends',       ordDiv,  '#dividend-income — non-qualified, ordinary brackets + NIIT base'),
-      _row('Qualified Dividends',      qualDiv, '#qualified-dividends — INERT (engine wiring pending) — would route to LTCG rates per §1(h)(11)'),
+      _row('Qualified Dividends',      qualDiv, '#qualified-dividends — IRC §1(h)(11); LTCG preferential rates + NIIT base; stacks on ordinary for bracket placement'),
       _row('Retirement Distributions', retDist, '#retirement-distributions — ordinary brackets; §1411(c)(5) excludes from NIIT base'),
       _row('Social Security (gross)',  socSec,  '#social-security — INERT (engine wiring pending) — §86 worksheet would derive taxable portion'),
       _row('Rental Income',            rental,  '#rental-income — Schedule E; ordinary brackets + NIIT base (passive default)'),

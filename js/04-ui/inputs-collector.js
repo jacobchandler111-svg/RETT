@@ -291,6 +291,14 @@ function collectInputs() {
                 // rental/dividend/retirement income.
                 wages:               _wageIncomeForAddlMedicare(),
                 investmentIncomeOrdinary: _ordinaryInvestmentIncome(),
+                // Qualified dividends (1040 Line 3a). Taxed at LTCG
+                // preferential rates per IRC §1(h)(11); also in §1411
+                // NIIT base. Stacks on top of ordinary income for
+                // bracket placement, same as LT capital gain. Engine
+                // path: scenario.qualifiedDividend → computeFederalTax-
+                // Breakdown opts.qualifiedDividend → ltAmount in the
+                // bracket walk. Wired 2026-05-27.
+                qualifiedDividend:   _safeIncome('qualified-dividends'),
                 baseShortTermGain:   parseUSD(_val('short-term-gain')),
                 // Q7: non-property LT cap gain income (stocks, crypto, etc.).
                 // Recurs annually; engine adds it to the LT bucket each year

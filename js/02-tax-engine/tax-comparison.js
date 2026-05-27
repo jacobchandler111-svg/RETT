@@ -192,6 +192,13 @@ function _baseScenarioForYear(cfg, yr, gainTakenThisYear, recaptureThisYear) {
       // rental income pay the right NIIT every year.
       const _scaledInvOrd = (cfg.investmentIncomeOrdinary || 0) * Math.pow(1 + _infl, Math.max(0, idx));
       const _recap = Math.max(0, Number(recaptureThisYear) || 0);
+      // Qualified dividends — recurring annual income, inflation-scaled
+      // alongside other recurring streams. IRC §1(h)(11): preferential
+      // LTCG rates, stacks on ordinary for bracket placement, in NIIT
+      // base. Engine path: scenario.qualifiedDividend → opts.qualified-
+      // Dividend → computeFederalTaxBreakdown ltAmount + investment-
+      // Income. Wired 2026-05-27.
+      const _scaledQualDiv = (cfg.qualifiedDividend || 0) * Math.pow(1 + _infl, Math.max(0, idx));
       return {
             year: yr,
             status: cfg.filingStatus,
@@ -204,7 +211,7 @@ function _baseScenarioForYear(cfg, yr, gainTakenThisYear, recaptureThisYear) {
             depreciationRecapture: _recap,
             shortTermGain: shortOverride,
             longTermGain: ltAmt,
-            qualifiedDividend: 0,
+            qualifiedDividend: _scaledQualDiv,
             // NIIT base = LT gain + ST gain + §1250 unrecaptured gain +
             // passive ordinary (rental / non-qualified div / interest).
             // Per §1411, depreciation recapture from a property sale IS
@@ -215,7 +222,7 @@ function _baseScenarioForYear(cfg, yr, gainTakenThisYear, recaptureThisYear) {
             // netting in _applyLossesToScenario / _applyLossesWithSTCfCap
             // now subtracts offset amounts from this same base, keeping
             // ledger consistent.
-            investmentIncome: ltAmt + Math.max(0, shortOverride) + _recap + _scaledInvOrd,
+            investmentIncome: ltAmt + Math.max(0, shortOverride) + _recap + _scaledInvOrd + _scaledQualDiv,
             // Additional-Medicare wage base. cfg.wages (W-2 + SE only)
             // when supplied — scaled by the same inflation factor as
             // baseOrdinaryIncome so wages grow alongside brackets.
@@ -1296,10 +1303,12 @@ function unifiedTaxComparison(cfg, opts) {
                   : ((typeof window !== 'undefined' && window.TAX_DATA && typeof window.TAX_DATA.inflationRate === 'number')
                         ? window.TAX_DATA.inflationRate : 0);
             var _dnScaledInvOrd = (cfg.investmentIncomeOrdinary || 0) * Math.pow(1 + _dnInflRate, Math.max(0, i));
+            var _dnScaledQualDiv = (cfg.qualifiedDividend || 0) * Math.pow(1 + _dnInflRate, Math.max(0, i));
             dnBaseline.investmentIncome = (dnBaseline.longTermGain || 0)
                   + Math.max(0, dnBaseline.shortTermGain || 0)
                   + (dnBaseline.depreciationRecapture || 0)
-                  + _dnScaledInvOrd;
+                  + _dnScaledInvOrd
+                  + _dnScaledQualDiv;
             const dnBaselineTax = _yearTaxes(dnBaseline);
 
             // Apply Brooklyn losses to the matched-timing baseline.
