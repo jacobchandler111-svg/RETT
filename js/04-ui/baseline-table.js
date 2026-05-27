@@ -259,10 +259,14 @@
     if (Math.abs(delta_fedOrd)   > 0.5) deltaParts.push('Ord ' + _fmt(delta_fedOrd));
     _set('bt-delta-sub', deltaParts.length ? deltaParts.join(' · ') : 'No sale entered');
 
-    // Pie chart: share of sale price kept (blue) vs paid in tax (red).
-    // Per advisor 2026-05-26 - denominator is salePrice so the chart
-    // tells the client "you keep X% of your sale; Y% goes to tax."
-    _renderPieChart(sale, delta_total);
+    // 2026-05-27: middle "Cash Kept from Sale" tile = salePrice − tax.
+    // Donut denominator switched from salePrice to GAIN (sale − basis)
+    // so the % LOST in the donut center answers "how much of your
+    // economic gain is going to tax?"
+    var cashKept = Math.max(0, sale - delta_total);
+    _set('bt-cash-kept', _fmt(cashKept));
+    var gainEconomic = Math.max(0, sale - basis);
+    _renderPieChart(gainEconomic, delta_total);
 
     // -----------------------------------------------------------------
     // Q3: Per-property tax breakdown (double-click middle tile reveals).
@@ -385,22 +389,23 @@
     render();
   }
 
-  // Pie chart renderer (advisor 2026-05-26). Two-slice pie:
-  //   blue (keep) = (salePrice − taxDueFromSale) / salePrice
-  //   red  (tax)  = taxDueFromSale / salePrice
-  // Drawn as SVG arcs into #bt-pie-slices. Center text shows the
-  // keep percent (the optimistic number). Legend amounts + percents
-  // populated alongside.
-  function _renderPieChart(salePrice, taxDueFromSale) {
+  // Pie chart renderer (advisor 2026-05-27 revision). Denominator is
+  // now GAIN (sale − basis), not sale price. Two-slice donut:
+  //   blue (Gain Kept) = (gain − taxDueFromSale) / gain
+  //   red  (Gain Lost) = taxDueFromSale / gain
+  // Center text shows the LOST percent (red — the number that
+  // matters). When tax > gain (recap-heavy scenarios), slice clips
+  // at 100% red and the dollar labels carry the truth.
+  function _renderPieChart(gain, taxDueFromSale) {
     var slicesEl = document.getElementById('bt-pie-slices');
     if (!slicesEl) return;
-    var sp = Math.max(0, Number(salePrice) || 0);
+    var g = Math.max(0, Number(gain) || 0);
     var tax = Math.max(0, Number(taxDueFromSale) || 0);
-    // Clip tax at sale so the pie can't exceed 100%.
-    var taxBounded = Math.min(tax, sp);
-    var keep = Math.max(0, sp - taxBounded);
-    var keepPct = sp > 0 ? (keep / sp) : 0;
-    var taxPct  = sp > 0 ? (taxBounded / sp) : 0;
+    // Clip tax at gain so the pie can't exceed 100%.
+    var taxBounded = Math.min(tax, g);
+    var keep = Math.max(0, g - taxBounded);
+    var keepPct = g > 0 ? (keep / g) : 0;
+    var taxPct  = g > 0 ? (taxBounded / g) : 0;
 
     // SVG geometry: 200x200 viewBox, donut centered at (100, 100),
     // outer radius 88, inner radius 56 (matches the existing ribbon
@@ -444,11 +449,17 @@
 
     var centerEl = document.getElementById('bt-pie-center');
     if (centerEl) {
-      centerEl.textContent = sp > 0 ? (keepPct * 100).toFixed(1) + '%' : '—';
+      // Center number is the LOST percent (red). Show truth — when
+      // tax > gain, the raw (uncapped) percent is what the advisor
+      // wants to see; the slice still clips at 100% visually.
+      var lostPctRaw = g > 0 ? (tax / g) : 0;
+      centerEl.textContent = g > 0 ? (lostPctRaw * 100).toFixed(1) + '%' : '—';
     }
+    // Labels carry true dollars (unclipped) so a recap-heavy scenario
+    // where tax > gain still reports the real tax figure.
     _set('bt-pie-keep-amt', _fmt(keep));
     _set('bt-pie-keep-pct', (keepPct * 100).toFixed(1) + '%');
-    _set('bt-pie-tax-amt', _fmt(taxBounded));
+    _set('bt-pie-tax-amt', _fmt(tax));
     _set('bt-pie-tax-pct', (taxPct * 100).toFixed(1) + '%');
   }
 

@@ -8323,10 +8323,10 @@ body { font-size: 16px; }
    ============================================================ */
 .baseline-pie-row {
     display: grid;
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
-    gap: 28px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.15fr);
+    gap: 22px;
     align-items: stretch;
-    max-width: 1100px;
+    max-width: 1280px;
     margin: 24px auto 32px;
 }
 .baseline-tile--hero {
@@ -8358,6 +8358,36 @@ body { font-size: 16px; }
     font-size: 0.92rem;
 }
 
+/* 2026-05-27 — middle "Cash Kept from Sale" tile (BrookHaven blue). */
+.baseline-tile--cash-kept {
+    padding: 36px 40px;
+    background: linear-gradient(135deg, #fff 0%, #eff6ff 100%);
+    border: 1px solid #bfdbfe;
+    border-radius: 16px;
+    box-shadow: 0 4px 18px rgba(37, 99, 235, 0.08);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 14px;
+}
+.baseline-tile--cash-kept .baseline-tile-label {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #6b7280;
+    letter-spacing: 0.01em;
+}
+.baseline-tile--cash-kept .baseline-tile-value {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 3.4rem;
+    font-weight: 600;
+    line-height: 1.05;
+    color: #1d4ed8;
+}
+.baseline-tile--cash-kept .baseline-tile-sub {
+    color: var(--muted, #6b7280);
+    font-size: 0.92rem;
+}
+
 .baseline-pie-card {
     padding: 28px 28px;
     background: #fff;
@@ -8367,6 +8397,7 @@ body { font-size: 16px; }
     flex-direction: column;
     gap: 14px;
     box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05);
+    align-items: center;
 }
 .baseline-pie-label {
     font-size: 1.05rem;
@@ -8375,20 +8406,55 @@ body { font-size: 16px; }
     letter-spacing: 0.01em;
 }
 .baseline-pie-wrap {
-    display: grid;
-    grid-template-columns: 200px 1fr;
-    gap: 24px;
+    display: flex;
+    flex-direction: column;
     align-items: center;
+    gap: 18px;
 }
 .baseline-pie-svg {
-    width: 200px;
-    height: 200px;
+    width: 260px;
+    height: 260px;
 }
 .baseline-pie-center {
     font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-    font-size: 30px;
+    font-size: 38px;
     font-weight: 700;
-    fill: #1f2937;
+    fill: #b91c1c;
+}
+.baseline-pie-keylabels {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    max-width: 260px;
+}
+.baseline-pie-keylabel {
+    display: grid;
+    grid-template-columns: 28px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 0;
+}
+.baseline-pie-keylabel-line {
+    display: block;
+    height: 3px;
+    width: 24px;
+    border-radius: 2px;
+}
+.baseline-pie-keylabel--keep .baseline-pie-keylabel-line { background: #2563eb; }
+.baseline-pie-keylabel--lost .baseline-pie-keylabel-line { background: #dc2626; }
+.baseline-pie-keylabel-title {
+    font-size: 1.0rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+.baseline-pie-keylabel--keep .baseline-pie-keylabel-title { color: #1d4ed8; }
+.baseline-pie-keylabel--lost .baseline-pie-keylabel-title { color: #b91c1c; }
+.baseline-pie-keylabel-amt {
+    font-variant-numeric: tabular-nums;
+    font-size: 1.05rem;
+    color: #1f2937;
+    font-weight: 600;
 }
 .baseline-pie-legend {
     display: flex;
@@ -8434,12 +8500,11 @@ body { font-size: 16px; }
     text-align: right;
 }
 
-@media (max-width: 880px) {
+@media (max-width: 1100px) {
     .baseline-pie-row {
         grid-template-columns: 1fr;
     }
     .baseline-pie-wrap {
-        grid-template-columns: 1fr;
-        justify-items: center;
+        align-items: center;
     }
 }
