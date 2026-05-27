@@ -109,8 +109,8 @@
       _row('Retirement Distributions', retDist, '#retirement-distributions — ordinary brackets; §1411(c)(5) excludes from NIIT base'),
       _row('Social Security (gross)',  socSec,  '#social-security — IRC §86 provisional-income worksheet derives taxable portion (see derived section); ordinary brackets, NOT in NIIT or Add’l Medicare base'),
       _row('Rental Income',            rental,  '#rental-income — Schedule E; ordinary brackets + NIIT base (passive default)'),
-      _row('Business Income',          bizAmt,  '#business-income-amount — INERT (engine wiring pending) — type below drives SE-tax routing'),
-      _row('Business Income Type',     bizType, 'INERT — radio group; gates §1401 SE tax application')
+      _row('Business Income',          bizAmt,  '#business-income-amount — always in ordinary brackets; SE-tax routing depends on type below'),
+      _row('Business Income Type',     bizType, 'Radio group; type ∈ {se, k1-partnership-gp} triggers §1401 SE tax + Add’l Medicare; {k1-scorp, k1-partnership-lp} exempt per §1402(a)(13)')
     ]));
 
     sections.push(_section('Derived Income Bases (engine reads these)', [
@@ -188,13 +188,34 @@
       else ssTier = 'Tier 3 (up to 85%; prov > ' + _fmtUSD(t2) + ')';
     }
 
+    // SE tax derivation (IRC §1401). Active when type triggers SE.
+    // Mirrors the engine's tax-calc-federal computation: seBase =
+    // seIncome × 0.9235; SS 12.4% on min(seBase, wageBase − W2);
+    // Medicare 2.9% uncapped.
+    var seTriggers = (bizType === 'se' || bizType === 'k1-partnership-gp');
+    var seEligible = seTriggers ? bizAmt : 0;
+    var seTaxRow = '—', halfSERow = '—';
+    if (seEligible > 0 && typeof root.TAX_DATA !== 'undefined') {
+      var seBase = seEligible * 0.9235;
+      var ssWageBase = Number(root.TAX_DATA && root.TAX_DATA.ssWageBase) || 184500;
+      var ssRoom = Math.max(0, ssWageBase - w2);
+      var ssTax = Math.min(seBase, ssRoom) * 0.124;
+      var medTax = seBase * 0.029;
+      var seTaxTotal = ssTax + medTax;
+      seTaxRow = _fmtUSD(seTaxTotal) + ' (SS ' + _fmtUSD(ssTax) + ' + Med ' + _fmtUSD(medTax) + ')';
+      halfSERow = _fmtUSD(seTaxTotal * 0.5) + ' — NOT YET DEDUCTED (P1 follow-up; §164(f) above-the-line)';
+    }
+
     sections.push(_section('Derived Values (engine reads these)', [
       _row('totalGain', totalGain, 'salePrice &minus; costBasis = ' + _fmtUSD(sp) + ' &minus; ' + _fmtUSD(cb)),
       _row('longTermGain', ltDerived, 'salePrice &minus; costBasis &minus; acceleratedDepreciation &minus; shortTermPropertyGain'),
       _row('recapture (§1250)', recapDerived, '= acceleratedDepreciation; recognized as Y1 ordinary income, capped at 25%'),
       _row('SS provisional income', ssProv, '§86 worksheet: otherAGI + 50% × gross SS (' + _fmtUSD(socSec) + ')'),
       _row('SS §86 tier', ssTier, 'Drives 0% / up to 50% / up to 85% taxable inclusion'),
-      _row('SS taxable portion', ssTaxable, 'Added to ordinary brackets each year; NOT in NIIT or Add’l Medicare base; engine subtracts SS-exempt states like GA NOT modeled per-state')
+      _row('SS taxable portion', ssTaxable, 'Added to ordinary brackets each year; NOT in NIIT or Add’l Medicare base; per-state SS exemption NOT modeled'),
+      _row('SE-eligible business income', seEligible, seTriggers ? 'type=' + bizType + ' triggers §1401 SE tax' : 'type=' + (bizType || '—') + ' exempt from SE tax per §1402(a)(13)'),
+      _row('SE tax (§1401)', seTaxRow, 'seBase = amount × 0.9235; SS 12.4% capped at SSA wage base net of W-2; Medicare 2.9% uncapped'),
+      _row('Half-SE deduction', halfSERow, 'Half of SE tax should reduce AGI per §164(f); engine does NOT yet apply this — overstates baseline tax for SE-heavy clients')
     ]));
 
     return sections.join('');

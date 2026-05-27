@@ -233,6 +233,14 @@ function _baseScenarioForYear(cfg, yr, gainTakenThisYear, recaptureThisYear) {
             shortTermGain: shortOverride,
             longTermGain: ltAmt,
             qualifiedDividend: _scaledQualDiv,
+            // SE-eligible portion of business income. Engine applies
+            // 12.4% SS (capped at SSA wage base, net of W-2) + 2.9%
+            // Medicare (uncapped) on (seIncome × 0.9235). Also folds
+            // into the Additional Medicare wage base via
+            // computeFederalTaxBreakdown's internal wage = w2 +
+            // (seIncome × 0.9235). Scaled by inflation alongside
+            // wages so multi-year projections stay coherent.
+            seIncome: (cfg.seIncome || 0) * Math.pow(1 + _infl, Math.max(0, idx)),
             _taxableSocialSecurity: _taxableSS,
             _grossSocialSecurity:   _scaledGrossSS,
             // NIIT base = LT gain + ST gain + §1250 unrecaptured gain +
@@ -269,6 +277,7 @@ function _yearTaxes(scenario) {
       const _rcp = Number(_s.depreciationRecapture) || 0;
       const _inv = (_s.investmentIncome != null) ? Number(_s.investmentIncome) : (_lt + _qd);
       const _w   = (_s.wages != null) ? Number(_s.wages) : 0;
+      const _se  = Number(_s.seIncome) || 0;
       const _itm = Number(_s.itemized) || 0;
       const _yr  = _s.year != null ? _s.year : (new Date()).getFullYear();
       const _stat = _s.status || 'single';
@@ -279,6 +288,7 @@ function _yearTaxes(scenario) {
             { longTermGain: _lt, qualifiedDividend: _qd,
               depreciationRecapture: _rcp,
               investmentIncome: _inv, wages: _w,
+              seIncome: _se,
               itemized: _itm });
       // State tax sees recapture as ordinary income — most states do
       // NOT honor the federal §1250 25% cap. Pass recapture into the
