@@ -1065,39 +1065,56 @@ function unifiedTaxComparison(cfg, opts) {
             return 0;
       })();
 
-      // Per-tranche loss rate. When tier-jumping is active (Schwab combo
-      // cfg) we read the tranche's combo.lossByYear; otherwise we fall
-      // back to the cfg-wide curve (unchanged legacy behavior).
+      // Tier-migration (advisor 2026-05-27): when cumulative active
+      // capital crosses a higher combo's minimum, ALL active tranches
+      // migrate to that combo at their CURRENT age. The old model
+      // tagged each tranche at creation and never moved it; that
+      // understated losses for early tranches when later deposits
+      // pushed cumulative past a threshold.
       //
-      // Tier-jumping rationale (advisor 2026-05-26): each tranche uses
-      // the highest-leverage Schwab combo whose minInvestment <=
-      // cumulative deposit AT THE TIME the tranche opens, capped at the
-      // user-selected combo's leverage. So a $1.5M Y1 deposit -> 145/45
-      // (min $1M, 200/100's $3M not yet met). A $1.5M reinvest tranche
-      // at Y2 -> cumulative now $3M -> 200/100 (its 0.59 Y1 loss rate
-      // applies to THIS tranche at trancheAge=0). Capped-at-user-
-      // selection means: if the user picked 145/45, engine never jumps
-      // to 200/100. Setup for _tieringCombos / _pickComboForCumulative
-      // is at the top of unifiedTaxComparison (hoisted to be ready by
-      // the time the Y1 tranche is created).
+      // Example: $3M sale, 50/50 weights. Y1 deposit $1.5M opens at
+      // 145/45 (cum=$1.5M). Y2 deposit $1.5M brings cum to $3M
+      // → 200/100 threshold crossed. At Y2:
+      //   • Y1 tranche (now age 1): uses 200/100 age-1 (49%) instead
+      //     of 145/45 age-1 (27%).
+      //   • Y2 tranche (age 0): uses 200/100 age-0 (59%).
+      // Y1 tranche keeps its age (does NOT reset to age-0 just because
+      // it migrated combos — the position is still 1 year old).
+      //
+      // _yearCombo is recomputed at the start of each year loop based
+      // on PEAK cumulative active capital seen so far (one-way ratchet —
+      // a maturing tax-reserve tranche shouldn't downgrade existing
+      // tranches). Bounded by _tieringCombos which already enforces
+      // the user's selected combo as the cap.
+      var _peakCumulativeForTier = 0;
+      var _yearCombo = combo;
+
       function _trancheLossRate(t, age) {
-            if (_tieringCombos.length && t && t.comboLossByYear && t.comboLossByYear.length) {
-                  var arr = t.comboLossByYear;
+            // Use _yearCombo (dynamic) when tier-jumping is active.
+            // Falls back to the tranche's stored creation-time combo
+            // for the legacy non-tier-jumping path.
+            var src = (_tieringCombos.length && _yearCombo && _yearCombo.lossByYear)
+                  ? _yearCombo.lossByYear
+                  : (t && t.comboLossByYear) || null;
+            if (src && src.length) {
                   var safeAge = Math.max(0, age | 0);
-                  var lastIdx = arr.length - 1;
+                  var lastIdx = src.length - 1;
                   var yfForThis = (t.startIdx === 0 && safeAge === 0) ? yfImpl : 1;
-                  if (safeAge === 0) return (arr[0] || 0) * yfForThis;
-                  var prev = arr[Math.min(safeAge - 1, lastIdx)] || 0;
-                  var curr = arr[Math.min(safeAge, lastIdx)] || 0;
+                  if (safeAge === 0) return (src[0] || 0) * yfForThis;
+                  var prev = src[Math.min(safeAge - 1, lastIdx)] || 0;
+                  var curr = src[Math.min(safeAge, lastIdx)] || 0;
                   return (1 - yfForThis) * prev + yfForThis * curr;
             }
             return lossRateForTrancheYear(age);
       }
 
-      // Per-tranche fee rate. With tier-jumping, each tranche pays its
-      // own combo's feeRate; without, all tranches share the cfg-wide
-      // feeRate computed above.
       function _trancheFeeRate(t) {
+            // Dynamic fee rate parallels loss-rate migration. Tranches
+            // migrating to a higher-leverage combo pay that combo's
+            // higher fee.
+            if (_tieringCombos.length && _yearCombo) {
+                  return _comboFeeRate(_yearCombo);
+            }
             if (_tieringCombos.length && t && typeof t.comboFeeRate === 'number') {
                   return t.comboFeeRate;
             }
@@ -1182,6 +1199,35 @@ function unifiedTaxComparison(cfg, opts) {
       for (let i = 0; i < horizon; i++) {
             const year = _y0 + i;
 
+            // Tier-migration: recompute _yearCombo based on PEAK
+            // cumulative active capital, INCLUDING this year's incoming
+            // installment payment (so the threshold-crossing year
+            // benefits existing tranches immediately, not next year).
+            // Peak ratchets upward only — a maturing tax-reserve tranche
+            // doesn't downgrade existing tranche combos.
+            (function () {
+                  var active = 0;
+                  for (var ti = 0; ti < tranches.length; ti++) {
+                        var t = tranches[ti];
+                        if (i < t.startIdx) continue;
+                        var _age = i - t.startIdx;
+                        if (typeof t.maxAgeInclusive === 'number' && _age > t.maxAgeInclusive) continue;
+                        active += t.capital;
+                  }
+                  // Predict THIS year's new deposit for installment mode
+                  // (known upfront from weights × contract). Non-
+                  // installment deferred reinvest depends on existingLoss
+                  // (circular), so don't predict — _yearCombo lags by one
+                  // year for that path. Strategy A has no reinvest.
+                  var newDeposit = 0;
+                  if (_isInstallment && i >= startIdx && i <= maturityIdx) {
+                        newDeposit = _installmentPaymentForIdx(i - startIdx);
+                  }
+                  var projected = active + newDeposit;
+                  if (projected > _peakCumulativeForTier) _peakCumulativeForTier = projected;
+                  _yearCombo = _pickComboForCumulative(_peakCumulativeForTier) || combo;
+            })();
+
             // Step 1 — existing tranches' loss + fee at this year's age.
             // Basis tranche (startIdx=0) gets partial-year fee in Y1.
             // Gain-reinvest tranches always open Jan 1 of their start
@@ -1237,7 +1283,13 @@ function unifiedTaxComparison(cfg, opts) {
                                     openYear: _y0 + t.startIdx,
                                     capital: t.capital,
                                     age: trancheAge,
-                                    comboId: t.comboId || null,
+                                    // Display the YEAR'S combo (post-migration),
+                                    // not the tranche's creation-time combo. This
+                                    // surfaces tier-migration in the admin
+                                    // breakdown so a CPA can see "Y1 tranche was
+                                    // 145/45 at age 0, migrated to 200/100 at
+                                    // age 1 when cumulative crossed $3M."
+                                    comboId: (_yearCombo && _yearCombo.id) || t.comboId || null,
                                     lossRate: _trancheLossRateV,
                                     feeRate: _trancheFeeRateV,
                                     yf: _trancheYf,
@@ -1423,9 +1475,17 @@ function unifiedTaxComparison(cfg, opts) {
                   var _existingCumulative = tranches.reduce(function (s, t) { return s + (t.capital || 0); }, 0);
                   var _cumulativeWithThis = _existingCumulative + reinvested;
                   _reinvestCombo = _pickComboForCumulative(_cumulativeWithThis);
-                  if (_tieringCombos.length && _reinvestCombo && _reinvestCombo.lossByYear) {
-                        _newTrancheLossRate = _reinvestCombo.lossByYear[0] || 0;
-                        _newTrancheFeeRate  = _comboFeeRate(_reinvestCombo) || feeRate;
+                  // New tranche's age-0 loss/fee uses _yearCombo (the
+                  // migrated combo for THIS year) so it aligns with the
+                  // existing tranches' migrated rates. Prevents the
+                  // "new tranche at one combo, existing at another"
+                  // inconsistency the old per-tranche-locked model had.
+                  var _newSrc = (_tieringCombos.length && _yearCombo && _yearCombo.lossByYear)
+                        ? _yearCombo
+                        : _reinvestCombo;
+                  if (_newSrc && _newSrc.lossByYear) {
+                        _newTrancheLossRate = _newSrc.lossByYear[0] || 0;
+                        _newTrancheFeeRate  = _comboFeeRate(_newSrc) || feeRate;
                   }
                   tranches.push({
                         capital: reinvested,
@@ -1514,7 +1574,10 @@ function unifiedTaxComparison(cfg, opts) {
                         openYear: year,
                         capital: reinvested,
                         age: 0,
-                        comboId: _reinvestCombo ? _reinvestCombo.id : null,
+                        // Display the year's migrated combo so the
+                        // breakdown shows the tier this tranche is
+                        // actually operating under.
+                        comboId: (_yearCombo && _yearCombo.id) || (_reinvestCombo ? _reinvestCombo.id : null),
                         lossRate: _newTrancheLossRate,
                         feeRate: _newTrancheFeeRate,
                         yf: 1,
