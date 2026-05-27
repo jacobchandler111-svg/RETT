@@ -299,6 +299,14 @@ function collectInputs() {
                 // Breakdown opts.qualifiedDividend → ltAmount in the
                 // bracket walk. Wired 2026-05-27.
                 qualifiedDividend:   _safeIncome('qualified-dividends'),
+                // Gross Social Security benefits (1040 Line 6a). Engine
+                // applies IRC §86 provisional-income worksheet inside
+                // _baseScenarioForYear to derive the taxable portion
+                // (0% / up to 50% / up to 85%) which is added to
+                // ordinary income. NOT in NIIT base, NOT in Additional
+                // Medicare wage base. State exemption varies; not
+                // modeled per-state. Wired 2026-05-27.
+                socialSecurityBenefits: _safeIncome('social-security'),
                 baseShortTermGain:   parseUSD(_val('short-term-gain')),
                 // Q7: non-property LT cap gain income (stocks, crypto, etc.).
                 // Recurs annually; engine adds it to the LT bucket each year

@@ -107,7 +107,7 @@
       _row('Ordinary Dividends',       ordDiv,  '#dividend-income — non-qualified, ordinary brackets + NIIT base'),
       _row('Qualified Dividends',      qualDiv, '#qualified-dividends — IRC §1(h)(11); LTCG preferential rates + NIIT base; stacks on ordinary for bracket placement'),
       _row('Retirement Distributions', retDist, '#retirement-distributions — ordinary brackets; §1411(c)(5) excludes from NIIT base'),
-      _row('Social Security (gross)',  socSec,  '#social-security — INERT (engine wiring pending) — §86 worksheet would derive taxable portion'),
+      _row('Social Security (gross)',  socSec,  '#social-security — IRC §86 provisional-income worksheet derives taxable portion (see derived section); ordinary brackets, NOT in NIIT or Add’l Medicare base'),
       _row('Rental Income',            rental,  '#rental-income — Schedule E; ordinary brackets + NIIT base (passive default)'),
       _row('Business Income',          bizAmt,  '#business-income-amount — INERT (engine wiring pending) — type below drives SE-tax routing'),
       _row('Business Income Type',     bizType, 'INERT — radio group; gates §1401 SE tax application')
@@ -161,10 +161,40 @@
     var ltDerived = Math.max(0, sp - cb - ad - stpg);
     var recapDerived = Math.max(0, ad);
     var totalGain = sp - cb;
+
+    // §86 SS taxable-portion derivation. Mirrors the engine's Y0 calc
+    // in _baseScenarioForYear so a CPA can verify the worksheet output.
+    // otherAGI excludes SS itself (provisional = otherAGI + 50% × SS).
+    var ssTaxable = 0, ssProv = 0, ssTier = '—';
+    if (socSec > 0 && typeof root._computeTaxableSocialSecurity === 'function') {
+      // baseOrdinaryIncome does NOT include SS (gross SS is captured
+      // separately on cfg.socialSecurityBenefits, not summed into the
+      // bracket-stack base). otherAGI = base ordinary + recurring cap
+      // gains + qualified div + property-sale derived gain/recapture.
+      // Matches what _baseScenarioForYear uses as the provisional
+      // base before adding 0.5 × scaled gross SS.
+      var otherAgi = (Number(cfg.baseOrdinaryIncome) || 0)
+                   + (Number(cfg.qualifiedDividend) || 0)
+                   + Math.max(0, Number(cfg.baseShortTermGain) || 0)
+                   + (Number(cfg.baseLongTermGain) || 0)
+                   + ltDerived + recapDerived;
+      ssProv = otherAgi + 0.5 * socSec;
+      ssTaxable = root._computeTaxableSocialSecurity(socSec, otherAgi, 0, cfg.filingStatus);
+      var t1 = (cfg.filingStatus === 'mfj') ? 32000 : 25000;
+      var t2 = (cfg.filingStatus === 'mfj') ? 44000 : 34000;
+      if (cfg.filingStatus === 'mfs') ssTier = 'MFS-lived-with-spouse → 85% from $0';
+      else if (ssProv <= t1) ssTier = 'Tier 1 (0% taxable; prov ≤ ' + _fmtUSD(t1) + ')';
+      else if (ssProv <= t2) ssTier = 'Tier 2 (up to 50%; prov ' + _fmtUSD(t1) + '–' + _fmtUSD(t2) + ')';
+      else ssTier = 'Tier 3 (up to 85%; prov > ' + _fmtUSD(t2) + ')';
+    }
+
     sections.push(_section('Derived Values (engine reads these)', [
       _row('totalGain', totalGain, 'salePrice &minus; costBasis = ' + _fmtUSD(sp) + ' &minus; ' + _fmtUSD(cb)),
       _row('longTermGain', ltDerived, 'salePrice &minus; costBasis &minus; acceleratedDepreciation &minus; shortTermPropertyGain'),
-      _row('recapture (§1250)', recapDerived, '= acceleratedDepreciation; recognized as Y1 ordinary income, capped at 25%')
+      _row('recapture (§1250)', recapDerived, '= acceleratedDepreciation; recognized as Y1 ordinary income, capped at 25%'),
+      _row('SS provisional income', ssProv, '§86 worksheet: otherAGI + 50% × gross SS (' + _fmtUSD(socSec) + ')'),
+      _row('SS §86 tier', ssTier, 'Drives 0% / up to 50% / up to 85% taxable inclusion'),
+      _row('SS taxable portion', ssTaxable, 'Added to ordinary brackets each year; NOT in NIIT or Add’l Medicare base; engine subtracts SS-exempt states like GA NOT modeled per-state')
     ]));
 
     return sections.join('');

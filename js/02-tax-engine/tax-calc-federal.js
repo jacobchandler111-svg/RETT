@@ -116,6 +116,49 @@ function _computeNiit(investmentIncome, magi, year, status) {
           return base * 0.038;
 }
 
+// §86 Social Security taxability worksheet. Returns the taxable
+// portion (0% / up to 50% / up to 85%) of gross SS benefits, which
+// is added to ordinary income on Form 1040 Line 6b.
+//
+// provisional = otherAGI + taxExemptInterest + 0.5 × grossSS
+//
+// Thresholds are STATUTORY and NOT inflation-indexed (IRC §86(c)):
+//   MFJ:           Tier 1 ≤ $32,000;  Tier 2 ≤ $44,000;  Tier 3 > $44,000
+//   Single / HoH:  Tier 1 ≤ $25,000;  Tier 2 ≤ $34,000;  Tier 3 > $34,000
+//   MFS lived-with-spouse: treated as Tier 3 from $0 (full 85%).
+//
+// Source: IRC §86; IRS Publication 915 Worksheet 1.
+//
+// State treatment is NOT modeled here - most states (incl. GA per
+// O.C.G.A. §48-7-27(a)(4)) exempt SS entirely. CO/CT/MN/RI/UT/VT/WV
+// have partial state-level SS taxation. Per advisor (GA-first), the
+// engine adds the taxable SS portion to the state base alongside
+// federal ordinary income, which over-states state tax for clients
+// in SS-exempt states. P1 follow-up to add a per-state SS-inclusion
+// flag to computeStateTax.
+function _computeTaxableSocialSecurity(grossSS, otherAGI, taxExemptInterest, status) {
+          var gss = Math.max(0, Number(grossSS) || 0);
+          if (gss <= 0) return 0;
+          var oth = Math.max(0, Number(otherAGI) || 0);
+          var txi = Math.max(0, Number(taxExemptInterest) || 0);
+          var provisional = oth + txi + 0.5 * gss;
+          var key = fsKey(status);
+          // MFS-lived-with-spouse: §86(c)(1)(C)(ii) sets thresholds to
+          // zero, effectively making 85% of SS taxable from dollar one.
+          if (key === 'married_separate') {
+                        return Math.min(0.85 * gss, 0.85 * provisional);
+          }
+          var t1 = (key === 'married_joint') ? 32000 : 25000;
+          var t2 = (key === 'married_joint') ? 44000 : 34000;
+          if (provisional <= t1) return 0;
+          if (provisional <= t2) {
+                        return Math.min(0.5 * (provisional - t1), 0.5 * gss);
+          }
+          var tier2Cap = 0.5 * (t2 - t1);
+          var tier3Add = 0.85 * (provisional - t2);
+          return Math.min(tier2Cap + tier3Add, 0.85 * gss);
+}
+
 function _computeAddlMedicare(wages, status) {
           const k = fsKey(status);
           const t = FED_ADDL_MEDICARE.threshold[k] != null

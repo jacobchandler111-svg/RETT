@@ -199,6 +199,22 @@ function _baseScenarioForYear(cfg, yr, gainTakenThisYear, recaptureThisYear) {
       // Dividend → computeFederalTaxBreakdown ltAmount + investment-
       // Income. Wired 2026-05-27.
       const _scaledQualDiv = (cfg.qualifiedDividend || 0) * Math.pow(1 + _infl, Math.max(0, idx));
+      // Social Security (gross). IRC §86 — taxable portion derived via
+      // the provisional-income worksheet. The taxable portion taxes at
+      // ordinary brackets but does NOT enter the NIIT base (Form 8960
+      // line 1 excludes SS) and does NOT enter the Additional Medicare
+      // wage base (SS is not earned income). Provisional includes the
+      // year's other ordinary income + capital gains + 50% of gross SS.
+      // SS itself is COLA-indexed, scale gross by the same inflation
+      // factor as wages so multi-year projections are coherent.
+      const _scaledGrossSS = (cfg.socialSecurityBenefits || 0) * Math.pow(1 + _infl, Math.max(0, idx));
+      var _taxableSS = 0;
+      if (_scaledGrossSS > 0 && typeof _computeTaxableSocialSecurity === 'function') {
+            var _ssRecapForProv = Math.max(0, Number(recaptureThisYear) || 0);
+            var _otherAgi = ordOverride + _scaledQualDiv + _scaledInvOrd
+                  + Math.max(0, shortOverride) + ltAmt + _ssRecapForProv;
+            _taxableSS = _computeTaxableSocialSecurity(_scaledGrossSS, _otherAgi, 0, cfg.filingStatus);
+      }
       return {
             year: yr,
             status: cfg.filingStatus,
@@ -207,11 +223,18 @@ function _baseScenarioForYear(cfg, yr, gainTakenThisYear, recaptureThisYear) {
             // field) so the engine can apply the §1250 25% cap. Adding
             // it to ordinaryIncome would silently route it through
             // full marginal rates.
-            ordinaryIncome: ordOverride,
+            // Taxable SS (§86) folds into ordinary income for bracket
+            // placement. Not added to investmentIncome (excluded from
+            // NIIT). State base inherits this via _ord pass-through in
+            // _yearTaxes - acceptable for GA-first audience, P1 to
+            // refine per-state SS exemption.
+            ordinaryIncome: ordOverride + _taxableSS,
             depreciationRecapture: _recap,
             shortTermGain: shortOverride,
             longTermGain: ltAmt,
             qualifiedDividend: _scaledQualDiv,
+            _taxableSocialSecurity: _taxableSS,
+            _grossSocialSecurity:   _scaledGrossSS,
             // NIIT base = LT gain + ST gain + §1250 unrecaptured gain +
             // passive ordinary (rental / non-qualified div / interest).
             // Per §1411, depreciation recapture from a property sale IS
