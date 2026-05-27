@@ -843,6 +843,25 @@
       // handling as C; B's solver search subsumes C's whenever B
       // also has this knob.
       var bY0Down = Math.max(0, Number(y0DownPayment) || 0);
+      // Date routing (advisor 2026-05-27 follow-up):
+      //   yfImpl drives the Y0 Brooklyn tranche's age-0 partial-year
+      //   loss multiplier AND the Brookhaven setup + Q1 proration. Two
+      //   regimes:
+      //     • D > 0: Brooklyn deploys at sale-close (the Y0 down
+      //       payment IS the Y0 deposit). yfImpl = sale-close year
+      //       fraction. Use the original strategyImplementationDate.
+      //     • D = 0: no Y0 Brooklyn tranche; Brooklyn first deploys
+      //       when the Y1 installment lands at year+1 Jan 1. yfImpl
+      //       should be 1.0 so Brookhaven Y0 gets the full Q1-Q4
+      //       (the engagement starts at signing/sale-close but the
+      //       year+1 deployment doesn't begin until Y1 Jan 1).
+      //   Engine handoff's "B is date-invariant" property is preserved
+      //   for the D=0 branch — only D>0 makes B date-sensitive, which
+      //   is correct (Y0 deposit timing really does matter).
+      var bStratDate = (bY0Down > 0 && currentCfg.strategyImplementationDate)
+            ? currentCfg.strategyImplementationDate
+            : bYear + '-01-01';
+      var bImplDate = bStratDate;
       var bCfg = Object.assign({}, currentCfg, {
         recognitionStartYearIndex: 1,
         maxRecognitionYearIndex:   null,
@@ -853,8 +872,8 @@
         parkRatio:                  null,
         y0DownPayment:              bY0Down,
         horizonYears: Math.max(bPayments + 1, Number(currentCfg.horizonYears) || (bPayments + 1)),
-        implementationDate:         bYear + '-01-01',
-        strategyImplementationDate: bYear + '-01-01'
+        implementationDate:         bImplDate,
+        strategyImplementationDate: bStratDate
         // year1 stays at original sale year so Y0 = year of sale (recap).
       });
       if (bWeights) bCfg.installmentScheduleWeights = bWeights;
@@ -888,6 +907,14 @@
       // tax-comparison.js `_y0DownPayment` handling. Default 0 keeps
       // the recap-only Y0 behavior.
       var _y0Down = Math.max(0, Number(y0DownPayment) || 0);
+      // Date routing parallels B (see comment in B branch). D>0 →
+      // sale-close (Y0 tranche needs partial-year yf); D=0 → year+1
+      // Jan 1 (Brookhaven Q1 starts when Brooklyn opens at first
+      // installment).
+      var cStratDate = (_y0Down > 0 && currentCfg.strategyImplementationDate)
+            ? currentCfg.strategyImplementationDate
+            : cYear + '-01-01';
+      var cImplDate = cStratDate;
       var cCfg = Object.assign({}, currentCfg, {
         recognitionStartYearIndex: 1,
         maxRecognitionYearIndex:   null,
@@ -899,8 +926,8 @@
         parkRatio:                  null,
         y0DownPayment:              _y0Down,
         horizonYears: Math.max(4, Number(currentCfg.horizonYears) || 4),
-        implementationDate:         cYear + '-01-01',
-        strategyImplementationDate: cYear + '-01-01'
+        implementationDate:         cImplDate,
+        strategyImplementationDate: cStratDate
       });
       return cCfg;
     }
