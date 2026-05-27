@@ -4622,6 +4622,15 @@ body { font-size: 16px; }
     line-height: 1.05;
     text-align: center;
     margin: 4px 0 12px;
+    /* Reserve 2-line height so all 3 cards align even when only one
+       name wraps (e.g. "Structured Installment Sale" wraps to 2 lines
+       while "Normal Sale" + "Installment Sale" fit on one). Without
+       this, the lockup + downstream rows on the longer-name card sit
+       31px lower than the others. Per advisor 2026-05-27. */
+    min-height: calc(1.85em * 1.05 * 2);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
 .rett-interested-net-label {
     font-family: var(--font-mono);

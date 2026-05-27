@@ -2130,12 +2130,14 @@
     if (typeLabel === 'A') {
       lockupValue = 'None &ndash; Cash up front';
     } else if (typeLabel === 'B') {
-      // Strategy B is now a §453 installment sale with N=1, 2, or 3
-      // yearly Jan-1 payments (auto-pick chooses N via bestRecC).
-      // Lockup line shows the auto-picked payment count.
+      // Strategy B is a §453 installment sale with N=1, 2, or 3 yearly
+      // Jan-1 payments. Lockup uses the same "N months" format as
+      // Strategy C so the three cards align cleanly. N×12 = months
+      // until the seller receives all payments (1yr=12mo, 2yr=24mo,
+      // 3yr=36mo). Per advisor 2026-05-27 - matches C's "36 months".
       var bN = (picked && picked.bestRecC) | 0;
       if (!bN || bN < 1) bN = 1;
-      lockupValue = bN + ' yearly Jan-1 payment' + (bN === 1 ? '' : 's');
+      lockupValue = (bN * 12) + ' months';
     } else {
       var pickedDur = (picked && picked.durationMonths) || durationMonths || 36;
       lockupValue = pickedDur + ' months';
