@@ -2768,9 +2768,10 @@
         },
         "flatRate": true,
         "standardDeduction": {
-          "single": 15000,
-          "married_joint": 30000
-        }
+          "single": 16100,
+          "married_joint": 32200
+        },
+        "_source": "Idaho HB 40 (2025 session) reduced flat rate from 5.695% to 5.3% effective tax year 2025; 2026 unchanged. Std ded via Idaho Code §63-3022 federal conformity (IRC §63). 2026 federal values per Rev. Proc. 2025-32 §3.16. Verified 2026-05-27."
       },
       "IL": {
         "brackets": {
@@ -2982,9 +2983,10 @@
           ]
         },
         "standardDeduction": {
-          "single": 15000,
-          "married_joint": 30000
+          "single": 16100,
+          "married_joint": 32200
         },
+        "_source": "Maine 3-bracket structure 5.8/6.75/7.15% per 36 MRSA §5111; brackets indexed annually by Maine Revenue Services. Bracket thresholds shown ($25,300 / $59,950 single) match 2024 values — engine bot to verify against MRS 2026 bulletin (published Dec 2025). Std ded via 36 MRSA §5125 federal conformity (IRC §63); 2026 federal values per Rev. Proc. 2025-32 §3.16. Updated std ded 2026-05-27.",
         "_TODO_millionaireSurtax": "Maine 2026+ millionaire's tax: 2% surcharge on Maine taxable income exceeding $1M (single) / $1.5M (MFJ, HOH). Source: 2025 Maine State Budget (signed mid-2025). Engine + tax-calc-state.js do NOT yet apply this surtax (similar pattern to MA millionaireSurcharge but with status-dependent threshold). High-ME-income clients get state tax understated by 2% on slice over $1M / $1.5M. Implementation note: extend MA-style millionaireSurcharge handler to support per-status thresholds, then add 'millionaireSurtax' field here with single $1M / mfj $1.5M / hoh $1.5M."
       },
       "MD": {
