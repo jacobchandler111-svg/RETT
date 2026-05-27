@@ -988,13 +988,15 @@
           // optimizer pick "park everything" for December sales so Y1+
           // tranches at full-year rates absorb the recognition stream.
           //
-          // 2-pass sweep: coarse [0, 0.25, 0.5, 0.75, 1.0] finds the
-          // right neighborhood, then fine ±0.20 in 0.05 steps around the
-          // coarse winner. Single-pass coarse missed real optima — the
-          // true best was frequently at 0.85-0.95 (e.g. $10M / $2M /
-          // Dec scenario: 0.95 yields $1.94M net vs coarse's 0.75
-          // showing only $1.49M, leaving $450K on the table). Fine pass
-          // costs ~8 extra engine calls per (horizon, combo).
+          // 3-pass sweep: coarse [0, 0.25, 0.5, 0.75, 1.0] finds the
+          // right neighborhood; fine ±0.20 in 0.05 steps refines; ultra-
+          // fine ±0.04 in 0.01 steps lands on the precise peak. Single-
+          // pass coarse left up to $489K on the table for non-trivial
+          // scenarios (true optimum frequently 0.85-0.95). 0.01 step
+          // chosen so post-optimizer net curve is flat enough at the
+          // peak that finer search wouldn't change displayed dollars.
+          // Total cost ~21 engine calls per (horizon, combo) - still
+          // <100ms total on typical scenarios.
           var durationsThisHor = _durationsForHorizon(hor);
           var coarseRatios = [0, 0.25, 0.5, 0.75, 1.0];
           durationsThisHor.forEach(function (durMo) {
@@ -1009,12 +1011,29 @@
                 best = { horizon: hor, shortPct: p.shortPct, comboId: p.comboId, bestRecC: 2, net: m.net, durationMonths: durMo, parkRatio: pr };
               }
             });
+            var fineBest = coarseBest;
             if (coarseBest) {
               for (var step = 1; step <= 4; step++) {
                 [-1, 1].forEach(function (sign) {
                   var pr = Math.round((coarseBest.pr + sign * step * 0.05) * 100) / 100;
                   if (pr < 0 || pr > 1) return;
                   if (coarseRatios.indexOf(pr) !== -1) return;
+                  var typedCfg = _scenarioCfgFor(type, cfgSection, 2, durMo, pr);
+                  var m = _scenarioMetrics(typedCfg);
+                  if (m && m.net > fineBest.net) {
+                    fineBest = { pr: pr, net: m.net };
+                  }
+                  if (m && (!best || m.net > best.net)) {
+                    best = { horizon: hor, shortPct: p.shortPct, comboId: p.comboId, bestRecC: 2, net: m.net, durationMonths: durMo, parkRatio: pr };
+                  }
+                });
+              }
+            }
+            if (fineBest) {
+              for (var ustep = 1; ustep <= 4; ustep++) {
+                [-1, 1].forEach(function (sign) {
+                  var pr = Math.round((fineBest.pr + sign * ustep * 0.01) * 100) / 100;
+                  if (pr < 0 || pr > 1) return;
                   var typedCfg = _scenarioCfgFor(type, cfgSection, 2, durMo, pr);
                   var m = _scenarioMetrics(typedCfg);
                   if (m && (!best || m.net > best.net)) {

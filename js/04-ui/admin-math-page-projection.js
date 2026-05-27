@@ -69,38 +69,54 @@
   function _perYearTable(cmp) {
     var rows = cmp.rows || [];
     if (!rows.length) return '<p class="admin-math-empty">No per-year rows from engine.</p>';
-    var totS = 0, totF = 0, totFH = 0, totL = 0, totG = 0;
+    var totS = 0, totF = 0, totFH = 0, totL = 0, totG = 0, totR = 0;
+    var cumL = 0, cumS = 0, cumFAll = 0;
     var html =
-      '<table class="admin-math-table">' +
+      '<div class="admin-math-scroll">' +
+      '<table class="admin-math-table admin-math-table-wide">' +
         '<thead><tr>' +
           '<th>Year</th>' +
           '<th class="admin-math-num">Gain Recog.</th>' +
-          '<th class="admin-math-num">Brooklyn ST Loss</th>' +
+          '<th class="admin-math-num">Brk New Deposit</th>' +
+          '<th class="admin-math-num">Brk Invested (Cum.)</th>' +
+          '<th class="admin-math-num">Brk ST Loss</th>' +
+          '<th class="admin-math-num">Cum. Loss</th>' +
           '<th class="admin-math-num">Baseline Tax</th>' +
           '<th class="admin-math-num">With-Strat Tax</th>' +
           '<th class="admin-math-num">Savings</th>' +
+          '<th class="admin-math-num">Cum. Savings</th>' +
           '<th class="admin-math-num">Brk Fee</th>' +
           '<th class="admin-math-num">BH Fee</th>' +
+          '<th class="admin-math-num">Cum. Net</th>' +
         '</tr></thead><tbody>';
     rows.forEach(function (r) {
       var g = _num(r.gainRecognized);
+      var newDep = _num(r.reinvestedThisYear);
+      var cumInv = _num(r.investmentThisYear);
       var l = _num(r.lossGenerated);
       var b = _num(r.doNothingBaseline && r.doNothingBaseline.total);
       var w = _num(r.withStrategy && r.withStrategy.total);
       var s = b - w;
       var f = _num(r.fee);
       var fh = _num(r.brookhavenFee);
-      totG += g; totL += l; totS += s; totF += f; totFH += fh;
+      totG += g; totL += l; totS += s; totF += f; totFH += fh; totR += newDep;
+      cumL += l; cumS += s; cumFAll += (f + fh);
+      var cumNet = cumS - cumFAll;
       html +=
         '<tr>' +
           '<td>' + _esc(r.year) + '</td>' +
           '<td class="admin-math-num">' + _fmtUSD(g) + '</td>' +
+          '<td class="admin-math-num">' + _fmtUSD(newDep) + '</td>' +
+          '<td class="admin-math-num"><strong>' + _fmtUSD(cumInv) + '</strong></td>' +
           '<td class="admin-math-num">' + _fmtUSD(l) + '</td>' +
+          '<td class="admin-math-num">' + _fmtUSD(cumL) + '</td>' +
           '<td class="admin-math-num">' + _fmtUSD(b) + '</td>' +
           '<td class="admin-math-num">' + _fmtUSD(w) + '</td>' +
           '<td class="admin-math-num">' + _fmtUSD(s) + '</td>' +
+          '<td class="admin-math-num">' + _fmtUSD(cumS) + '</td>' +
           '<td class="admin-math-num">' + _fmtUSD(f) + '</td>' +
           '<td class="admin-math-num">' + _fmtUSD(fh) + '</td>' +
+          '<td class="admin-math-num"><strong>' + _fmtUSD(cumNet) + '</strong></td>' +
         '</tr>';
     });
     var net = totS - totF - totFH;
@@ -108,19 +124,24 @@
       '<tr class="admin-math-subtotal">' +
         '<td><strong>Totals</strong></td>' +
         '<td class="admin-math-num"><strong>' + _fmtUSD(totG) + '</strong></td>' +
+        '<td class="admin-math-num"><strong>' + _fmtUSD(totR) + '</strong></td>' +
+        '<td class="admin-math-num">—</td>' +
         '<td class="admin-math-num"><strong>' + _fmtUSD(totL) + '</strong></td>' +
         '<td class="admin-math-num">—</td>' +
         '<td class="admin-math-num">—</td>' +
+        '<td class="admin-math-num">—</td>' +
         '<td class="admin-math-num"><strong>' + _fmtUSD(totS) + '</strong></td>' +
+        '<td class="admin-math-num">—</td>' +
         '<td class="admin-math-num"><strong>' + _fmtUSD(totF) + '</strong></td>' +
         '<td class="admin-math-num"><strong>' + _fmtUSD(totFH) + '</strong></td>' +
+        '<td class="admin-math-num"><strong>' + _fmtUSD(net) + '</strong></td>' +
       '</tr>' +
       '<tr class="admin-math-total">' +
-        '<td colspan="5"><strong>NET BENEFIT</strong> (savings − Brk fees − BH fees)</td>' +
+        '<td colspan="12"><strong>NET BENEFIT</strong> (savings − Brk fees − BH fees)</td>' +
         '<td class="admin-math-num"><strong>' + _fmtUSD(net) + '</strong></td>' +
-        '<td colspan="2"></td>' +
       '</tr>' +
-      '</tbody></table>';
+      '</tbody></table>' +
+      '</div>';
     return html;
   }
 
