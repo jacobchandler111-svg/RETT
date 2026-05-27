@@ -411,8 +411,9 @@
     var keepPctReal = g > 0 ? (keep / g) : 0;
     var lostPctReal = g > 0 ? (tax / g) : 0;
 
-    // viewBox: -160 -10 520 240. Donut center (110, 110), R 80, r 55.
-    var cx = 110, cy = 110, R = 80, r = 55;
+    // viewBox: -160 -10 520 240. Donut center (110, 110).
+    // Thicker ring per advisor 2026-05-27: R 92, r 50 (was 80 / 55).
+    var cx = 110, cy = 110, R = 92, r = 50;
     function _arc(startA, sweepA, fillCss) {
       if (sweepA <= 0.0001) return '';
       if (sweepA >= Math.PI * 2 - 0.0001) {
@@ -445,8 +446,10 @@
     svg += _arc(start + keepSweep, taxSweep, '#dc2626');  // red (lost)
     slicesEl.innerHTML = svg;
 
-    // Leader lines + labels (SVG). Skip sliver slices (<6°).
-    function _leader(midA, fillCss, title, dollarStr, pctStr) {
+    // Leader lines + labels (SVG). Title on top line, dollar amount
+    // on the line below. No percent on the outside — the center number
+    // is the only percent shown. Skip sliver slices (<6°).
+    function _leader(midA, fillCss, title, dollarStr) {
       var p1x = cx + R * Math.cos(midA);
       var p1y = cy + R * Math.sin(midA);
       var p2x = cx + (R + 18) * Math.cos(midA);
@@ -462,23 +465,21 @@
                p3x.toFixed(2) + ',' + p3y.toFixed(2) +
              '" stroke="' + fillCss + '"/>' +
              '<text class="bt-pie-leader-title" x="' + tx.toFixed(2) +
-               '" y="' + (p3y - 8).toFixed(2) + '" text-anchor="' + anchor +
+               '" y="' + (p3y - 6).toFixed(2) + '" text-anchor="' + anchor +
                '" fill="' + fillCss + '">' + title + '</text>' +
              '<text class="bt-pie-leader-amt" x="' + tx.toFixed(2) +
-               '" y="' + (p3y + 11).toFixed(2) + '" text-anchor="' + anchor + '">' +
-               dollarStr + '<tspan class="bt-pie-leader-pct" dx="8">' + pctStr + '</tspan></text>';
+               '" y="' + (p3y + 13).toFixed(2) + '" text-anchor="' + anchor + '">' +
+               dollarStr + '</text>';
     }
     var leaders = '';
     if (g > 0) {
       if (keepSweep > 0.10) {
         var keepMid = start + keepSweep / 2;
-        leaders += _leader(keepMid, '#2563eb', 'Gain Kept',
-                           _fmt(keep), (keepPctReal * 100).toFixed(1) + '%');
+        leaders += _leader(keepMid, '#2563eb', 'Gain Kept', _fmt(keep));
       }
       if (taxSweep > 0.10) {
         var lostMid = start + keepSweep + taxSweep / 2;
-        leaders += _leader(lostMid, '#b91c1c', 'Gain Lost',
-                           _fmt(tax), (lostPctReal * 100).toFixed(1) + '%');
+        leaders += _leader(lostMid, '#b91c1c', 'Gain Lost', _fmt(tax));
       }
     }
     if (leadersEl) leadersEl.innerHTML = leaders;

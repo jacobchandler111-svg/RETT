@@ -8424,10 +8424,11 @@ body { font-size: 16px; }
     max-width: 480px;
     height: auto;
 }
-/* Smaller center % so it sits comfortably inside the inner ring */
+/* Center % sized to fit comfortably inside inner ring r=50.
+   At ~28px the 29.5% string is ~70px wide → fits inside 100px diameter. */
 .baseline-pie-center {
     font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-    font-size: 22px;
+    font-size: 28px;
     font-weight: 700;
     fill: #b91c1c;
 }
@@ -8440,20 +8441,16 @@ body { font-size: 16px; }
 }
 .bt-pie-leader-title {
     font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 700;
     letter-spacing: 0.02em;
 }
 .bt-pie-leader-amt {
     font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 600;
     fill: #1f2937;
     font-variant-numeric: tabular-nums;
-}
-.bt-pie-leader-pct {
-    fill: #6b7280;
-    font-weight: 500;
 }
 .baseline-pie-legend {
     display: flex;
