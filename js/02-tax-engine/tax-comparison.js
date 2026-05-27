@@ -737,7 +737,32 @@ function unifiedTaxComparison(cfg, opts) {
             _parkedGain = 0;
       } else if (isDeferred) {
             const _basisAndRecap = _basisFull + Math.max(0, recapture);
-            _unparkedY1Gain = Math.max(0, Math.min(totalLT, _availTotal - _basisAndRecap));
+            const _maxUnparkable = Math.max(0, _availTotal - _basisAndRecap);
+            // parkRatio (0..1) controls how much of totalLT to leave inside
+            // the MetLife product vs unpark as Y0 closing cash. The auto-
+            // picker (_autoPickSection in projection-dashboard-render.js)
+            // sweeps parkRatio for Strategy C and picks the value that
+            // maximizes net benefit. When unset, fall back to legacy greedy
+            // behavior (unpark as much as availableCapital allows) so any
+            // direct caller of the engine that doesn't set parkRatio gets
+            // the previous semantics.
+            //
+            // Why this exists: hardcoded greedy was optimal for early-year
+            // sales (Y0 tranches absorb at near-full year-1 loss rate), but
+            // wrong for late-year sales (Y0 yfImpl multiplier collapses the
+            // loss rate to ~5% of full in December). Engine-time math is
+            // identical to before when parkRatio=0; the difference is that
+            // parkRatio=1.0 now correctly parks all gain so Y1+ tranches
+            // (full-year rates) absorb the recognition stream.
+            var _parkRatio = (cfg.parkRatio != null && Number.isFinite(Number(cfg.parkRatio)))
+                  ? Math.max(0, Math.min(1, Number(cfg.parkRatio)))
+                  : null;
+            if (_parkRatio === null) {
+                  _unparkedY1Gain = Math.min(totalLT, _maxUnparkable);
+            } else {
+                  var _desiredUnparked = totalLT * (1 - _parkRatio);
+                  _unparkedY1Gain = Math.min(_desiredUnparked, _maxUnparkable, totalLT);
+            }
             _parkedGain = Math.max(0, totalLT - _unparkedY1Gain);
             basisCash = Math.min(_availTotal, _basisAndRecap + _unparkedY1Gain);
       } else {

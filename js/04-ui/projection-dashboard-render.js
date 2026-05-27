@@ -567,8 +567,9 @@
         leverageCap:  picked.shortPct / 100,
         comboId:      picked.comboId
       });
+      var pr = (type === 'C' && Number.isFinite(picked.parkRatio)) ? picked.parkRatio : null;
       return {
-        cfg: _scenarioCfgFor(type, sectionCfg, picked.bestRecC, userDuration),
+        cfg: _scenarioCfgFor(type, sectionCfg, picked.bestRecC, userDuration, pr),
         picked: picked
       };
     }
@@ -778,7 +779,7 @@
   // __rettStrategyInterest.B = true and checking entry.cfg.year1 ===
   // currentYear+1. (Bug verified 2026-05-06; no fix needed — working as
   // designed, just non-obvious from a probe-the-dropdown angle.)
-  function _scenarioCfgFor(type, currentCfg, bestRecC, userDuration) {
+  function _scenarioCfgFor(type, currentCfg, bestRecC, userDuration, parkRatio) {
     if (!currentCfg) return null;
     if (type === 'A') {
       return Object.assign({}, currentCfg, {
@@ -823,11 +824,15 @@
       });
     }
     if (type === 'C') {
-      return Object.assign({}, currentCfg, {
+      var _pr = (parkRatio != null && Number.isFinite(Number(parkRatio)))
+        ? Math.max(0, Math.min(1, Number(parkRatio))) : null;
+      var cCfg = Object.assign({}, currentCfg, {
         recognitionStartYearIndex: (bestRecC || 2) - 1,
         structuredSaleDurationMonths: userDuration || 36,
         maxRecognitionYearIndex: null
       });
+      if (_pr !== null) cCfg.parkRatio = _pr;
+      return cCfg;
     }
     return null;
   }
@@ -927,7 +932,7 @@
   // maximizes net for this scenario type. Used both when a section is
   // first checked AND when the user clicks Revert on a section.
   function _autoPickSection(type, baseCfg) {
-    if (!baseCfg) return { horizon: 5, shortPct: 100, comboId: null, bestRecC: 2, durationMonths: 36 };
+    if (!baseCfg) return { horizon: 5, shortPct: 100, comboId: null, bestRecC: 2, durationMonths: 36, parkRatio: 0 };
     var stratKey = baseCfg.tierKey || 'beta1';
     var custId = baseCfg.custodian || '';
     var pcts = _candidateShortPctsLocal(stratKey, custId);
@@ -970,16 +975,28 @@
         if (type === 'C') {
           // For C, recognition ALWAYS starts at year1+1 (the next Jan 1
           // after closing) per advisor 2026-05-18 — no 15-month hold,
-          // no recognition-year sweep. Auto-pick only varies duration
-          // (36/48/60/72) and Brooklyn leverage/horizon. bestRecC is
-          // fixed at 2 (= startIdx 1 = year1+1).
+          // no recognition-year sweep. Auto-pick varies duration
+          // (36/48/60/72), Brooklyn leverage/horizon, and parkRatio
+          // (how much gain to park in MetLife vs unpark as Y0 cash).
+          // bestRecC is fixed at 2 (= startIdx 1 = year1+1).
+          //
+          // parkRatio sweep (advisor 2026-05-27): the engine used to
+          // hardcode "unpark as much as availableCapital allows," which
+          // is correct for early-year sales (Y0 tranche at near-full
+          // loss rate) but breaks for late-year sales where Y0's yfImpl
+          // collapses the loss rate. Sweeping parkRatio lets the
+          // optimizer pick "park everything" for December sales so Y1+
+          // tranches at full-year rates absorb the recognition stream.
           var durationsThisHor = _durationsForHorizon(hor);
+          var parkRatios = [0, 0.25, 0.5, 0.75, 1.0];
           durationsThisHor.forEach(function (durMo) {
-            var typedCfg = _scenarioCfgFor(type, cfgSection, 2, durMo);
-            var m = _scenarioMetrics(typedCfg);
-            if (m && (!best || m.net > best.net)) {
-              best = { horizon: hor, shortPct: p.shortPct, comboId: p.comboId, bestRecC: 2, net: m.net, durationMonths: durMo };
-            }
+            parkRatios.forEach(function (pr) {
+              var typedCfg = _scenarioCfgFor(type, cfgSection, 2, durMo, pr);
+              var m = _scenarioMetrics(typedCfg);
+              if (m && (!best || m.net > best.net)) {
+                best = { horizon: hor, shortPct: p.shortPct, comboId: p.comboId, bestRecC: 2, net: m.net, durationMonths: durMo, parkRatio: pr };
+              }
+            });
           });
         } else if (type === 'B') {
           // For B (§453 installment), each horizon iteration tries
@@ -1006,7 +1023,7 @@
         }
       });
     });
-    return best || { horizon: 5, shortPct: 100, comboId: null, bestRecC: 2, durationMonths: 36 };
+    return best || { horizon: 5, shortPct: 100, comboId: null, bestRecC: 2, durationMonths: 36, parkRatio: 0 };
   }
 
   function _ensureSectionState(type, baseCfg) {
@@ -2265,8 +2282,9 @@
       var dur = (type === 'C' && picked.durationMonths)
         ? picked.durationMonths
         : userDuration;
+      var pr = (type === 'C' && Number.isFinite(picked.parkRatio)) ? picked.parkRatio : null;
       return {
-        cfg: _scenarioCfgFor(type, sectionCfg, picked.bestRecC, dur),
+        cfg: _scenarioCfgFor(type, sectionCfg, picked.bestRecC, dur, pr),
         picked: picked
       };
     }

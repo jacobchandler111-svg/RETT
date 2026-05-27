@@ -1084,6 +1084,9 @@ function runFullPipeline() {
               if (chosenStrat === 'C' && Number.isFinite(apk.durationMonths)) {
                 cfg.structuredSaleDurationMonths = apk.durationMonths;
               }
+              if (chosenStrat === 'C' && Number.isFinite(apk.parkRatio)) {
+                cfg.parkRatio = apk.parkRatio;
+              }
             }
           } catch (apErr) { /* leave cfg unchanged on auto-pick failure */ }
         }
