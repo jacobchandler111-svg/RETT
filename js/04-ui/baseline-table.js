@@ -389,33 +389,32 @@
     render();
   }
 
-  // Pie chart renderer (advisor 2026-05-27 revision). Denominator is
-  // now GAIN (sale − basis), not sale price. Two-slice donut:
-  //   blue (Gain Kept) = (gain − taxDueFromSale) / gain
-  //   red  (Gain Lost) = taxDueFromSale / gain
-  // Center text shows the LOST percent (red — the number that
-  // matters). When tax > gain (recap-heavy scenarios), slice clips
-  // at 100% red and the dollar labels carry the truth.
+  // Donut renderer (advisor 2026-05-27). Denominator = GAIN
+  // (sale − basis). Two slices: blue Gain Kept, red Gain Lost.
+  // Leader lines attach to each slice and carry "Title · $amount ·
+  // pct%" on the outside (pattern mirrors projection-dashboard donut).
+  // Center text = % LOST in red. When tax > gain (recap-heavy
+  // scenarios) the slice clips at 100% red and the leader carries the
+  // true uncapped dollar + percent.
   function _renderPieChart(gain, taxDueFromSale) {
     var slicesEl = document.getElementById('bt-pie-slices');
+    var leadersEl = document.getElementById('bt-pie-leaders');
     if (!slicesEl) return;
     var g = Math.max(0, Number(gain) || 0);
     var tax = Math.max(0, Number(taxDueFromSale) || 0);
-    // Clip tax at gain so the pie can't exceed 100%.
     var taxBounded = Math.min(tax, g);
     var keep = Math.max(0, g - taxBounded);
     var keepPct = g > 0 ? (keep / g) : 0;
     var taxPct  = g > 0 ? (taxBounded / g) : 0;
+    // Real (uncapped) percents for the labels — what the advisor wants
+    // to see even when tax > gain.
+    var keepPctReal = g > 0 ? (keep / g) : 0;
+    var lostPctReal = g > 0 ? (tax / g) : 0;
 
-    // SVG geometry: 200x200 viewBox, donut centered at (100, 100),
-    // outer radius 88, inner radius 56 (matches the existing ribbon
-    // donut style). Slices drawn clockwise starting at 12 o'clock.
-    var cx = 100, cy = 100, R = 88, r = 56;
+    // viewBox: -160 -10 520 240. Donut center (110, 110), R 80, r 55.
+    var cx = 110, cy = 110, R = 80, r = 55;
     function _arc(startA, sweepA, fillCss) {
       if (sweepA <= 0.0001) return '';
-      // Full-circle short-circuit (single slice covering 100%): draw
-      // two half-arcs to avoid the degenerate "zero-length arc" SVG
-      // rendering issue.
       if (sweepA >= Math.PI * 2 - 0.0001) {
         return '<circle cx="' + cx + '" cy="' + cy + '" r="' + R + '" fill="' + fillCss + '"/>' +
                '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="#fff"/>';
@@ -438,25 +437,57 @@
       return '<path d="' + d + '" fill="' + fillCss + '"/>';
     }
 
-    // Start at 12 o'clock = -90 deg = -π/2 radians.
     var start = -Math.PI / 2;
     var keepSweep = keepPct * Math.PI * 2;
     var taxSweep  = taxPct * Math.PI * 2;
     var svg = '';
-    svg += _arc(start, keepSweep, '#2563eb');                  // blue (keep)
-    svg += _arc(start + keepSweep, taxSweep, '#dc2626');       // red (tax)
+    svg += _arc(start, keepSweep, '#2563eb');             // blue (kept)
+    svg += _arc(start + keepSweep, taxSweep, '#dc2626');  // red (lost)
     slicesEl.innerHTML = svg;
+
+    // Leader lines + labels (SVG). Skip sliver slices (<6°).
+    function _leader(midA, fillCss, title, dollarStr, pctStr) {
+      var p1x = cx + R * Math.cos(midA);
+      var p1y = cy + R * Math.sin(midA);
+      var p2x = cx + (R + 18) * Math.cos(midA);
+      var p2y = cy + (R + 18) * Math.sin(midA);
+      var rightSide = Math.cos(midA) >= 0;
+      var p3x = rightSide ? (p2x + 28) : (p2x - 28);
+      var p3y = p2y;
+      var anchor = rightSide ? 'start' : 'end';
+      var tx = rightSide ? (p3x + 6) : (p3x - 6);
+      return '<polyline class="bt-pie-leader" points="' +
+               p1x.toFixed(2) + ',' + p1y.toFixed(2) + ' ' +
+               p2x.toFixed(2) + ',' + p2y.toFixed(2) + ' ' +
+               p3x.toFixed(2) + ',' + p3y.toFixed(2) +
+             '" stroke="' + fillCss + '"/>' +
+             '<text class="bt-pie-leader-title" x="' + tx.toFixed(2) +
+               '" y="' + (p3y - 8).toFixed(2) + '" text-anchor="' + anchor +
+               '" fill="' + fillCss + '">' + title + '</text>' +
+             '<text class="bt-pie-leader-amt" x="' + tx.toFixed(2) +
+               '" y="' + (p3y + 11).toFixed(2) + '" text-anchor="' + anchor + '">' +
+               dollarStr + '<tspan class="bt-pie-leader-pct" dx="8">' + pctStr + '</tspan></text>';
+    }
+    var leaders = '';
+    if (g > 0) {
+      if (keepSweep > 0.10) {
+        var keepMid = start + keepSweep / 2;
+        leaders += _leader(keepMid, '#2563eb', 'Gain Kept',
+                           _fmt(keep), (keepPctReal * 100).toFixed(1) + '%');
+      }
+      if (taxSweep > 0.10) {
+        var lostMid = start + keepSweep + taxSweep / 2;
+        leaders += _leader(lostMid, '#b91c1c', 'Gain Lost',
+                           _fmt(tax), (lostPctReal * 100).toFixed(1) + '%');
+      }
+    }
+    if (leadersEl) leadersEl.innerHTML = leaders;
 
     var centerEl = document.getElementById('bt-pie-center');
     if (centerEl) {
-      // Center number is the LOST percent (red). Show truth — when
-      // tax > gain, the raw (uncapped) percent is what the advisor
-      // wants to see; the slice still clips at 100% visually.
-      var lostPctRaw = g > 0 ? (tax / g) : 0;
-      centerEl.textContent = g > 0 ? (lostPctRaw * 100).toFixed(1) + '%' : '—';
+      centerEl.textContent = g > 0 ? (lostPctReal * 100).toFixed(1) + '%' : '—';
     }
-    // Labels carry true dollars (unclipped) so a recap-heavy scenario
-    // where tax > gain still reports the real tax figure.
+    // Legacy hidden-span writes (back-compat).
     _set('bt-pie-keep-amt', _fmt(keep));
     _set('bt-pie-keep-pct', (keepPct * 100).toFixed(1) + '%');
     _set('bt-pie-tax-amt', _fmt(tax));

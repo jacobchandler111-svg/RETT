@@ -8389,15 +8389,23 @@ body { font-size: 16px; }
 }
 
 .baseline-pie-card {
-    padding: 28px 28px;
+    padding: 24px 18px 18px;
     background: #fff;
     border: 1px solid #e5e7eb;
     border-radius: 16px;
     display: flex;
     flex-direction: column;
+    justify-content: center;
     gap: 14px;
     box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05);
     align-items: center;
+}
+/* The "Share of Gain" tile-label sits at top-left of the donut card,
+   matching the position of "Tax Due from the Sale" / "Cash Kept from
+   Sale" labels on cards 1 and 2. */
+.baseline-pie-label {
+    align-self: flex-start;
+    padding-left: 10px;
 }
 .baseline-pie-label {
     font-size: 1.05rem;
@@ -8407,54 +8415,45 @@ body { font-size: 16px; }
 }
 .baseline-pie-wrap {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 18px;
+    justify-content: center;
+    width: 100%;
 }
 .baseline-pie-svg {
-    width: 260px;
-    height: 260px;
+    width: 100%;
+    max-width: 480px;
+    height: auto;
 }
+/* Smaller center % so it sits comfortably inside the inner ring */
 .baseline-pie-center {
     font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-    font-size: 38px;
+    font-size: 22px;
     font-weight: 700;
     fill: #b91c1c;
 }
-.baseline-pie-keylabels {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    width: 100%;
-    max-width: 260px;
+/* Leader line + labels drawn inside the SVG (mirrors projection donut) */
+.bt-pie-leader {
+    fill: none;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
-.baseline-pie-keylabel {
-    display: grid;
-    grid-template-columns: 28px 1fr auto;
-    align-items: center;
-    gap: 12px;
-    padding: 6px 0;
-}
-.baseline-pie-keylabel-line {
-    display: block;
-    height: 3px;
-    width: 24px;
-    border-radius: 2px;
-}
-.baseline-pie-keylabel--keep .baseline-pie-keylabel-line { background: #2563eb; }
-.baseline-pie-keylabel--lost .baseline-pie-keylabel-line { background: #dc2626; }
-.baseline-pie-keylabel-title {
-    font-size: 1.0rem;
+.bt-pie-leader-title {
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-size: 13px;
     font-weight: 700;
-    letter-spacing: 0.01em;
+    letter-spacing: 0.02em;
 }
-.baseline-pie-keylabel--keep .baseline-pie-keylabel-title { color: #1d4ed8; }
-.baseline-pie-keylabel--lost .baseline-pie-keylabel-title { color: #b91c1c; }
-.baseline-pie-keylabel-amt {
-    font-variant-numeric: tabular-nums;
-    font-size: 1.05rem;
-    color: #1f2937;
+.bt-pie-leader-amt {
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-size: 13px;
     font-weight: 600;
+    fill: #1f2937;
+    font-variant-numeric: tabular-nums;
+}
+.bt-pie-leader-pct {
+    fill: #6b7280;
+    font-weight: 500;
 }
 .baseline-pie-legend {
     display: flex;
