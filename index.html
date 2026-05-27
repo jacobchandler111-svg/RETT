@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=1777600000413">
+  <link rel="stylesheet" href="css/styles.css?v=1777600000414">
   <!-- html2pdf.js: turns the page-allocator DOM into a downloadable
        PDF on click. Bundled build (includes html2canvas + jsPDF).
        Script loads async/defer-friendly; window.html2pdf is the
@@ -1352,86 +1352,96 @@
   <!-- ============ Subsystem load order: 00 -> 01 -> 02 -> 03 -> 05 -> 04 ============ -->
   <!-- date-utils is loaded ahead of 00-data so schwab-strategies can use the
        shared parseLocalDate global instead of defining its own copy. -->
-  <script src="js/01-brooklyn/date-utils.js?v=1777600000413"></script>
-  <script src="js/00-data/custodians.js?v=1777600000413"></script>
-  <script src="js/00-data/schwab-strategies.js?v=1777600000413"></script>
-  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000413"></script>
-  <script src="js/01-brooklyn/time-weight.js?v=1777600000413"></script>
-  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000413"></script>
-  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000413"></script>
+  <script src="js/01-brooklyn/date-utils.js?v=1777600000414"></script>
+  <script src="js/00-data/custodians.js?v=1777600000414"></script>
+  <script src="js/00-data/schwab-strategies.js?v=1777600000414"></script>
+  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000414"></script>
+  <script src="js/01-brooklyn/time-weight.js?v=1777600000414"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000414"></script>
+  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000414"></script>
 
-  <script src="js/02-tax-engine/tax-data.js?v=1777600000413"></script>
-  <script src="js/02-tax-engine/tax-loader.js?v=1777600000413"></script>
-  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000413"></script>
-  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000413"></script>
-  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000413"></script>
-  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000413"></script>
-  <script src="js/02-tax-engine/engine-self-test.js?v=1777600000413"></script>
+  <script src="js/02-tax-engine/tax-data.js?v=1777600000414"></script>
+  <script src="js/02-tax-engine/tax-loader.js?v=1777600000414"></script>
+  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000414"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000414"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000414"></script>
+  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000414"></script>
+  <script src="js/02-tax-engine/engine-self-test.js?v=1777600000414"></script>
 
-  <script src="js/03-solver/fees.js?v=1777600000413"></script>
-  <script src="js/03-solver/fee-split.js?v=1777600000413"></script>
-  <script src="js/03-solver/brookhaven-fees.js?v=1777600000413"></script>
-  <script src="js/03-solver/single-year-solver.js?v=1777600000413"></script>
-  <script src="js/03-solver/multi-year-solver.js?v=1777600000413"></script>
-  <script src="js/03-solver/structured-sale.js?v=1777600000413"></script>
-  <script src="js/03-solver/calc-oil-gas.js?v=1777600000413"></script>
-  <script src="js/03-solver/calc-delphi.js?v=1777600000413"></script>
-  <script src="js/03-solver/calc-supplemental-extra.js?v=1777600000413"></script>
-  <script src="js/03-solver/decision-engine.js?v=1777600000413"></script>
+  <script src="js/03-solver/fees.js?v=1777600000414"></script>
+  <script src="js/03-solver/fee-split.js?v=1777600000414"></script>
+  <script src="js/03-solver/brookhaven-fees.js?v=1777600000414"></script>
+  <script src="js/03-solver/single-year-solver.js?v=1777600000414"></script>
+  <script src="js/03-solver/multi-year-solver.js?v=1777600000414"></script>
+  <script src="js/03-solver/structured-sale.js?v=1777600000414"></script>
+  <script src="js/03-solver/calc-oil-gas.js?v=1777600000414"></script>
+  <script src="js/03-solver/calc-delphi.js?v=1777600000414"></script>
+  <script src="js/03-solver/calc-supplemental-extra.js?v=1777600000414"></script>
+  <script src="js/03-solver/decision-engine.js?v=1777600000414"></script>
   <!-- Master solver registry + Page-5 supplemental defaults. master-solver
        declares register*/list*/runMasterSolver; supplemental-defaults uses
        those to register Oil & Gas. Future supplemental strategies append
        to supplemental-defaults â€” calc-* modules don't reach into this. -->
-  <script src="js/03-solver/master-solver.js?v=1777600000413"></script>
-  <script src="js/03-solver/supplemental-defaults.js?v=1777600000413"></script>
-  <script src="js/03-solver/supplemental-extra-registry.js?v=1777600000413"></script>
-  <script src="js/03-solver/supplemental-investment-shims.js?v=1777600000413"></script>
+  <script src="js/03-solver/master-solver.js?v=1777600000414"></script>
+  <script src="js/03-solver/supplemental-defaults.js?v=1777600000414"></script>
+  <script src="js/03-solver/supplemental-extra-registry.js?v=1777600000414"></script>
+  <script src="js/03-solver/supplemental-investment-shims.js?v=1777600000414"></script>
 
-  <script src="js/05-projections/carryforward-tracker.js?v=1777600000413"></script>
-  <script src="js/05-projections/projection-engine.js?v=1777600000413"></script>
+  <script src="js/05-projections/carryforward-tracker.js?v=1777600000414"></script>
+  <script src="js/05-projections/projection-engine.js?v=1777600000414"></script>
 
   <!-- format-helpers loads first inside 04-ui so every renderer can use
        fmtUSD / fmtPct / fmtNum directly without a defensive fallback. -->
-  <script src="js/04-ui/format-helpers.js?v=1777600000413"></script>
-  <script src="js/04-ui/money-format.js?v=1777600000413"></script>
-  <script src="js/04-ui/banner.js?v=1777600000413"></script>
-  <script src="js/04-ui/number-animator.js?v=1777600000413"></script>
-  <script src="js/04-ui/case-storage.js?v=1777600000413"></script>
-  <script src="js/04-ui/pill-toggles.js?v=1777600000413"></script>
-  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000413"></script>
-  <script src="js/04-ui/input-validation.js?v=1777600000413"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1777600000413"></script>
-  <script src="js/04-ui/controls.js?v=1777600000413"></script>
-  <script src="js/04-ui/recommendation-render.js?v=1777600000413"></script>
-  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000413"></script>
-  <script src="js/04-ui/savings-ribbon.js?v=1777600000413"></script>
-  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000413"></script>
-  <script src="js/04-ui/narrative-render.js?v=1777600000413"></script>
-  <script src="js/04-ui/strategy-summary-render.js?v=1777600000413"></script>
-  <script src="js/04-ui/baseline-table.js?v=1777600000413"></script>
-  <script src="js/04-ui/supplemental-render.js?v=1777600000413"></script>
-  <script src="js/04-ui/supplemental-extra-render.js?v=1777600000413"></script>
+  <script src="js/04-ui/format-helpers.js?v=1777600000414"></script>
+  <script src="js/04-ui/money-format.js?v=1777600000414"></script>
+  <script src="js/04-ui/banner.js?v=1777600000414"></script>
+  <script src="js/04-ui/number-animator.js?v=1777600000414"></script>
+  <script src="js/04-ui/case-storage.js?v=1777600000414"></script>
+  <script src="js/04-ui/pill-toggles.js?v=1777600000414"></script>
+  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000414"></script>
+  <script src="js/04-ui/input-validation.js?v=1777600000414"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1777600000414"></script>
+  <script src="js/04-ui/controls.js?v=1777600000414"></script>
+  <script src="js/04-ui/recommendation-render.js?v=1777600000414"></script>
+  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000414"></script>
+  <script src="js/04-ui/savings-ribbon.js?v=1777600000414"></script>
+  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000414"></script>
+  <script src="js/04-ui/narrative-render.js?v=1777600000414"></script>
+  <script src="js/04-ui/strategy-summary-render.js?v=1777600000414"></script>
+  <script src="js/04-ui/baseline-table.js?v=1777600000414"></script>
+  <script src="js/04-ui/supplemental-render.js?v=1777600000414"></script>
+  <script src="js/04-ui/supplemental-extra-render.js?v=1777600000414"></script>
 
-  <script src="js/04-ui/pmq-handler.js?v=1777600000413"></script>
-  <script src="js/04-ui/pmq-questions.js?v=1777600000413"></script>
-  <script src="js/04-ui/temp-page-render.js?v=1777600000413"></script>
-  <script src="js/04-ui/admin-math-panel.js?v=1777600000413"></script>
-  <script src="js/04-ui/admin-math-page-inputs.js?v=1777600000413"></script>
-  <script src="js/04-ui/admin-math-page-baseline.js?v=1777600000413"></script>
-  <script src="js/04-ui/admin-math-page-strategies.js?v=1777600000413"></script>
-  <script src="js/04-ui/admin-math-page-projection.js?v=1777600000413"></script>
-  <script src="js/04-ui/admin-math-page-supplemental.js?v=1777600000413"></script>
-  <script src="js/04-ui/admin-math-page-allocator.js?v=1777600000413"></script>
+  <script src="js/04-ui/pmq-handler.js?v=1777600000414"></script>
+  <script src="js/04-ui/pmq-questions.js?v=1777600000414"></script>
+  <script src="js/04-ui/temp-page-render.js?v=1777600000414"></script>
+  <script src="js/04-ui/admin-math-panel.js?v=1777600000414"></script>
+  <script src="js/04-ui/admin-math-page-inputs.js?v=1777600000414"></script>
+  <script src="js/04-ui/admin-math-page-baseline.js?v=1777600000414"></script>
+  <script src="js/04-ui/admin-math-page-strategies.js?v=1777600000414"></script>
+  <script src="js/04-ui/admin-math-page-projection.js?v=1777600000414"></script>
+  <script src="js/04-ui/admin-math-page-supplemental.js?v=1777600000414"></script>
+  <script src="js/04-ui/admin-math-page-allocator.js?v=1777600000414"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1777600000413"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1777600000414"></script>
 
-  <!-- Clone the 50-state <option> list from Tab 1 #state-code into the
-       Tab 0 #pmq-state-code so the duplicate Filing Information card
-       doesn't have to hard-code the state list a second time. -->
+  <!-- Tab 0 Filing Information wiring.
+       (1) Clone 50-state <option> list from Tab 1 #state-code → Tab 0.
+       (2) Seed Tab 0 fields from Tab 1 current values (case load).
+       (3) Mirror Tab 0 changes → Tab 1 + fire events (engine reads
+           Tab 1 IDs so this is what makes Tab 0 drive recompute).
+       (4) Mirror Tab 1 changes → Tab 0 without re-firing (silent —
+           handles programmatic writes from case-storage, tax-doc
+           import, reset). -->
   <script>
     (function () {
-      document.addEventListener('DOMContentLoaded', function () {
+      var PAIRS = [
+        ['year1',         'pmq-year1'],
+        ['filing-status', 'pmq-filing-status'],
+        ['state-code',    'pmq-state-code']
+      ];
+      function _cloneStateOptions() {
         var src = document.getElementById('state-code');
         var dst = document.getElementById('pmq-state-code');
         if (!src || !dst || dst.options.length > 0) return;
@@ -1443,6 +1453,32 @@
           if (o.selected) n.selected = true;
           dst.appendChild(n);
         }
+      }
+      function _mirror(fromId, toId, fireEvents) {
+        var from = document.getElementById(fromId);
+        var to   = document.getElementById(toId);
+        if (!from || !to) return;
+        if (to.value === from.value) return;
+        to.value = from.value;
+        if (fireEvents) {
+          to.dispatchEvent(new Event('input',  { bubbles: true }));
+          to.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }
+      document.addEventListener('DOMContentLoaded', function () {
+        _cloneStateOptions();
+        PAIRS.forEach(function (p) { _mirror(p[0], p[1], false); });
+        PAIRS.forEach(function (p) {
+          var tab1 = document.getElementById(p[0]);
+          var tab0 = document.getElementById(p[1]);
+          if (!tab1 || !tab0) return;
+          var t0Handler = function () { _mirror(p[1], p[0], true); };
+          tab0.addEventListener('change', t0Handler);
+          tab0.addEventListener('input',  t0Handler);
+          var t1Handler = function () { _mirror(p[0], p[1], false); };
+          tab1.addEventListener('change', t1Handler);
+          tab1.addEventListener('input',  t1Handler);
+        });
       });
     })();
   </script>
