@@ -987,16 +987,42 @@
           // collapses the loss rate. Sweeping parkRatio lets the
           // optimizer pick "park everything" for December sales so Y1+
           // tranches at full-year rates absorb the recognition stream.
+          //
+          // 2-pass sweep: coarse [0, 0.25, 0.5, 0.75, 1.0] finds the
+          // right neighborhood, then fine ±0.20 in 0.05 steps around the
+          // coarse winner. Single-pass coarse missed real optima — the
+          // true best was frequently at 0.85-0.95 (e.g. $10M / $2M /
+          // Dec scenario: 0.95 yields $1.94M net vs coarse's 0.75
+          // showing only $1.49M, leaving $450K on the table). Fine pass
+          // costs ~8 extra engine calls per (horizon, combo).
           var durationsThisHor = _durationsForHorizon(hor);
-          var parkRatios = [0, 0.25, 0.5, 0.75, 1.0];
+          var coarseRatios = [0, 0.25, 0.5, 0.75, 1.0];
           durationsThisHor.forEach(function (durMo) {
-            parkRatios.forEach(function (pr) {
+            var coarseBest = null;
+            coarseRatios.forEach(function (pr) {
               var typedCfg = _scenarioCfgFor(type, cfgSection, 2, durMo, pr);
               var m = _scenarioMetrics(typedCfg);
+              if (m && (!coarseBest || m.net > coarseBest.net)) {
+                coarseBest = { pr: pr, net: m.net };
+              }
               if (m && (!best || m.net > best.net)) {
                 best = { horizon: hor, shortPct: p.shortPct, comboId: p.comboId, bestRecC: 2, net: m.net, durationMonths: durMo, parkRatio: pr };
               }
             });
+            if (coarseBest) {
+              for (var step = 1; step <= 4; step++) {
+                [-1, 1].forEach(function (sign) {
+                  var pr = Math.round((coarseBest.pr + sign * step * 0.05) * 100) / 100;
+                  if (pr < 0 || pr > 1) return;
+                  if (coarseRatios.indexOf(pr) !== -1) return;
+                  var typedCfg = _scenarioCfgFor(type, cfgSection, 2, durMo, pr);
+                  var m = _scenarioMetrics(typedCfg);
+                  if (m && (!best || m.net > best.net)) {
+                    best = { horizon: hor, shortPct: p.shortPct, comboId: p.comboId, bestRecC: 2, net: m.net, durationMonths: durMo, parkRatio: pr };
+                  }
+                });
+              }
+            }
           });
         } else if (type === 'B') {
           // For B (§453 installment), each horizon iteration tries
