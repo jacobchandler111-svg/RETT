@@ -1284,10 +1284,22 @@ function unifiedTaxComparison(cfg, opts) {
             // Recompute investmentIncome to match the do-nothing LT/ST/recap
             // — the LT slice differs from the matched-timing baseline so
             // NIIT base must be recomputed; ST stays as set by
-            // _baseScenarioForYear.
+            // _baseScenarioForYear. Passive ordinary (interest + rental +
+            // non-qualified div via cfg.investmentIncomeOrdinary) is also
+            // in the NIIT base per §1411(c)(1)(A)(i) - include the same
+            // inflation-scaled value _baseScenarioForYear used. Without
+            // this term, do-nothing NIIT silently zeroed out the surtax
+            // on passive ordinary income, understating totalBaseline and
+            // therefore Brooklyn savings on rental/interest-heavy clients.
+            var _dnInflRate = (typeof TAX_DATA !== 'undefined' && TAX_DATA && typeof TAX_DATA.inflationRate === 'number')
+                  ? TAX_DATA.inflationRate
+                  : ((typeof window !== 'undefined' && window.TAX_DATA && typeof window.TAX_DATA.inflationRate === 'number')
+                        ? window.TAX_DATA.inflationRate : 0);
+            var _dnScaledInvOrd = (cfg.investmentIncomeOrdinary || 0) * Math.pow(1 + _dnInflRate, Math.max(0, i));
             dnBaseline.investmentIncome = (dnBaseline.longTermGain || 0)
                   + Math.max(0, dnBaseline.shortTermGain || 0)
-                  + (dnBaseline.depreciationRecapture || 0);
+                  + (dnBaseline.depreciationRecapture || 0)
+                  + _dnScaledInvOrd;
             const dnBaselineTax = _yearTaxes(dnBaseline);
 
             // Apply Brooklyn losses to the matched-timing baseline.

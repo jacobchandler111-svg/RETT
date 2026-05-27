@@ -82,12 +82,43 @@
       _row('horizonYears', cfg.horizonYears, '#projection-years - total years of projection')
     ]));
 
-    sections.push(_section('Annual Income Sources', [
-      _row('baseOrdinaryIncome', cfg.baseOrdinaryIncome, 'Sum of W-2 + SE + rental + dividend + retirement income'),
-      _row('wages', cfg.wages, 'W-2 + SE only - Additional Medicare (0.9%) base'),
-      _row('investmentIncomeOrdinary', cfg.investmentIncomeOrdinary, 'Dividend + interest portion - NIIT base'),
-      _row('baseShortTermGain', cfg.baseShortTermGain, 'Annual ST cap gain - taxed at ordinary rates'),
-      _row('baseLongTermGain', cfg.baseLongTermGain, 'Annual LT cap gain (non-property) - stocks, crypto, etc.')
+    // Raw per-field reads so the CPA can see each input value
+    // independently of the rolled-up baseOrdinaryIncome / wages /
+    // investmentIncomeOrdinary derived fields below.
+    function _raw(id) {
+      var el = document.getElementById(id);
+      var v = el ? (root.parseUSD ? root.parseUSD(el.value) : Number(el.value)) : 0;
+      return Number.isFinite(v) ? Math.max(0, v) : 0;
+    }
+    var w2          = _raw('w2-wages');
+    var interest    = _raw('interest-income');
+    var ordDiv      = _raw('dividend-income');
+    var qualDiv     = _raw('qualified-dividends');
+    var retDist     = _raw('retirement-distributions');
+    var socSec      = _raw('social-security');
+    var rental      = _raw('rental-income');
+    var bizAmt      = _raw('business-income-amount');
+    var bizTypeEl   = document.querySelector('input[name="business-income-type"]:checked');
+    var bizType     = bizTypeEl ? bizTypeEl.value : null;
+
+    sections.push(_section('Annual Income Sources (per field, raw reads)', [
+      _row('W-2 Wages',                w2,      '#w2-wages — IRC §61(a)(1); ordinary brackets + Additional Medicare base'),
+      _row('Interest Income',          interest,'#interest-income — IRC §61(a)(4); ordinary brackets + NIIT base per §1411(c)(1)(A)(i)'),
+      _row('Ordinary Dividends',       ordDiv,  '#dividend-income — non-qualified, ordinary brackets + NIIT base'),
+      _row('Qualified Dividends',      qualDiv, '#qualified-dividends — INERT (engine wiring pending) — would route to LTCG rates per §1(h)(11)'),
+      _row('Retirement Distributions', retDist, '#retirement-distributions — ordinary brackets; §1411(c)(5) excludes from NIIT base'),
+      _row('Social Security (gross)',  socSec,  '#social-security — INERT (engine wiring pending) — §86 worksheet would derive taxable portion'),
+      _row('Rental Income',            rental,  '#rental-income — Schedule E; ordinary brackets + NIIT base (passive default)'),
+      _row('Business Income',          bizAmt,  '#business-income-amount — INERT (engine wiring pending) — type below drives SE-tax routing'),
+      _row('Business Income Type',     bizType, 'INERT — radio group; gates §1401 SE tax application')
+    ]));
+
+    sections.push(_section('Derived Income Bases (engine reads these)', [
+      _row('baseOrdinaryIncome',       cfg.baseOrdinaryIncome,       'W-2 + SE + dividend + retirement + interest + rental + biz — fed into ordinary brackets'),
+      _row('wages',                    cfg.wages,                    'W-2 + SE only — Additional Medicare 0.9% surtax base per IRC §3101(b)(2)'),
+      _row('investmentIncomeOrdinary', cfg.investmentIncomeOrdinary, 'Rental + dividend + interest — §1411 NIIT 3.8% surtax base'),
+      _row('baseShortTermGain',        cfg.baseShortTermGain,        'Annual ST cap gain (not the property sale) — taxed at ordinary rates'),
+      _row('baseLongTermGain',         cfg.baseLongTermGain,         'Annual LT cap gain (non-property) — stocks, crypto, etc.')
     ]));
 
     sections.push(_section('Property Sale', [

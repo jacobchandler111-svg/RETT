@@ -220,8 +220,12 @@ function _signedIncome(id) {
 }
 
 function _sumIncomeSources() {
-      // Positive-only sources: wages, SE earnings, dividends, retirement.
-      const posIds = ['w2-wages', 'se-income', 'dividend-income', 'retirement-distributions'];
+      // Positive-only sources: wages, SE earnings, dividends, retirement,
+      // and taxable interest (1040 Line 2b — added 2026-05-27 per income-
+      // sources research handoff; taxed at ordinary brackets per IRC
+      // §61(a)(4)). Tax-exempt interest (Line 2a) is a separate bucket
+      // and is NOT collected here.
+      const posIds = ['w2-wages', 'se-income', 'dividend-income', 'retirement-distributions', 'interest-income'];
       // Signed sources: business and rental — real-world losses allowed.
       const signedIds = ['biz-revenue', 'rental-income'];
       let sum = 0;
@@ -248,7 +252,10 @@ function _wageIncomeForAddlMedicare() {
 // SE earnings, business distributions, and retirement distributions
 // are NOT in the NIIT base.
 function _ordinaryInvestmentIncome() {
-      return _safeIncome('rental-income') + _safeIncome('dividend-income');
+      // Per IRC §1411(c)(1)(A)(i) — "interest, dividends, annuities,
+      // royalties, and rents." Taxable interest (1040 Line 2b) is in
+      // the NIIT base alongside rental and non-qualified dividends.
+      return _safeIncome('rental-income') + _safeIncome('dividend-income') + _safeIncome('interest-income');
 }
 
 function collectInputs() {
