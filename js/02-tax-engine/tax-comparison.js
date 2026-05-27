@@ -783,6 +783,15 @@ function unifiedTaxComparison(cfg, opts) {
       // Tier-jumping decision is made on TOTAL Y0 deployment (basisCash)
       // since both tranches are physically deployed at the same time -
       // cumulative deposit for tier purposes is the sum.
+      // Strategy C degeneracy detection (advisor 2026-05-26): when the
+      // deferred path's parkedGain is 0 (because availableCapital fully
+      // covers basis + recap + totalLT), Strategy C effectively becomes
+      // Strategy A - all gain recognized at Y0 via the unparkedY1 path,
+      // structured product holds nothing. Brooklyn's position serves no
+      // purpose after Y0. Cap the basis tranche at maxAgeInclusive=0 so
+      // Brooklyn fees stop after Y0 (matches reality - the seller would
+      // close the position). Brookhaven schedule is also truncated below.
+      var _y0OnlyDegeneracy = isDeferred && !_isInstallment && _parkedGain <= 0.01 && _unparkedY1Gain > 0;
       var _y0Combo = (basisCash > 0) ? _pickComboForCumulative(basisCash) : null;
       function _y0TrancheTemplate(cap, isTaxReserve) {
             var t = {
@@ -792,7 +801,12 @@ function unifiedTaxComparison(cfg, opts) {
                   comboLossByYear: _y0Combo && _y0Combo.lossByYear ? _y0Combo.lossByYear.slice() : null,
                   comboFeeRate: _y0Combo ? _y0Combo.feeRate : null
             };
-            if (isTaxReserve) t.maxAgeInclusive = 0;
+            // Tax-reserve tranche is always Y0-only. The permanent basis
+            // tranche also closes after Y0 when the no-park degeneracy
+            // fires (no future recognition activity to support).
+            if (isTaxReserve || (!isTaxReserve && _y0OnlyDegeneracy)) {
+                  t.maxAgeInclusive = 0;
+            }
             return t;
       }
       if (_permanentBasis > 0) tranches.push(_y0TrancheTemplate(_permanentBasis, false));
@@ -922,8 +936,30 @@ function unifiedTaxComparison(cfg, opts) {
       // soft-fail (the legacy immediate path does this via _noEngagement
       // zero-out below; we add the same gate at output time so we don't
       // emit fees we'll just zero anyway).
+      // Brookhaven fee schedule. When the Y0-only degeneracy fires
+      // (Strategy C w/ parkedGain=0 - all gain absorbed at Y0), the
+      // Brookhaven planning fee should also stop after Y0; otherwise
+      // the advisor charges for a multi-year wrap that never happens.
+      // Match the engine's basis-tranche maxAgeInclusive=0 behavior by
+      // zeroing the schedule past index 0.
       const brookhavenSchedule = (typeof brookhavenFeeSchedule === 'function' && !_belowMin)
-            ? brookhavenFeeSchedule(horizon, yfImpl)
+            ? (function () {
+                  var sched = brookhavenFeeSchedule(horizon, yfImpl);
+                  // Schedule shape: { perYear: [{setup, quarterly, total}], total }.
+                  // For the Y0-only degeneracy, zero perYear[i].total for i>=1
+                  // so downstream row reads (line 1210: bh.total) see 0.
+                  if (_y0OnlyDegeneracy && sched && sched.perYear && sched.perYear.length > 1) {
+                        var trimmedTotal = 0;
+                        for (var bi = 0; bi < sched.perYear.length; bi++) {
+                              if (bi >= 1) {
+                                    sched.perYear[bi] = { setup: 0, quarterly: 0, total: 0 };
+                              }
+                              trimmedTotal += sched.perYear[bi].total;
+                        }
+                        sched.total = trimmedTotal;
+                  }
+                  return sched;
+            })()
             : null;
 
       let stCF = 0;
