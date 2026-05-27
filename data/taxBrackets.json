@@ -4061,9 +4061,10 @@
           ]
         },
         "standardDeduction": {
-          "single": 15000,
-          "married_joint": 30000
-        }
+          "single": 16100,
+          "married_joint": 32200
+        },
+        "_source": "VT 4-bracket 3.35/6.6/7.6/8.75% per 32 VSA §5822; brackets indexed annually by VT DOTax. Std ded via 32 VSA §5811(21) federal conformity (IRC §63); 2026 federal values per Rev. Proc. 2025-32 §3.16. Std ded updated 2026-05-27."
       },
       "VA": {
         "brackets": {
