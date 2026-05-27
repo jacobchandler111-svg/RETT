@@ -3252,9 +3252,10 @@
           ]
         },
         "standardDeduction": {
-          "single": 15000,
-          "married_joint": 30000
+          "single": 16100,
+          "married_joint": 32200
         },
+        "_source": "MN 4-bracket 5.35/6.8/7.85/9.85% per Minn. Stat. §290.06; brackets indexed annually by MN DoR. Std ded via Minn. Stat. §290.0123 federal conformity (IRC §63); 2026 federal values per Rev. Proc. 2025-32 §3.16. Std ded updated 2026-05-27.",
         "_TODO_netInvestmentSurtax": "Minnesota 2024+ surtax: 1% on net investment income exceeding $1M (single, MFJ, estates, trusts; threshold not indexed). Source: 2023 Minn. Sess. Laws ch. 64, art. 1, §6 — codified at MN Stat 290.033. Engine + tax-calc-state.js do NOT yet apply this surtax; high-MN-income clients with sale-driven LT/ST gains over $1M will see state tax understated by 1% on the slice over $1M. Implementation: add 'netInvestmentSurtax' field handler alongside CA mentalHealthSurcharge and MA millionaireSurcharge in tax-calc-state.js."
       },
       "MS": {
@@ -3357,9 +3358,10 @@
           ]
         },
         "standardDeduction": {
-          "single": 15000,
-          "married_joint": 30000
-        }
+          "single": 16100,
+          "married_joint": 32200
+        },
+        "_source": "MO 8-bracket structure, top rate 4.7% achieved 2025 per HB 2649 (2022) revenue triggers. Brackets indexed annually per Mo. Stat. §143.011. Std ded via §143.121(2) federal conformity (IRC §63); 2026 federal values per Rev. Proc. 2025-32 §3.16. Std ded updated 2026-05-27."
       },
       "MT": {
         "brackets": {
@@ -3385,9 +3387,10 @@
           ]
         },
         "standardDeduction": {
-          "single": 15000,
-          "married_joint": 30000
+          "single": 16100,
+          "married_joint": 32200
         },
+        "_source": "MT 2-bracket 4.7%/5.65% per HB 192 (2023); same threshold for single & MFJ (no doubling). Std ded via MCA \u00a715-30-2110 federal conformity (IRC \u00a763); 2026 federal values per Rev. Proc. 2025-32 \u00a73.16. Std ded updated 2026-05-27.",
         "stateLtcg": {
           "rate": 0.041,
           "_source": "MCA section 15-30-2103 (per HB-337) \u2014 separate LTCG brackets: 3.0% on first ~$95K (MFJ), 4.1% above. For high-income clients virtually all LT gain hits the 4.1% bracket. revenue.mt.gov/news/recent-news/HB-337 (verified 2026-05-05)."
@@ -3725,9 +3728,10 @@
           ]
         },
         "standardDeduction": {
-          "single": 15000,
-          "married_joint": 30000
-        }
+          "single": 16100,
+          "married_joint": 32200
+        },
+        "_source": "ND 2-bracket 1.95%/2.5% per HB 1158 (2023); brackets indexed annually per ND Cent. Code §57-38-30.3. Std ded via §57-38-29 federal conformity (IRC §63); 2026 federal values per Rev. Proc. 2025-32 §3.16. Std ded updated 2026-05-27."
       },
       "OH": {
         "brackets": {
