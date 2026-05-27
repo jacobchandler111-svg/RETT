@@ -25,36 +25,16 @@
   // Questions. `showIf` = parent question must be answered with the
   // given value for this question to render. Order = display order.
   // ----------------------------------------------------------------
+  // Per advisor 2026-05-26: reduced from 5 top-level questions to just
+  // one - "Do you own or run a business?" - the only filter the
+  // advisor wants is business vs non-business cards. Other cards always
+  // show. The 'realEstate', 'charitable', 'altInvestments', and the
+  // conditional 'passThrough' questions were removed.
   var PMQ_QUESTIONS = [
     {
       id:    'businessOwner',
       label: 'Do you own or run a business?',
       helper:'LLC, S-Corp, Partnership, Sole Proprietor — any active business income.',
-      type:  'yesno'
-    },
-    {
-      id:    'passThrough',
-      label: 'Is this business a pass-through entity?',
-      helper:'LLC (partnership-taxed), S-Corp (1120S), Partnership (1065), or Sch-C sole proprietor.',
-      type:  'yesno',
-      showIf:{ businessOwner: true }
-    },
-    {
-      id:    'realEstate',
-      label: 'Do you own or invest in real estate?',
-      helper:'Rental properties, commercial buildings, land — anything beyond the primary residence.',
-      type:  'yesno'
-    },
-    {
-      id:    'charitable',
-      label: 'Do you plan on giving to charities?',
-      helper:'Cash gifts, donor-advised fund contributions, IRA distributions to charity.',
-      type:  'toggle'
-    },
-    {
-      id:    'altInvestments',
-      label: 'Are you open to alternative investments / tax shelters?',
-      helper:'Oil & gas working interests, hedge funds, equipment-leasing funds — accredited-investor products.',
       type:  'yesno'
     }
   ];
@@ -65,22 +45,20 @@
   // the strategy to be applicable. If ANY required answer is `false`,
   // the strategy is gated out (auto-marked Not Interested). If a
   // required answer is null (unanswered), the strategy stays neutral.
-  // ----------------------------------------------------------------
+  //
+  // Per advisor 2026-05-26: only business-owner gating applies now.
+  // Non-business cards (oilGas, delphi, charitableGifts, cost seg /
+  // STR / equipment leasing) always show - the advisor no longer
+  // filters them via PMQ. Business-owner-gated cards: ptet, slot06
+  // (Heavy Vehicle), slot08 (Augusta), slot09 (401k), slot10 (Aircraft),
+  // slot12 (Farm Equipment).
   var STRATEGY_GATES = {
-    // Existing core supplementals (registered in supplemental-defaults.js)
-    oilGas:          { altInvestments: true },
-    delphi:          { altInvestments: true },
-    // Extra supplementals (registered in supplemental-extra-render.js)
-    ptet:            { businessOwner: true, passThrough: true },
-    charitableGifts: { charitable:    true },
-    slot05:          { realEstate:    true },                         // Cost Segregation
-    slot06:          { businessOwner: true },                         // Heavy Vehicle
-    slot07:          { altInvestments:true },                         // Equipment Leasing Fund
-    slot08:          { businessOwner: true },                         // Augusta Rule
-    slot09:          { businessOwner: true },                         // 401(k) + Profit Share
-    slot10:          { businessOwner: true },                         // Aircraft Purchase
-    slot11:          { realEstate:    true },                         // STR Loophole
-    slot12:          { businessOwner: true }                          // Farm / Business Equipment
+    ptet:    { businessOwner: true },
+    slot06:  { businessOwner: true },                         // Heavy Vehicle
+    slot08:  { businessOwner: true },                         // Augusta Rule
+    slot09:  { businessOwner: true },                         // 401(k) + Profit Share
+    slot10:  { businessOwner: true },                         // Aircraft Purchase
+    slot12:  { businessOwner: true }                          // Farm / Business Equipment
   };
 
   function _answers() {
