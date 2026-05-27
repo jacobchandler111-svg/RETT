@@ -268,20 +268,25 @@
       '</div>';
     }
     var tableRows = '';
-    var sumFee = 0, sumInvested = 0;
+    var sumFee = 0;
     rows.forEach(function (r) {
       var fee = _num(r.fee);
-      var invested = _num(r.invested);
+      // F6 fix (Round 5): engine row field is `investmentThisYear`
+      // (cumulative deployed capital), not `invested`. The old typo
+      // showed $0 for every year and an empty Calc column despite
+      // non-zero fees — looked like a broken admin panel even though
+      // the engine math was correct. Now reads the right field and
+      // the implied yfActive reconciles to a meaningful number.
+      var invested = _num(r.investmentThisYear);
       sumFee += fee;
-      sumInvested += invested;
-      // Imply yfActive from fee / (invested × feeRate). When fee=0 and
-      // invested=0, yfActive is N/A.
       var yfImpliedNote = '';
       if (invested > 0 && feeRate > 0) {
         var yfImplied = fee / (invested * feeRate);
-        yfImpliedNote = invested.toLocaleString() + ' × ' + (feeRate * 100).toFixed(2) + '% × ' + yfImplied.toFixed(2);
+        yfImpliedNote = _fmtUSD(invested) + ' × ' + (feeRate * 100).toFixed(2) + '% × ' + yfImplied.toFixed(2);
       } else if (fee === 0) {
         yfImpliedNote = 'No deployment / position closed';
+      } else {
+        yfImpliedNote = 'Per-tranche; see Projection admin for breakdown';
       }
       tableRows += '<tr>' +
         '<td>' + _esc(r.year) + '</td>' +

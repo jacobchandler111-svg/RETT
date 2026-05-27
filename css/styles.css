@@ -8348,10 +8348,16 @@ body { font-size: 16px; }
 }
 .baseline-tile--hero .baseline-tile-value {
     font-family: 'Fraunces', Georgia, serif;
-    font-size: 3.4rem;
+    /* F4 fix (Round 5): clamp font-size so 7-8 digit values don't clip.
+       Inherited overflow:hidden from .baseline-tile-value silently cut
+       the last digit on \$1M+ values (e.g. "\$1,402,750" → "\$1,402,75").
+       clamp() floors at 2.2rem and scales up with viewport width. */
+    font-size: clamp(2.2rem, 4.2vw, 3.4rem);
     font-weight: 600;
     line-height: 1.05;
     color: #b91c1c;
+    overflow: visible;
+    white-space: nowrap;
 }
 .baseline-tile--hero .baseline-tile-sub {
     color: var(--muted, #6b7280);
@@ -8378,10 +8384,14 @@ body { font-size: 16px; }
 }
 .baseline-tile--cash-kept .baseline-tile-value {
     font-family: 'Fraunces', Georgia, serif;
-    font-size: 3.4rem;
+    /* F4 fix (Round 5): see hero rule above — same clamp + overflow
+       relaxation so cash-kept 8-digit values don't clip. */
+    font-size: clamp(2.2rem, 4.2vw, 3.4rem);
     font-weight: 600;
     line-height: 1.05;
     color: #1d4ed8;
+    overflow: visible;
+    white-space: nowrap;
 }
 .baseline-tile--cash-kept .baseline-tile-sub {
     color: var(--muted, #6b7280);

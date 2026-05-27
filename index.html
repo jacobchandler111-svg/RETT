@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=1777600000411">
+  <link rel="stylesheet" href="css/styles.css?v=1777600000412">
   <!-- html2pdf.js: turns the page-allocator DOM into a downloadable
        PDF on click. Bundled build (includes html2canvas + jsPDF).
        Script loads async/defer-friendly; window.html2pdf is the
@@ -136,6 +136,42 @@
             </div>
           </div>
           <div id="pmq-client-status" class="pmq-client-status" aria-live="polite"></div>
+        </div>
+      </div>
+
+      <!-- Filing Information — duplicate of Tab 1 Section 01. Step 1 of
+           the move: visible card with namespaced IDs (pmq-*) so it
+           cannot collide with the live Tab 1 fields. State <option>
+           list is cloned at runtime from the existing Tab 1
+           #state-code (see inline script at bottom of body) to avoid
+           duplicating ~50 lines of static markup. -->
+      <div class="input-section pmq-client-section">
+        <div class="section-heading">
+          <h2>Filing Information</h2>
+          <span class="num">SECTION 01</span>
+        </div>
+        <div class="section-body">
+          <div class="input-row">
+            <div class="label">Tax Year</div>
+            <select id="pmq-year1">
+              <option value="2026" selected>2026</option>
+              <option value="2027">2027</option>
+              <option value="2025">2025</option>
+            </select>
+          </div>
+          <div class="input-row">
+            <div class="label">Filing Status</div>
+            <select id="pmq-filing-status">
+              <option value="single">Single</option>
+              <option value="mfj" selected>Married Filing Jointly</option>
+              <option value="mfs">Married Filing Separately</option>
+              <option value="hoh">Head of Household</option>
+            </select>
+          </div>
+          <div class="input-row">
+            <div class="label">State</div>
+            <select id="pmq-state-code"></select>
+          </div>
         </div>
       </div>
       </div>
@@ -1316,79 +1352,100 @@
   <!-- ============ Subsystem load order: 00 -> 01 -> 02 -> 03 -> 05 -> 04 ============ -->
   <!-- date-utils is loaded ahead of 00-data so schwab-strategies can use the
        shared parseLocalDate global instead of defining its own copy. -->
-  <script src="js/01-brooklyn/date-utils.js?v=1777600000411"></script>
-  <script src="js/00-data/custodians.js?v=1777600000411"></script>
-  <script src="js/00-data/schwab-strategies.js?v=1777600000411"></script>
-  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000411"></script>
-  <script src="js/01-brooklyn/time-weight.js?v=1777600000411"></script>
-  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000411"></script>
-  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000411"></script>
+  <script src="js/01-brooklyn/date-utils.js?v=1777600000412"></script>
+  <script src="js/00-data/custodians.js?v=1777600000412"></script>
+  <script src="js/00-data/schwab-strategies.js?v=1777600000412"></script>
+  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000412"></script>
+  <script src="js/01-brooklyn/time-weight.js?v=1777600000412"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000412"></script>
+  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000412"></script>
 
-  <script src="js/02-tax-engine/tax-data.js?v=1777600000411"></script>
-  <script src="js/02-tax-engine/tax-loader.js?v=1777600000411"></script>
-  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000411"></script>
-  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000411"></script>
-  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000411"></script>
-  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000411"></script>
-  <script src="js/02-tax-engine/engine-self-test.js?v=1777600000411"></script>
+  <script src="js/02-tax-engine/tax-data.js?v=1777600000412"></script>
+  <script src="js/02-tax-engine/tax-loader.js?v=1777600000412"></script>
+  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000412"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000412"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000412"></script>
+  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000412"></script>
+  <script src="js/02-tax-engine/engine-self-test.js?v=1777600000412"></script>
 
-  <script src="js/03-solver/fees.js?v=1777600000411"></script>
-  <script src="js/03-solver/fee-split.js?v=1777600000411"></script>
-  <script src="js/03-solver/brookhaven-fees.js?v=1777600000411"></script>
-  <script src="js/03-solver/single-year-solver.js?v=1777600000411"></script>
-  <script src="js/03-solver/multi-year-solver.js?v=1777600000411"></script>
-  <script src="js/03-solver/structured-sale.js?v=1777600000411"></script>
-  <script src="js/03-solver/calc-oil-gas.js?v=1777600000411"></script>
-  <script src="js/03-solver/calc-delphi.js?v=1777600000411"></script>
-  <script src="js/03-solver/calc-supplemental-extra.js?v=1777600000411"></script>
-  <script src="js/03-solver/decision-engine.js?v=1777600000411"></script>
+  <script src="js/03-solver/fees.js?v=1777600000412"></script>
+  <script src="js/03-solver/fee-split.js?v=1777600000412"></script>
+  <script src="js/03-solver/brookhaven-fees.js?v=1777600000412"></script>
+  <script src="js/03-solver/single-year-solver.js?v=1777600000412"></script>
+  <script src="js/03-solver/multi-year-solver.js?v=1777600000412"></script>
+  <script src="js/03-solver/structured-sale.js?v=1777600000412"></script>
+  <script src="js/03-solver/calc-oil-gas.js?v=1777600000412"></script>
+  <script src="js/03-solver/calc-delphi.js?v=1777600000412"></script>
+  <script src="js/03-solver/calc-supplemental-extra.js?v=1777600000412"></script>
+  <script src="js/03-solver/decision-engine.js?v=1777600000412"></script>
   <!-- Master solver registry + Page-5 supplemental defaults. master-solver
        declares register*/list*/runMasterSolver; supplemental-defaults uses
        those to register Oil & Gas. Future supplemental strategies append
        to supplemental-defaults â€” calc-* modules don't reach into this. -->
-  <script src="js/03-solver/master-solver.js?v=1777600000411"></script>
-  <script src="js/03-solver/supplemental-defaults.js?v=1777600000411"></script>
-  <script src="js/03-solver/supplemental-extra-registry.js?v=1777600000411"></script>
-  <script src="js/03-solver/supplemental-investment-shims.js?v=1777600000411"></script>
+  <script src="js/03-solver/master-solver.js?v=1777600000412"></script>
+  <script src="js/03-solver/supplemental-defaults.js?v=1777600000412"></script>
+  <script src="js/03-solver/supplemental-extra-registry.js?v=1777600000412"></script>
+  <script src="js/03-solver/supplemental-investment-shims.js?v=1777600000412"></script>
 
-  <script src="js/05-projections/carryforward-tracker.js?v=1777600000411"></script>
-  <script src="js/05-projections/projection-engine.js?v=1777600000411"></script>
+  <script src="js/05-projections/carryforward-tracker.js?v=1777600000412"></script>
+  <script src="js/05-projections/projection-engine.js?v=1777600000412"></script>
 
   <!-- format-helpers loads first inside 04-ui so every renderer can use
        fmtUSD / fmtPct / fmtNum directly without a defensive fallback. -->
-  <script src="js/04-ui/format-helpers.js?v=1777600000411"></script>
-  <script src="js/04-ui/money-format.js?v=1777600000411"></script>
-  <script src="js/04-ui/banner.js?v=1777600000411"></script>
-  <script src="js/04-ui/number-animator.js?v=1777600000411"></script>
-  <script src="js/04-ui/case-storage.js?v=1777600000411"></script>
-  <script src="js/04-ui/pill-toggles.js?v=1777600000411"></script>
-  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000411"></script>
-  <script src="js/04-ui/input-validation.js?v=1777600000411"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1777600000411"></script>
-  <script src="js/04-ui/controls.js?v=1777600000411"></script>
-  <script src="js/04-ui/recommendation-render.js?v=1777600000411"></script>
-  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000411"></script>
-  <script src="js/04-ui/savings-ribbon.js?v=1777600000411"></script>
-  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000411"></script>
-  <script src="js/04-ui/narrative-render.js?v=1777600000411"></script>
-  <script src="js/04-ui/strategy-summary-render.js?v=1777600000411"></script>
-  <script src="js/04-ui/baseline-table.js?v=1777600000411"></script>
-  <script src="js/04-ui/supplemental-render.js?v=1777600000411"></script>
-  <script src="js/04-ui/supplemental-extra-render.js?v=1777600000411"></script>
+  <script src="js/04-ui/format-helpers.js?v=1777600000412"></script>
+  <script src="js/04-ui/money-format.js?v=1777600000412"></script>
+  <script src="js/04-ui/banner.js?v=1777600000412"></script>
+  <script src="js/04-ui/number-animator.js?v=1777600000412"></script>
+  <script src="js/04-ui/case-storage.js?v=1777600000412"></script>
+  <script src="js/04-ui/pill-toggles.js?v=1777600000412"></script>
+  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000412"></script>
+  <script src="js/04-ui/input-validation.js?v=1777600000412"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1777600000412"></script>
+  <script src="js/04-ui/controls.js?v=1777600000412"></script>
+  <script src="js/04-ui/recommendation-render.js?v=1777600000412"></script>
+  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000412"></script>
+  <script src="js/04-ui/savings-ribbon.js?v=1777600000412"></script>
+  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000412"></script>
+  <script src="js/04-ui/narrative-render.js?v=1777600000412"></script>
+  <script src="js/04-ui/strategy-summary-render.js?v=1777600000412"></script>
+  <script src="js/04-ui/baseline-table.js?v=1777600000412"></script>
+  <script src="js/04-ui/supplemental-render.js?v=1777600000412"></script>
+  <script src="js/04-ui/supplemental-extra-render.js?v=1777600000412"></script>
 
-  <script src="js/04-ui/pmq-handler.js?v=1777600000411"></script>
-  <script src="js/04-ui/pmq-questions.js?v=1777600000411"></script>
-  <script src="js/04-ui/temp-page-render.js?v=1777600000411"></script>
-  <script src="js/04-ui/admin-math-panel.js?v=1777600000411"></script>
-  <script src="js/04-ui/admin-math-page-inputs.js?v=1777600000411"></script>
-  <script src="js/04-ui/admin-math-page-baseline.js?v=1777600000411"></script>
-  <script src="js/04-ui/admin-math-page-strategies.js?v=1777600000411"></script>
-  <script src="js/04-ui/admin-math-page-projection.js?v=1777600000411"></script>
-  <script src="js/04-ui/admin-math-page-supplemental.js?v=1777600000411"></script>
-  <script src="js/04-ui/admin-math-page-allocator.js?v=1777600000411"></script>
+  <script src="js/04-ui/pmq-handler.js?v=1777600000412"></script>
+  <script src="js/04-ui/pmq-questions.js?v=1777600000412"></script>
+  <script src="js/04-ui/temp-page-render.js?v=1777600000412"></script>
+  <script src="js/04-ui/admin-math-panel.js?v=1777600000412"></script>
+  <script src="js/04-ui/admin-math-page-inputs.js?v=1777600000412"></script>
+  <script src="js/04-ui/admin-math-page-baseline.js?v=1777600000412"></script>
+  <script src="js/04-ui/admin-math-page-strategies.js?v=1777600000412"></script>
+  <script src="js/04-ui/admin-math-page-projection.js?v=1777600000412"></script>
+  <script src="js/04-ui/admin-math-page-supplemental.js?v=1777600000412"></script>
+  <script src="js/04-ui/admin-math-page-allocator.js?v=1777600000412"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1777600000411"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1777600000412"></script>
+
+  <!-- Clone the 50-state <option> list from Tab 1 #state-code into the
+       Tab 0 #pmq-state-code so the duplicate Filing Information card
+       doesn't have to hard-code the state list a second time. -->
+  <script>
+    (function () {
+      document.addEventListener('DOMContentLoaded', function () {
+        var src = document.getElementById('state-code');
+        var dst = document.getElementById('pmq-state-code');
+        if (!src || !dst || dst.options.length > 0) return;
+        for (var i = 0; i < src.options.length; i++) {
+          var o = src.options[i];
+          var n = document.createElement('option');
+          n.value = o.value;
+          n.textContent = o.textContent;
+          if (o.selected) n.selected = true;
+          dst.appendChild(n);
+        }
+      });
+    })();
+  </script>
 
   <!-- Business Income conditional reveal: show type selector when amount > 0.
        UI-only; engine math unchanged. -->

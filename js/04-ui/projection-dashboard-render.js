@@ -2266,10 +2266,10 @@
       var monthsToFirst = _bMonthsUntilJan1(currentCfg);
       if (monthsToFirst == null) monthsToFirst = 12;
       var totalMonths = monthsToFirst + (bN - 1) * 12;
-      lockupValue = totalMonths + ' months';
+      lockupValue = totalMonths + (totalMonths === 1 ? ' month' : ' months');
     } else {
       var pickedDur = (picked && picked.durationMonths) || durationMonths || 36;
-      lockupValue = pickedDur + ' months';
+      lockupValue = pickedDur + (pickedDur === 1 ? ' month' : ' months');
     }
 
     // Card visual: only the user's own "chosen" pick gets a ring.
