@@ -151,7 +151,7 @@
         '<td class="admin-math-num"><strong>' + _fmtUSD(net) + '</strong></td>' +
       '</tr>' +
       '<tr class="admin-math-total">' +
-        '<td colspan="13"><strong>NET BENEFIT</strong> (savings − Brk fees − BH fees)</td>' +
+        '<td colspan="13"><strong>Raw engine net</strong> &mdash; pre-optimizer, full-year fee accrual (may differ from <em>Net benefit (on card)</em> above; the card uses ProjectionEngine\'s actual-hold-period fees while this table uses unifiedTaxComparison\'s annualized fee per row)</td>' +
         '<td class="admin-math-num"><strong>' + _fmtUSD(net) + '</strong></td>' +
       '</tr>' +
       '</tbody></table>' +

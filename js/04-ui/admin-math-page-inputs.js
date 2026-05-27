@@ -92,25 +92,20 @@
     }
     var w2          = _raw('w2-wages');
     var interest    = _raw('interest-income');
-    var ordDiv      = _raw('dividend-income');
-    var qualDiv     = _raw('qualified-dividends');
+    var dividends   = _raw('dividend-income');
     var retDist     = _raw('retirement-distributions');
     var socSec      = _raw('social-security');
     var rental      = _raw('rental-income');
     var bizAmt      = _raw('business-income-amount');
-    var bizTypeEl   = document.querySelector('input[name="business-income-type"]:checked');
-    var bizType     = bizTypeEl ? bizTypeEl.value : null;
 
     sections.push(_section('Annual Income Sources (per field, raw reads)', [
-      _row('W-2 Wages',                w2,      '#w2-wages — IRC §61(a)(1); ordinary brackets + Additional Medicare base'),
-      _row('Interest Income',          interest,'#interest-income — IRC §61(a)(4); ordinary brackets + NIIT base per §1411(c)(1)(A)(i)'),
-      _row('Ordinary Dividends',       ordDiv,  '#dividend-income — non-qualified, ordinary brackets + NIIT base'),
-      _row('Qualified Dividends',      qualDiv, '#qualified-dividends — IRC §1(h)(11); LTCG preferential rates + NIIT base; stacks on ordinary for bracket placement'),
-      _row('Retirement Distributions', retDist, '#retirement-distributions — ordinary brackets; §1411(c)(5) excludes from NIIT base'),
-      _row('Social Security (gross)',  socSec,  '#social-security — IRC §86 provisional-income worksheet derives taxable portion (see derived section); ordinary brackets, NOT in NIIT or Add’l Medicare base'),
-      _row('Rental Income',            rental,  '#rental-income — Schedule E; ordinary brackets + NIIT base (passive default)'),
-      _row('Business Income',          bizAmt,  '#business-income-amount — always in ordinary brackets; SE-tax routing depends on type below'),
-      _row('Business Income Type',     bizType, 'Radio group; type ∈ {se, k1-partnership-gp} triggers §1401 SE tax + Add’l Medicare; {k1-scorp, k1-partnership-lp} exempt per §1402(a)(13)')
+      _row('W-2 Wages',                w2,        '#w2-wages — IRC §61(a)(1); ordinary brackets + Additional Medicare base'),
+      _row('Interest Income',          interest,  '#interest-income — IRC §61(a)(4); ordinary brackets + NIIT base per §1411(c)(1)(A)(i)'),
+      _row('Dividends',                dividends, '#dividend-income — ordinary brackets + NIIT base (qualified vs non-qualified split removed 2026-05-27)'),
+      _row('Retirement Distributions', retDist,   '#retirement-distributions — ordinary brackets; §1411(c)(5) excludes from NIIT base'),
+      _row('Social Security (gross)',  socSec,    '#social-security — IRC §86 provisional-income worksheet derives taxable portion (see derived section); ordinary brackets, NOT in NIIT or Add’l Medicare base'),
+      _row('Rental Income',            rental,    '#rental-income — Schedule E; ordinary brackets + NIIT base (passive default)'),
+      _row('Business Income',          bizAmt,    '#business-income-amount — ordinary brackets (Schedule C / K-1 type distinction removed 2026-05-27)')
     ]));
 
     sections.push(_section('Derived Income Bases (engine reads these)', [
@@ -188,23 +183,9 @@
       else ssTier = 'Tier 3 (up to 85%; prov > ' + _fmtUSD(t2) + ')';
     }
 
-    // SE tax derivation (IRC §1401). Active when type triggers SE.
-    // Mirrors the engine's tax-calc-federal computation: seBase =
-    // seIncome × 0.9235; SS 12.4% on min(seBase, wageBase − W2);
-    // Medicare 2.9% uncapped.
-    var seTriggers = (bizType === 'se' || bizType === 'k1-partnership-gp');
-    var seEligible = seTriggers ? bizAmt : 0;
-    var seTaxRow = '—', halfSERow = '—';
-    if (seEligible > 0 && typeof root.TAX_DATA !== 'undefined') {
-      var seBase = seEligible * 0.9235;
-      var ssWageBase = Number(root.TAX_DATA && root.TAX_DATA.ssWageBase) || 184500;
-      var ssRoom = Math.max(0, ssWageBase - w2);
-      var ssTax = Math.min(seBase, ssRoom) * 0.124;
-      var medTax = seBase * 0.029;
-      var seTaxTotal = ssTax + medTax;
-      seTaxRow = _fmtUSD(seTaxTotal) + ' (SS ' + _fmtUSD(ssTax) + ' + Med ' + _fmtUSD(medTax) + ')';
-      halfSERow = _fmtUSD(seTaxTotal * 0.5) + ' — NOT YET DEDUCTED (P1 follow-up; §164(f) above-the-line)';
-    }
+    // SE tax derivation removed 2026-05-27 — business income is now
+    // treated as plain ordinary income (no Schedule C / K-1 type
+    // distinction; engine bot to drop SE routing in inputs-collector).
 
     sections.push(_section('Derived Values (engine reads these)', [
       _row('totalGain', totalGain, 'salePrice &minus; costBasis = ' + _fmtUSD(sp) + ' &minus; ' + _fmtUSD(cb)),
@@ -212,10 +193,7 @@
       _row('recapture (§1250)', recapDerived, '= acceleratedDepreciation; recognized as Y1 ordinary income, capped at 25%'),
       _row('SS provisional income', ssProv, '§86 worksheet: otherAGI + 50% × gross SS (' + _fmtUSD(socSec) + ')'),
       _row('SS §86 tier', ssTier, 'Drives 0% / up to 50% / up to 85% taxable inclusion'),
-      _row('SS taxable portion', ssTaxable, 'Added to ordinary brackets each year; NOT in NIIT or Add’l Medicare base; per-state SS exemption NOT modeled'),
-      _row('SE-eligible business income', seEligible, seTriggers ? 'type=' + bizType + ' triggers §1401 SE tax' : 'type=' + (bizType || '—') + ' exempt from SE tax per §1402(a)(13)'),
-      _row('SE tax (§1401)', seTaxRow, 'seBase = amount × 0.9235; SS 12.4% capped at SSA wage base net of W-2; Medicare 2.9% uncapped'),
-      _row('Half-SE deduction', halfSERow, 'Half of SE tax should reduce AGI per §164(f); engine does NOT yet apply this — overstates baseline tax for SE-heavy clients')
+      _row('SS taxable portion', ssTaxable, 'Added to ordinary brackets each year; NOT in NIIT or Add’l Medicare base; per-state SS exemption NOT modeled')
     ]));
 
     return sections.join('');
