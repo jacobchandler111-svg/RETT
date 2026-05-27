@@ -211,7 +211,7 @@
   }
 
   function _stratLabel(t) {
-    if (t === 'A') return 'Normal Sale';
+    if (t === 'A') return 'Traditional Sale';
     if (t === 'B') return 'Installment Sale';
     if (t === 'C') return 'Structured Installment Sale';
     return null;

@@ -582,7 +582,7 @@ function _refreshCard3Visibility() {
   // benefit is <= 0 (savings minus all fees) is never shown. Brookhaven
   // plus Brooklyn fees can eat a small sale's savings, and surfacing a
   // losing strategy as if it were an option is misleading to the client.
-  // Applies to ALL three cards including Card 1 (Normal Sale). When
+  // Applies to ALL three cards including Card 1 (Traditional Sale). When
   // every strategy nets <= 0, Page 2 ends up empty - intentional: there
   // is no recommendable option and the advisor should say so verbally.
   // Bypass while allFinite is false (no sale entered yet) so the page

@@ -97,7 +97,7 @@
       return '';
     }
     return [
-      _row('Strategy A (Normal Sale)',                _fmtUSD(netA), explain('A', card1Visible, netA, null)),
+      _row('Strategy A (Traditional Sale)',           _fmtUSD(netA), explain('A', card1Visible, netA, null)),
       _row('Strategy B (Installment Sale)',           _fmtUSD(netB), explain('B', card2Visible, netB, netA)),
       _row('Strategy C (Structured Installment Sale)', _fmtUSD(netC), explain('C', card3Visible, netC, netB)),
       _row('Default-risk toggle', defaultRiskYes ? 'Yes' : 'No', defaultRiskYes ? 'Forces Cards 2 + 3 visible regardless of math' : 'Cards 2/3 hide if not strictly better than prior')
@@ -191,7 +191,7 @@
       '</div>';
 
     return visibilitySection
-      + _strategySection('A', 'Normal Sale', aA)
+      + _strategySection('A', 'Traditional Sale', aA)
       + _strategySection('B', 'Installment Sale', aB)
       + _strategySection('C', 'Structured Installment Sale', aC);
   }

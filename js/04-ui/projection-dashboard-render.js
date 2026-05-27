@@ -598,7 +598,7 @@
     var rows = [];
     if (mA) rows.push({
       type: 'A', rec: 1, maxRec: null,
-      label: 'Normal Sale (Year 1)',
+      label: 'Traditional Sale (Year 1)',
       sub: 'Close in current year, Brooklyn losses absorb gain immediately',
       metrics: mA
     });
@@ -2393,7 +2393,7 @@
     }
 
     var entries = [];
-    if (mA) entries.push({ type: 'A', num: '01', name: 'Normal Sale',                  picked: pickedA.picked, metrics: mA, loss: lossA, payments: '',        cfg: pickedA.cfg, visuals: visualsA });
+    if (mA) entries.push({ type: 'A', num: '01', name: 'Traditional Sale',             picked: pickedA.picked, metrics: mA, loss: lossA, payments: '',        cfg: pickedA.cfg, visuals: visualsA });
     if (mB) entries.push({ type: 'B', num: '02', name: 'Installment Sale',             picked: pickedB.picked, metrics: mB, loss: lossB, payments: paymentsB, cfg: pickedB.cfg, visuals: visualsB });
     if (mC) entries.push({ type: 'C', num: '03', name: 'Structured Installment Sale',  picked: pickedC.picked, metrics: mC, loss: lossC, payments: paymentsC, cfg: pickedC.cfg, visuals: visualsC });
 

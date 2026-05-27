@@ -88,7 +88,7 @@
         '<p class="admin-math-error">' + _esc(a.error) + '</p>' +
       '</div>';
     }
-    var nameMap = { A: 'Normal Sale', B: 'Installment Sale', C: 'Structured Installment Sale' };
+    var nameMap = { A: 'Traditional Sale', B: 'Installment Sale', C: 'Structured Installment Sale' };
     var scalePct = (a.optScale * 100).toFixed(0) + '%';
     var scaleNote = a.optScale < 1
       ? 'Optimizer dialed back to ' + scalePct + ' of available - reduces fees while still absorbing gain'

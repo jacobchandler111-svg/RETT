@@ -209,7 +209,7 @@
   }
 
   function _renderProjection() {
-    return _strategySection('A', 'Normal Sale',                  _strategyAnalysis('A'))
+    return _strategySection('A', 'Traditional Sale',             _strategyAnalysis('A'))
          + _strategySection('B', 'Installment Sale (§453)',       _strategyAnalysis('B'))
          + _strategySection('C', 'Structured Installment Sale',   _strategyAnalysis('C'));
   }
