@@ -1139,9 +1139,11 @@
           if (nForHor === 1) {
             _maybeUpdateBest(_evalB(null));
           } else if (nForHor === 2) {
-            // 1D sweep over w1 (w2 = 1 − w1). Coarse 0.10, fine 0.02
-            // around coarse winner. Avoid degenerate w1=0 or w1=1
-            // (those collapse to N=1).
+            // 3-pass 1D sweep on w1 (w2 = 1 − w1):
+            //   coarse 0.10 step over [0.1, 0.9]            (9 evals)
+            //   fine   0.02 step ±0.10 around coarse winner (10 evals)
+            //   ultra  0.001 step ±0.02 around fine winner  (~40 evals)
+            // Total ~59 evals; finds optimum to ~0.1% (0.001 of split).
             var coarseW2 = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
             var coarseBestB2 = null;
             coarseW2.forEach(function (w1) {
@@ -1149,20 +1151,37 @@
               if (out && (!coarseBestB2 || out.metrics.net > coarseBestB2.metrics.net)) coarseBestB2 = out;
               _maybeUpdateBest(out);
             });
+            var fineBestB2 = coarseBestB2;
             if (coarseBestB2) {
               var w1Center = coarseBestB2.weights[0];
               for (var step2 = 1; step2 <= 4; step2++) {
                 [-1, 1].forEach(function (sign) {
-                  var w1Fine = Math.round((w1Center + sign * step2 * 0.02) * 100) / 100;
+                  var w1Fine = Math.round((w1Center + sign * step2 * 0.02) * 1000) / 1000;
                   if (w1Fine <= 0.05 || w1Fine >= 0.95) return;
-                  _maybeUpdateBest(_evalB([w1Fine, 1 - w1Fine]));
+                  var outF = _evalB([w1Fine, 1 - w1Fine]);
+                  if (outF && (!fineBestB2 || outF.metrics.net > fineBestB2.metrics.net)) fineBestB2 = outF;
+                  _maybeUpdateBest(outF);
                 });
               }
             }
+            if (fineBestB2) {
+              // Ultra-fine: ±0.020 in 0.001 steps around fine winner.
+              // 40 evals — finds the precise peak to 0.1% precision.
+              var w1Ultra = fineBestB2.weights[0];
+              for (var us = -20; us <= 20; us++) {
+                if (us === 0) continue;
+                var w1U = Math.round((w1Ultra + us * 0.001) * 1000) / 1000;
+                if (w1U <= 0.05 || w1U >= 0.95) continue;
+                _maybeUpdateBest(_evalB([w1U, Math.round((1 - w1U) * 1000) / 1000]));
+              }
+            }
           } else { // nForHor === 3
-            // 2D sweep over (w1, w2) with w3 = 1 − w1 − w2. Coarse 0.10
-            // grid skipping degenerate corners, then fine 0.02 around
-            // the coarse winner along both axes.
+            // 3-pass 2D sweep on (w1, w2) with w3 = 1 − w1 − w2:
+            //   coarse 0.10 grid    over [0.1, 0.8]²       (~50 valid)
+            //   fine   0.02 grid   ±0.10 around 2D winner  (~80 valid)
+            //   ultra  0.005 grid  ±0.02 around 2D winner  (~64 valid)
+            // 2D quadratic blow-up keeps ultra at 0.005 (~0.5%) - 0.001
+            // would be 1600+ ultra evals per (hor, combo).
             var coarseW3 = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8];
             var coarseBestB3 = null;
             coarseW3.forEach(function (w1) {
@@ -1174,18 +1193,38 @@
                 _maybeUpdateBest(out);
               });
             });
+            var fineBestB3 = coarseBestB3;
             if (coarseBestB3) {
               var w1c = coarseBestB3.weights[0];
               var w2c = coarseBestB3.weights[1];
               for (var s1 = -4; s1 <= 4; s1++) {
                 for (var s2 = -4; s2 <= 4; s2++) {
                   if (s1 === 0 && s2 === 0) continue;
-                  var w1f = Math.round((w1c + s1 * 0.02) * 100) / 100;
-                  var w2f = Math.round((w2c + s2 * 0.02) * 100) / 100;
-                  var w3f = Math.round((1 - w1f - w2f) * 100) / 100;
+                  var w1f = Math.round((w1c + s1 * 0.02) * 1000) / 1000;
+                  var w2f = Math.round((w2c + s2 * 0.02) * 1000) / 1000;
+                  var w3f = Math.round((1 - w1f - w2f) * 1000) / 1000;
                   if (w1f < 0.05 || w2f < 0.05 || w3f < 0.05) continue;
                   if (w1f > 0.9 || w2f > 0.9 || w3f > 0.9) continue;
-                  _maybeUpdateBest(_evalB([w1f, w2f, w3f]));
+                  var outF3 = _evalB([w1f, w2f, w3f]);
+                  if (outF3 && (!fineBestB3 || outF3.metrics.net > fineBestB3.metrics.net)) fineBestB3 = outF3;
+                  _maybeUpdateBest(outF3);
+                }
+              }
+            }
+            if (fineBestB3) {
+              // Ultra-fine: 0.005 step ±0.02 (~8×8 grid = 64) around
+              // 2D fine winner.
+              var w1u = fineBestB3.weights[0];
+              var w2u = fineBestB3.weights[1];
+              for (var u1 = -4; u1 <= 4; u1++) {
+                for (var u2 = -4; u2 <= 4; u2++) {
+                  if (u1 === 0 && u2 === 0) continue;
+                  var w1uf = Math.round((w1u + u1 * 0.005) * 1000) / 1000;
+                  var w2uf = Math.round((w2u + u2 * 0.005) * 1000) / 1000;
+                  var w3uf = Math.round((1 - w1uf - w2uf) * 1000) / 1000;
+                  if (w1uf < 0.05 || w2uf < 0.05 || w3uf < 0.05) continue;
+                  if (w1uf > 0.9 || w2uf > 0.9 || w3uf > 0.9) continue;
+                  _maybeUpdateBest(_evalB([w1uf, w2uf, w3uf]));
                 }
               }
             }
