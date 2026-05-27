@@ -8213,6 +8213,13 @@ body { font-size: 16px; }
 .admin-math-table-wide th {
     padding: 7px 9px;
 }
+.admin-math-table-wide {
+    min-width: 1280px;
+}
+.admin-math-withdrawn {
+    color: #fbbf24;
+    font-weight: 700;
+}
 
 /* Print: hide entirely so the leave-behind PDF never shows the
    admin drawer to the client. */

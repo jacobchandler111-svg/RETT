@@ -69,8 +69,9 @@
   function _perYearTable(cmp) {
     var rows = cmp.rows || [];
     if (!rows.length) return '<p class="admin-math-empty">No per-year rows from engine.</p>';
-    var totS = 0, totF = 0, totFH = 0, totL = 0, totG = 0, totR = 0;
+    var totS = 0, totF = 0, totFH = 0, totL = 0, totG = 0, totR = 0, totWd = 0;
     var cumL = 0, cumS = 0, cumFAll = 0;
+    var prevCumInv = 0;
     var html =
       '<div class="admin-math-scroll">' +
       '<table class="admin-math-table admin-math-table-wide">' +
@@ -78,6 +79,7 @@
           '<th>Year</th>' +
           '<th class="admin-math-num">Gain Recog.</th>' +
           '<th class="admin-math-num">Brk New Deposit</th>' +
+          '<th class="admin-math-num">Brk Withdrawn</th>' +
           '<th class="admin-math-num">Brk Invested (Cum.)</th>' +
           '<th class="admin-math-num">Brk ST Loss</th>' +
           '<th class="admin-math-num">Cum. Loss</th>' +
@@ -93,20 +95,30 @@
       var g = _num(r.gainRecognized);
       var newDep = _num(r.reinvestedThisYear);
       var cumInv = _num(r.investmentThisYear);
+      // Implicit withdrawals: when a tranche hits its maxAgeInclusive
+      // (cover-taxes Y0-only tax-reserve tranche on Apr 1 of Y1, or
+      // basis tranche under _y0OnlyDegeneracy), engine drops its capital
+      // from investmentThisYear. Surface explicitly: withdrawn =
+      // max(0, prev + newDep - cur).
+      var withdrawn = Math.max(0, prevCumInv + newDep - cumInv);
+      prevCumInv = cumInv;
       var l = _num(r.lossGenerated);
       var b = _num(r.doNothingBaseline && r.doNothingBaseline.total);
       var w = _num(r.withStrategy && r.withStrategy.total);
       var s = b - w;
       var f = _num(r.fee);
       var fh = _num(r.brookhavenFee);
-      totG += g; totL += l; totS += s; totF += f; totFH += fh; totR += newDep;
+      totG += g; totL += l; totS += s; totF += f; totFH += fh; totR += newDep; totWd += withdrawn;
       cumL += l; cumS += s; cumFAll += (f + fh);
       var cumNet = cumS - cumFAll;
+      var wdCellClass = 'admin-math-num' + (withdrawn > 0 ? ' admin-math-withdrawn' : '');
+      var wdCellDisplay = withdrawn > 0 ? ('&minus;' + _fmtUSD(withdrawn)) : _fmtUSD(0);
       html +=
         '<tr>' +
           '<td>' + _esc(r.year) + '</td>' +
           '<td class="admin-math-num">' + _fmtUSD(g) + '</td>' +
           '<td class="admin-math-num">' + _fmtUSD(newDep) + '</td>' +
+          '<td class="' + wdCellClass + '">' + wdCellDisplay + '</td>' +
           '<td class="admin-math-num"><strong>' + _fmtUSD(cumInv) + '</strong></td>' +
           '<td class="admin-math-num">' + _fmtUSD(l) + '</td>' +
           '<td class="admin-math-num">' + _fmtUSD(cumL) + '</td>' +
@@ -125,6 +137,7 @@
         '<td><strong>Totals</strong></td>' +
         '<td class="admin-math-num"><strong>' + _fmtUSD(totG) + '</strong></td>' +
         '<td class="admin-math-num"><strong>' + _fmtUSD(totR) + '</strong></td>' +
+        '<td class="admin-math-num">' + (totWd > 0 ? '<strong>&minus;' + _fmtUSD(totWd) + '</strong>' : _fmtUSD(0)) + '</td>' +
         '<td class="admin-math-num">—</td>' +
         '<td class="admin-math-num"><strong>' + _fmtUSD(totL) + '</strong></td>' +
         '<td class="admin-math-num">—</td>' +
@@ -137,7 +150,7 @@
         '<td class="admin-math-num"><strong>' + _fmtUSD(net) + '</strong></td>' +
       '</tr>' +
       '<tr class="admin-math-total">' +
-        '<td colspan="12"><strong>NET BENEFIT</strong> (savings − Brk fees − BH fees)</td>' +
+        '<td colspan="13"><strong>NET BENEFIT</strong> (savings − Brk fees − BH fees)</td>' +
         '<td class="admin-math-num"><strong>' + _fmtUSD(net) + '</strong></td>' +
       '</tr>' +
       '</tbody></table>' +

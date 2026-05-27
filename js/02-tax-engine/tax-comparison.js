@@ -817,6 +817,18 @@ function unifiedTaxComparison(cfg, opts) {
       // Brooklyn fees stop after Y0 (matches reality - the seller would
       // close the position). Brookhaven schedule is also truncated below.
       var _y0OnlyDegeneracy = isDeferred && !_isInstallment && _parkedGain <= 0.01 && _unparkedY1Gain > 0;
+      // Brookhaven smoothing (advisor 2026-05-27): the strict
+      // degeneracy gate above created a fee cliff - at parkRatio
+      // exactly 0, Brookhaven = Y0 only; at parkRatio 0.001, Brookhaven
+      // jumped to 4 years of fees against a token parked balance. That
+      // produced a non-monotonic auto-pick across sale dates (40% gain
+      // row flipped A->B->C->B as the parkRatio optimum crossed 0/>0).
+      // Smooth it: when parkedGain is small relative to totalLT, scale
+      // Brookhaven Y1+ proportionally - full fees only when at least
+      // 5% of the gain is actually parked. Eliminates the cliff while
+      // preserving the original "no park = no Y1+ fees" intent.
+      var _parkedShare = (totalLT > 0) ? Math.max(0, Math.min(1, _parkedGain / totalLT)) : 0;
+      var _brookhavenY1PlusScale = Math.max(0, Math.min(1, _parkedShare / 0.05));
       var _y0Combo = (basisCash > 0) ? _pickComboForCumulative(basisCash) : null;
       function _y0TrancheTemplate(cap, isTaxReserve) {
             var t = {
@@ -982,6 +994,24 @@ function unifiedTaxComparison(cfg, opts) {
                               trimmedTotal += sched.perYear[bi].total;
                         }
                         sched.total = trimmedTotal;
+                  } else if (isDeferred && !_isInstallment && !_y0OnlyDegeneracy &&
+                             _brookhavenY1PlusScale < 1 && sched && sched.perYear && sched.perYear.length > 1) {
+                        // Smoothing path: parkedGain > 0 but small. Scale
+                        // Brookhaven Y1+ by parkedShare/0.05. Setup fee
+                        // (engagement open) and Y0 quarterly stay full;
+                        // Y1+ quarterly+setup scaled.
+                        var scaledTotal = 0;
+                        for (var bj = 0; bj < sched.perYear.length; bj++) {
+                              if (bj >= 1) {
+                                    sched.perYear[bj] = {
+                                          setup: sched.perYear[bj].setup * _brookhavenY1PlusScale,
+                                          quarterly: sched.perYear[bj].quarterly * _brookhavenY1PlusScale,
+                                          total: sched.perYear[bj].total * _brookhavenY1PlusScale
+                                    };
+                              }
+                              scaledTotal += sched.perYear[bj].total;
+                        }
+                        sched.total = scaledTotal;
                   }
                   return sched;
             })()

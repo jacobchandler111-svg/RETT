@@ -492,19 +492,22 @@
     // could have shielded it.
     var currentRecap = Math.max(0, Number(c.acceleratedDepreciation) || 0);
     var future = (c.futureSale && c.futureSale.enabled) ? c.futureSale : null;
-    // Future-sale absorption is OPT-IN (advisor 2026-05-06). By default
-    // Brooklyn sizes only for the current sale's absorbable gain. The
-    // user clicks Apply on the Future Sale callout (Page 5) to flip
-    // __rettAbsorbFutureSale, which adds future LT + recapture into the
-    // cap and triggers a pipeline rerun. Without the flag, today's "I
-    // already include future-sale" behavior would over-deploy Brooklyn
-    // for clients who haven't agreed to absorb the future sale yet.
-    var absorbFuture = !!root.__rettAbsorbFutureSale;
-    // Future-sale shape simplified (2026-05-15): single estimatedGain
-    // captures the client's total future taxable amount (no separate
-    // LT vs recap split since clients estimate the total directly).
-    var futureGain = (future && absorbFuture) ? Math.max(0, Number(future.estimatedGain) || 0) : 0;
-    var absorbable = currentLT + currentRecap + futureGain;
+    // Future-sale handling (advisor 2026-05-27): the engine does NOT
+    // model the future-sale year. Adding futureGain into `absorbable`
+    // would expand Brooklyn's optimizer cap (less dial-back, more
+    // deployment, more fees) without simulating the offsetting future
+    // savings — net result was strategies showing LOWER nets when
+    // __rettAbsorbFutureSale was set, the opposite of user intent.
+    //
+    // Page 6 (strategy-summary-render.js _renderFutureSaleOption)
+    // computes the analytical "if you size Brooklyn up to also absorb
+    // the future sale, here's the additional fees + savings + net"
+    // independently. That callout is the authoritative source of
+    // truth for future-sale impact. The optimizer here stays focused
+    // on the current sale; the flag is preserved for callout framing
+    // (Apply vs Another Option) but no longer changes the cap.
+    var futureGain = 0;
+    var absorbable = currentLT + currentRecap;
 
     var lossAtFull = Math.max(0, Number(brooklynCumulativeLoss) || 0);
     var dialBack = false;
@@ -607,7 +610,7 @@
       futureLTGain:            futureGain,
       futureRecapture:         0,
       futureSaleEnabled:       !!future,
-      futureSaleAbsorbing:     !!(future && absorbFuture),
+      futureSaleAbsorbing:     !!(future && root.__rettAbsorbFutureSale),
       totalAbsorbableGain:     absorbable,
       brooklynLossAtFull:      lossAtFull,
       dialBack:                dialBack,
