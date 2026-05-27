@@ -3590,9 +3590,10 @@
           ]
         },
         "standardDeduction": {
-          "single": 15000,
-          "married_joint": 30000
+          "single": 16100,
+          "married_joint": 32200
         },
+        "_source": "NM 5-bracket per NMSA \u00a77-2-7 (restructured by NM SB 41, 2024). Std ded via NMSA \u00a77-2-2(B) federal conformity (IRC \u00a763); 2026 federal values per Rev. Proc. 2025-32 \u00a73.16. Std ded updated 2026-05-27.",
         "stateLtcg": {
           "flatExclusion": 2500,
           "_source": "NMSA section 7-2-34 (effective 2025) \u2014 net capital gains deduction capped at $2,500 for non-business sales. 40% of up to $1M only applies to sale of a NM-allocated business; not modeled (narrow case). Justia codes/new-mexico/chapter-7/article-2/section-7-2-34 (verified 2026-05-05)."
@@ -3980,9 +3981,10 @@
           ]
         },
         "standardDeduction": {
-          "single": 15000,
-          "married_joint": 30000
+          "single": 16100,
+          "married_joint": 32200
         },
+        "_source": "SC 3-bracket 0/3/6.0% \u2014 top rate phased per SC Act 532 (2022) revenue triggers (6.5% \u2192 6.0% schedule). Std ded via SC Code \u00a712-6-1140 federal conformity (IRC \u00a763); 2026 federal values per Rev. Proc. 2025-32 \u00a73.16. Std ded updated 2026-05-27. Verify 2026 top rate against SC Revenue & Fiscal Affairs Office trigger compliance.",
         "stateLtcg": {
           "exclusionPct": 0.44,
           "_source": "SC Code section 12-6-1150 \u2014 44% deduction from net capital gain (held >1 year). SC DOR Policy Manual SCTIED-2025-Chapter-3.pdf and Justia codes/south-carolina/title-12/chapter-6/section-12-6-1150 (verified 2026-05-05)."
