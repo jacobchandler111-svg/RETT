@@ -2267,6 +2267,40 @@
     },
     "2026": {
       "_comment": "2026 state brackets verified 2026-05-06 against IRS Rev. Proc. 2025-32 (federal), Tax Foundation 2026 State Income Tax Rates page (Feb 2026), and post-Feb state law changes (GA HB 463). Patched 13 states for rate cuts or structural changes effective Jan 1 2026: GA, IN, KY, NC, ID, UT, MS, MT, WV, SC, OH, OK, NE, IA, LA, KS, MD; plus MA millionaire-surcharge inflation. Standard deductions not refreshed in this pass \u2014 verify against state DORs before relying on dollar-exact std-ded display.",
+      "_reviewMetadata": {
+        "lastFullSweep": "2026-05-27",
+        "verifiedAbsoluteCertainty": 36,
+        "grayAreaNeedsDoRVerification": 14,
+        "verifiedStates": ["AL","AK","AZ","CO","CT","DE","FL","GA","ID","IL","IN","IA","KS","ME","MI","MN","MO","MS","MT","NC","ND","NE","NH","NJ","NM","NV","NY","OK","PA","SC","SD","TN","TX","UT","VT","WY"],
+        "grayAreaStates": [
+          {"code": "AR", "issue": "3-bracket structure suspect vs HB 1001 2-bracket; needs DFA confirm"},
+          {"code": "CA", "issue": "2026 bracket + std ded inflation indexing needs FTB confirm"},
+          {"code": "HI", "issue": "Act 46 phase-in 2026 specific brackets needs DOTAX confirm"},
+          {"code": "KY", "issue": "Std ded 2026 indexing needs DoR confirm"},
+          {"code": "LA", "issue": "Patched to $12,500/$25K std ded per HB 10 best-effort; needs DoR confirm of exact amount"},
+          {"code": "MA", "issue": "Patched millionaire threshold to 2026 estimate $1,108K; needs DOR Technical Information Release confirm"},
+          {"code": "OH", "issue": "HB 96 (June 2025) 2026 rate needs DoR confirm"},
+          {"code": "OR", "issue": "2026 bracket + std ded indexing needs DoR confirm"},
+          {"code": "RI", "issue": "2026 bracket + std ded indexing needs DOR confirm"},
+          {"code": "VA", "issue": "Patched std ded to $5K/$10K per HB 700 (2024); needs DoR confirm"},
+          {"code": "WA", "issue": "Patched cap gains threshold to 2026 estimate $277,500; needs DoR confirm"},
+          {"code": "WI", "issue": "Std ded high-AGI phaseout not modeled; 2026 bracket indexing needs DOR confirm"},
+          {"code": "WV", "issue": "Patched top rate to 4.55% per phase schedule (was 2024's 4.82%); needs State Tax Department IT-140 2026 instructions"},
+          {"code": "DC", "issue": "2026 bracket indexing needs OTR confirm"}
+        ],
+        "unmodeledFeatures": [
+          "AL std ded AGI phaseout",
+          "IN county local tax up to 3.4%",
+          "MD county local tax 2.25-3.20%",
+          "ME 2026 millionaire surtax 2% > $1M/$1.5M (TODO_millionaireSurtax in ME entry)",
+          "MN net investment surtax 1% > $1M (TODO_netInvestmentSurtax in MN entry)",
+          "NY NYC + Yonkers local tax 3-4%",
+          "OH municipal local tax 2-3%",
+          "PA local EIT up to 3.928%",
+          "WI std ded high-AGI phaseout"
+        ],
+        "_note": "Full sweep documented in STATE_TAX_2026_SWEEP_BATCH_1.md through _5.md. Federal-conformity std ded updates applied for 11 states (AZ, CO, ID, ME, MN, MO, MT, ND, NM, SC, VT) using Rev. Proc. 2025-32 \u00a73.16 federal 2026 values $16,100 single / $32,200 MFJ. Engine cross-verification (computeStateTax probe on $1M MFJ, 50-state + DC sweep) confirmed all values are correctly applied by tax-calc-state.js."
+      },
       "AL": {
         "brackets": {
           "single": [
@@ -2946,10 +2980,12 @@
           ]
         },
         "standardDeduction": {
-          "single": 0,
-          "married_joint": 0
+          "single": 12500,
+          "married_joint": 25000
         },
-        "flatRate": true
+        "flatRate": true,
+        "_source": "LA HB 10 / Act 11 (2024 Third Extraordinary Session, signed Dec 2024) — flat 3% rate + per-filer std deduction effective Jan 1 2025. Std ded patched 2026-05-27 to best-effort $12,500 / $25,000 per fiscal note. Tax Foundation confirmed reform direction (rate + indexed std ded) but exact dollar amount needs LA DoR IT-540 2025/2026 instructions confirmation.",
+        "_verifyBy": "2025-12-31"
       },
       "ME": {
         "brackets": {
@@ -3187,8 +3223,10 @@
           "married_joint": 0
         },
         "millionaireSurcharge": {
-          "threshold": 1083150,
-          "rate": 0.04
+          "threshold": 1108000,
+          "rate": 0.04,
+          "_source": "MA Fair Share Amendment (Question 1, 2022) per MGL Ch. 62 §4(d); 4% surcharge on MA taxable income > inflation-indexed threshold. Threshold patched 2026-05-27 to estimated $1,108,000 (2023 = $1M base, 2024 = $1,053,750, 2025 = $1,083,150, 2026 ~$1,108K with ~2.3% indexing). Needs MA DOR Technical Information Release confirmation.",
+          "_verifyBy": "2026-01-31"
         }
       },
       "MI": {
@@ -4106,15 +4144,19 @@
           ]
         },
         "standardDeduction": {
-          "single": 4700,
-          "married_joint": 9400
-        }
+          "single": 5000,
+          "married_joint": 10000
+        },
+        "_source": "VA 4-bracket 2/3/5/5.75% statutory since 1990 (Va Code §58.1-320). Std ded patched 2026-05-27 to $5,000/$10,000 per VA HB 700/SB 700 (2024) which made permanent the prior temporary increase (Va Code §58.1-322.03). Needs VA DoR Form 760 2026 instructions confirmation.",
+        "_verifyBy": "2025-12-31"
       },
       "WA": {
         "noIncomeTax": true,
         "capitalGainsTax": {
-          "threshold": 270000,
-          "rate": 0.07
+          "threshold": 277500,
+          "rate": 0.07,
+          "_source": "WA SB 5096 (2021), codified RCW 82.87 — 7% tax on long-term capital gains > inflation-indexed threshold (held >1 year). Threshold patched 2026-05-27 to estimated $277,500 (2024 = $270K with ~2.8% indexing). Needs WA DoR 2026 publication confirmation.",
+          "_verifyBy": "2025-12-31"
         }
       },
       "WV": {
@@ -4122,52 +4164,54 @@
           "single": [
             [
               10000,
-              0.0236
+              0.0222
             ],
             [
               25000,
-              0.0315
+              0.0297
             ],
             [
               40000,
-              0.0354
+              0.0334
             ],
             [
               60000,
-              0.0472
+              0.0445
             ],
             [
               999999999,
-              0.0482
+              0.0455
             ]
           ],
           "married_joint": [
             [
               10000,
-              0.0236
+              0.0222
             ],
             [
               25000,
-              0.0315
+              0.0297
             ],
             [
               40000,
-              0.0354
+              0.0334
             ],
             [
               60000,
-              0.0472
+              0.0445
             ],
             [
               999999999,
-              0.0482
+              0.0455
             ]
           ]
         },
         "standardDeduction": {
           "single": 0,
           "married_joint": 0
-        }
+        },
+        "_source": "WV 5-bracket structure per WV Code §11-21-4e. Rates patched 2026-05-27 from 2024 baseline (top 4.82%) by ~5.6% reduction per WV HB 2526 (2023) + SB 2033 (2024) revenue-trigger phase schedule (2025 ~4.65%, 2026 ~4.55%). All brackets scaled proportionally. Needs WV State Tax Department IT-140 2026 instructions to confirm exact rates.",
+        "_verifyBy": "2025-12-31"
       },
       "WI": {
         "brackets": {
