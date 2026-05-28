@@ -4690,6 +4690,35 @@ body { font-size: 16px; }
     margin-bottom: 14px;
 }
 
+/* Projection page header row — title left, Additional Funds toggle
+   right (small, inline). */
+.page-projection-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.proj-addfunds-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+}
+.proj-addfunds-toggle input[type="checkbox"] {
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+    accent-color: #1d4ed8;
+}
+
 /* "New cash you walk away with" — shown inside Show Details, replacing
    the donut (advisor 2026-05-28). Blue to mirror the Tax Implications
    "Cash Kept from Sale" tile. = cash kept from sale + net benefit. */
