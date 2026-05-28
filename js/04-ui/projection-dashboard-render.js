@@ -616,6 +616,33 @@
     return winners.length ? Math.min(1, Math.max(0, winners[0].frac)) : 1;
   }
 
+  // Apply the net-max deployment dial-back to a full-deployment scenario,
+  // mirroring buildInterestedSummary's non-override path so the strategy
+  // comparison table reports the SAME post-optimizer net as the section
+  // cards. Without this the table showed full-deployment net (e.g. the
+  // structured sale at 100% = $721,405) while the card showed the
+  // dialed-back optimum ($726,845) — the "stale net benefit" the advisor
+  // flagged 2026-05-28.
+  function _dialBackScenarioMetrics(cfg, fullMetrics) {
+    if (!fullMetrics) return fullMetrics;
+    var availCap = Number(cfg && cfg.availableCapital) || 0;
+    if (!(availCap > 0)) return fullMetrics;
+    var scale = _netMaxDeployFraction(cfg);
+    if (scale >= 1) return fullMetrics;
+    if (scale <= 0) {
+      // Optimizer says don't deploy → no engagement, no fees, zero net.
+      return Object.assign({}, fullMetrics, {
+        brooklynFees: 0, brookhavenFees: 0, fees: 0, net: 0
+      });
+    }
+    var redCap = Math.round(availCap * scale);
+    var redCfg = Object.assign({}, cfg, { availableCapital: redCap, investment: redCap, investedCapital: redCap });
+    var m2 = _scenarioMetrics(redCfg);
+    // Only accept the dial-back when it genuinely improves net (same guard
+    // the card path uses), so a row can never look worse than full deploy.
+    return (m2 && m2.net > fullMetrics.net) ? m2 : fullMetrics;
+  }
+
   function _buildScenarioComparison(currentCfg) {
     if (!currentCfg) return '';
     var userDuration = currentCfg.structuredSaleDurationMonths || 36;
@@ -652,6 +679,7 @@
     // Scenario A: Sell now, no deferral (rec=1 immediate path).
     var pickedA = _bestPickedCfg('A', currentCfg);
     var mA = _scenarioMetrics(pickedA.cfg);
+    if (mA) mA = _dialBackScenarioMetrics(pickedA.cfg, mA);
 
     // Scenario B: Delay close to Jan 1 of next year. Force gain into Y2
     // ONLY (no further deferral). Compute for ALL sale dates so the user
@@ -662,12 +690,14 @@
     // per-strategy cards at line ~2196.)
     var pickedB = _bestPickedCfg('B', currentCfg);
     var mB = _scenarioMetrics(pickedB.cfg);
+    if (mB) mB = _dialBackScenarioMetrics(pickedB.cfg, mB);
 
     // Scenario C: Structured sale. Auto-pick searches horizon × leverage
     // × recognition year and returns the (h, lev, combo, bestRecC)
     // tuple with max net.
     var pickedC = _bestPickedCfg('C', currentCfg);
     var bestC = _scenarioMetrics(pickedC.cfg);
+    if (bestC) bestC = _dialBackScenarioMetrics(pickedC.cfg, bestC);
     var bestRecC = pickedC.picked.bestRecC;
 
     var rows = [];
