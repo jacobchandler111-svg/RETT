@@ -409,38 +409,33 @@ function _applyLossesWithSTCfCap(scenario, lossAvailable, capOrdinary) {
       const out = Object.assign({}, scenario);
       let loss = lossAvailable;
 
-      // IRC §1(h) loss ordering — capital losses absorb gain buckets
-      // highest-rate first (taxpayer-favorable):
+      // Loss ordering — Brooklyn short-term capital losses absorb gain
+      // buckets highest-rate first (taxpayer-favorable):
       //   1) ST gain (ordinary rates, up to 37%)
-      //   2) §1250 unrecaptured gain (capped at 25%)
-      //   3) Regular LT gain (0/15/20%)
-      //   4) Ordinary income (capped at $3K / $1.5K MFS)
+      //   2) Regular LT gain (0/15/20%)
+      //   3) Ordinary income (capped at $3K / $1.5K MFS)
+      //
+      // Depreciation recapture is INTENTIONALLY NOT in this list
+      // (advisor 2026-05-27): the "accelerated depreciation recapture"
+      // input represents §1250(a)-style recapture recognized as ORDINARY
+      // income in the year of sale per §453(i). It is not a capital gain
+      // bucket Brooklyn's capital losses can offset — it stays fully
+      // taxed at its (25%-capped) rate regardless of the loss generated.
+      // Previously this function had a Step 2 that reduced
+      // depreciationRecapture by the loss, which zeroed the recapture
+      // tax on Tab 7 even with $200K of recapture present — wrong.
 
       // Step 1: ST gain. ST cap gain is investment income for §1411 NIIT
-      // purposes (per the same logic as recap and LT below), so the NIIT
-      // base must shrink by the absorbed amount alongside shortTermGain.
-      // Bug fix 2026-05-06 (verified by targeted-loss-application tests):
-      // omitting this caused the 3.8% NIIT savings on Brooklyn-absorbed
-      // ST gain to silently drop. Symptom was T3_ST_first_h1 ratio
-      // landing at 0.370 (federal 37% only) instead of expected 0.408
-      // (37% + 3.8% NIIT). Steps 2 (recap) and 3 (LT) already shrink
-      // investmentIncome correctly.
+      // purposes (per the same logic as LT below), so the NIIT base must
+      // shrink by the absorbed amount alongside shortTermGain.
       const offsetShort = Math.min(out.shortTermGain || 0, loss);
       out.shortTermGain = (out.shortTermGain || 0) - offsetShort;
       out.investmentIncome = Math.max(0, (out.investmentIncome || 0) - offsetShort);
       loss -= offsetShort;
 
-      // Step 2: §1250 unrecaptured gain (recapture). Still a capital gain
-      // for §1211 netting purposes, just rate-capped at 25% downstream.
-      // NIIT base also shrinks since recapture is investment income.
-      if (loss > 0) {
-            const offsetRecap = Math.min(out.depreciationRecapture || 0, loss);
-            out.depreciationRecapture = (out.depreciationRecapture || 0) - offsetRecap;
-            out.investmentIncome = Math.max(0, (out.investmentIncome || 0) - offsetRecap);
-            loss -= offsetRecap;
-      }
-
-      // Step 3: LT gain (the recognized property gain in year R).
+      // Step 2: LT gain (the recognized property gain in year R). Note
+      // recapture is skipped — capital losses flow straight from ST gain
+      // to LT gain, leaving the ordinary recapture untouched.
       if (loss > 0) {
             const offsetLong = Math.min(out.longTermGain || 0, loss);
             out.longTermGain = (out.longTermGain || 0) - offsetLong;
