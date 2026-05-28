@@ -1,0 +1,215 @@
+// js/04-ui/admin-math-page-temp.js
+//
+// Admin math reveal panel — Tab 7 (Temporary).
+//
+// Tranche x Year loss-generation matrix (advisor 2026-05-27). For each
+// installment-style strategy (B = §453 installment, C = structured
+// installment) this lays the Brooklyn loss math out the way the advisor
+// reasons about it:
+//
+//   ROWS    = tax years (Year 0 .. Year 5)
+//   COLUMNS = tranches (each a separate deposit into Brooklyn)
+//   CELL    = the short-term loss that tranche generated in that year
+//
+// Each tranche column shows the capital deposited and the combo it
+// operates under. A cell's loss = capital x age-rate x year-fraction,
+// where:
+//   • the Y0 (sale-close) tranche opens mid-year, so EVERY year it
+//     day-weights two adjacent age-rates by the 365-day model
+//     (e.g. Jul 1 open → Y1 = 0.50·r0 + 0.50·r1);
+//   • Jan-1 installment tranches run full integer-age rates;
+//   • when cumulative deposits cross a combo minimum ($1M → 145/45,
+//     $3M → 200/100) ALL active tranches migrate to the higher combo
+//     at their current age.
+(function (root) {
+  'use strict';
+  if (typeof root._registerPageMath !== 'function') return;
+
+  function _esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function _fmtUSD(n) {
+    if (typeof root._fmt === 'function') return root._fmt(n);
+    var v = Number(n);
+    if (!isFinite(v)) return String(n);
+    return (v < 0 ? '-' : '') + '$' + Math.round(Math.abs(v)).toLocaleString('en-US');
+  }
+  function _num(v) { var n = Number(v); return isFinite(n) ? n : 0; }
+  function _comboLabel(comboId) {
+    if (!comboId) return '—';
+    if (comboId.indexOf('200_100') !== -1) return '200/100';
+    if (comboId.indexOf('145_45') !== -1) return '145/45';
+    if (typeof root.getSchwabCombo === 'function') {
+      var c = root.getSchwabCombo(comboId);
+      if (c) return c.leverageLabel;
+    }
+    return comboId;
+  }
+
+  // Pivot the engine's per-row trancheBreakdown into a tranche x year
+  // grid. Returns { years[], tranches[], cell(trancheKey, year) }.
+  function _pivot(cmp) {
+    var rows = cmp.rows || [];
+    var years = rows.map(function (r) { return r.year; });
+    var trancheMap = {};      // key -> { key, idx, openYear, capital, perYear:{year->record} }
+    var order = [];
+    rows.forEach(function (r) {
+      (r.trancheBreakdown || []).forEach(function (tr) {
+        var key = tr.trancheIdx + '|' + tr.openYear;
+        if (!(key in trancheMap)) {
+          trancheMap[key] = {
+            key: key, idx: tr.trancheIdx, openYear: tr.openYear,
+            capital: tr.capital, perYear: {}
+          };
+          order.push(key);
+        }
+        trancheMap[key].perYear[r.year] = tr;
+      });
+    });
+    return { years: years, order: order, map: trancheMap };
+  }
+
+  function _matrixTable(cmp) {
+    var piv = _pivot(cmp);
+    if (!piv.order.length) {
+      return '<p class="admin-math-empty">No Brooklyn tranches deployed for this strategy ' +
+        '(below custodian min, or no engagement).</p>';
+    }
+
+    var years = piv.years;
+    var nCols = piv.order.length;
+
+    // ----- Header row: Year | Tranche 0 | Tranche 1 | ... | Year total -----
+    var html =
+      '<div class="admin-math-scroll">' +
+      '<table class="admin-math-table admin-math-table-wide">' +
+      '<thead><tr>' +
+        '<th>Year</th>';
+    piv.order.forEach(function (key, i) {
+      html += '<th class="admin-math-num">Tranche ' + i + '</th>';
+    });
+    html += '<th class="admin-math-num">Year total</th></tr></thead><tbody>';
+
+    // ----- Capital row -----
+    html += '<tr class="admin-math-subtotal"><td><strong>Capital deposited</strong></td>';
+    var grandCapital = 0;
+    piv.order.forEach(function (key) {
+      var t = piv.map[key];
+      grandCapital += _num(t.capital);
+      html += '<td class="admin-math-num"><strong>' + _fmtUSD(t.capital) + '</strong></td>';
+    });
+    html += '<td class="admin-math-num"><strong>' + _fmtUSD(grandCapital) + '</strong></td></tr>';
+
+    // ----- Opened-year row -----
+    html += '<tr><td>Opened</td>';
+    piv.order.forEach(function (key) {
+      html += '<td class="admin-math-num">' + _esc(piv.map[key].openYear) + '</td>';
+    });
+    html += '<td></td></tr>';
+
+    // ----- Per-year loss rows -----
+    var colTotals = {};
+    piv.order.forEach(function (key) { colTotals[key] = 0; });
+    var grandLoss = 0;
+
+    years.forEach(function (yr, yIdx) {
+      html += '<tr><td><strong>Year ' + yIdx + '</strong> (' + _esc(yr) + ')</td>';
+      var rowTotal = 0;
+      piv.order.forEach(function (key) {
+        var rec = piv.map[key].perYear[yr];
+        if (rec && rec.loss > 0.5) {
+          var loss = _num(rec.loss);
+          rowTotal += loss;
+          colTotals[key] += loss;
+          var rate = (rec.lossRate != null) ? (rec.lossRate * 100).toFixed(2) + '%' : '';
+          var combo = _comboLabel(rec.comboId);
+          var ann = '@ ' + rate + ' · ' + combo + ' · age ' + rec.age;
+          html += '<td class="admin-math-num" title="' + _esc(ann) + '">' +
+            _fmtUSD(loss) +
+            '<br><span style="font-size:0.78em;color:var(--ink-soft,#888);">' + rate + ' · ' + combo + '</span>' +
+            '</td>';
+        } else {
+          html += '<td class="admin-math-num" style="color:#bbb;">—</td>';
+        }
+      });
+      grandLoss += rowTotal;
+      html += '<td class="admin-math-num"><strong>' + _fmtUSD(rowTotal) + '</strong></td></tr>';
+    });
+
+    // ----- Tranche total row -----
+    html += '<tr class="admin-math-total"><td><strong>Tranche total loss</strong></td>';
+    piv.order.forEach(function (key) {
+      html += '<td class="admin-math-num"><strong>' + _fmtUSD(colTotals[key]) + '</strong></td>';
+    });
+    html += '<td class="admin-math-num"><strong>' + _fmtUSD(grandLoss) + '</strong></td></tr>';
+
+    html += '</tbody></table></div>';
+    return html;
+  }
+
+  function _strategyBlock(letter, name, summary) {
+    var entry = (summary.entries || []).find(function (e) { return e.type === letter; });
+    if (!entry) {
+      return '<div class="admin-math-section"><h4>Strategy ' + letter + ' &mdash; ' + _esc(name) + '</h4>' +
+        '<p class="admin-math-empty">Strategy not available for these inputs.</p></div>';
+    }
+    var cmp = null;
+    if (entry.cfg && typeof root.unifiedTaxComparison === 'function') {
+      try { cmp = root.unifiedTaxComparison(entry.cfg, { includeTrancheBreakdown: true }); }
+      catch (e) { cmp = null; }
+    }
+    if (!cmp) {
+      return '<div class="admin-math-section"><h4>Strategy ' + letter + ' &mdash; ' + _esc(name) + '</h4>' +
+        '<p class="admin-math-error">Engine did not return a comparison.</p></div>';
+    }
+    var y0Down = _num(entry.cfg.y0DownPayment);
+    var recap  = _num(entry.cfg.acceleratedDepreciation);
+    var weights = Array.isArray(entry.cfg.installmentScheduleWeights)
+      ? entry.cfg.installmentScheduleWeights.map(function (w) { return Math.round(w * 100) + '%'; }).join(' / ')
+      : '(equal)';
+    var meta =
+      '<p class="admin-math-subtitle" style="margin:6px 0 10px;">' +
+        'Installment weights: <strong>' + weights + '</strong>' +
+        ' &nbsp;·&nbsp; Y0 down: <strong>' + _fmtUSD(y0Down) + '</strong>' +
+        ' &nbsp;·&nbsp; Recapture cash deployed Y0: <strong>' + _fmtUSD(recap) + '</strong>' +
+      '</p>';
+
+    return '<div class="admin-math-section">' +
+      '<h4>Strategy ' + letter + ' &mdash; ' + _esc(name) + ' &mdash; Loss Generation Matrix</h4>' +
+      meta +
+      _matrixTable(cmp) +
+    '</div>';
+  }
+
+  function _renderTemp() {
+    if (typeof root.buildInterestedSummary !== 'function') {
+      return '<p class="admin-math-error">buildInterestedSummary unavailable.</p>';
+    }
+    var summary;
+    try { summary = root.buildInterestedSummary(); }
+    catch (e) { return '<p class="admin-math-error">buildInterestedSummary threw: ' + _esc(e.message || e) + '</p>'; }
+    if (!summary) return '<p class="admin-math-empty">Fill in client inputs to see the loss matrix.</p>';
+
+    var intro =
+      '<div class="admin-math-section">' +
+        '<h4>How Brooklyn Losses Are Generated</h4>' +
+        '<p class="admin-math-note" style="margin:0;">' +
+          'Each <strong>tranche</strong> is one deposit into Brooklyn. A tranche generates ' +
+          'short-term loss every year it stays open, at a rate that decays with its age ' +
+          '(Y0 highest). Cell loss = capital &times; age-rate &times; year-fraction. ' +
+          'The Y0 sale-close tranche opens mid-year, so it day-weights two adjacent ' +
+          'age-rates each year (365-day model). Installment tranches open Jan 1 and run ' +
+          'full-year rates. When cumulative deposits cross a combo minimum ' +
+          '($1M&nbsp;→&nbsp;145/45, $3M&nbsp;→&nbsp;200/100) every active tranche migrates ' +
+          'to the higher combo at its current age.' +
+        '</p>' +
+      '</div>';
+
+    return intro +
+      _strategyBlock('B', 'Installment Sale (§453)', summary) +
+      _strategyBlock('C', 'Structured Installment Sale', summary);
+  }
+
+  root._registerPageMath('page-temp', _renderTemp);
+})(window);
