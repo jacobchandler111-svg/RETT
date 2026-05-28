@@ -304,6 +304,36 @@
       '<tr class="temp-total-row"><td><strong>Total tax</strong></td><td class="temp-amt"><strong>' + _fmt(total) + '</strong></td></tr>';
   }
 
+  // RESULTS side — the post-strategy tax breakdown (row.withStrategy).
+  // Same line-by-line shape as the baseline tax breakdown (federal
+  // ordinary / LT cap gains / §1250 recap / AMT / NIIT / Add'l Medicare
+  // / SE / state / total) but reflecting the strategy's effect. Adds a
+  // "Tax saved vs baseline" line comparing to the baseline total so the
+  // CPA sees the year's net tax movement. withStrategy carries the same
+  // keys baseline does (verified) so _renderTaxRows works directly.
+  function _renderResultsCell(withStrategy, baseline) {
+    if (!withStrategy) return '<div class="temp-baseline-empty">No result data.</div>';
+    var taxRows = _renderTaxRows(withStrategy);
+    var savedRow = '';
+    if (baseline && baseline.total != null && withStrategy.total != null) {
+      var saved = Number(baseline.total) - Number(withStrategy.total);
+      if (Math.abs(saved) > 0.5) {
+        var cls = saved >= 0 ? 'temp-result-saved-row' : 'temp-result-saved-row temp-result-saved-neg';
+        var label = saved >= 0 ? 'Tax saved vs baseline' : 'Tax increase vs baseline';
+        savedRow = '<tr class="' + cls + '"><td><strong>' + label + '</strong></td>' +
+          '<td class="temp-amt"><strong>' + _fmt(Math.abs(saved)) + '</strong></td></tr>';
+      }
+    }
+    return '' +
+      '<table class="temp-baseline-table">' +
+        '<tbody>' +
+          '<tr class="temp-section-head"><td colspan="2">Tax with strategy applied</td></tr>' +
+          taxRows +
+          savedRow +
+        '</tbody>' +
+      '</table>';
+  }
+
   function _renderBaselineCell(b, carryIn, carryOut) {
     if (!b) return '<div class="temp-baseline-empty">No baseline data.</div>';
     var incomeRows = _renderIncomeRows(b._incomes || {}, carryIn);
@@ -822,6 +852,10 @@
         '<div class="temp-year-activity">' +
           '<div class="temp-year-head temp-year-head-muted">Strategy activity</div>' +
           _renderActivityCell(row, i, chosen, cfg, fundedSupps, feeScale, lowerBracketBenefit) +
+        '</div>' +
+        '<div class="temp-year-results">' +
+          '<div class="temp-year-head temp-year-head-result">Results &mdash; with strategy</div>' +
+          _renderResultsCell(row.withStrategy || row.baseline, row.baseline) +
         '</div>' +
         _renderWithdrawalCell(row, year, cfg) +
       '</div>';

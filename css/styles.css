@@ -7767,7 +7767,7 @@ body { font-size: 16px; }
 
 .temp-year-card {
     display: grid;
-    grid-template-columns: 160px 1fr 1fr;
+    grid-template-columns: 150px 1fr 1fr 1fr;
     gap: 14px;
     align-items: stretch;
     padding: 14px 16px;
@@ -7777,17 +7777,31 @@ body { font-size: 16px; }
     box-shadow: var(--shadow);
 }
 /* Container variant — applied when the client elected to cover the
-   tax bill from sale proceeds. Adds a 4th track for the Trust
+   tax bill from sale proceeds. Adds a 5th track for the Trust
    Withdrawal callout. All year cards adopt the wider layout so
    alignment stays consistent across the column even when a given
    year has zero tax (withdrawal cell self-suppresses if amount = 0,
-   leaving an empty 4th cell — still aligned with siblings above). */
+   leaving an empty 5th cell — still aligned with siblings above). */
 .temp-baselines--withdrawals .temp-year-card {
-    grid-template-columns: 160px 1fr 1fr 175px;
+    grid-template-columns: 150px 1fr 1fr 1fr 175px;
 }
 .temp-year-card.is-not-relevant { opacity: 0.55; }
 .temp-year-card.is-not-relevant .temp-year-baseline,
-.temp-year-card.is-not-relevant .temp-year-activity { filter: grayscale(0.4); }
+.temp-year-card.is-not-relevant .temp-year-activity,
+.temp-year-card.is-not-relevant .temp-year-results { filter: grayscale(0.4); }
+
+/* Results column header — green-tinted to read as the post-strategy
+   outcome (vs baseline neutral + activity muted). */
+.temp-year-head-result {
+    color: #15803d;
+}
+.temp-result-saved-row td {
+    border-top: 1px solid var(--rule);
+    color: #15803d;
+}
+.temp-result-saved-neg td {
+    color: #b91c1c;
+}
 
 .temp-year-rel {
     display: flex;
