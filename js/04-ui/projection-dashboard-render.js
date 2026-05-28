@@ -569,7 +569,11 @@
       });
       var pr = (type === 'C' && Number.isFinite(picked.parkRatio)) ? picked.parkRatio : null;
       var iw = (type === 'B' && Array.isArray(picked.installmentWeights)) ? picked.installmentWeights : null;
-      var y0d = (type === 'C' && Number.isFinite(picked.y0DownPayment)) ? picked.y0DownPayment : null;
+      // Y0 down-payment applies to BOTH B and C (advisor 2026-05-27).
+      // Gating to C-only silently dropped B's solver-chosen Y0 down,
+      // rebuilding B at D=0 and discarding the optimization — which let
+      // C beat B on small sales.
+      var y0d = ((type === 'B' || type === 'C') && Number.isFinite(picked.y0DownPayment)) ? picked.y0DownPayment : null;
       return {
         cfg: _scenarioCfgFor(type, sectionCfg, picked.bestRecC, userDuration, pr, iw, y0d),
         picked: picked
@@ -1357,6 +1361,15 @@
               // 2D ultra-fine pass.
               _sweepBD(fineBestB3.weights);
             }
+            // C-coverage guarantee (advisor 2026-05-27): Strategy C is
+            // locked to [0.40, 0.40, 0.20] + a Y0-down sweep. B's
+            // two-stage solver (weights@D=0, then D on those weights)
+            // can miss the joint (weights, D) optimum that C finds —
+            // e.g. small sales where the C-style 40/40/20 + a mid Y0
+            // down beats B's D=0 weight pick. Run the D sweep on C's
+            // exact locked weights so B's search ALWAYS contains C's
+            // configuration and B ≥ C holds by construction.
+            _sweepBD([0.4, 0.4, 0.2]);
           }
         } else {
           // A doesn't use a deferred-sale duration — pass through the
@@ -2663,7 +2676,8 @@
         : userDuration;
       var pr = (type === 'C' && Number.isFinite(picked.parkRatio)) ? picked.parkRatio : null;
       var iw = (type === 'B' && Array.isArray(picked.installmentWeights)) ? picked.installmentWeights : null;
-      var y0d = (type === 'C' && Number.isFinite(picked.y0DownPayment)) ? picked.y0DownPayment : null;
+      // Y0 down-payment applies to BOTH B and C (advisor 2026-05-27).
+      var y0d = ((type === 'B' || type === 'C') && Number.isFinite(picked.y0DownPayment)) ? picked.y0DownPayment : null;
       return {
         cfg: _scenarioCfgFor(type, sectionCfg, picked.bestRecC, dur, pr, iw, y0d),
         picked: picked
