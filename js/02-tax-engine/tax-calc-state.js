@@ -120,14 +120,27 @@ function computeStateTax(income, year, stateCode, status, opts) {
           const node = getStateNode(year, stateCode);
           const stateLtcg = (node && node.stateLtcg) || null;
           const disconformLossOffset = !!(stateLtcg && stateLtcg.disconformLossOffset);
-          const effectiveLossOff = disconformLossOffset ? 0 : lossOff;
-          // For disconforming states (NJ): the caller's `income` arg
-          // has already had the federal §1211 ordinary-offset baked in
-          // (the upstream loss-netting reduces scenario.ordinaryIncome
-          // before it reaches us). NJ doesn't conform to that offset
-          // — capital losses can't offset ordinary income in NJ — so
-          // we ADD BACK the federal offset to the ordinary base before
-          // running state brackets. Conforming states leave income as-is.
+          // The caller's `income` arg ALREADY has the federal §1211
+          // ordinary-offset baked in: the upstream loss-netting
+          // (_applyLossesWithSTCfCap) subtracts the $3K/$1.5K offset
+          // directly from scenario.ordinaryIncome before it reaches us, and
+          // reports the dollar amount separately via
+          // opts.lossOrdOffsetApplied. So for federal-CONFORMING states we
+          // must NOT subtract the offset a second time — it is already
+          // reflected in `income`.
+          //
+          // (Bug fixed 2026-05-28: conforming states were double-counting
+          // the offset. On a $250K-wage / LT-wiped year, GA read $11,418
+          // [= ($247K − $24K std − $3K) × 5.19%] instead of the correct
+          // $11,573.70 [= ($247K − $24K std) × 5.19%]. The engine was
+          // internally inconsistent — subtracting for conforming states yet
+          // adding back for NJ — even though both receive the SAME
+          // already-reduced income.)
+          //
+          // For DISCONFORMING states (NJ): capital losses can't offset
+          // ordinary income (NJSA 54A:5-2), so we ADD BACK the federal
+          // offset to un-reduce the ordinary base before running state
+          // brackets. lossOrdOffsetApplied is the amount to restore.
           const _addBackForDisconform = disconformLossOffset ? lossOff : 0;
 
           // Decide how much of the LT gain feeds the ordinary stack
@@ -173,7 +186,10 @@ function computeStateTax(income, year, stateCode, status, opts) {
           // to `income` will see this as a no-op subtraction, which is
           // safe; the engine never "doubles" gains it didn't see.)
           const adjIncome = Math.max(0, income - (lt - ltOrdinaryPortion) + _addBackForDisconform);
-          const taxable   = Math.max(0, adjIncome - deduction - effectiveLossOff);
+          // No `- lossOff` here: the federal §1211 offset is already baked
+          // into `income` for conforming states (see _addBackForDisconform
+          // comment above). NJ's add-back is the only adjustment needed.
+          const taxable   = Math.max(0, adjIncome - deduction);
 
           const brackets = getStateBrackets(year, stateCode, status);
           let tax = _flatBracketTaxState(taxable, brackets);
