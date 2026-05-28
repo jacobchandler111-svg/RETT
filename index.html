@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=1777600000478">
+  <link rel="stylesheet" href="css/styles.css?v=1777600000479">
   <!-- html2pdf.js: turns the page-allocator DOM into a downloadable
        PDF on click. Bundled build (includes html2canvas + jsPDF).
        Script loads async/defer-friendly; window.html2pdf is the
@@ -655,27 +655,42 @@
             <span class="num">SECTION 03</span>
           </div>
           <div class="section-body">
+            <!-- Gate question (mirrors the Future Sale yes/no). "No" by
+                 default; flipping to "Yes" reveals the account fields and
+                 sparks the "could you add funds?" conversation. Whether
+                 the funds actually move the projection is still controlled
+                 by the Projection-tab "Include Additional Funds" toggle
+                 (default off — the advisor flips it to reveal the extra
+                 savings). -->
+            <div class="input-row">
+              <div class="label">Do you have additional funds to invest?<span class="sub">A taxable account you could tap to fund the strategy</span></div>
+              <select id="additional-funds-yes-no" class="yes-no">
+                <option value="no" selected>No</option>
+                <option value="yes">Yes</option>
+              </select>
+            </div>
+            <div id="additional-funds-fields-group" hidden>
             <div class="input-row">
               <div class="label">Account Value<span class="sub">Current taxable investment account</span></div>
-              <div class="currency-input"><input type="text" id="additional-account-value" placeholder="0" inputmode="numeric" autocomplete="off" data-inert="true"></div>
+              <div class="currency-input"><input type="text" id="additional-account-value" placeholder="0" inputmode="numeric" autocomplete="off"></div>
             </div>
             <div class="input-row">
-              <div class="label">Long-Term Gain<span class="sub">Unrealized, held &gt;1yr</span></div>
-              <div class="currency-input"><input type="text" id="additional-lt-gain" placeholder="0" inputmode="numeric" autocomplete="off" data-inert="true"></div>
+              <div class="label">Long-Term Gain<span class="sub">Unrealized, held &gt;1yr (loss enters negative)</span></div>
+              <div class="currency-input"><input type="text" id="additional-lt-gain" placeholder="0" inputmode="numeric" autocomplete="off"></div>
             </div>
             <div class="input-row">
               <div class="label">Short-Term Gain<span class="sub">Unrealized, held &le;1yr (loss enters negative)</span></div>
-              <div class="currency-input"><input type="text" id="additional-st-gain" placeholder="0" inputmode="numeric" autocomplete="off" data-inert="true"></div>
+              <div class="currency-input"><input type="text" id="additional-st-gain" placeholder="0" inputmode="numeric" autocomplete="off"></div>
             </div>
             <div class="input-row">
               <div class="label">Cost Basis<span class="sub">Derived: account value − gains</span></div>
               <div class="currency-input"><input type="text" id="additional-cost-basis-derived" placeholder="0" inputmode="numeric" autocomplete="off" readonly tabindex="-1"></div>
             </div>
             <div class="input-row">
-              <div class="label">Additional Funds<span class="sub">Amount to liquidate &amp; deploy</span></div>
+              <div class="label">Additional Funds<span class="sub">Amount to liquidate &amp; deploy — auto-filled to the optimal, editable</span></div>
               <div class="currency-input">
-                <input type="text" id="additional-funds" placeholder="0" inputmode="numeric" autocomplete="off" data-inert="true">
-                <button type="button" id="additional-funds-suggest" class="addfunds-suggest-btn" hidden title="Use the optimizer's suggested amount">Use suggested: <span id="additional-funds-suggest-amt">—</span></button>
+                <input type="text" id="additional-funds" placeholder="0" inputmode="numeric" autocomplete="off">
+                <span id="additional-funds-auto-note" class="addfunds-auto-note" hidden></span>
               </div>
             </div>
             <!-- Live proportional realized-gain breakdown — liquidating
@@ -689,6 +704,7 @@
                 <div class="addfunds-bd-row"><span>Return of basis (no tax)</span><span id="afb-basis">$0</span></div>
               </div>
             </div>
+            </div><!-- /additional-funds-fields-group -->
           </div>
         </div>
 
@@ -1318,175 +1334,204 @@
   <!-- ============ Subsystem load order: 00 -> 01 -> 02 -> 03 -> 05 -> 04 ============ -->
   <!-- date-utils is loaded ahead of 00-data so schwab-strategies can use the
        shared parseLocalDate global instead of defining its own copy. -->
-  <script src="js/01-brooklyn/date-utils.js?v=1777600000478"></script>
-  <script src="js/00-data/custodians.js?v=1777600000478"></script>
-  <script src="js/00-data/schwab-strategies.js?v=1777600000478"></script>
-  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000478"></script>
-  <script src="js/01-brooklyn/time-weight.js?v=1777600000478"></script>
-  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000478"></script>
-  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000478"></script>
+  <script src="js/01-brooklyn/date-utils.js?v=1777600000479"></script>
+  <script src="js/00-data/custodians.js?v=1777600000479"></script>
+  <script src="js/00-data/schwab-strategies.js?v=1777600000479"></script>
+  <script src="js/01-brooklyn/brooklyn-data.js?v=1777600000479"></script>
+  <script src="js/01-brooklyn/time-weight.js?v=1777600000479"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1777600000479"></script>
+  <script src="js/01-brooklyn/variable-leverage.js?v=1777600000479"></script>
 
-  <script src="js/02-tax-engine/tax-data.js?v=1777600000478"></script>
-  <script src="js/02-tax-engine/tax-loader.js?v=1777600000478"></script>
-  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000478"></script>
-  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000478"></script>
-  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000478"></script>
-  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000478"></script>
-  <script src="js/02-tax-engine/engine-self-test.js?v=1777600000478"></script>
+  <script src="js/02-tax-engine/tax-data.js?v=1777600000479"></script>
+  <script src="js/02-tax-engine/tax-loader.js?v=1777600000479"></script>
+  <script src="js/02-tax-engine/tax-lookups.js?v=1777600000479"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js?v=1777600000479"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js?v=1777600000479"></script>
+  <script src="js/02-tax-engine/tax-comparison.js?v=1777600000479"></script>
+  <script src="js/02-tax-engine/engine-self-test.js?v=1777600000479"></script>
 
-  <script src="js/03-solver/fees.js?v=1777600000478"></script>
-  <script src="js/03-solver/fee-split.js?v=1777600000478"></script>
-  <script src="js/03-solver/brookhaven-fees.js?v=1777600000478"></script>
-  <script src="js/03-solver/single-year-solver.js?v=1777600000478"></script>
-  <script src="js/03-solver/multi-year-solver.js?v=1777600000478"></script>
-  <script src="js/03-solver/structured-sale.js?v=1777600000478"></script>
-  <script src="js/03-solver/calc-oil-gas.js?v=1777600000478"></script>
-  <script src="js/03-solver/calc-delphi.js?v=1777600000478"></script>
-  <script src="js/03-solver/calc-supplemental-extra.js?v=1777600000478"></script>
-  <script src="js/03-solver/decision-engine.js?v=1777600000478"></script>
+  <script src="js/03-solver/fees.js?v=1777600000479"></script>
+  <script src="js/03-solver/fee-split.js?v=1777600000479"></script>
+  <script src="js/03-solver/brookhaven-fees.js?v=1777600000479"></script>
+  <script src="js/03-solver/single-year-solver.js?v=1777600000479"></script>
+  <script src="js/03-solver/multi-year-solver.js?v=1777600000479"></script>
+  <script src="js/03-solver/structured-sale.js?v=1777600000479"></script>
+  <script src="js/03-solver/calc-oil-gas.js?v=1777600000479"></script>
+  <script src="js/03-solver/calc-delphi.js?v=1777600000479"></script>
+  <script src="js/03-solver/calc-supplemental-extra.js?v=1777600000479"></script>
+  <script src="js/03-solver/decision-engine.js?v=1777600000479"></script>
   <!-- Master solver registry + Page-5 supplemental defaults. master-solver
        declares register*/list*/runMasterSolver; supplemental-defaults uses
        those to register Oil & Gas. Future supplemental strategies append
        to supplemental-defaults â€” calc-* modules don't reach into this. -->
-  <script src="js/03-solver/master-solver.js?v=1777600000478"></script>
-  <script src="js/03-solver/additional-funds.js?v=1777600000478"></script>
-  <script src="js/03-solver/supplemental-defaults.js?v=1777600000478"></script>
-  <script src="js/03-solver/supplemental-extra-registry.js?v=1777600000478"></script>
-  <script src="js/03-solver/supplemental-investment-shims.js?v=1777600000478"></script>
+  <script src="js/03-solver/master-solver.js?v=1777600000479"></script>
+  <script src="js/03-solver/additional-funds.js?v=1777600000479"></script>
+  <script src="js/03-solver/supplemental-defaults.js?v=1777600000479"></script>
+  <script src="js/03-solver/supplemental-extra-registry.js?v=1777600000479"></script>
+  <script src="js/03-solver/supplemental-investment-shims.js?v=1777600000479"></script>
 
-  <script src="js/05-projections/carryforward-tracker.js?v=1777600000478"></script>
-  <script src="js/05-projections/projection-engine.js?v=1777600000478"></script>
+  <script src="js/05-projections/carryforward-tracker.js?v=1777600000479"></script>
+  <script src="js/05-projections/projection-engine.js?v=1777600000479"></script>
 
   <!-- format-helpers loads first inside 04-ui so every renderer can use
        fmtUSD / fmtPct / fmtNum directly without a defensive fallback. -->
-  <script src="js/04-ui/format-helpers.js?v=1777600000478"></script>
-  <script src="js/04-ui/money-format.js?v=1777600000478"></script>
-  <script src="js/04-ui/banner.js?v=1777600000478"></script>
-  <script src="js/04-ui/number-animator.js?v=1777600000478"></script>
+  <script src="js/04-ui/format-helpers.js?v=1777600000479"></script>
+  <script src="js/04-ui/money-format.js?v=1777600000479"></script>
+  <script src="js/04-ui/banner.js?v=1777600000479"></script>
+  <script src="js/04-ui/number-animator.js?v=1777600000479"></script>
   <!-- us-states MUST load before case-storage/controls so the State
        <select> options exist when the saved-case restore runs —
        otherwise restore can't set state-code to the saved value (no
        matching option yet) and it falls back to the NY default. -->
-  <script src="js/04-ui/us-states.js?v=1777600000478"></script>
-  <script src="js/04-ui/case-storage.js?v=1777600000478"></script>
-  <script src="js/04-ui/pill-toggles.js?v=1777600000478"></script>
-  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000478"></script>
-  <script src="js/04-ui/input-validation.js?v=1777600000478"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1777600000478"></script>
-  <script src="js/04-ui/controls.js?v=1777600000478"></script>
-  <script src="js/04-ui/recommendation-render.js?v=1777600000478"></script>
-  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000478"></script>
-  <script src="js/04-ui/savings-ribbon.js?v=1777600000478"></script>
-  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000478"></script>
-  <script src="js/04-ui/narrative-render.js?v=1777600000478"></script>
-  <script src="js/04-ui/strategy-summary-render.js?v=1777600000478"></script>
-  <script src="js/04-ui/baseline-table.js?v=1777600000478"></script>
-  <script src="js/04-ui/supplemental-render.js?v=1777600000478"></script>
-  <script src="js/04-ui/supplemental-extra-render.js?v=1777600000478"></script>
+  <script src="js/04-ui/us-states.js?v=1777600000479"></script>
+  <script src="js/04-ui/case-storage.js?v=1777600000479"></script>
+  <script src="js/04-ui/pill-toggles.js?v=1777600000479"></script>
+  <script src="js/04-ui/variable-leverage-ui.js?v=1777600000479"></script>
+  <script src="js/04-ui/input-validation.js?v=1777600000479"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1777600000479"></script>
+  <script src="js/04-ui/controls.js?v=1777600000479"></script>
+  <script src="js/04-ui/recommendation-render.js?v=1777600000479"></script>
+  <script src="js/04-ui/projection-dashboard-render.js?v=1777600000479"></script>
+  <script src="js/04-ui/savings-ribbon.js?v=1777600000479"></script>
+  <script src="js/04-ui/cashflow-schedule-render.js?v=1777600000479"></script>
+  <script src="js/04-ui/narrative-render.js?v=1777600000479"></script>
+  <script src="js/04-ui/strategy-summary-render.js?v=1777600000479"></script>
+  <script src="js/04-ui/baseline-table.js?v=1777600000479"></script>
+  <script src="js/04-ui/supplemental-render.js?v=1777600000479"></script>
+  <script src="js/04-ui/supplemental-extra-render.js?v=1777600000479"></script>
 
-  <script src="js/04-ui/pmq-handler.js?v=1777600000478"></script>
-  <script src="js/04-ui/temp-page-render.js?v=1777600000478"></script>
-  <script src="js/04-ui/admin-math-panel.js?v=1777600000478"></script>
-  <script src="js/04-ui/admin-math-page-inputs.js?v=1777600000478"></script>
-  <script src="js/04-ui/admin-math-page-baseline.js?v=1777600000478"></script>
-  <script src="js/04-ui/admin-math-page-strategies.js?v=1777600000478"></script>
-  <script src="js/04-ui/admin-math-page-projection.js?v=1777600000478"></script>
-  <script src="js/04-ui/admin-math-page-supplemental.js?v=1777600000478"></script>
-  <script src="js/04-ui/admin-math-page-allocator.js?v=1777600000478"></script>
-  <script src="js/04-ui/admin-math-page-temp.js?v=1777600000478"></script>
+  <script src="js/04-ui/pmq-handler.js?v=1777600000479"></script>
+  <script src="js/04-ui/temp-page-render.js?v=1777600000479"></script>
+  <script src="js/04-ui/admin-math-panel.js?v=1777600000479"></script>
+  <script src="js/04-ui/admin-math-page-inputs.js?v=1777600000479"></script>
+  <script src="js/04-ui/admin-math-page-baseline.js?v=1777600000479"></script>
+  <script src="js/04-ui/admin-math-page-strategies.js?v=1777600000479"></script>
+  <script src="js/04-ui/admin-math-page-projection.js?v=1777600000479"></script>
+  <script src="js/04-ui/admin-math-page-supplemental.js?v=1777600000479"></script>
+  <script src="js/04-ui/admin-math-page-allocator.js?v=1777600000479"></script>
+  <script src="js/04-ui/admin-math-page-temp.js?v=1777600000479"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1777600000478"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1777600000479"></script>
 
-  <!-- Additional Funds: derive Cost Basis = Account Value − LT gain −
-       ST gain, live. Display-only; the input fields are inert (engine
-       wiring TBD). -->
+  <!-- Additional Funds (Tab 1 Section 03): a Yes/No gate reveals the
+       fields (mirrors the Future Sale question), the derived cost basis +
+       proportional realized-gain breakdown update live, and the
+       "Additional Funds" amount AUTO-POPULATES the optimizer's optimal
+       (window.rettSuggestAdditionalFunds) — or stays empty when there's
+       no benefit. The advisor can type their own number to override.
+       Whether the funds move the projection is gated by the Projection-
+       tab "Include Additional Funds" toggle (default off). -->
   <script>
     (function () {
+      function _el(id) { return document.getElementById(id); }
       function _num(v) {
-        if (!v) return 0;
-        var n = parseFloat(String(v).replace(/[^0-9.\-]/g, ''));
+        if (typeof window.parseUSD === 'function') return window.parseUSD(v) || 0;
+        var n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, ''));
         return isFinite(n) ? n : 0;
       }
       function _fmtUSD(n) {
+        if (typeof window.fmtUSD === 'function') return window.fmtUSD(n);
         var sign = n < 0 ? '-' : '';
         return sign + '$' + Math.round(Math.abs(n)).toLocaleString('en-US');
       }
+
+      var _afUserOverride = false;   // advisor typed their own Additional Funds amount
+      var _afProgrammatic = false;   // guard while we write the field ourselves
+
       function _sync() {
-        var av = document.getElementById('additional-account-value');
-        var lt = document.getElementById('additional-lt-gain');
-        var st = document.getElementById('additional-st-gain');
-        var cb = document.getElementById('additional-cost-basis-derived');
+        var av = _el('additional-account-value'), cb = _el('additional-cost-basis-derived');
         if (!av || !cb) return;
-        var avV = _num(av.value), ltV = _num(lt ? lt.value : 0), stV = _num(st ? st.value : 0);
-        var basis = avV - ltV - stV;
-        cb.value = (avV === 0 && ltV === 0 && stV === 0) ? '' : _fmtUSD(basis);
+        var avV = _num(av.value),
+            ltV = _num((_el('additional-lt-gain') || {}).value),
+            stV = _num((_el('additional-st-gain') || {}).value);
+        cb.value = (avV === 0 && ltV === 0 && stV === 0) ? '' : _fmtUSD(avV - ltV - stV);
         _syncBreakdown(avV, ltV, stV);
       }
-      // Proportional realized-gain breakdown. Liquidating $X from an
-      // account worth $av with $lt LT gain + $st ST gain realizes those
-      // gains pro-rata: ltRealized = X × (lt/av), stRealized = X × (st/av),
-      // basisReturned = X × (basis/av). Display-only.
+      // Proportional realized-gain breakdown: liquidating $X from an
+      // account worth $av realizes ltRealized = X×(lt/av), stRealized =
+      // X×(st/av), basisReturned = the rest. Display-only.
       function _syncBreakdown(avV, ltV, stV) {
-        var bd = document.getElementById('additional-funds-breakdown');
-        var fundsEl = document.getElementById('additional-funds');
+        var bd = _el('additional-funds-breakdown'), fundsEl = _el('additional-funds');
         if (!bd || !fundsEl) return;
         var contribution = _num(fundsEl.value);
         if (contribution <= 0 || avV <= 0) { bd.hidden = true; return; }
         var capped = Math.min(contribution, avV);
-        var ltProp = ltV / avV, stProp = stV / avV;
-        var ltRe = capped * ltProp, stRe = capped * stProp, basisRe = capped - ltRe - stRe;
-        document.getElementById('afb-amount').textContent = _fmtUSD(capped);
-        document.getElementById('afb-lt').textContent = _fmtUSD(ltRe);
-        document.getElementById('afb-st').textContent = _fmtUSD(stRe);
-        document.getElementById('afb-basis').textContent = _fmtUSD(basisRe);
+        var ltRe = capped * (ltV / avV), stRe = capped * (stV / avV), basisRe = capped - ltRe - stRe;
+        _el('afb-amount').textContent = _fmtUSD(capped);
+        _el('afb-lt').textContent = _fmtUSD(ltRe);
+        _el('afb-st').textContent = _fmtUSD(stRe);
+        _el('afb-basis').textContent = _fmtUSD(basisRe);
         bd.hidden = false;
       }
-      // Suggested-amount hook. The engine bot implements
-      // window.rettSuggestAdditionalFunds() → returns the optimal
-      // liquidation amount (tier-jump OR full-Y0-offset). Until then the
-      // button stays hidden. See ADDITIONAL_FUNDS_OPTIMIZER_SPEC.md.
-      function _syncSuggestion() {
-        var btn = document.getElementById('additional-funds-suggest');
-        var amtEl = document.getElementById('additional-funds-suggest-amt');
-        if (!btn || !amtEl) return;
+
+      // Auto-populate the optimal liquidation amount. Fills the field when
+      // the optimizer returns a benefit, clears it otherwise. Skipped once
+      // the advisor has typed an override (until they clear it). The
+      // optimizer call is heavy, so callers debounce it.
+      function _autoPopulate() {
+        var fundsEl = _el('additional-funds'), note = _el('additional-funds-auto-note');
+        if (!fundsEl) return;
+        if (_afUserOverride) { if (note) note.hidden = true; return; }
         var sug = null;
         if (typeof window.rettSuggestAdditionalFunds === 'function') {
           try { sug = window.rettSuggestAdditionalFunds(); } catch (e) { sug = null; }
         }
+        _afProgrammatic = true;
         if (sug != null && isFinite(sug) && sug > 0) {
-          amtEl.textContent = _fmtUSD(sug);
-          btn.hidden = false;
+          fundsEl.value = _fmtUSD(sug);
+          if (note) { note.textContent = 'optimal · editable'; note.hidden = false; }
         } else {
-          btn.hidden = true;
+          fundsEl.value = '';
+          if (note) note.hidden = true;
         }
-      }
-      document.addEventListener('DOMContentLoaded', function () {
-        ['additional-account-value', 'additional-lt-gain', 'additional-st-gain', 'additional-funds'].forEach(function (id) {
-          var el = document.getElementById(id);
-          if (!el) return;
-          el.addEventListener('input', _sync);
-          el.addEventListener('change', _sync);
-        });
-        var sBtn = document.getElementById('additional-funds-suggest');
-        if (sBtn) sBtn.addEventListener('click', function () {
-          if (typeof window.rettSuggestAdditionalFunds !== 'function') return;
-          var sug = null;
-          try { sug = window.rettSuggestAdditionalFunds(); } catch (e) {}
-          if (sug != null && isFinite(sug) && sug > 0) {
-            var f = document.getElementById('additional-funds');
-            f.value = _fmtUSD(sug);
-            f.dispatchEvent(new Event('input', { bubbles: true }));
-            f.dispatchEvent(new Event('change', { bubbles: true }));
-          }
-        });
+        fundsEl.dispatchEvent(new Event('change', { bubbles: true }));
+        _afProgrammatic = false;
         _sync();
-        _syncSuggestion();
-        // Re-check the suggestion when the engine recomputes (it dispatches
-        // input/change events through the form on every pipeline run).
+      }
+      var _afTimer = null;
+      function _autoPopulateDebounced() {
+        if ((_el('additional-funds-yes-no') || {}).value !== 'yes') return;
+        clearTimeout(_afTimer);
+        _afTimer = setTimeout(_autoPopulate, 400);
+      }
+
+      // Yes/No gate — reveal/hide the fields (conversation starter).
+      function _syncYesNo() {
+        var yn = _el('additional-funds-yes-no'), grp = _el('additional-funds-fields-group');
+        if (!yn || !grp) return;
+        var on = (yn.value === 'yes');
+        grp.hidden = !on;
+        if (on) { _afUserOverride = false; _autoPopulateDebounced(); }
+      }
+
+      document.addEventListener('DOMContentLoaded', function () {
+        var yn = _el('additional-funds-yes-no');
+        if (yn) { yn.addEventListener('change', _syncYesNo); yn.addEventListener('input', _syncYesNo); }
+
+        ['additional-account-value', 'additional-lt-gain', 'additional-st-gain'].forEach(function (id) {
+          var el = _el(id);
+          if (!el) return;
+          el.addEventListener('input',  function () { _sync(); _autoPopulateDebounced(); });
+          el.addEventListener('change', function () { _sync(); _autoPopulateDebounced(); });
+        });
+
+        var fundsEl = _el('additional-funds');
+        if (fundsEl) {
+          fundsEl.addEventListener('input', function () {
+            if (_afProgrammatic) return;                       // ignore our own writes
+            _afUserOverride = (String(fundsEl.value).trim() !== '');  // cleared → resume auto
+            _sync();
+          });
+        }
+
+        _syncYesNo();   // initial paint (hidden unless Yes)
+        _sync();
+
+        // Re-auto-populate when an input that changes the optimal moves.
         document.addEventListener('change', function (e) {
           if (e && e.target && /^(sale-price|cost-basis|accelerated-depreciation|additional-account-value|additional-lt-gain|additional-st-gain|custodian-select|state-code|filing-status)$/.test(e.target.id)) {
-            _syncSuggestion();
+            _autoPopulateDebounced();
           }
         }, true);
       });
