@@ -57,11 +57,16 @@
     var recap = _num(recapture);
     var wages = _num(cfg.wages);
     var seInc = _domNum('se-income');
-    // NIIT base = LT (clamped to 0) + STG + recap + rental + dividend.
-    // Recap belongs because §1411 treats §1250 gain as net investment
-    // income from disposition of property.
+    // NIIT base = LT (clamped to 0) + STG + recap + rental + dividend +
+    // interest. Recap belongs because §1411 treats §1250 gain as net
+    // investment income from disposition of property. Interest
+    // (§1411(c)(1)(A)(i)) was previously OMITTED here, so the admin
+    // baseline NIIT row didn't move when interest income changed —
+    // mismatching the engine, which has always counted it. (Fixed
+    // 2026-05-28; matches inputs-collector _ordinaryInvestmentIncome.)
     var nIIT_base = Math.max(0, ltSigned) + stGain + recap
-                  + _domNum('rental-income') + _domNum('dividend-income');
+                  + _domNum('rental-income') + _domNum('dividend-income')
+                  + _domNum('interest-income');
     var fed = root.computeFederalTaxBreakdown(ord, year, status, {
       longTermGain: ltSigned,
       shortTermGain: stGain,
@@ -126,7 +131,7 @@
           '<tr class="admin-math-amt-detail"><td><em>&nbsp;&nbsp;Tentative Minimum Tax (TMT)</em></td><td class="admin-math-num"><em>' + _fmtUSD(b.tmt) + '</em></td><td>§55(b) AMT on (ordinary + std-ded add-back) at 26/28% + LT layered at preferential rate</td></tr>' +
           _bucketRow('AMT top-up',                 b.amt,     '= max(0, TMT &minus; Regular federal) = max(0, ' + _fmtUSD(b.tmt) + ' &minus; ' + _fmtUSD(b.regFed) + ')') +
           '<tr class="admin-math-subtotal"><td><strong>Federal subtotal</strong></td><td class="admin-math-num"><strong>' + _fmtUSD(fedTotal) + '</strong></td><td>fedOrd + fedRcap + fedLt + amt</td></tr>' +
-          _bucketRow('NIIT (3.8%)',                b.niit,    '§1411 on LT + STG + recap + rental + dividend above MAGI threshold') +
+          _bucketRow('NIIT (3.8%)',                b.niit,    '§1411 on LT + STG + recap + rental + dividend + interest above MAGI threshold') +
           _bucketRow('Add\'l Medicare (0.9%)',     b.addmed,  '§3101(b)(2) on wages + SE&times;0.9235 above threshold') +
           _bucketRow('SE tax',                     b.seTax,   'Self-employment FICA portion (Form SE)') +
           _bucketRow('State tax',                  scen.state, 'computeStateTax(' + _esc(scen._stateCode || '') + ', ' + _esc(scen._year || '') + ')') +
