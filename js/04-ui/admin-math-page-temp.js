@@ -47,6 +47,28 @@
     return comboId;
   }
 
+  // The 365-day staggering math behind a cell's blended loss rate. The Y0
+  // sale-close tranche opens mid-year, so it keeps a mid-year anniversary
+  // every year and each tax year day-weights two adjacent age-rates
+  // (advisor 2026-05-28). Renders the components, e.g.:
+  //   • Jan-1 tranche / full year → "32.2%"  (single integer-age rate)
+  //   • mid-year open, first year → "32.2%×0.84"  (age-0 rate × days open)
+  //   • straddle year            → "32.2%×0.16 + 26.8%×0.84"
+  //     (prior age-rate for the pre-anniversary days + current for the rest)
+  function _lossComposition(rec) {
+    var yf   = (rec.lossYf != null) ? Number(rec.lossYf) : 1;
+    var curr = (Number(rec.lossCurrRate) || 0) * 100;
+    var prev = (Number(rec.lossPrevRate) || 0) * 100;
+    var age  = rec.age | 0;
+    if (rec.lossCurrRate == null) {                 // older engine row → no parts
+      return (rec.lossRate != null) ? (rec.lossRate * 100).toFixed(2) + '%' : '';
+    }
+    if (yf >= 0.9999) return curr.toFixed(1) + '%';                       // Jan-1 / full-year rate
+    if (age === 0)    return curr.toFixed(1) + '%&times;' + yf.toFixed(3); // mid-year first partial year
+    return prev.toFixed(1) + '%&times;' + (1 - yf).toFixed(3) +
+           ' + ' + curr.toFixed(1) + '%&times;' + yf.toFixed(3);          // straddle year
+  }
+
   // Pivot the engine's per-row trancheBreakdown into a tranche x year
   // grid. Returns { years[], tranches[], cell(trancheKey, year) }.
   function _pivot(cmp) {
@@ -122,12 +144,14 @@
           var loss = _num(rec.loss);
           rowTotal += loss;
           colTotals[key] += loss;
-          var rate = (rec.lossRate != null) ? (rec.lossRate * 100).toFixed(2) + '%' : '';
+          var blended = (rec.lossRate != null) ? (rec.lossRate * 100).toFixed(2) + '%' : '';
+          var comp = _lossComposition(rec);            // day-weighted breakdown (365-day)
           var combo = _comboLabel(rec.comboId);
-          var ann = '@ ' + rate + ' · ' + combo + ' · age ' + rec.age;
+          var ann = comp.replace(/&times;/g, '×') + ' = ' + blended + ' · ' + combo + ' · age ' + rec.age;
           html += '<td class="admin-math-num" title="' + _esc(ann) + '">' +
             _fmtUSD(loss) +
-            '<br><span style="font-size:0.78em;color:var(--ink-soft,#888);">' + rate + ' · ' + combo + '</span>' +
+            '<br><span style="font-size:0.74em;color:var(--ink-soft,#888);">' + comp + '</span>' +
+            '<br><span style="font-size:0.72em;color:var(--ink-soft,#aaa);">= ' + blended + ' · ' + combo + '</span>' +
             '</td>';
         } else {
           html += '<td class="admin-math-num" style="color:#bbb;">—</td>';

@@ -1135,7 +1135,14 @@ function unifiedTaxComparison(cfg, opts) {
       var _peakCumulativeForTier = 0;
       var _yearCombo = combo;
 
-      function _trancheLossRate(t, age) {
+      // Day-weighted 365-day tranche loss rate, WITH its components so the
+      // admin can show the staggering math (advisor 2026-05-28). Returns
+      // { rate, yf, prev, curr } where:
+      //   rate = blended effective rate used by the engine
+      //   yf   = day-weight applied to the CURRENT age-rate
+      //   prev = the prior age-rate (src[age-1]); curr = src[age]
+      // Composition: age 0 → curr·yf; age ≥ 1 → prev·(1−yf) + curr·yf.
+      function _trancheLossRateParts(t, age) {
             // Use _yearCombo (dynamic) when tier-jumping is active.
             // Falls back to the tranche's stored creation-time combo
             // for the legacy non-tier-jumping path.
@@ -1158,13 +1165,19 @@ function unifiedTaxComparison(cfg, opts) {
                   // Tranches opening Jan 1 (yfImpl === 1, all installment
                   // tranches) blend to the full integer-age rate, unchanged.
                   var yfForThis = (t.startIdx === 0) ? yfImpl : 1;
-                  if (safeAge === 0) return (src[0] || 0) * yfForThis;
+                  if (safeAge === 0) {
+                        var r0 = src[0] || 0;
+                        return { rate: r0 * yfForThis, yf: yfForThis, prev: 0, curr: r0 };
+                  }
                   var prev = src[Math.min(safeAge - 1, lastIdx)] || 0;
                   var curr = src[Math.min(safeAge, lastIdx)] || 0;
-                  return (1 - yfForThis) * prev + yfForThis * curr;
+                  return { rate: (1 - yfForThis) * prev + yfForThis * curr, yf: yfForThis, prev: prev, curr: curr };
             }
-            return lossRateForTrancheYear(age);
+            var legacy = lossRateForTrancheYear(age);
+            return { rate: legacy, yf: 1, prev: legacy, curr: legacy };
       }
+
+      function _trancheLossRate(t, age) { return _trancheLossRateParts(t, age).rate; }
 
       function _trancheFeeRate(t) {
             // Dynamic fee rate parallels loss-rate migration. Tranches
@@ -1327,7 +1340,8 @@ function unifiedTaxComparison(cfg, opts) {
                         // Per-tranche loss rate honors tier-jumping when a
                         // Schwab combo cfg is present; falls back to the
                         // single legacy curve otherwise.
-                        const _trancheLossRateV = _trancheLossRate(t, trancheAge);
+                        const _trancheLossPartsV = _trancheLossRateParts(t, trancheAge);
+                        const _trancheLossRateV = _trancheLossPartsV.rate;
                         const _trancheFeeRateV = _trancheFeeRate(t);
                         const _trancheYf = (t.startIdx === 0 && trancheAge === 0) ? yfImpl : 1;
                         const _tLoss = t.capital * _trancheLossRateV;
@@ -1349,6 +1363,13 @@ function unifiedTaxComparison(cfg, opts) {
                                     // age 1 when cumulative crossed $3M."
                                     comboId: (_yearCombo && _yearCombo.id) || t.comboId || null,
                                     lossRate: _trancheLossRateV,
+                                    // Day-weight components of the loss rate so the
+                                    // admin can show the 365-day staggering math:
+                                    // age 0 → currRate·lossYf; age ≥1 →
+                                    // prevRate·(1−lossYf) + currRate·lossYf.
+                                    lossYf:       _trancheLossPartsV.yf,
+                                    lossPrevRate: _trancheLossPartsV.prev,
+                                    lossCurrRate: _trancheLossPartsV.curr,
                                     feeRate: _trancheFeeRateV,
                                     yf: _trancheYf,
                                     loss: _tLoss,
