@@ -547,6 +547,54 @@
       net:            _finite('net',            netBenefit)
     };
   }
+
+  // Net-maximizing deployment sweep (advisor 2026-05-28). The optimizer
+  // should never deploy a dollar whose marginal fee exceeds its marginal
+  // tax savings. Brooklyn loss can overshoot the gain it can offset —
+  // especially the structured sale, where the loss ramps up year-over-year
+  // (the position grows as installments deploy) but the final installment's
+  // gain is small, so the last slug of capital only manufactures an
+  // unusable carryforward + extra fees. We sweep the deployment AMOUNT and
+  // pick the SMALLEST that's within a hair of the best net (savings − fees),
+  // measured by the engine so it captures that timing waste (the old
+  // proportional approximation could not). Cheap-exits to full when there's
+  // no wasted loss, so no-waste strategies (e.g. lump-sum A) are untouched
+  // and fast. Returns a fraction in [0,1] of cfg.availableCapital; the
+  // caller re-runs _scenarioMetrics at that fraction for the displayed math.
+  function _netMaxDeployFraction(cfg) {
+    var availCap = Number(cfg && cfg.availableCapital) || 0;
+    if (!(availCap > 0) || typeof window.unifiedTaxComparison !== 'function') return 1;
+    function run(frac) {
+      var cap = Math.round(availCap * frac);
+      if (cap <= 0) return null;
+      var c = _engineFlavoredCfg(Object.assign({}, cfg, { availableCapital: cap, investment: cap, investedCapital: cap }));
+      var cmp; try { cmp = window.unifiedTaxComparison(c); } catch (e) { return null; }
+      if (!cmp) return null;
+      var fees = Number.isFinite(cmp.totalAllFees) ? cmp.totalAllFees
+               : (Number(cmp.totalFees || 0) + Number(cmp.totalBrookhavenFees || 0));
+      var gen = 0, applied = 0;
+      (cmp.rows || []).forEach(function (r) { gen += r.lossGenerated || 0; applied += r.lossApplied || 0; });
+      return { frac: frac, cap: cap, net: (Number(cmp.totalSavings) || 0) - fees, waste: gen - applied };
+    }
+    var full = run(1);
+    if (!full) return 1;
+    if (full.waste < 1000) return 1;          // no wasted loss → full is already optimal (cheap exit)
+    var scored = [full];
+    [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3].forEach(function (f) { var r = run(f); if (r) scored.push(r); });
+    var maxNet = scored.reduce(function (m, s) { return Math.max(m, s.net); }, -Infinity);
+    var bestFrac = scored.reduce(function (a, b) { return b.net > a.net ? b : a; }).frac;
+    [bestFrac + 0.05, bestFrac - 0.05].forEach(function (f) {
+      if (f > 0.01 && f < 1) { var r = run(f); if (r) { scored.push(r); if (r.net > maxNet) maxNet = r.net; } }
+    });
+    if (maxNet <= 0) return 0;                 // even the best deployment loses money → don't deploy
+    // Prefer the SMALLEST deployment within a hair of the best net — don't
+    // deploy extra capital that only adds fees for ~no extra net.
+    var tol = Math.max(250, Math.abs(maxNet) * 0.001);
+    var winners = scored.filter(function (s) { return s.net >= maxNet - tol; })
+                        .sort(function (a, b) { return a.frac - b.frac; });
+    return winners.length ? Math.min(1, Math.max(0, winners[0].frac)) : 1;
+  }
+
   function _buildScenarioComparison(currentCfg) {
     if (!currentCfg) return '';
     var userDuration = currentCfg.structuredSaleDurationMonths || 36;
@@ -2780,7 +2828,13 @@
         if (hasOverride && availCap > 0) {
           scale = Math.max(0, Math.min(1, override / availCap));
         } else {
-          scale = (opt && opt.dialBack) ? opt.recommendedScale : 1;
+          // Engine-measured net-max deployment: dial back whenever extra
+          // capital would only add fees without extra savings (e.g. the
+          // structured sale's late-year carryforward overshoot). Cheap-
+          // exits to full when there's no wasted loss, so no-waste
+          // strategies (lump-sum A) are unaffected. Supersedes the old
+          // absorbable-ratio recommendedScale.
+          scale = _netMaxDeployFraction(e.cfg);
         }
         e._opt = opt;
         e._optScale = scale;
@@ -2808,30 +2862,42 @@
           e.metrics.fees           = 0;
           e.metrics.savings        = 0;
           e.metrics.net            = 0;
+          e._partialDeploy = { available: Math.round(Number(e.cfg.availableCapital) || availCap), deployed: 0, scale: 0 };
         } else if (scale < 1) {
-          var effectiveBF = (e.metrics.brooklynFees || 0) * scale;
-          var newFees = effectiveBF + (e.metrics.brookhavenFees || 0);
-          var sav = fullSavings;
-          // Linear absorption approximation: when the dialed-back loss
-          // is below absorbable gain, the gain isn't fully offset and
-          // savings drop proportionally. When dialed-back loss is at or
-          // above absorbable, full savings are preserved (slider above
-          // the optimizer cap just generates excess loss, no extra
-          // savings — that's the user-facing "excess" callout's job).
-          var absorbable = (opt && opt.totalAbsorbableGain) || 0;
-          var lossAtScale = (e.loss || 0) * scale;
-          if (absorbable > 0 && lossAtScale < absorbable) {
-            var ratio = lossAtScale / absorbable;
-            sav = sav * Math.max(0, Math.min(1, ratio));
+          // Engine-accurate metrics at the dialed-back deployment: re-run
+          // the scenario at the reduced capital rather than the old
+          // proportional approximation (which mis-stated savings when the
+          // binding constraint was loss TIMING, not magnitude — the
+          // structured-sale carryforward case). The slider-override path
+          // also lands here and now shows the true engine numbers.
+          var _entryCap = Number(e.cfg.availableCapital) || availCap;
+          var _redCap   = Math.round(_entryCap * scale);
+          var _redCfg   = Object.assign({}, e.cfg, { availableCapital: _redCap, investment: _redCap, investedCapital: _redCap });
+          var _fullNet  = e.metrics.net;   // full-deployment net (from the auto-pick)
+          var m2 = _scenarioMetrics(_redCfg);
+          // Apply the dial-back when it's an explicit user slider override,
+          // OR when it genuinely improves the displayed net — a safety guard
+          // so the optimizer's dial-back can never make net WORSE than full
+          // (e.g. if a fee-model edge case ever disagreed with the sweep).
+          if (m2 && (hasOverride || m2.net > _fullNet)) {
+            e.metrics.tax            = m2.tax;
+            e.metrics.brooklynFees   = m2.brooklynFees;
+            e.metrics.brookhavenFees = m2.brookhavenFees;
+            e.metrics.fees           = m2.fees;
+            e.metrics.savings        = Math.max(0, (m2.doNothing || 0) - (m2.tax || 0));
+            e.metrics.net            = m2.net;
+            e._partialDeploy = { available: Math.round(_entryCap), deployed: _redCap, scale: scale };
+          } else {
+            // Dial-back wouldn't help (or the re-run failed) → keep full.
+            e.metrics.savings = fullSavings;
+            e._partialDeploy = { available: Math.round(_entryCap), deployed: Math.round(_entryCap), scale: 1 };
           }
-          e.metrics.brooklynFees = effectiveBF;
-          e.metrics.fees         = newFees;
-          e.metrics.savings      = sav;
-          e.metrics.net          = sav - newFees;
         } else {
           // Scale = 1 (full or override at full): keep the engine's
           // computed values but make `savings` explicit on metrics.
           e.metrics.savings = fullSavings;
+          var _capFull = Math.round(Number(e.cfg.availableCapital) || availCap);
+          e._partialDeploy = { available: _capFull, deployed: _capFull, scale: 1 };
         }
       });
     }
