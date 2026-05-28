@@ -2551,7 +2551,7 @@
     var _newWalkAway = _cashKept + _netBen;
     var walkAwayHtml =
       '<div class="rett-interested-walkaway">' +
-        '<div class="rett-walkaway-label">New cash you walk away with</div>' +
+        '<div class="rett-walkaway-label">New cash from sale</div>' +
         '<div class="rett-walkaway-value">' + _fmt(_newWalkAway) + '</div>' +
         '<div class="rett-walkaway-sub">Cash kept from sale ' + _fmt(_cashKept) +
           ' + net benefit ' + _fmt(_netBen) + '</div>' +
