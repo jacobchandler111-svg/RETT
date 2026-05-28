@@ -372,23 +372,20 @@
   var debounced = _debounce(render, 150);
 
   function _attach() {
-    // Listen on the input fields the table depends on. Anything that
-    // changes ordinary income, gains, depreciation, filing, or state
-    // re-renders the baseline. The form's existing money-format
-    // listeners reformat values on blur first; we then read.
-    var ids = [
-      'year1', 'filing-status', 'state-code',
-      'w2-wages', 'se-income', 'biz-revenue',
-      'rental-income', 'dividend-income', 'retirement-distributions',
-      'sale-price', 'cost-basis', 'accelerated-depreciation',
-      'short-term-gain'
-    ];
-    ids.forEach(function (id) {
-      var el = document.getElementById(id);
-      if (!el) return;
-      el.addEventListener('input',  debounced);
-      el.addEventListener('change', debounced);
-    });
+    // Re-render whenever ANY form input changes. A delegated,
+    // document-level listener (rather than a hand-maintained field
+    // list) guarantees newly-added income/gain fields can never go
+    // stale — every value flows through collectInputs() on the next
+    // render. Debounced; the render reads the live form and is cheap +
+    // idempotent.
+    //
+    // (Fixed 2026-05-28: the old explicit `ids` list omitted
+    // interest-income, social-security, business-income-amount, and
+    // long-term-gain, so typing into them left the "Total Tax If You
+    // Did Nothing" panel — including the NIIT row — showing stale
+    // numbers even though the engine had them wired correctly.)
+    document.addEventListener('input',  debounced, true);
+    document.addEventListener('change', debounced, true);
     // Initial paint.
     render();
   }
