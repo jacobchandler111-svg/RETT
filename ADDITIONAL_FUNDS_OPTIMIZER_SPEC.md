@@ -1,102 +1,192 @@
-# Additional Funds Optimizer — Engine Bot Spec
+# Additional Funds Optimizer — Engine Bot Implementation Script
 
 **Date:** 2026-05-28
-**Status:** UI built (inert inputs + display hooks). Engine optimizer NOT implemented — this doc specifies it.
-**Origin:** advisor wants a *suggested optimal contribution* auto-populated into the Additional Funds box on Tab 1.
+**Status:** UI built (inert inputs + display hooks live). Engine optimizer NOT implemented.
+**Audience:** the engine bot. This is a step-by-step build script grounded in the actual plumbing (file:line cited), not a sketch.
 
 ---
 
-## What the UI already provides
+## 0. The one function to implement
 
-Tab 1 Section 03 "Additional Funds" (all `data-inert="true"` — engine doesn't read them yet):
+```js
+window.rettSuggestAdditionalFunds = function () { ... return numberOrNull; };
+```
 
-| Field | ID | Meaning |
+The UI (index.html inline script, bottom of body) already:
+- calls it on load + whenever sale-price / cost-basis / accelerated-depreciation / additional-account-value / additional-lt-gain / additional-st-gain / custodian-select / state-code / filing-status change (capture-phase listener),
+- shows a "Use suggested: $X" button (`#additional-funds-suggest`) when it returns `> 0`,
+- on click, writes the value into `#additional-funds` and fires input/change.
+
+Return the suggested **liquidation amount** (dollars), or `null`/`0` when nothing helps.
+
+---
+
+## 1. Inputs you read (Tab 1 Section 03, all currently inert)
+
+| Field | DOM id | parse with |
 |---|---|---|
-| Account Value | `additional-account-value` | Current value of a taxable investment account the client could tap |
-| Long-Term Gain | `additional-lt-gain` | Unrealized LT gain embedded in the account |
-| Short-Term Gain | `additional-st-gain` | Unrealized ST gain (loss = negative) |
-| Cost Basis | `additional-cost-basis-derived` | **Derived live**: account value − LT − ST (read-only) |
-| Additional Funds | `additional-funds` | Amount to liquidate from the account & deploy |
+| Account Value | `additional-account-value` | `parseUSD` |
+| Long-Term Gain (unrealized) | `additional-lt-gain` | `parseUSD` |
+| Short-Term Gain (unrealized) | `additional-st-gain` | `parseUSD` (signed) |
+| Additional Funds (contribution) | `additional-funds` | `parseUSD` |
+| Toggle (Projection tab) | `additional-funds-toggle` | `.checked` |
 
-**Funding model (advisor-confirmed):** the Additional Funds contribution is **liquidated from the account**, so it triggers **proportional** gains. Liquidating $X from an account worth $AV with $LT LT gain + $ST ST gain realizes:
-- `ltRealized   = X × (LT / AV)`
-- `stRealized   = X × (ST / AV)`
-- `basisReturned = X × (basis / AV)` (no tax)
+Cost basis is derived in the UI = `accountValue − ltGain − stGain` (display only; you don't need it for the math).
 
-The UI already renders this proportional breakdown live (`#additional-funds-breakdown`).
-
-**Projection toggle:** `#additional-funds-toggle` (small checkbox by the Projection headline). When ON, the deployed contribution should become additional Brooklyn available capital.
+**Proportional liquidation model (advisor-confirmed):** liquidating `$X` from an account worth `$AV` realizes:
+- `ltRealized = X * (ltGain / AV)`
+- `stRealized = X * (stGain / AV)`
+- `basisReturned = X − ltRealized − stRealized` (no tax)
 
 ---
 
-## What the engine bot needs to build
+## 2. The plumbing you'll hook into (verified file:line)
 
-### 1. `window.rettSuggestAdditionalFunds()` → number | null
+### collectInputs — `js/04-ui/inputs-collector.js:279`
+Assembles the cfg. Relevant fields:
+- `availableCapital` (line 291) and `investment` (line 301) ← both read `#available-capital`
+- `baseLongTermGain` (line 350) ← `#long-term-gain`
+- `baseShortTermGain` (line 346) ← `#short-term-gain`
+- `salePrice` / `costBasis` / `acceleratedDepreciation` (lines 363-365)
 
-Returns the **suggested optimal liquidation amount**. The UI calls this and shows a "Use suggested: $X" button next to the Additional Funds box (already wired — `#additional-funds-suggest`). Return `null` (or 0) when no suggestion improves things.
+**Where to fold Additional Funds in (when toggle ON):** right after the cfg literal is built in `collectInputs`, before `return cfg`. Add:
+```js
+var _addFundsToggle = document.getElementById('additional-funds-toggle');
+if (_addFundsToggle && _addFundsToggle.checked) {
+  var _addFunds = parseUSD(_val('additional-funds')) || 0;
+  var _acctVal  = parseUSD(_val('additional-account-value')) || 0;
+  var _acctLT   = parseUSD(_val('additional-lt-gain')) || 0;
+  var _acctST   = parseUSD(_val('additional-st-gain')) || 0;
+  if (_addFunds > 0 && _acctVal > 0) {
+    var _liq = Math.min(_addFunds, _acctVal);          // can't liquidate more than exists
+    cfg.availableCapital += _liq;
+    cfg.investment       += _liq;
+    // triggered gains are new taxable income this year:
+    cfg.baseLongTermGain  += _liq * (_acctLT / _acctVal);
+    cfg.baseShortTermGain += _liq * (_acctST / _acctVal);
+  }
+}
+```
+This is the ONLY engine-side wiring needed for the contribution to take effect. Everything downstream (optimizer, tax engine, net benefit) already reads these cfg fields.
 
-The function should **solve for the smallest contribution** that achieves whichever of these two goals is reachable and net-benefit-positive:
+### Schwab combos — `js/00-data/schwab-strategies.js:53`
+**These are the real minimums (NOT the generic brooklyn-data.js table):**
+| Combo | id | minInvestment | lossByYear[0] |
+|---|---|---:|---:|
+| 145/45 | `beta1_145_45` | **$1,000,000** | 0.322 |
+| 200/100 | `beta1_200_100` | **$3,000,000** | 0.590 |
+(plus higher-leverage combos with $3M+ mins)
 
-#### Goal A — Schwab tier-jump
-If the client's current available capital sits just below a higher-leverage Schwab combo minimum (e.g. $900K when the 200/100 combo needs $1,000,000), and contributing the gap **increases net benefit**, suggest the gap amount.
+Helpers (already on `window`):
+- `getSchwabCombo(comboId)` — `schwab-strategies.js:88`
+- `listSchwabCombosForStrategy(strategyKey)` — `schwab-strategies.js:201`
+- `getMinInvestment(custodianId, strategyKey, comboId)` — `custodians.js:95`
 
-- Read the combo minimums from the custodian/combo data (same `minInvestment` the Brooklyn tier-jumping logic already uses — see `project-rett.md` "Brooklyn tier-jumping").
-- Candidate suggestion = `nextTierMin − currentAvailableCapital`.
-- **Validate it pays off**: run the optimizer with availableCapital bumped by the candidate (and the triggered account gains added — see below) and confirm net benefit rises vs. not contributing. If net benefit drops (fees/triggered-gain outweigh the better leverage), don't suggest it.
+So "bump to 145/45" = get availableCapital to **$1,000,000**; "200/100" = **$3,000,000**.
 
-#### Goal B — Full Year-0 offset
-The contribution lets Brooklyn generate enough loss to **fully absorb the gain in Year 0** (so the client doesn't have to defer into a structured/installment multi-year path).
+### runBrooklynOptimizer — `js/03-solver/master-solver.js:476`
+Signature: `runBrooklynOptimizer(cfg, brooklynCumulativeLoss, brooklynNetAtFull)`.
+Internals you should mirror conceptually:
+- `absorbable = currentLT + currentRecap` where `currentLT = salePrice − costBasis − accelDepr − shortTermPropertyGain` (line 481), `currentRecap = accelDepr` (line 493).
+- `lossAtFull` = Brooklyn loss at full deployment (the caller passes it; per-entry it's `e.loss` from `_scenarioLossSum`).
+- Dials Brooklyn DOWN when `lossAtFull > absorbable` (more loss capacity than gain). The Additional Funds feature is the inverse lever: when `lossAtFull < absorbable`, MORE capital (or a higher-lossRate tier) closes the gap. **Full-offset (Goal B) = solve for contribution where post-liquidation `lossAtFull ≥ absorbable` (absorbable now includes the triggered account gains).**
 
-- Solve for the contribution where Brooklyn's Y0 loss generation ≥ the total Y0 taxable gain (real-estate sale gain + recapture + the **newly-triggered account gains** from liquidating the contribution itself).
-- This is circular: more contribution → more capital → more Brooklyn loss, BUT liquidating more also realizes more account gain to offset. Solve the fixed point (binary search on contribution amount is fine).
-
-#### Picking between A and B
-Suggest whichever yields the higher net benefit. If neither beats "contribute nothing," return null.
-
-### 2. Constraints
-
-- **Cap at account value**: the suggestion can't exceed `additional-account-value` (you can only liquidate what's there). The UI already caps the proportional display at account value.
-- **Account the triggered gains**: when you add the contribution to available capital, you MUST also add the proportional `ltRealized` + `stRealized` to the gain the strategy has to offset (they're new taxable income that year). Net benefit must be computed on the post-liquidation tax picture.
-- **Respect the toggle**: only fold the contribution into available capital when `#additional-funds-toggle` is checked. When unchecked, the Additional Funds inputs are display-only (proportional breakdown still shows, but no engine impact).
-
-### 3. Wiring the contribution into the engine (when toggle ON)
-
-In `inputs-collector.js` (or wherever `availableCapital` is assembled):
-- `availableCapital += parseUSD('#additional-funds')` when toggle checked.
-- Add the triggered account gains to the year-0 gain buckets:
-  - `baseLongTermGain += ltRealized`
-  - `baseShortTermGain += stRealized`
-  - (basisReturned adds nothing taxable)
-- Recompute as normal. The Brooklyn optimizer then sees the larger capital + larger gain.
-
----
-
-## Worked example (advisor's numbers)
-
-Account Value $1,000,000 · LT gain $200,000 · ST gain $100,000 → basis $700,000.
-Proportions: LT 20%, ST 10%, basis 70%.
-
-- Liquidate $10 → realizes $2 LT + $1 ST + $7 basis. ✓ (matches advisor's "$10 sold = $2/$1/$7")
-- Suppose current available capital is $900K and the 200/100 tier needs $1,000,000. Candidate Goal-A contribution = $100,000.
-  - Liquidating $100,000 realizes $20,000 LT + $10,000 ST (new taxable gain).
-  - New available capital = $1,000,000 → unlocks 200/100 leverage.
-  - Engine bot validates: does the net benefit with 200/100 (minus tax on the $30K triggered gain, minus fees) exceed the net benefit at 145/45 with no contribution? If yes → suggest $100,000.
-
----
-
-## UI integration points (already in place)
-
-- `window.rettSuggestAdditionalFunds()` — implement this; UI auto-shows the suggest button when it returns > 0.
-- The suggest button populates `#additional-funds` and fires input/change so the proportional breakdown updates.
-- The UI re-polls the suggestion whenever sale-price / cost-basis / depreciation / account fields / custodian / state / filing-status change (capture-phase change listener already added).
-- `#additional-funds-toggle` on the Projection page — read this to decide whether to fold the contribution into available capital.
+### buildInterestedSummary — `js/04-ui/projection-dashboard-render.js:2319`
+Builds entries A/B/C; applies the optimizer per entry at lines 2761-2786; sets `entry.metrics.net`. **This is your net-benefit oracle** — to evaluate a candidate contribution, mutate the form (or a cfg clone), call `buildInterestedSummary()`, read the best `entry.metrics.net`.
 
 ---
 
-## Acceptance checks
+## 3. Algorithm
 
-1. `rettSuggestAdditionalFunds()` returns the gap-to-next-tier when that tier-jump raises net benefit; null when it doesn't.
-2. Suggestion never exceeds account value.
-3. With toggle ON + a contribution, availableCapital rises by the contribution AND baseLongTermGain/baseShortTermGain rise by the proportional triggered gains.
-4. Net benefit shown on Tab 4 reflects the post-liquidation tax picture (triggered gains taxed, offset by the larger Brooklyn position).
-5. With toggle OFF, zero engine impact (proportional breakdown still displays).
+```
+function rettSuggestAdditionalFunds():
+  read accountValue (AV), ltGain, stGain from the Additional Funds fields
+  if AV <= 0: return null
+
+  baseNet  = bestNetBenefit(contribution = 0)          # no additional funds
+  candidates = []
+
+  # ---- Goal A: Schwab tier-jump ----
+  cfg = collectInputs()
+  curCap = cfg.availableCapital
+  for each combo in listSchwabCombosForStrategy(cfg.tierKey or 'beta1'):
+     min = combo.minInvestment
+     if min > curCap and (min - curCap) <= AV:          # reachable by liquidating
+        gap = min - curCap
+        candidates.push(gap)
+
+  # ---- Goal B: full Year-0 offset ----
+  # Solve smallest contribution C such that, AFTER folding C in,
+  # Brooklyn's Y0 loss >= absorbable(C).
+  # absorbable(C) = currentLT + currentRecap + C*(ltGain/AV) + C*(stGain/AV)
+  # lossAtFull(C) grows with capital (curCap + C) and the combo unlocked at that capital.
+  # Binary search C in [0, AV] (monotone enough for a clean bisection).
+  fullOffsetC = binarySearchFullOffset(0, AV)
+  if fullOffsetC != null: candidates.push(fullOffsetC)
+
+  # ---- pick the winner ----
+  best = null; bestNetGain = 0
+  for C in candidates:
+     C = min(C, AV)                                      # hard cap at account value
+     net = bestNetBenefit(contribution = C)              # via buildInterestedSummary
+     if (net - baseNet) > bestNetGain:
+        bestNetGain = net - baseNet; best = C
+
+  return best   # null if no candidate beats doing nothing
+```
+
+`bestNetBenefit(contribution)` helper:
+```
+- stash current #additional-funds value + toggle state
+- set #additional-funds = contribution, ensure toggle is ON
+- summary = buildInterestedSummary()
+- net = max over summary.entries of entry.metrics.net
+- restore #additional-funds + toggle
+- return net
+```
+(Or clone the cfg and run the math directly to avoid DOM thrash — but the DOM-roundtrip is simplest and matches how the rest of the app recomputes.)
+
+---
+
+## 4. Constraints / gotchas
+
+1. **Cap at account value** — `Math.min(contribution, AV)` everywhere. You can't liquidate more than the account holds. (UI already caps the proportional display.)
+2. **Triggered gains MUST be added** to `baseLongTermGain` / `baseShortTermGain` when folding in the contribution (see §2 collectInputs snippet). Skipping this overstates net benefit — the liquidation creates real taxable gain.
+3. **Toggle gate** — when `#additional-funds-toggle` is unchecked, zero engine impact. The suggestion function can still compute (it forces the toggle internally for its probes) but the live cfg must not fold anything in unless the user has the toggle on.
+4. **Circular dependency (Goal B)** — more contribution → more capital → more Brooklyn loss, but also more triggered gain to absorb. Net absorbable gap shrinks slower than loss grows (loss scales with full lossRate, triggered gain only adds ltGain/AV+stGain/AV fraction), so a bisection on `lossAtFull(C) − absorbable(C)` converges. Watch the tier-unlock discontinuity: crossing a minInvestment threshold jumps the lossRate, so evaluate candidates at the combo that the post-contribution capital actually unlocks.
+5. **Positive-net only** — return null when no candidate's net beats `baseNet`. The advisor only wants a suggestion when it genuinely helps (e.g. the tier-jump's extra loss capacity outweighs the tax on the triggered gains + the higher fees).
+6. **Don't suggest below the current tier's own minimum** — if curCap is already below the lowest combo min, the suggestion should first get them to the lowest usable combo (existing engine behavior may already block sub-min deployment via `getMinInvestment` / `_belowMin`).
+
+---
+
+## 5. Worked example (advisor numbers)
+
+Account $1,000,000 · LT $200,000 · ST $100,000 → basis $700,000 (proportions 20% / 10% / 70%).
+Current available capital $900,000. 145/45 needs $1,000,000.
+
+- **Goal A candidate** = $1,000,000 − $900,000 = **$100,000** (reachable, ≤ $1M account).
+  - Liquidating $100,000 triggers $20,000 LT + $10,000 ST new gain.
+  - New available capital $1,000,000 → unlocks `beta1_145_45` (lossRate 0.322 vs the sub-$1M long-only ~0.104).
+  - `bestNetBenefit($100,000)` vs `baseNet`: if the jump from ~0.104 to 0.322 lossRate (≈3× more Brooklyn loss/$) outweighs the tax on $30K triggered gain + higher fees → suggest **$100,000**.
+- The UI then shows "Use suggested: $100,000"; clicking it fills the box and the proportional breakdown shows $20K LT / $10K ST / $70K basis.
+
+---
+
+## 6. Acceptance checks
+
+1. `rettSuggestAdditionalFunds()` returns the gap-to-next-reachable-tier when that jump raises best-entry net; `null` when it doesn't.
+2. Never exceeds `#additional-account-value`.
+3. With toggle ON + a contribution in `#additional-funds`: `collectInputs().availableCapital` rises by the (capped) contribution AND `baseLongTermGain` / `baseShortTermGain` rise by the proportional triggered gains.
+4. Tab 4 net benefit + Tab 2 reflect the post-liquidation tax picture (triggered gains taxed, offset by the larger Brooklyn position).
+5. Toggle OFF ⇒ `collectInputs()` identical to pre-feature (zero impact); the proportional breakdown still displays on Tab 1.
+6. Combo minimums read from `getSchwabCombo()` ($1M / $3M), NOT the generic brooklyn-data.js table ($500K / $1M).
+
+---
+
+## 7. Files you'll touch
+
+- `js/04-ui/inputs-collector.js` — fold contribution + triggered gains into cfg (§2 snippet), gated on the toggle.
+- `js/03-solver/master-solver.js` or a new `js/03-solver/additional-funds.js` — implement `rettSuggestAdditionalFunds()` + the bisection. Expose on `window`.
+- (No UI changes needed — the hooks, button, breakdown, and toggle are already in index.html / styles.css.)
+
+The UI lights up automatically the moment `window.rettSuggestAdditionalFunds` exists and returns a positive number.
