@@ -108,38 +108,34 @@
     if (!gaps.length) return null;
 
     // ---- Score each gap by netBenefit (offset-of-sale, phantom-free) ---
-    //   netBenefit = (extra strategy net) − (one-time liquidation tax)
+    //   netBenefit    = (extra strategy net) − (one-time liquidation tax)
+    //   triggeredTax  = the extra tax the liquidation creates this year
     //
-    // Deferral guard (advisor 2026-05-28): realizing unrealized gain
-    // forfeits its deferral value — the option to never realize it (e.g.
-    // step-up at death) — which the engine doesn't model. So beyond a
-    // positive current-year net, require the benefit to DOMINATE the gain
-    // realized:  netBenefit > max($1K, DEFERRAL_PREMIUM × gainRealized).
-    // This keeps the rare "a few dollars from a tier" unlocks (negligible
-    // gain realized → ~$1K bar) but suppresses substantial liquidations of
-    // high-gain portfolios (e.g. realizing $99K out of a 99%-gain account
-    // for a marginal current-year win — which the advisor calls "horrible"
-    // because the deferral lost outweighs the small tax win).
-    var _acctLT = _pv('additional-lt-gain');     // signed
-    var _acctST = _pv('additional-st-gain');     // signed
-    var _gainFrac = Math.max(0, (_acctLT + _acctST)) / AV;   // gain share of each $ liquidated
-    var DEFERRAL_PREMIUM = 0.5;
+    // Only-when-it-clearly-pays guard (advisor 2026-05-28): the suggestion
+    // should fire when the SAVINGS dwarf the ADDITIONAL TAX the client pays
+    // to realize the gain — e.g. "put in $10K, save $100K" — and NOT reach
+    // for a small win with a big liquidation ("put in $500K to save $10K").
+    // So require the net benefit to be MUCH larger than the triggered tax:
+    //     netBenefit > max($1K, BENEFIT_MULT × triggeredTax)
+    // BENEFIT_MULT = 2 ⇒ the net win must be ≥ 2× the extra tax (gross
+    // savings ≥ ~3× the tax). Tiny tier-unlocks (a few $ from a threshold →
+    // ~$0 triggered tax) still clear the $1K floor; big liquidations that
+    // only edge out a positive net are suppressed.
+    var BENEFIT_MULT = 2;
 
     var base = _probe(0);
     if (!base || base.rawNet == null) return null;
 
-    // Suggest the SMALLEST tier gap that clears the deferral-adjusted bar —
-    // the cheapest tier jump that genuinely helps offset the real-estate
-    // sale by enough to justify the gain it realizes. null when none do
-    // (sale already covered, triggered tax too high, or — for a high-gain
-    // account — the win doesn't dominate the gain realized).
+    // Suggest the SMALLEST tier gap whose net benefit clears the bar — the
+    // cheapest tier jump that pays off far more than the tax it triggers.
+    // null when none do (sale already covered, or the win doesn't dwarf the
+    // additional tax).
     for (var i = 0; i < gaps.length; i++) {
       var p = _probe(gaps[i]);
       if (!p || p.rawNet == null) continue;
-      var triggeredTax = p.baselineTax - base.baselineTax;
+      var triggeredTax = Math.max(0, p.baselineTax - base.baselineTax);
       var netBenefit = (p.rawNet - base.rawNet) - triggeredTax;
-      var gainRealized = gaps[i] * _gainFrac;
-      var bar = Math.max(1000, DEFERRAL_PREMIUM * gainRealized);
+      var bar = Math.max(1000, BENEFIT_MULT * triggeredTax);
       if (netBenefit > bar) return gaps[i];
     }
     return null;
