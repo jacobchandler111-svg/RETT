@@ -122,8 +122,7 @@
       fed: fed, state: stateTax, sum: sum,
       buckets: { fedOrd: fedOrd, fedRcap: fedRcap, fedLt: fedLt,
                  amt: amt, tmt: tmt, regFed: regFed,
-                 niit: niit, addmed: addmed, seTax: seTax,
-                 taxableSS: taxableSS, ordWithSS: ord }
+                 niit: niit, addmed: addmed, seTax: seTax }
     };
   }
 
@@ -144,9 +143,6 @@
       '<table class="admin-math-table">' +
         '<thead><tr><th>Bucket</th><th class="admin-math-num">Amount</th><th>Source</th></tr></thead>' +
         '<tbody>' +
-          (b.taxableSS > 0
-            ? '<tr class="admin-math-amt-detail"><td><em>&nbsp;&nbsp;§86 taxable Social Security</em></td><td class="admin-math-num"><em>' + _fmtUSD(b.taxableSS) + '</em></td><td>provisional-income worksheet → folded into ordinary income (0/50/85% tiers)</td></tr>'
-            : '') +
           _bucketRow('Federal ordinary tax',       b.fedOrd,  '2026 bracket stack on baseOrdinaryIncome + §86 taxable SS + STG (after §1211(b) loss offset)') +
           _bucketRow('Federal §1250 recap tax',    b.fedRcap, 'Capped at 25% per §1(h)(1)(E); 0 in without-sale') +
           _bucketRow('Federal LT cap gain tax',    b.fedLt,   '0% / 15% / 20% stack on max(0, longTermGain)') +
