@@ -274,7 +274,8 @@
   // TAX side — split federal into ordinary / LT cap gains / recap /
   // AMT / NIIT / addl Medicare / SE, plus state, plus total. Hide
   // zero rows except the canonical four (ord, LT, state, total).
-  function _renderTaxRows(b) {
+  function _renderTaxRows(b, opts) {
+    opts = opts || {};
     var fedOrd = Number(b.ordinaryTax) || 0;
     var fedLt  = Number(b.ltTax)       || 0;
     var fedRcp = Number(b.recapTax)    || 0;
@@ -286,10 +287,13 @@
     var fedTotal = (b.federalIncomeTax != null) ? Number(b.federalIncomeTax) : (fedOrd + fedRcp + fedLt + amt);
     var total = (b.total != null) ? Number(b.total) : (fedTotal + niit + addmed + setax + state);
 
+    // opts.forceRecap — show the §1250 recap line even when it's $0
+    // (used by the Results column so the CPA sees the strategy drove
+    // recapture tax from $X down to $0 via Brooklyn absorption).
     var rows = [
       ['Ordinary income tax',     fedOrd, true],
       ['LT capital gains tax',    fedLt,  true],
-      ['Depreciation recap tax',  fedRcp, false],
+      ['Depreciation recap tax',  fedRcp, !!opts.forceRecap],
       ['AMT top-up',              amt,    false],
       ['NIIT (3.8%)',             niit,   false],
       ['Additional Medicare',     addmed, false],
@@ -313,7 +317,11 @@
   // keys baseline does (verified) so _renderTaxRows works directly.
   function _renderResultsCell(withStrategy, baseline) {
     if (!withStrategy) return '<div class="temp-baseline-empty">No result data.</div>';
-    var taxRows = _renderTaxRows(withStrategy);
+    // Force the recap line to show when the baseline had recapture tax,
+    // so the CPA sees it drop to $0 (or whatever residual) under the
+    // strategy rather than the row silently disappearing.
+    var baselineHadRecap = baseline && Number(baseline.recapTax) > 0;
+    var taxRows = _renderTaxRows(withStrategy, { forceRecap: baselineHadRecap });
     var savedRow = '';
     if (baseline && baseline.total != null && withStrategy.total != null) {
       var saved = Number(baseline.total) - Number(withStrategy.total);
