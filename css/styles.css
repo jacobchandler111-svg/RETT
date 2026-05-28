@@ -4690,6 +4690,47 @@ body { font-size: 16px; }
     margin-bottom: 14px;
 }
 
+/* Additional Funds — proportional realized-gain breakdown + suggested
+   amount button (Tab 1 Section 03). */
+.addfunds-suggest-btn {
+    display: block;
+    margin-top: 6px;
+    padding: 4px 9px;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    color: #1d4ed8;
+    background: rgba(29, 78, 216, 0.07);
+    border: 1px solid rgba(29, 78, 216, 0.35);
+    border-radius: 3px;
+    cursor: pointer;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+.addfunds-suggest-btn:hover { background: rgba(29, 78, 216, 0.14); }
+.addfunds-breakdown {
+    margin: 8px 0 4px;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.02);
+    border-left: 3px solid rgba(29, 78, 216, 0.4);
+    border-radius: 2px;
+}
+.addfunds-breakdown-title {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--muted);
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+.addfunds-bd-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    padding: 2px 0;
+    font-variant-numeric: tabular-nums;
+}
+.addfunds-bd-row span:last-child { font-weight: 600; }
+
 /* Projection page header row — title left, Additional Funds toggle
    right (small, inline). */
 .page-projection-head {
