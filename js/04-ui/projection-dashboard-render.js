@@ -2357,14 +2357,12 @@
     var basisPerPayment = paymentAmount * (1 - gpRatio);
     var gainPerPayment = paymentAmount * gpRatio;
 
-    var rows = '';
-    var totalCash = 0;
-    // Y0 closing row only when depr > 0 (recap recognized as ordinary
-    // per §453(i)). For Strategy B's "delayed close" model, the engine
-    // sets cfg.implementationDate to Jan 1 of year+1 - so we derive
-    // BOTH the year and date columns from that date for self-consistency
-    // (prior code used year1 in the Year column + cfg.implementationDate
-    // in the Date column, giving Year 2026 / Date Jan 1 2027 - confusing).
+    // Build cash entries, then COMBINE any that land on the same date so
+    // the schedule shows actual cash received per date. For Strategy B
+    // the engine sets close to Jan 1 of year+1, so the §453(i) recapture
+    // cash and the first installment both fall on that date — merge them
+    // into one payment (e.g. $200K recap + $1.6M installment = $1.8M).
+    var entries = [];
     if (depr > 0) {
       var closingYear = year1;
       try {
@@ -2373,19 +2371,22 @@
           if (d && !isNaN(d.getTime())) closingYear = d.getFullYear();
         }
       } catch (e) { /* fall back to year1 */ }
-      rows += '<tr>' +
-        '<td>' + _fmtClosingDate(cfg.implementationDate, closingYear) + '</td>' +
-        '<td>' + _fmt(depr) + '</td>' +
-      '</tr>';
+      entries.push({ date: _fmtClosingDate(cfg.implementationDate, closingYear), cash: depr });
     }
     for (var i = 0; i < N; i++) {
-      var paymentYear = year1 + 1 + i;
-      totalCash += paymentAmount;
-      rows += '<tr>' +
-        '<td>Jan 1, ' + paymentYear + '</td>' +
-        '<td>' + _fmt(paymentAmount) + '</td>' +
-      '</tr>';
+      entries.push({ date: 'Jan 1, ' + (year1 + 1 + i), cash: paymentAmount });
     }
+    var merged = [], byDate = {};
+    entries.forEach(function (e) {
+      if (byDate[e.date] != null) { merged[byDate[e.date]].cash += e.cash; }
+      else { byDate[e.date] = merged.length; merged.push({ date: e.date, cash: e.cash }); }
+    });
+    var rows = '';
+    var totalCash = 0;
+    merged.forEach(function (e) {
+      totalCash += e.cash;
+      rows += '<tr><td>' + e.date + '</td><td>' + _fmt(e.cash) + '</td></tr>';
+    });
     rows += '<tr class="rett-payments-total">' +
       '<td>Total payments received</td>' +
       '<td>' + _fmt(totalCash) + '</td>' +
