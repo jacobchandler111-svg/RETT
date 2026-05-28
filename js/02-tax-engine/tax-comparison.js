@@ -340,10 +340,17 @@ function _yearTaxes(scenario) {
       const _yr  = _s.year != null ? _s.year : (new Date()).getFullYear();
       const _stat = _s.status || 'single';
       const _state = _s.state || 'NONE';
+      // ST gain is passed as a SIGNED opt (not folded into ordinary) so
+      // the federal §1211/§1212 netting handles a short-term capital
+      // LOSS correctly: it nets against gains, offsets up to $3K/yr of
+      // ordinary, and carries the rest forward. (LT was already a signed
+      // opt.) For positive ST this is identical to the old `_ord + _st`
+      // folding — the engine re-adds shortTermGain to the ordinary stack
+      // internally (ordinaryGross = ordinaryIncome + shortTermGain + recap).
       const fed   = computeFederalTaxBreakdown(
-            _ord + _st,
+            _ord,
             _yr, _stat,
-            { longTermGain: _lt, qualifiedDividend: _qd,
+            { longTermGain: _lt, shortTermGain: _st, qualifiedDividend: _qd,
               depreciationRecapture: _rcp,
               investmentIncome: _inv, wages: _w,
               seIncome: _se,
@@ -351,16 +358,27 @@ function _yearTaxes(scenario) {
       // State tax sees recapture as ordinary income — most states do
       // NOT honor the federal §1250 25% cap. Pass recapture into the
       // ordinary base for state calc so state revenue is right.
-      // Pass _ordOffsetApplied so disconforming states (NJ) can add
-      // back the federal §1211 ordinary offset that was already baked
-      // into _ord — they don't conform to the federal $3K offset rule
-      // (NJSA 54A:5-2 categorizes income; capital losses can't offset
-      // ordinary in NJ).
+      //
+      // Capital losses (negative ST/LT) conform at the state level too
+      // (GA-first): use the federal-NETTED positive gains for the state
+      // base, and reduce the state ordinary base by the federal §1211
+      // capital-loss ordinary offset. The Brooklyn ordinary offset is
+      // ALREADY baked into _ord upstream (_applyLossesWithSTCfCap), so it
+      // shows up without re-subtracting.
+      //
+      // lossOrdOffsetApplied carries BOTH offsets (Brooklyn + capital
+      // loss) so disconforming states (NJ) add both back — capital
+      // losses can't offset ordinary in NJ (NJSA 54A:5-2).
       const _ordOffApplied = Number(_s._ordOffsetApplied) || 0;
+      const _capLossOff = Number(fed && fed.lossOrdOffsetApplied) || 0;
+      const _netLTraw = Number(fed && fed.netLongTermGain);
+      const _netSTraw = Number(fed && fed.netShortTermGain);
+      const _stateLT = Number.isFinite(_netLTraw) ? _netLTraw : Math.max(0, _lt);
+      const _stateST = Number.isFinite(_netSTraw) ? _netSTraw : Math.max(0, _st);
       const stateTax = computeStateTax(
-            _ord + _st + _rcp + _lt + _qd,
+            (_ord - _capLossOff) + _rcp + _qd + _stateLT + _stateST,
             _yr, _state, _stat,
-            { itemized: _itm, longTermGain: _lt, lossOrdOffsetApplied: _ordOffApplied });
+            { itemized: _itm, longTermGain: _stateLT, lossOrdOffsetApplied: _ordOffApplied + _capLossOff });
       // Schema convention (don't drift):
       //   ordinaryTax / recapTax / ltTax / amt — components of the
       //     income-tax calculation (Form 1040 line 16-equivalent).

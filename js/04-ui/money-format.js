@@ -56,17 +56,21 @@
     'sale-price-3': 1, 'cost-basis-3': 1, 'accelerated-depreciation-3': 1,
     'sale-price-4': 1, 'cost-basis-4': 1, 'accelerated-depreciation-4': 1,
     'sale-price-5': 1, 'cost-basis-5': 1, 'accelerated-depreciation-5': 1,
-    'short-term-gain': 1, 'long-term-gain': 1,
+    // short-term-gain / long-term-gain are OMITTED on purpose: a negative
+    // value is a §1211 capital loss (nets against gains; up to $3K/yr
+    // [$1.5K MFS] offsets ordinary; the remainder carries forward).
+    // Clamping them to $0 silently dropped legitimate losses.
     'withhold-amount': 1, 'available-capital': 1,
     'personal-use-amount-1': 1, 'personal-use-amount-2': 1, 'personal-use-amount-3': 1,
     'personal-use-amount-4': 1, 'personal-use-amount-5': 1,
     'future-estimated-gain': 1,
     'interest-income': 1, 'social-security': 1,
-    // Additional Funds: account value / LT gain / liquidation amount /
-    // derived basis are non-negative. additional-st-gain is OMITTED on
-    // purpose ("loss enters negative") — as is business-income-amount,
-    // which can be a Schedule C / K-1 loss like biz-revenue above.
-    'additional-account-value': 1, 'additional-lt-gain': 1,
+    // Additional Funds: account value / liquidation amount / derived
+    // basis are non-negative. additional-lt-gain AND additional-st-gain
+    // are OMITTED — each can be a gain OR a loss (advisor: "it could be
+    // negative or positive"), like the main ST/LT fields and
+    // business-income-amount (Schedule C / K-1 loss).
+    'additional-account-value': 1,
     'additional-funds': 1, 'additional-cost-basis-derived': 1
   };
 

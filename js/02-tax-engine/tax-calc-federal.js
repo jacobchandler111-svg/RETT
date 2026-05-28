@@ -550,6 +550,12 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
             ordinaryTax: ordinaryTax,
             recapTax: recapTax,
             ltTax: ltTax,
+            // Post-§1211-netting capital gains (>= 0), exposed so the
+            // state-tax caller can build a conforming base when a capital
+            // LOSS was entered (negative ST/LT nets against gains first).
+            // These EXCLUDE qualified dividends (carried separately).
+            netLongTermGain: longTermGain,
+            netShortTermGain: shortTermGain,
             seTax: seTax,
             amtTopUp: amtTopUp,
             tentativeMinimumTax: tentativeMinimumTax,
