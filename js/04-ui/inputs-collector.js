@@ -518,5 +518,33 @@ function collectInputs() {
         }
       }
 
+      // ---- Additional Funds (Tab 1 Section 03), gated on the Projection
+      // tab's "Include Additional Funds" toggle ----------------------------
+      // When ON, the client liquidates `additional-funds` dollars from a
+      // taxable account (value AV, unrealized LT/ST gain). That cash becomes
+      // extra Brooklyn capital, and the liquidation realizes gain PRO-RATA
+      // to the account's composition:
+      //   ltRealized = liq * (acctLT / AV)   (signed — LT can be a loss)
+      //   stRealized = liq * (acctST / AV)   (signed — ST can be a loss)
+      // Those realized amounts are new taxable income this year, folded into
+      // baseLongTermGain / baseShortTermGain (which now accept negatives as
+      // §1211 capital losses). Toggle OFF ⇒ zero impact (cfg identical to
+      // pre-feature). See ADDITIONAL_FUNDS_OPTIMIZER_SPEC.md §2.
+      var _addFundsToggle = document.getElementById('additional-funds-toggle');
+      if (_addFundsToggle && _addFundsToggle.checked) {
+            var _addFunds = parseUSD(_val('additional-funds')) || 0;
+            var _acctVal  = parseUSD(_val('additional-account-value')) || 0;
+            var _acctLT   = parseUSD(_val('additional-lt-gain')) || 0;   // signed
+            var _acctST   = parseUSD(_val('additional-st-gain')) || 0;   // signed
+            if (_addFunds > 0 && _acctVal > 0) {
+                  var _liq = Math.min(_addFunds, _acctVal);   // can't liquidate more than exists
+                  cfg.availableCapital = (Number(cfg.availableCapital) || 0) + _liq;
+                  cfg.investment       = (Number(cfg.investment) || 0) + _liq;
+                  cfg.baseLongTermGain  = (Number(cfg.baseLongTermGain)  || 0) + _liq * (_acctLT / _acctVal);
+                  cfg.baseShortTermGain = (Number(cfg.baseShortTermGain) || 0) + _liq * (_acctST / _acctVal);
+                  cfg.additionalFundsApplied = _liq;   // breadcrumb for admin/debug
+            }
+      }
+
       return cfg;
 }
