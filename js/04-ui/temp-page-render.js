@@ -184,6 +184,19 @@
     var entry = summary.entries.find(function (e) { return e.type === chosen; });
     if (!entry || !entry.cfg) return null;
     var ecfg = entry.cfg;
+    // Reflect the optimizer's partial-investment dial-back: run the engine
+    // at the DEPLOYED capital, not full available, so the carryover-loss and
+    // per-year numbers match the chosen (dialed-back) strategy shown
+    // everywhere else. Without this Tab 7 showed the full-deployment
+    // carryforward (e.g. $644,676) instead of the actual dialed-back one
+    // ($387,616) — the optimizer holds capital back precisely to shed that
+    // unused loss (2026-05-28).
+    var _pd = entry._partialDeploy;
+    if (_pd && Number.isFinite(Number(_pd.deployed)) &&
+        Math.round(Number(_pd.deployed)) !== Math.round(Number(ecfg.availableCapital) || 0)) {
+      var _dep = Math.max(0, Math.round(Number(_pd.deployed)));
+      ecfg = Object.assign({}, ecfg, { availableCapital: _dep, investment: _dep, investedCapital: _dep });
+    }
     if (typeof root.rettFlavorEngineCfg === 'function') {
       try { ecfg = root.rettFlavorEngineCfg(ecfg); } catch (e) { /* */ }
     }
