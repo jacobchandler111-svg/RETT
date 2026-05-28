@@ -808,6 +808,9 @@ function unifiedTaxComparison(cfg, opts) {
             }
             return picked;
       }
+      // Smallest combo minimum = the account-opening floor. The first
+      // Brooklyn deposit must clear this for the account to open.
+      var _smallestComboMin = _tieringCombos.length ? _tieringCombos[0].minInvestment : 0;
 
       // Installment-sale mode (Strategy B, §453). Set via
       // cfg.installmentPayments = N (1, 2, or 3). When active, the
@@ -858,8 +861,24 @@ function unifiedTaxComparison(cfg, opts) {
             : 0;
 
       let basisCash, _unparkedY1Gain, _parkedGain;
+      // Recapture cash deployment (advisor 2026-05-27): §453(i) forces
+      // the §1250 recapture to be recognized Y0 as ordinary income, but
+      // the CASH received for that slice of the sale is available to
+      // deploy into Brooklyn at Y0. Pooling it with the optional Y0
+      // down-payment lets the Y0 Brooklyn loss offset the (unavoidable)
+      // recapture tax WITHOUT recognizing extra gain. If the pool clears
+      // the account-opening minimum it opens a Y0 tranche; otherwise it
+      // rolls into the first installment (Schwab can't open below min,
+      // so the cash deploys with the first qualifying deposit).
+      var _y0RollToFirstInstallment = 0;
       if (_isInstallment) {
-            basisCash = _y0DownPayment;
+            var _y0Pool = _y0DownPayment + Math.max(0, recapture);
+            if (_y0Pool >= _smallestComboMin && _y0Pool > 0) {
+                  basisCash = _y0Pool;
+            } else {
+                  basisCash = 0;
+                  _y0RollToFirstInstallment = _y0Pool;
+            }
             _unparkedY1Gain = 0;
             _parkedGain = 0;
       } else if (isDeferred) {
@@ -1451,8 +1470,12 @@ function unifiedTaxComparison(cfg, opts) {
                   //     as the basisCash tranche at engine setup;
                   //     recognizing Y0 gain on it doesn't add new cash.
                   if (i >= startIdx && i <= maturityIdx) {
-                        reinvested = Math.max(0,
-                              _installmentPaymentForIdx(i - startIdx) - trancheTaxCarve);
+                        var _basePayment = _installmentPaymentForIdx(i - startIdx);
+                        // Recapture cash (+ sub-min Y0 down) that couldn't
+                        // open a Y0 tranche rolls into the FIRST installment
+                        // so it still gets deployed into Brooklyn.
+                        if (i === startIdx) _basePayment += _y0RollToFirstInstallment;
+                        reinvested = Math.max(0, _basePayment - trancheTaxCarve);
                   } else {
                         reinvested = 0;
                   }

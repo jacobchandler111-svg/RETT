@@ -858,7 +858,14 @@
       //   Engine handoff's "B is date-invariant" property is preserved
       //   for the D=0 branch — only D>0 makes B date-sensitive, which
       //   is correct (Y0 deposit timing really does matter).
-      var bStratDate = (bY0Down > 0 && currentCfg.strategyImplementationDate)
+      // Y0 tranche exists when the Y0 deposit pool (down-payment +
+      // recapture cash) clears the $1M account-opening minimum. When it
+      // does, Brooklyn opens at sale-close → use the real sale date so
+      // the Y0 tranche gets its partial-year loss factor. Otherwise the
+      // pool rolls into the Y1 installment (year+1 Jan 1, yfImpl=1.0).
+      var bRecapCash = Math.max(0, Number(currentCfg.acceleratedDepreciation) || 0);
+      var bHasY0Tranche = (bY0Down + bRecapCash) >= 1000000;
+      var bStratDate = (bHasY0Tranche && currentCfg.strategyImplementationDate)
             ? currentCfg.strategyImplementationDate
             : bYear + '-01-01';
       var bImplDate = bStratDate;
@@ -907,11 +914,13 @@
       // tax-comparison.js `_y0DownPayment` handling. Default 0 keeps
       // the recap-only Y0 behavior.
       var _y0Down = Math.max(0, Number(y0DownPayment) || 0);
-      // Date routing parallels B (see comment in B branch). D>0 →
-      // sale-close (Y0 tranche needs partial-year yf); D=0 → year+1
-      // Jan 1 (Brookhaven Q1 starts when Brooklyn opens at first
-      // installment).
-      var cStratDate = (_y0Down > 0 && currentCfg.strategyImplementationDate)
+      // Date routing parallels B. Y0 tranche exists when the Y0 deposit
+      // pool (down-payment + recapture cash) clears $1M → sale-close
+      // date for partial-year yf. Otherwise the pool rolls into the Y1
+      // installment (year+1 Jan 1, yfImpl=1.0).
+      var cRecapCash = Math.max(0, Number(currentCfg.acceleratedDepreciation) || 0);
+      var cHasY0Tranche = (_y0Down + cRecapCash) >= 1000000;
+      var cStratDate = (cHasY0Tranche && currentCfg.strategyImplementationDate)
             ? currentCfg.strategyImplementationDate
             : cYear + '-01-01';
       var cImplDate = cStratDate;
@@ -1093,18 +1102,18 @@
           // Brooklyn beyond availableCapital.
           var _dMax = Math.min(_contractPrice, _availTotal);
           var _smallestMin = 1000000;
-          function _isLegalDown(D) { return (D <= 0.5 || D >= _smallestMin); }
+          var _recapC = Math.max(0, Number(cfgSection.acceleratedDepreciation) || 0);
           // First-deposit account-opening gate (advisor 2026-05-27):
-          // Schwab needs ≥ $1M to OPEN the account. The first
-          // chronological Brooklyn deposit must clear that. For C the
-          // Y1 weight is locked at 40%, so when there's no qualifying
-          // Y0 down the first installment = (contract − D) × 0.40 must
-          // be ≥ $1M. Without this the solver picked tiny first
-          // installments (e.g. $675K) that can't legally open.
+          // Schwab needs ≥ $1M to OPEN the account. The Y0 deposit pool
+          // = down-payment + recapture cash. If the pool clears $1M the
+          // account opens at Y0; otherwise the pool rolls into the Y1
+          // installment and that combined first deposit must clear $1M.
+          // (For C the Y1 weight is locked at 40%.)
           function _firstDepositLegalC(D) {
-            if (D >= _smallestMin - 0.5) return true;   // Y0 down opens it
-            if (D > 0.5) return false;                  // 0 < D < $1M illegal
-            return (_contractPrice - D) * 0.40 >= _smallestMin - 0.5;
+            var pool = D + _recapC;
+            if (pool >= _smallestMin - 0.5) return true;     // Y0 opens
+            var firstInstall = (_contractPrice - D) * 0.40;
+            return (firstInstall + pool) >= _smallestMin - 0.5;
           }
 
           var _evalD = function (D) {
@@ -1125,7 +1134,7 @@
           var coarseBest = null;
           for (var ci = 0; ci <= 10; ci++) {
             var D = Math.round(_dMax * (ci / 10));
-            if (!_isLegalDown(D)) continue;
+            if (!_firstDepositLegalC(D)) continue;
             var mc = _evalD(D);
             if (mc && (!coarseBest || mc.net > coarseBest.net)) {
               coarseBest = { D: D, net: mc.net };
@@ -1138,7 +1147,7 @@
               [-1, 1].forEach(function (sign) {
                 var D = Math.round(coarseBest.D + sign * fstep * 0.02 * _dMax);
                 if (D < 0 || D > _dMax) return;
-                if (!_isLegalDown(D)) return;
+                if (!_firstDepositLegalC(D)) return;
                 var mf = _evalD(D);
                 if (mf && (!fineBest || mf.net > fineBest.net)) {
                   fineBest = { D: D, net: mf.net };
@@ -1152,7 +1161,7 @@
               [-1, 1].forEach(function (sign) {
                 var D = Math.round(fineBest.D + sign * ustep * 0.005 * _dMax);
                 if (D < 0 || D > _dMax) return;
-                if (!_isLegalDown(D)) return;
+                if (!_firstDepositLegalC(D)) return;
                 _evalD(D);
               });
             }
@@ -1183,15 +1192,17 @@
           var _bAvail = Math.max(0, Number(cfgSection.availableCapital || 0));
           var _bDMax = Math.min(_bContractPrice, _bAvail);
           var _bSmallestMin = 1000000;
-          function _isLegalDownB(D) { return (D <= 0.5 || D >= _bSmallestMin); }
-          // Account opens with the first chronological deposit: Y0 down
-          // if > 0, else the Y1 installment = (contract − D) × weight[0].
-          // That deposit must be ≥ $1M or Schwab won't open the account.
+          var _bRecap = Math.max(0, Number(cfgSection.acceleratedDepreciation) || 0);
+          // Account opens with the first deposit. Y0 deposit pool =
+          // down-payment + recapture cash. If the pool clears $1M the
+          // account opens at Y0; otherwise the pool rolls into the Y1
+          // installment and that combined deposit must clear $1M.
           function _firstDepositLegalB(weights, D) {
-            if (D >= _bSmallestMin - 0.5) return true;   // Y0 down opens it
-            if (D > 0.5) return false;                   // 0 < D < $1M illegal
+            var pool = D + _bRecap;
+            if (pool >= _bSmallestMin - 0.5) return true;   // Y0 opens
             var w0 = (weights && Number.isFinite(weights[0])) ? weights[0] : 0;
-            return (_bContractPrice - D) * w0 >= _bSmallestMin - 0.5;
+            var firstInstall = (_bContractPrice - D) * w0;
+            return (firstInstall + pool) >= _bSmallestMin - 0.5;
           }
 
           function _evalB(weights, D) {
@@ -1215,7 +1226,7 @@
             var coarseBest = null;
             for (var ci = 0; ci <= 10; ci++) {
               var D = Math.round(_bDMax * (ci / 10));
-              if (!_isLegalDownB(D)) continue;
+              if (!_firstDepositLegalB(lockedWeights, D)) continue;
               var m = _evalB(lockedWeights, D);
               if (m && (!coarseBest || m.metrics.net > coarseBest.metrics.net)) coarseBest = m;
               _maybeUpdateBest(m);
@@ -1227,7 +1238,7 @@
                 [-1, 1].forEach(function (sign) {
                   var D = Math.round(coarseBest.D + sign * f * 0.02 * _bDMax);
                   if (D < 0 || D > _bDMax) return;
-                  if (!_isLegalDownB(D)) return;
+                  if (!_firstDepositLegalB(lockedWeights, D)) return;
                   var m = _evalB(lockedWeights, D);
                   if (m && (!fineBest || m.metrics.net > fineBest.metrics.net)) fineBest = m;
                   _maybeUpdateBest(m);
@@ -1240,7 +1251,7 @@
                 [-1, 1].forEach(function (sign) {
                   var D = Math.round(fineBest.D + sign * u * 0.005 * _bDMax);
                   if (D < 0 || D > _bDMax) return;
-                  if (!_isLegalDownB(D)) return;
+                  if (!_firstDepositLegalB(lockedWeights, D)) return;
                   _maybeUpdateBest(_evalB(lockedWeights, D));
                 });
               }
