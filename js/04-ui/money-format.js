@@ -17,6 +17,7 @@
   var MONEY_INPUT_IDS = [
     'w2-wages', 'se-income', 'biz-revenue', 'rental-income',
     'dividend-income', 'retirement-distributions',
+    'interest-income', 'social-security', 'business-income-amount',
     'sale-price', 'cost-basis', 'accelerated-depreciation',
     // Multi-property (Q1): Properties 2-5 currency fields.
     'sale-price-2', 'cost-basis-2', 'accelerated-depreciation-2',
@@ -29,7 +30,11 @@
     'personal-use-amount-1', 'personal-use-amount-2', 'personal-use-amount-3',
     'personal-use-amount-4', 'personal-use-amount-5',
     // Future Sale Loss Target (Section 05) — single estimated gain.
-    'future-estimated-gain'
+    'future-estimated-gain',
+    // Additional Funds (Section 03) — inert/display fields today, but
+    // format them so they read like every other money input.
+    'additional-account-value', 'additional-lt-gain', 'additional-st-gain',
+    'additional-cost-basis-derived', 'additional-funds'
   ];
 
   // Fields where negative values are nonsensical (W-2 / SE / dividend /
@@ -55,7 +60,14 @@
     'withhold-amount': 1, 'available-capital': 1,
     'personal-use-amount-1': 1, 'personal-use-amount-2': 1, 'personal-use-amount-3': 1,
     'personal-use-amount-4': 1, 'personal-use-amount-5': 1,
-    'future-estimated-gain': 1
+    'future-estimated-gain': 1,
+    'interest-income': 1, 'social-security': 1,
+    // Additional Funds: account value / LT gain / liquidation amount /
+    // derived basis are non-negative. additional-st-gain is OMITTED on
+    // purpose ("loss enters negative") — as is business-income-amount,
+    // which can be a Schedule C / K-1 loss like biz-revenue above.
+    'additional-account-value': 1, 'additional-lt-gain': 1,
+    'additional-funds': 1, 'additional-cost-basis-derived': 1
   };
 
   function _toNum(s) {
@@ -112,6 +124,14 @@
     MONEY_INPUT_IDS.forEach(function (id) {
       wire(document.getElementById(id));
     });
+    // Future-proof: auto-wire EVERY input inside a .currency-input
+    // wrapper so any newly-added money field gets accounting formatting
+    // automatically — no need to remember to update MONEY_INPUT_IDS.
+    // wire() is idempotent (guards on __rettMoneyWired), so re-wiring the
+    // explicit IDs above is a harmless no-op. (Fields with no wrapper,
+    // e.g. withhold-amount, are still covered by the explicit list.)
+    var wrapped = document.querySelectorAll('.currency-input input');
+    for (var i = 0; i < wrapped.length; i++) wire(wrapped[i]);
   }
 
   if (document.readyState === 'loading') {
