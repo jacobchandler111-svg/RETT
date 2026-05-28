@@ -35,7 +35,11 @@
       // If the engine math drifts, these fire first — before MC stats
       // smooth over a small bias. Each hits a different code path:
       //   - imm_GA: vanilla immediate
-      //   - def_GA: vanilla deferred, structured-sale 24mo
+      //   - def_GA: deferred structured-sale, 36mo, all gain parked
+      //            (parkRatio:1). NOTE: without parkRatio the deferred
+      //            path unparks the full gain at Y0 and degenerates to
+      //            imm_GA — so this scenario MUST set parkRatio to
+      //            actually exercise multi-year recognition.
       //   - imm_NJ: NJ disconformLossOffset path (F13)
       //   - imm_CA_recap: §1250 recapture path (state pref + recap cap)
       //   - imm_TX_stg: zero-state, baseShortTermGain present (F12)
@@ -52,7 +56,7 @@
 
       var CANONICAL_SCENARIOS = [
             { name: 'imm_GA',       cfg: { salePrice: 48000000, costBasis: 8000000, acceleratedDepreciation: 0,    state: 'GA', investedCapital: 48000000, investment: 48000000 } },
-            { name: 'def_GA',       cfg: { salePrice: 48000000, costBasis: 8000000, acceleratedDepreciation: 0,    state: 'GA', investedCapital: 48000000, investment: 48000000, recognitionStartYearIndex: 1, structuredSaleDurationMonths: 60 } },
+            { name: 'def_GA',       cfg: { salePrice: 48000000, costBasis: 8000000, acceleratedDepreciation: 0,    state: 'GA', investedCapital: 48000000, investment: 48000000, recognitionStartYearIndex: 1, structuredSaleDurationMonths: 36, parkRatio: 1 } },
             { name: 'imm_NJ',       cfg: { salePrice: 30000000, costBasis: 5000000, acceleratedDepreciation: 0,    state: 'NJ', investedCapital: 30000000, investment: 30000000 } },
             { name: 'imm_CA_recap', cfg: { salePrice: 25000000, costBasis: 5000000, acceleratedDepreciation: 4000000, state: 'CA', investedCapital: 25000000, investment: 25000000 } },
             { name: 'imm_TX_stg',   cfg: { salePrice: 15000000, costBasis: 3000000, acceleratedDepreciation: 0,    state: 'TX', baseShortTermGain: 250000, investedCapital: 15000000, investment: 15000000 } },
@@ -74,14 +78,29 @@
       // Rebaked 2026-05-09 after AMT std-deduction add-back fix (§55(b)(1)(A) /
       // Form 6251 line 2a). Prior values were from the 8086a93 / baa341a rebake
       // window, since stale due to multi-year supp optimizer + AMT fix shifts.
+      // Rebaked 2026-05-28: prior values had drifted (all canonicals still
+      // passed invariants — conservation / savings-sign / finiteness — the
+      // only diffs were expected-value drift). Sources of drift, each
+      // verified intentional before re-baking:
+      //   • Flat-income / inflating-bracket projection model (income held
+      //     at Y1, brackets inflate 2%/yr) — eases the 5yr baseline ~$36K
+      //     on the $48M GA scenarios. Anchored: 1yr $500K MFJ GA baseline
+      //     = $129,562; 5yr sum $638,204 reflects the per-year easing.
+      //   • §1250 recapture per-slice 25% methodology (advisor-confirmed)
+      //     — shifts imm_CA_recap with-strategy +$168K / savings -$208K.
+      //   • def_GA: the Strategy C restructure made the bare
+      //     recognitionStartYearIndex:1 cfg unpark the full gain at Y0
+      //     (degenerated to imm_GA). Scenario updated to parkRatio:1 +
+      //     36mo so it tests real multi-year recognition again; savings
+      //     $11.63M matches the prior deferred intent ($11.625M old golden).
       var CANONICAL_EXPECTED = {
-            imm_GA:       { totalBaseline: 12295914, totalWith:  7791279, totalSavings:  4504635, totalFees: 2859820, totalBrookhavenFees: 61000 },
-            def_GA:       { totalBaseline: 12295914, totalWith:   670893, totalSavings: 11625021, totalFees: 1914571, totalBrookhavenFees: 61000 },
-            imm_NJ:       { totalBaseline:  9273463, totalWith:  5918048, totalSavings:  3355415, totalFees: 1787387, totalBrookhavenFees: 61000 },
-            imm_CA_recap: { totalBaseline:  8382774, totalWith:  5170289, totalSavings:  3212485, totalFees: 1489489, totalBrookhavenFees: 61000 },
-            imm_TX_stg:   { totalBaseline:  3896515, totalWith:  2328634, totalSavings:  1567881, totalFees:  893694, totalBrookhavenFees: 61000 },
-            def_belowmin: { totalBaseline:   985558, totalWith:   985558, totalSavings:        0, totalFees:       0, totalBrookhavenFees:     0 },
-            imm_noengage: { totalBaseline:   674707, totalWith:   674707, totalSavings:        0, totalFees:       0, totalBrookhavenFees:     0 }
+            imm_GA:       { totalBaseline: 12259411, totalWith:  7755399, totalSavings:  4504013, totalFees: 2859820, totalBrookhavenFees: 61000 },
+            def_GA:       { totalBaseline: 12259411, totalWith:   632626, totalSavings: 11626786, totalFees: 2010647, totalBrookhavenFees: 61000 },
+            imm_NJ:       { totalBaseline:  9235502, totalWith:  5880087, totalSavings:  3355415, totalFees: 1787387, totalBrookhavenFees: 61000 },
+            imm_CA_recap: { totalBaseline:  8342041, totalWith:  5337967, totalSavings:  3004074, totalFees: 1489489, totalBrookhavenFees: 61000 },
+            imm_TX_stg:   { totalBaseline:  3862189, totalWith:  2297172, totalSavings:  1565018, totalFees:  893694, totalBrookhavenFees: 61000 },
+            def_belowmin: { totalBaseline:   949055, totalWith:   949055, totalSavings:        0, totalFees:       0, totalBrookhavenFees:     0 },
+            imm_noengage: { totalBaseline:   638204, totalWith:   638204, totalSavings:        0, totalFees:       0, totalBrookhavenFees:     0 }
       };
       var TOLERANCE = 10;
 
