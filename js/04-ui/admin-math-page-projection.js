@@ -414,9 +414,22 @@
     var scaleNote = analysis.optScale < 1
       ? 'Optimizer dialed back to ' + scalePct + ' of available - reduces fees'
       : 'Full deployment (no dial-back)';
-    var combo = (p.comboId && typeof root.getSchwabCombo === 'function')
+    // Resolve the EFFECTIVE operating tier, not the auto-pick ceiling
+    // (sweep finding #2): when the actual deployment never reaches a higher
+    // combo's minimum, the engine runs at the lower tier — so show that
+    // tier (and its real loss/fee rates), not the ceiling the sweep tagged.
+    var _ceilingCombo = (p.comboId && typeof root.getSchwabCombo === 'function')
       ? root.getSchwabCombo(p.comboId) : null;
+    var _deployedCap = _num(analysis.deployedCap);
+    var _effComboId = (typeof root._rettEffectiveComboId === 'function')
+      ? root._rettEffectiveComboId(p.comboId, _deployedCap) : p.comboId;
+    var combo = (_effComboId && typeof root.getSchwabCombo === 'function')
+      ? root.getSchwabCombo(_effComboId) : _ceilingCombo;
     var comboLabel = combo ? (combo.leverageLabel + ' (' + combo.strategyLabel + ')') : (p.comboId || '—');
+    var _comboNote = (_ceilingCombo && combo && _ceilingCombo.id !== combo.id)
+      ? 'Operating tier — deployment (' + _fmtUSD(_deployedCap) + ') stays below the ' +
+        _ceilingCombo.leverageLabel + ' minimum, so it runs at ' + combo.leverageLabel
+      : 'Best-net combo from the auto-pick sweep across leverage tiers';
     var y0LossRate = combo && combo.lossByYear ? combo.lossByYear[0] : null;
     var lossRateRow = y0LossRate != null
       ? _autoPickRow('Loss rate (Y0)', (y0LossRate * 100).toFixed(1) + '%',
@@ -430,8 +443,7 @@
                      'Per-year fee on deployed capital under ' + comboLabel)
       : _autoPickRow('Brooklyn fee rate', '—', null);
     var pickRows = [
-      _autoPickRow('Brooklyn combo',     comboLabel,
-                                         'Best-net combo from the auto-pick sweep across leverage tiers'),
+      _autoPickRow('Brooklyn combo',     comboLabel, _comboNote),
       _autoPickRow('Horizon',            p.horizon + ' year' + (p.horizon === 1 ? '' : 's'), null),
       _autoPickRow('Recognition shape',  lockupHint, null),
       _autoPickRow('Optimizer scale',    scalePct, scaleNote),

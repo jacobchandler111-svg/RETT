@@ -572,6 +572,12 @@
   function _netMaxDeployFraction(cfg) {
     var availCap = Number(cfg && cfg.availableCapital) || 0;
     if (!(availCap > 0) || typeof window.unifiedTaxComparison !== 'function') return 1;
+    // The dial-back must never reduce deployment below the account-opening
+    // minimum (smallest combo min) — a sub-$1M deposit can't open a Schwab
+    // account, so those fractions are invalid (deploy ≥ floor, or $0).
+    // Without this the sweep could land at e.g. $750K of a $3M cap, an
+    // un-executable deployment (2026-05-28 sweep). 0 = no floor (non-Schwab).
+    var _floor = _smallestComboMinFor(cfg);
     var _cache = {};                           // pct -> result | null, dedups coarse/fine overlap
     function run(pct) {
       pct = Math.round(pct);
@@ -579,6 +585,7 @@
       if (pct in _cache) return _cache[pct];
       var cap = Math.round(availCap * (pct / 100));
       if (cap <= 0) return (_cache[pct] = null);
+      if (_floor > 0 && cap < _floor - 1) return (_cache[pct] = null);  // below account minimum → invalid fraction
       var c = _engineFlavoredCfg(Object.assign({}, cfg, { availableCapital: cap, investment: cap, investedCapital: cap }));
       var cmp; try { cmp = window.unifiedTaxComparison(c); } catch (e) { return (_cache[pct] = null); }
       if (!cmp) return (_cache[pct] = null);
@@ -616,31 +623,65 @@
     return winners.length ? Math.min(1, Math.max(0, winners[0].frac)) : 1;
   }
 
+  // "Don't engage" metrics: zero fees / savings / net. Used by the two
+  // optimizer floors below (no executable account, or money-losing run).
+  function _zeroEngageMetrics(m) {
+    return Object.assign({}, m, {
+      brooklynFees: 0, brookhavenFees: 0, fees: 0, savings: 0, net: 0
+    });
+  }
+
+  // Smallest Schwab combo minimum for the cfg's strategy — the account-
+  // opening floor. Below this, no combo can open, so Brooklyn can't run at
+  // all. 0 when the custodian/strategy has no combo list (non-Schwab).
+  function _smallestComboMinFor(cfg) {
+    try {
+      if ((cfg && cfg.custodian && cfg.custodian !== 'schwab')) return 0;
+      var key = (cfg && cfg.tierKey) || 'beta1';
+      if (typeof root.listSchwabCombosForStrategy !== 'function') return 0;
+      var list = root.listSchwabCombosForStrategy(key) || [];
+      return list.reduce(function (m, c) {
+        var v = Number(c.minInvestment) || 0;
+        return (v > 0 && (m === 0 || v < m)) ? v : m;
+      }, 0);
+    } catch (e) { return 0; }
+  }
+
   // Apply the net-max deployment dial-back to a full-deployment scenario,
   // mirroring buildInterestedSummary's non-override path so the strategy
   // comparison table reports the SAME post-optimizer net as the section
   // cards. Without this the table showed full-deployment net (e.g. the
   // structured sale at 100% = $721,405) while the card showed the
   // dialed-back optimum ($726,845) — the "stale net benefit" the advisor
-  // flagged 2026-05-28.
+  // flagged 2026-05-28. Also applies the account-opening floor (#3) and the
+  // positive-net floor (#1) from the 2026-05-28 100-scenario sweep.
   function _dialBackScenarioMetrics(cfg, fullMetrics) {
     if (!fullMetrics) return fullMetrics;
     var availCap = Number(cfg && cfg.availableCapital) || 0;
     if (!(availCap > 0)) return fullMetrics;
+    // #3 Account-opening floor: capital below the smallest combo minimum
+    // can't open a Schwab account, so no strategy is executable → $0.
+    var minMin = _smallestComboMinFor(cfg);
+    if (minMin > 0 && availCap < minMin - 1) return _zeroEngageMetrics(fullMetrics);
     var scale = _netMaxDeployFraction(cfg);
-    if (scale >= 1) return fullMetrics;
-    if (scale <= 0) {
-      // Optimizer says don't deploy → no engagement, no fees, zero net.
-      return Object.assign({}, fullMetrics, {
-        brooklynFees: 0, brookhavenFees: 0, fees: 0, net: 0
-      });
+    var result;
+    if (scale >= 1) {
+      result = fullMetrics;
+    } else if (scale <= 0) {
+      result = _zeroEngageMetrics(fullMetrics);
+    } else {
+      var redCap = Math.round(availCap * scale);
+      var redCfg = Object.assign({}, cfg, { availableCapital: redCap, investment: redCap, investedCapital: redCap });
+      var m2 = _scenarioMetrics(redCfg);
+      // Only accept the dial-back when it genuinely improves net (same guard
+      // the card path uses), so a row can never look worse than full deploy.
+      result = (m2 && m2.net > fullMetrics.net) ? m2 : fullMetrics;
     }
-    var redCap = Math.round(availCap * scale);
-    var redCfg = Object.assign({}, cfg, { availableCapital: redCap, investment: redCap, investedCapital: redCap });
-    var m2 = _scenarioMetrics(redCfg);
-    // Only accept the dial-back when it genuinely improves net (same guard
-    // the card path uses), so a row can never look worse than full deploy.
-    return (m2 && m2.net > fullMetrics.net) ? m2 : fullMetrics;
+    // #1 Positive-net floor: if the best this strategy can do still loses
+    // money, don't engage — show $0 rather than a negative net (A had no
+    // dial-back sweep to catch this; B/C already floored via scale=0).
+    if (result && result.net < 0) return _zeroEngageMetrics(fullMetrics);
+    return result;
   }
 
   function _buildScenarioComparison(currentCfg) {
@@ -1599,6 +1640,24 @@
     if (seq.length <= 1) return seq.length ? seq[0].label : ceiling.leverageLabel;
     return seq.map(function (s) { return s.label; }).join(' → ') +
            ' (Year ' + seq[seq.length - 1].year + ')';
+  }
+
+  // The combo id a given cumulative deployment actually qualifies for,
+  // capped at the ceiling combo (same one-way ratchet as the engine's
+  // _pickComboForCumulative). When the deployment never reaches a higher
+  // tier's minimum, this returns the lower tier — so callers can show the
+  // EFFECTIVE combo (and its real loss/fee rates) instead of the ceiling.
+  function _effectiveComboId(ceilingComboId, cumulative) {
+    if (!ceilingComboId || typeof root.getSchwabCombo !== 'function') return ceilingComboId;
+    var ceiling = root.getSchwabCombo(ceilingComboId);
+    if (!ceiling || typeof root.listSchwabCombosForStrategy !== 'function') return ceilingComboId;
+    var tier = (root.listSchwabCombosForStrategy(ceiling.strategyKey) || [])
+      .filter(function (c) { return c && c.leverage <= ceiling.leverage + 1e-6; })
+      .sort(function (a, b) { return a.minInvestment - b.minInvestment; });
+    if (!tier.length) return ceilingComboId;
+    var picked = tier[0], cum = Number(cumulative) || 0;
+    for (var k = 0; k < tier.length; k++) if (cum + 0.01 >= tier[k].minInvestment) picked = tier[k];
+    return picked ? picked.id : ceilingComboId;
   }
 
   function _sectionConfigDescription(type, st, levOverride) {
@@ -2961,6 +3020,28 @@
       });
     }
 
+    // Post-optimizer floors (2026-05-28 sweep). Run unconditionally so they
+    // apply even when runBrooklynOptimizer is absent:
+    //   #3 Account-opening floor — capital below the smallest combo minimum
+    //      can't open a Schwab account, so no strategy is executable → $0.
+    //   #1 Positive-net floor — if the best a strategy can do still loses
+    //      money, don't engage (show $0). Catches Strategy A, whose lump-sum
+    //      path has no dial-back sweep to floor it (B/C floor via scale=0).
+    entries.forEach(function (e) {
+      var entAvail = Number(e.cfg && e.cfg.availableCapital) || ((currentCfg && Number(currentCfg.availableCapital)) || 0);
+      var minMin = _smallestComboMinFor(e.cfg);
+      var belowAccountFloor = (minMin > 0 && entAvail < minMin - 1);
+      if (belowAccountFloor || (e.metrics && e.metrics.net < 0)) {
+        e.metrics.brooklynFees   = 0;
+        e.metrics.brookhavenFees = 0;
+        e.metrics.fees           = 0;
+        e.metrics.savings        = 0;
+        e.metrics.net            = 0;
+        e._partialDeploy = { available: Math.round(entAvail), deployed: 0, scale: 0 };
+        e._belowAccountFloor = belowAccountFloor;   // breadcrumb for admin/UI
+      }
+    });
+
     var maxNet = -Infinity, recIdx = -1;
     entries.forEach(function (e, i) {
       if (e.metrics.net > maxNet) { maxNet = e.metrics.net; recIdx = i; }
@@ -2983,6 +3064,15 @@
   root._autoPickSection      = _autoPickSection;
   root._scenarioCfgFor       = _scenarioCfgFor;
   root.buildInterestedSummary = buildInterestedSummary;
+  // Tier-migration display helpers (2026-05-28). Exposed so the admin
+  // panels show the EFFECTIVE operating tier instead of the auto-pick
+  // ceiling combo (which can over-state the tier when deployment never
+  // reaches the higher combo's minimum — sweep finding #2).
+  //   _rettComboTierLabel(ceilingComboId, years) → "145/45 → 200/100 (Year 2)"
+  //   _rettEffectiveComboId(ceilingComboId, cumulative) → the combo id a
+  //     given cumulative deployment actually qualifies for (≤ ceiling).
+  root._rettComboTierLabel   = _comboMigrationLabel;
+  root._rettEffectiveComboId = _effectiveComboId;
 
   // Public helper for the Strategy-Selection page (controls.js
   // _refreshCard3Visibility). Returns the same NET BENEFIT that
