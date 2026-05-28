@@ -1115,7 +1115,19 @@ function unifiedTaxComparison(cfg, opts) {
             if (src && src.length) {
                   var safeAge = Math.max(0, age | 0);
                   var lastIdx = src.length - 1;
-                  var yfForThis = (t.startIdx === 0 && safeAge === 0) ? yfImpl : 1;
+                  // Day-weighted 365-day tranche aging (advisor 2026-05-27):
+                  // a tranche opened mid-year (the Y0 sale-close tranche,
+                  // yfImpl < 1) keeps its mid-year anniversary EVERY year,
+                  // so each tax year blends two adjacent age-rates by day
+                  // count — NOT just year 0. Example (Jul 1 open, yfImpl
+                  // ≈ 0.50): Y0 = 0.50·r0; Y1 = 0.50·r0 + 0.50·r1; Y2 =
+                  // 0.50·r1 + 0.50·r2; etc. Previously yfForThis was gated
+                  // to `safeAge === 0`, which snapped the tranche to Jan-1
+                  // alignment after Y0 and dropped ~half of the high
+                  // age-0 rate — understating mid-year tranche loss.
+                  // Tranches opening Jan 1 (yfImpl === 1, all installment
+                  // tranches) blend to the full integer-age rate, unchanged.
+                  var yfForThis = (t.startIdx === 0) ? yfImpl : 1;
                   if (safeAge === 0) return (src[0] || 0) * yfForThis;
                   var prev = src[Math.min(safeAge - 1, lastIdx)] || 0;
                   var curr = src[Math.min(safeAge, lastIdx)] || 0;
