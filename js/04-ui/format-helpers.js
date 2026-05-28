@@ -62,6 +62,13 @@ function parseUSD(s) {
   } catch (e) {
     raw = String(s);
   }
+  // Accounting notation: a value wrapped in parentheses denotes a
+  // negative, e.g. "($100,000)" = -100000. Detect BEFORE stripping
+  // (the strip removes the parens). Require an enclosed digit so a
+  // stray "()" can't flip a sign. This is the inverse of money-format's
+  // _formatNum, which renders negatives in loss-capable fields as
+  // parentheses — they must round-trip.
+  const accountingNegative = /\([^)]*\d[^)]*\)/.test(raw);
   // Strip whitespace + dollar signs + commas. Keep digits, dot, minus,
   // 'e'/'E' for scientific notation, and '+' for positive exponents.
   const cleaned = raw.replace(/[^0-9.\-eE+]/g, '');
@@ -70,8 +77,9 @@ function parseUSD(s) {
   // user types "1e9" thinking it'll be flagged but ends up as
   // $1,000,000,000. We allow it for power users (it's a valid number)
   // but apply the global cap below so a typo can't run away. (P2-1.)
-  const n = parseFloat(cleaned);
+  let n = parseFloat(cleaned);
   if (!isFinite(n)) return 0;
+  if (accountingNegative) n = -Math.abs(n);
   if (n >  RETT_USD_CAP) return RETT_USD_CAP;
   if (n < -RETT_USD_CAP) return -RETT_USD_CAP;
   return n;

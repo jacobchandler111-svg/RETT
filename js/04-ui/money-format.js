@@ -82,6 +82,15 @@
   }
 
   function _formatNum(n) {
+    // Accounting notation: render negatives (capital losses in the
+    // loss-capable fields — short/long-term gain, business income,
+    // rental) as parentheses, e.g. -100000 → "($100,000)". parseUSD
+    // reads parentheses back as negative, so the value round-trips.
+    if (n < 0) {
+      var pos = (typeof fmtUSD === 'function') ? fmtUSD(-n)
+                                               : '$' + Math.round(-n).toLocaleString('en-US');
+      return '(' + pos + ')';
+    }
     if (typeof fmtUSD === 'function') return fmtUSD(n);
     return '$' + Math.round(n).toLocaleString('en-US');
   }
