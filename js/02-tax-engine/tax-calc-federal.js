@@ -123,7 +123,7 @@ function _amtForYearStatus(year, status) {
 // on top — double-taxing the LTCG portion at 26/28% AND the LTCG rate.
 // On a $48M LTCG / $0 ordinary case that fabricated ~$13M of AMT
 // liability that doesn't exist on a real return.
-function _computeAmt(amti, year, status, ltAmount, recapAmount) {
+function _computeAmt(amti, year, status, ltAmount, recapAmount, recapTaxRegular) {
           const a = _amtForYearStatus(year, status);
           let exemption = a.exemption;
           const excess = Math.max(0, amti - a.phaseoutStart);
@@ -144,7 +144,19 @@ function _computeAmt(amti, year, status, ltAmount, recapAmount) {
           const rcap = Math.max(0, Number(recapAmount) || 0);
           const recapInSlice = Math.min(rcap, Math.max(0, taxable - lt));
           const ordinarySlice = Math.max(0, taxable - lt - recapInSlice);
-          const recapAmt = recapInSlice * 0.25;
+          // §1250 unrecaptured gain inside AMT (Form 6251 Part III) runs
+          // through the SAME §1(h) worksheet as regular tax — taxed at the
+          // lesser of the ordinary bracket rate or 25%, NOT a flat 25%.
+          // When the caller supplies the regular-tax recap dollar amount
+          // (recapTaxRegular), reuse its effective rate so the recapture
+          // nets out of the AMT top-up. A flat 25% over-stated the top-up
+          // by (25% − bracketRate) × recap whenever the bracket landed
+          // below 25% (advisor 2026-05-27). Fallback to 25% if the regular
+          // amount isn't passed (preserves the §1(h)(1)(E) ceiling).
+          const _recapEffRate = (rcap > 0 && recapTaxRegular != null && isFinite(recapTaxRegular))
+                ? (recapTaxRegular / rcap)
+                : 0.25;
+          const recapAmt = recapInSlice * _recapEffRate;
           if (ordinarySlice <= 0) return recapAmt;
           const ordAmt = ordinarySlice <= a.rate26Threshold
               ? ordinarySlice * a.rate26
@@ -489,7 +501,7 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       // owe top-up on a real return.
       const _stdDedAddback = (deduction === stdDed && stdDed > 0) ? stdDed : 0;
       const amtAmti     = taxableOrdinary + _stdDedAddback + ltAmount;
-      const amtOrdOnly  = _computeAmt(amtAmti, year, status, ltAmount, _recapInTaxable);
+      const amtOrdOnly  = _computeAmt(amtAmti, year, status, ltAmount, _recapInTaxable, recapTax);
       const amtTotal    = amtOrdOnly + ltTax;
       // Regular tax for AMT comparison includes recapTax — without
       // it the AMT top-up double-counts the recapture portion.
