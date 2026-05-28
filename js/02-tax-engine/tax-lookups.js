@@ -18,7 +18,9 @@
 // For years past TAX_DATA.baseYear (2026) we project bracket thresholds
 // forward at TAX_DATA.inflationRate per year using FULL FLOATING-POINT
 // PRECISION. Rates and the $3,000 / $1,500 ordinary-offset cap are NOT
-// inflated. Standard deductions ARE inflated.
+// inflated. Standard deductions are NOT inflated either — they are held
+// FLAT at base-year values across the projection horizon (advisor
+// 2026-05-27); only the bracket / LTCG thresholds widen 2%/yr.
 
 // UI uses these short codes. JSON keys use snake_case. Translate here.
 // (Issue #59: extended to accept BOTH the UI codes AND the JSON
@@ -107,8 +109,13 @@ function getFederalStandardDeduction(year, status) {
           if (!node || !node.standardDeduction) return 0;
           const k = fsKey(status);
           const raw = node.standardDeduction[k] || 0;
-          const factor = (TAX_DATA.federal && TAX_DATA.federal[String(year)]) ? 1 : _yearProjectionFactor(year);
-          return raw * factor;
+          // Standard deduction is held FLAT at base-year values across the
+          // projection horizon (advisor 2026-05-27): only the bracket / LTCG
+          // thresholds inflate 2%/yr, not the standard deduction. The
+          // projection model freezes income AND the std ded, letting only the
+          // brackets widen. No _yearProjectionFactor applied here. (Mirrors
+          // getStateStandardDeduction.)
+          return raw;
 }
 
 function getFederalNiitThreshold(year, status) {
@@ -169,11 +176,16 @@ function getStateStandardDeduction(year, stateCode, status) {
           if (!node || node.noIncomeTax) return 0;
           const choice = _stateBracketChoice(status);
           const raw = (node.standardDeduction && node.standardDeduction[choice.key]) || 0;
-          const factor = (TAX_DATA.states[String(year)] && TAX_DATA.states[String(year)][stateCode])
-                  ? 1 : _yearProjectionFactor(year);
+          // Standard deduction is held FLAT at base-year values across the
+          // projection horizon (advisor 2026-05-27): only the bracket /
+          // LTCG thresholds inflate 2%/yr, not the standard deduction.
+          // (The real IRS/state would index the std ded too, but the
+          // advisor's projection model freezes income AND the std ded,
+          // letting only the brackets widen.) No _yearProjectionFactor
+          // applied here.
           // MFS gets half the MFJ standard deduction.
           const halve = choice.halve ? 0.5 : 1;
-          return raw * factor * halve;
+          return raw * halve;
 }
 
 function isStateNoIncomeTax(year, stateCode) {
