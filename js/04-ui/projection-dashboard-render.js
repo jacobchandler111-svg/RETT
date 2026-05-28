@@ -1564,7 +1564,44 @@
     return _scenarioCfgFor(type, cfgSection, st.bestRecC, st.durationMonths);
   }
 
-  function _sectionConfigDescription(type, st) {
+  // Tier-migration-aware leverage label. The engine ratchets all active
+  // tranches up to a higher combo the year cumulative deployment crosses
+  // that combo's minimum (tax-comparison.js _pickComboForCumulative), but
+  // the summary only printed the ceiling combo, hiding the swap. This
+  // replays the SAME one-way ratchet over the per-year cumulative
+  // investment already on `years` and returns e.g. "145/45 → 200/100
+  // (Year 2)" when the position migrates mid-horizon, or just "200/100"
+  // when it doesn't. cfg.comboId is the ceiling (auto-pick / user combo);
+  // the tier list is filtered to leverage <= ceiling, exactly like the
+  // engine. No extra engine run — years[] is already computed. (2026-05-28)
+  function _comboMigrationLabel(comboId, years) {
+    if (!comboId || typeof root.getSchwabCombo !== 'function') return null;
+    var ceiling = root.getSchwabCombo(comboId);
+    if (!ceiling) return null;
+    if (typeof root.listSchwabCombosForStrategy !== 'function') return ceiling.leverageLabel;
+    var tier = (root.listSchwabCombosForStrategy(ceiling.strategyKey) || [])
+      .filter(function (c) { return c && c.leverage <= ceiling.leverage + 1e-6; })
+      .sort(function (a, b) { return a.minInvestment - b.minInvestment; });
+    if (!tier.length) return ceiling.leverageLabel;
+    function pick(cum) {
+      var p = tier[0];
+      for (var k = 0; k < tier.length; k++) if (cum + 0.01 >= tier[k].minInvestment) p = tier[k];
+      return p;
+    }
+    var seq = [], peak = 0, lastId = null;
+    (years || []).forEach(function (y, idx) {
+      var cum = Number(y.investmentThisYear) || 0;
+      if (cum <= 0) return;                       // no active capital yet → no combo
+      if (cum > peak) peak = cum;                 // one-way ratchet on peak cumulative
+      var c = pick(peak);
+      if (c && c.id !== lastId) { seq.push({ label: c.leverageLabel, year: idx + 1 }); lastId = c.id; }
+    });
+    if (seq.length <= 1) return seq.length ? seq[0].label : ceiling.leverageLabel;
+    return seq.map(function (s) { return s.label; }).join(' → ') +
+           ' (Year ' + seq[seq.length - 1].year + ')';
+  }
+
+  function _sectionConfigDescription(type, st, levOverride) {
     if (!st) return '';
     var lev = st.shortPct + '% short';
     // Schwab: show the friendly label
@@ -1572,6 +1609,9 @@
       var combo = root.getSchwabCombo(st.comboId);
       if (combo) lev = combo.leverageLabel;
     }
+    // Migration-aware override (e.g. "145/45 → 200/100 (Year 2)") when the
+    // tier ratchets mid-horizon — supplied by _buildScenarioSection.
+    if (levOverride) lev = levOverride;
     var hor = st.horizon + ' yr' + (st.horizon === 1 ? '' : 's');
     if (type === 'A') return hor + ' / ' + lev;
     if (type === 'B') return hor + ' / ' + lev;
@@ -1637,7 +1677,13 @@
     if (!data || !data.years) return '';
     var totals = (data.result && data.result.totals) || {};
     var st = (root.__rettSectionState || {})[type] || null;
-    var configStr = _sectionConfigDescription(type, st);
+    var migLabel = null;
+    try {
+      if (st && st.comboId && data && data.years) {
+        migLabel = _comboMigrationLabel(st.comboId, data.years);
+      }
+    } catch (e) { migLabel = null; }
+    var configStr = _sectionConfigDescription(type, st, migLabel);
     var html = '<div class="rett-dashboard rett-scenario-section" id="rett-section-' + (type || 'X') + '">';
     html += '<div class="rett-scenario-section-header">' +
             '<span class="rett-scenario-section-title-text">' + label + '</span>' +
@@ -2269,49 +2315,20 @@
       if (cash <= 0) return;
       var dateLabel = yr.isClosing ? _fmtClosingDate(cfg.implementationDate, yr.year) : ('Jan 1, ' + yr.year);
       totalCash += cash;
-      var _closingNote = accelDeprCash > 0
-        ? 'Basis + depreciation cash at closing'
-        : 'Basis cash at closing';
-      var _closingPlusGainNote = accelDeprCash > 0
-        ? 'Basis + depreciation cash at closing + gain installment'
-        : 'Basis at closing + gain installment';
-      var note = yr.isClosing && yr.gain === 0
-        ? _closingNote
-        : yr.isClosing
-          ? _closingPlusGainNote
-          : 'Gain installment';
-      // % of gain column: only meaningful for gain installments. The
-      // closing-day basis + depr cash is principal recovery, not part of
-      // the structured-product gain pool, so it stays blank (em dash).
-      var pctCell;
-      if (yr.gain > 0 && totalGainInstallments > 0) {
-        pctCell = ((yr.gain / totalGainInstallments) * 100).toFixed(1) + '%';
-      } else {
-        pctCell = '<span class="muted">&mdash;</span>';
-      }
       rows += '<tr>' +
-        '<td>' + yr.year + '</td>' +
         '<td>' + dateLabel + '</td>' +
         '<td>' + _fmt(cash) + '</td>' +
-        '<td>' + pctCell + '</td>' +
-        '<td class="muted">' + note + '</td>' +
       '</tr>';
     });
     rows += '<tr class="rett-payments-total">' +
-      '<td colspan="2">Total payments received</td>' +
+      '<td>Total payments received</td>' +
       '<td>' + _fmt(totalCash) + '</td>' +
-      '<td>100.0%</td>' +
-      '<td class="muted">Sum of all installments</td>' +
     '</tr>';
 
-    var months = durationMonths || 36;
-    var payments = Math.max(1, Math.round(months / 12));
-    var termSubtitle = '<p class="rett-payments-subtitle muted">Sale term: <strong>' + months + ' months</strong> &mdash; ' + payments + ' yearly Jan-1 gain installments.</p>';
     return '<div class="rett-interested-payments">' +
       '<h4>Payment Schedule</h4>' +
-      termSubtitle +
       '<table class="rett-payments-table">' +
-        '<thead><tr><th>Year</th><th>Date</th><th>Cash Received</th><th>% of Gain</th><th>Notes</th></tr></thead>' +
+        '<thead><tr><th>Date</th><th>Cash Received</th></tr></thead>' +
         '<tbody>' + rows + '</tbody>' +
       '</table>' +
     '</div>';
@@ -2357,37 +2374,27 @@
         }
       } catch (e) { /* fall back to year1 */ }
       rows += '<tr>' +
-        '<td>' + closingYear + '</td>' +
         '<td>' + _fmtClosingDate(cfg.implementationDate, closingYear) + '</td>' +
         '<td>' + _fmt(depr) + '</td>' +
-        '<td><span class="muted">&mdash;</span></td>' +
-        '<td class="muted">Depreciation recapture at closing (§453(i) ordinary)</td>' +
       '</tr>';
     }
     for (var i = 0; i < N; i++) {
       var paymentYear = year1 + 1 + i;
       totalCash += paymentAmount;
       rows += '<tr>' +
-        '<td>' + paymentYear + '</td>' +
         '<td>Jan 1, ' + paymentYear + '</td>' +
         '<td>' + _fmt(paymentAmount) + '</td>' +
-        '<td>' + (gpRatio * 100).toFixed(1) + '%</td>' +
-        '<td class="muted">' + _fmt(basisPerPayment) + ' basis + ' + _fmt(gainPerPayment) + ' LT gain</td>' +
       '</tr>';
     }
     rows += '<tr class="rett-payments-total">' +
-      '<td colspan="2">Total payments received</td>' +
+      '<td>Total payments received</td>' +
       '<td>' + _fmt(totalCash) + '</td>' +
-      '<td><span class="muted">&mdash;</span></td>' +
-      '<td class="muted">' + N + ' yearly installment' + (N === 1 ? '' : 's') + '</td>' +
     '</tr>';
 
-    var subtitle = '<p class="rett-payments-subtitle muted">§453 installment sale &mdash; <strong>' + N + ' yearly Jan-1 payment' + (N === 1 ? '' : 's') + '</strong>. Gross-profit ratio = <strong>' + (gpRatio * 100).toFixed(1) + '%</strong> applied to each payment.</p>';
     return '<div class="rett-interested-payments">' +
       '<h4>Payment Schedule</h4>' +
-      subtitle +
       '<table class="rett-payments-table">' +
-        '<thead><tr><th>Year</th><th>Date</th><th>Cash Received</th><th>% LT Gain</th><th>Notes</th></tr></thead>' +
+        '<thead><tr><th>Date</th><th>Cash Received</th></tr></thead>' +
         '<tbody>' + rows + '</tbody>' +
       '</table>' +
     '</div>';
