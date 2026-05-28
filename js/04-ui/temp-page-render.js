@@ -317,6 +317,16 @@
   // keys baseline does (verified) so _renderTaxRows works directly.
   function _renderResultsCell(withStrategy, baseline) {
     if (!withStrategy) return '<div class="temp-baseline-empty">No result data.</div>';
+    // Income RECOGNIZED under the strategy this year — same recognition
+    // event as the baseline column (LT gain recognized + §1250 recap),
+    // so the CPA sees that the $200K recapture and the LT gain are still
+    // recognized even though the strategy's Brooklyn losses drive the
+    // TAX on them down. Pulled from baseline._incomes (set by
+    // _deriveIncomesForEngineRow in the render loop).
+    var incomeRows = '';
+    if (baseline && baseline._incomes) {
+      incomeRows = _renderIncomeRows(baseline._incomes, 0);
+    }
     // Force the recap line to show when the baseline had recapture tax,
     // so the CPA sees it drop to $0 (or whatever residual) under the
     // strategy rather than the row silently disappearing.
@@ -335,6 +345,9 @@
     return '' +
       '<table class="temp-baseline-table">' +
         '<tbody>' +
+          (incomeRows
+            ? '<tr class="temp-section-head"><td colspan="2">Income recognized (with strategy)</td></tr>' + incomeRows
+            : '') +
           '<tr class="temp-section-head"><td colspan="2">Tax with strategy applied</td></tr>' +
           taxRows +
           savedRow +
