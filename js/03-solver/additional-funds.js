@@ -109,18 +109,38 @@
 
     // ---- Score each gap by netBenefit (offset-of-sale, phantom-free) ---
     //   netBenefit = (extra strategy net) − (one-time liquidation tax)
-    // Suggest the SMALLEST tier gap whose netBenefit clears $1K — i.e. the
-    // cheapest tier jump that genuinely helps offset the real-estate sale.
-    // Returns null when no tier bump helps (e.g. the sale is already
-    // covered at current capital).
+    //
+    // Deferral guard (advisor 2026-05-28): realizing unrealized gain
+    // forfeits its deferral value — the option to never realize it (e.g.
+    // step-up at death) — which the engine doesn't model. So beyond a
+    // positive current-year net, require the benefit to DOMINATE the gain
+    // realized:  netBenefit > max($1K, DEFERRAL_PREMIUM × gainRealized).
+    // This keeps the rare "a few dollars from a tier" unlocks (negligible
+    // gain realized → ~$1K bar) but suppresses substantial liquidations of
+    // high-gain portfolios (e.g. realizing $99K out of a 99%-gain account
+    // for a marginal current-year win — which the advisor calls "horrible"
+    // because the deferral lost outweighs the small tax win).
+    var _acctLT = _pv('additional-lt-gain');     // signed
+    var _acctST = _pv('additional-st-gain');     // signed
+    var _gainFrac = Math.max(0, (_acctLT + _acctST)) / AV;   // gain share of each $ liquidated
+    var DEFERRAL_PREMIUM = 0.5;
+
     var base = _probe(0);
     if (!base || base.rawNet == null) return null;
+
+    // Suggest the SMALLEST tier gap that clears the deferral-adjusted bar —
+    // the cheapest tier jump that genuinely helps offset the real-estate
+    // sale by enough to justify the gain it realizes. null when none do
+    // (sale already covered, triggered tax too high, or — for a high-gain
+    // account — the win doesn't dominate the gain realized).
     for (var i = 0; i < gaps.length; i++) {
       var p = _probe(gaps[i]);
       if (!p || p.rawNet == null) continue;
       var triggeredTax = p.baselineTax - base.baselineTax;
       var netBenefit = (p.rawNet - base.rawNet) - triggeredTax;
-      if (netBenefit > 1000) return gaps[i];
+      var gainRealized = gaps[i] * _gainFrac;
+      var bar = Math.max(1000, DEFERRAL_PREMIUM * gainRealized);
+      if (netBenefit > bar) return gaps[i];
     }
     return null;
   }
