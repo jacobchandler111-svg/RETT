@@ -57,6 +57,25 @@
     var recap = _num(recapture);
     var wages = _num(cfg.wages);
     var seInc = _domNum('se-income');
+    // §86 taxable Social Security. cfg.baseOrdinaryIncome does NOT
+    // include SS — the engine derives the taxable portion inside
+    // _baseScenarioForYear and folds it into scenario.ordinaryIncome.
+    // Mirror that here so the admin panel matches the client tile to the
+    // dollar. Provisional income includes capital gains, so high earners
+    // pin at the 85% cap. Taxed at ordinary rates only (excluded from
+    // NIIT and Add'l Medicare); flows into the state base via ord, same
+    // as the engine. Computed per-scenario: without-sale passes 0 LT/
+    // recap, so its provisional (and thus taxable portion) can differ.
+    var grossSS = _num(cfg.socialSecurityBenefits);
+    var ssFn = root._computeTaxableSocialSecurity ||
+               (typeof _computeTaxableSocialSecurity === 'function' ? _computeTaxableSocialSecurity : null);
+    var taxableSS = 0;
+    if (grossSS > 0 && ssFn) {
+      var provOther = ord + _num(cfg.qualifiedDividend) + stGain
+                    + Math.max(0, ltSigned) + recap;
+      taxableSS = ssFn(grossSS, provOther, 0, status);
+    }
+    ord += taxableSS;
     // NIIT base = LT (clamped to 0) + STG + recap + rental + dividend +
     // interest. Recap belongs because §1411 treats §1250 gain as net
     // investment income from disposition of property. Interest
@@ -103,7 +122,8 @@
       fed: fed, state: stateTax, sum: sum,
       buckets: { fedOrd: fedOrd, fedRcap: fedRcap, fedLt: fedLt,
                  amt: amt, tmt: tmt, regFed: regFed,
-                 niit: niit, addmed: addmed, seTax: seTax }
+                 niit: niit, addmed: addmed, seTax: seTax,
+                 taxableSS: taxableSS, ordWithSS: ord }
     };
   }
 
@@ -124,7 +144,10 @@
       '<table class="admin-math-table">' +
         '<thead><tr><th>Bucket</th><th class="admin-math-num">Amount</th><th>Source</th></tr></thead>' +
         '<tbody>' +
-          _bucketRow('Federal ordinary tax',       b.fedOrd,  '2026 bracket stack on baseOrdinaryIncome + STG (after §1211(b) loss offset)') +
+          (b.taxableSS > 0
+            ? '<tr class="admin-math-amt-detail"><td><em>&nbsp;&nbsp;§86 taxable Social Security</em></td><td class="admin-math-num"><em>' + _fmtUSD(b.taxableSS) + '</em></td><td>provisional-income worksheet → folded into ordinary income (0/50/85% tiers)</td></tr>'
+            : '') +
+          _bucketRow('Federal ordinary tax',       b.fedOrd,  '2026 bracket stack on baseOrdinaryIncome + §86 taxable SS + STG (after §1211(b) loss offset)') +
           _bucketRow('Federal §1250 recap tax',    b.fedRcap, 'Capped at 25% per §1(h)(1)(E); 0 in without-sale') +
           _bucketRow('Federal LT cap gain tax',    b.fedLt,   '0% / 15% / 20% stack on max(0, longTermGain)') +
           '<tr class="admin-math-amt-detail"><td><em>&nbsp;&nbsp;Regular federal tax</em></td><td class="admin-math-num"><em>' + _fmtUSD(b.regFed) + '</em></td><td>= ordinary + recap + LT (used as the AMT comparison base)</td></tr>' +
@@ -204,7 +227,7 @@
             '<tr><td>Year</td><td class="admin-math-num">' + _esc(cfg.year1) + '</td><td>cfg.year1</td></tr>' +
             '<tr><td>Filing status</td><td class="admin-math-num">' + _esc(cfg.filingStatus) + '</td><td>cfg.filingStatus</td></tr>' +
             '<tr><td>State</td><td class="admin-math-num">' + _esc(cfg.state) + '</td><td>cfg.state</td></tr>' +
-            '<tr><td>Base ordinary income</td><td class="admin-math-num">' + _fmtUSD(cfg.baseOrdinaryIncome) + '</td><td>cfg.baseOrdinaryIncome &mdash; sum of W-2 + interest + div + retirement + SS taxable portion + rental + biz</td></tr>' +
+            '<tr><td>Base ordinary income</td><td class="admin-math-num">' + _fmtUSD(cfg.baseOrdinaryIncome) + '</td><td>cfg.baseOrdinaryIncome &mdash; sum of W-2 + interest + div + retirement + rental + biz (excludes SS; §86 taxable portion added in the scenario tables below)</td></tr>' +
             '<tr><td>Wages (Add\'l Medicare base)</td><td class="admin-math-num">' + _fmtUSD(cfg.wages) + '</td><td>cfg.wages &mdash; W-2 only</td></tr>' +
             '<tr><td>Investment income (NIIT base)</td><td class="admin-math-num">' + _fmtUSD(niitBase) + '</td><td>cfg.investmentIncomeOrdinary &mdash; interest + div + rental</td></tr>' +
             '<tr><td>Annual ST gain</td><td class="admin-math-num">' + _fmtUSD(cfg.baseShortTermGain) + '</td><td>cfg.baseShortTermGain</td></tr>' +
