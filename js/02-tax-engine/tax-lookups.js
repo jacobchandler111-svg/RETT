@@ -123,8 +123,17 @@ function getFederalNiitThreshold(year, status) {
           if (!node || !node.niitThreshold) return Infinity;
           const k = fsKey(status);
           const raw = node.niitThreshold[k] != null ? node.niitThreshold[k] : Infinity;
-          const factor = (TAX_DATA.federal && TAX_DATA.federal[String(year)]) ? 1 : _yearProjectionFactor(year);
-          return raw === Infinity ? Infinity : raw * factor;
+          // §1411 NIIT thresholds are STATUTORY and NOT inflation-indexed:
+          // $250K MFJ / $200K single / $125K MFS / $200K HoH, fixed since
+          // 2013 and never adjusted by the IRS (TCJA/OBBBA left them flat).
+          // So do NOT apply _yearProjectionFactor here — the threshold is
+          // the same nominal dollar figure in every projection year.
+          // (Bug fixed 2026-05-28: out-years were inflating the threshold
+          // 2%/yr, e.g. $255K in 2027, which under-collected NIIT. This
+          // contradicted the P0-10 note in tax-calc-federal and the
+          // advisor's "only brackets inflate" model. Mirrors the flat
+          // Additional-Medicare threshold in _computeAddlMedicare.)
+          return raw;
 }
 
 function getStateNode(year, stateCode) {
