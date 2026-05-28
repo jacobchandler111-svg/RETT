@@ -1094,8 +1094,21 @@
           var _dMax = Math.min(_contractPrice, _availTotal);
           var _smallestMin = 1000000;
           function _isLegalDown(D) { return (D <= 0.5 || D >= _smallestMin); }
+          // First-deposit account-opening gate (advisor 2026-05-27):
+          // Schwab needs ≥ $1M to OPEN the account. The first
+          // chronological Brooklyn deposit must clear that. For C the
+          // Y1 weight is locked at 40%, so when there's no qualifying
+          // Y0 down the first installment = (contract − D) × 0.40 must
+          // be ≥ $1M. Without this the solver picked tiny first
+          // installments (e.g. $675K) that can't legally open.
+          function _firstDepositLegalC(D) {
+            if (D >= _smallestMin - 0.5) return true;   // Y0 down opens it
+            if (D > 0.5) return false;                  // 0 < D < $1M illegal
+            return (_contractPrice - D) * 0.40 >= _smallestMin - 0.5;
+          }
 
           var _evalD = function (D) {
+            if (!_firstDepositLegalC(D)) return null;
             var typedCfg = _scenarioCfgFor(type, cfgSection, 3, 36, null, null, D);
             var m = _scenarioMetrics(typedCfg);
             if (m && (!best || m.net > best.net)) {
@@ -1161,10 +1174,32 @@
           var nForHor = hor - 1;
           if (nForHor < 1 || nForHor > 3) return;
 
+          // Y0 down-payment + first-deposit gate constants (advisor
+          // 2026-05-27). §453 allows a Y0 cash payment alongside the
+          // future installments; the first chronological Brooklyn
+          // deposit must clear the $1M Schwab account-opening minimum.
+          var _bContractPrice = Math.max(0, Number(cfgSection.salePrice || 0)
+                - Number(cfgSection.acceleratedDepreciation || 0));
+          var _bAvail = Math.max(0, Number(cfgSection.availableCapital || 0));
+          var _bDMax = Math.min(_bContractPrice, _bAvail);
+          var _bSmallestMin = 1000000;
+          function _isLegalDownB(D) { return (D <= 0.5 || D >= _bSmallestMin); }
+          // Account opens with the first chronological deposit: Y0 down
+          // if > 0, else the Y1 installment = (contract − D) × weight[0].
+          // That deposit must be ≥ $1M or Schwab won't open the account.
+          function _firstDepositLegalB(weights, D) {
+            if (D >= _bSmallestMin - 0.5) return true;   // Y0 down opens it
+            if (D > 0.5) return false;                   // 0 < D < $1M illegal
+            var w0 = (weights && Number.isFinite(weights[0])) ? weights[0] : 0;
+            return (_bContractPrice - D) * w0 >= _bSmallestMin - 0.5;
+          }
+
           function _evalB(weights, D) {
-            var typedCfgB = _scenarioCfgFor('B', cfgSection, nForHor, userDurationFallback, null, weights, D || 0);
+            D = D || 0;
+            if (!_firstDepositLegalB(weights, D)) return null;
+            var typedCfgB = _scenarioCfgFor('B', cfgSection, nForHor, userDurationFallback, null, weights, D);
             var mB = _scenarioMetrics(typedCfgB);
-            return mB ? { metrics: mB, weights: weights, D: D || 0 } : null;
+            return mB ? { metrics: mB, weights: weights, D: D } : null;
           }
           function _maybeUpdateBest(out) {
             if (!out) return;
@@ -1174,19 +1209,6 @@
                 installmentWeights: out.weights, y0DownPayment: out.D };
             }
           }
-          // Y0 down-payment sweep for B (advisor 2026-05-27): §453
-          // allows a Y0 cash payment alongside the future installments.
-          // Without this knob, Strategy C (which has it) could beat B
-          // in scenarios where Y0 down captures a higher Brooklyn loss
-          // rate. With this knob, B's search space subsumes C's: B can
-          // always at least match C by choosing locked weights + the
-          // same D, and usually beats by tuning weights.
-          var _bContractPrice = Math.max(0, Number(cfgSection.salePrice || 0)
-                - Number(cfgSection.acceleratedDepreciation || 0));
-          var _bAvail = Math.max(0, Number(cfgSection.availableCapital || 0));
-          var _bDMax = Math.min(_bContractPrice, _bAvail);
-          var _bSmallestMin = 1000000;
-          function _isLegalDownB(D) { return (D <= 0.5 || D >= _bSmallestMin); }
           function _sweepBD(lockedWeights) {
             if (_bDMax <= 0) return;
             // Coarse 10% steps.
