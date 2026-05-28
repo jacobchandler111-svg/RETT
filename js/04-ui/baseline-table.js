@@ -195,8 +195,13 @@
     // property-derived ST gain (stPropGain) doesn't exist without the sale.
     // Q7: non-property LT income (ltGainIncome) persists in the without-
     // sale scenario since it's recurring income, not sale-derived.
-    // Re-derived from form (snapshot only carries the with-sale totals):
-    var stGainSec02 = Math.max(0, _num('short-term-gain'));
+    // Re-derived from form (snapshot only carries the with-sale totals).
+    // NOT clamped to >=0: a Section 02 short-term capital LOSS is
+    // independent of the property sale, so the no-sale baseline must
+    // still honor it — net it against any LT income, then take the
+    // §1211(b) $3K ordinary offset on the remainder. Mirrors the
+    // with-sale path, which passes the signed STG through unclamped.
+    var stGainSec02 = _num('short-term-gain');
     var ltGainIncome = Math.max(0, _num('long-term-gain'));
     // NIIT base sans-sale = recurring portfolio income only (interest +
     // ord div + qualified div + rental + recurring LT/ST). No property
@@ -224,9 +229,21 @@
     var niit_nosale    = fedB_nosale ? Number(fedB_nosale.niit)        || 0 : 0;
     var addmed_nosale  = fedB_nosale ? Number(fedB_nosale.addlMedicare)|| 0 : 0;
     var fedTotal_nosale = fedOrd_nosale + fedLt_nosale + amt_nosale; // no recap without sale
+    // State base must mirror federal AGI. GA and most states start from
+    // federal AGI, which already §1211-caps a net capital loss at
+    // $3K/$1.5K before it reduces ordinary income. So the state base
+    // uses the breakdown's POST-netting gains (>=0) and subtracts only
+    // the CAPPED loss offset — NOT the raw signed loss. Folding the raw
+    // -$100K loss here would deduct the full $100K from state income
+    // instead of $3K. Post-netting values come straight from
+    // computeFederalTaxBreakdown (exposed for exactly this purpose).
+    var _ns_netLt   = fedB_nosale ? (Number(fedB_nosale.netLongTermGain)  || 0) : Math.max(0, ltGainIncome);
+    var _ns_netSt   = fedB_nosale ? (Number(fedB_nosale.netShortTermGain) || 0) : Math.max(0, stGainSec02);
+    var _ns_lossOff = fedB_nosale ? (Number(fedB_nosale.lossOrdOffsetApplied) || 0) : 0;
+    var _ns_stateBase = ord + _ns_netSt + _ns_netLt - _ns_lossOff;
     var stateTax_nosale = (typeof computeStateTax === 'function')
-      ? (computeStateTax(ord + stGainSec02 + ltGainIncome, year, state, status,
-            { longTermGain: ltGainIncome, shortTermGain: stGainSec02 }) || 0)
+      ? (computeStateTax(_ns_stateBase, year, state, status,
+            { longTermGain: _ns_netLt, shortTermGain: _ns_netSt }) || 0)
       : 0;
     var total_nosale = fedTotal_nosale + niit_nosale + addmed_nosale + seTax_nosale + stateTax_nosale;
 
