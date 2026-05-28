@@ -94,16 +94,23 @@
       wages: wages,
       seIncome: seInc
     });
-    // State base mirrors baseline-table.js exactly. With-sale uses
-    // ord + recap + max(0, LT) + STG; without-sale uses ord + STG + LT
-    // (treating non-property LT income as part of the base; state
-    // engine handles LTCG-vs-ordinary per state-specific rules).
+    // State base mirrors federal AGI. With-sale: ord + recap + max(0,LT)
+    // + STG (a capital loss is absorbed by the sale gain). Without-sale:
+    // a net capital loss must be §1211-capped at $3K/$1.5K before it
+    // reduces ordinary income — GA and most states start from federal
+    // AGI, which is already capped. Use the breakdown's POST-netting
+    // gains and capped loss offset, NOT the raw signed loss (which would
+    // deduct the full loss against state ordinary income). Mirrors
+    // baseline-table.js render().
+    var nsNetLt = _num(fed.netLongTermGain);
+    var nsNetSt = _num(fed.netShortTermGain);
+    var nsLossOff = _num(fed.lossOrdOffsetApplied);
     var stateBase = opts.withSale
       ? (ord + recap + Math.max(0, ltSigned) + stGain)
-      : (ord + stGain + ltAnnual);
+      : (ord + nsNetSt + nsNetLt - nsLossOff);
     var stateTax = root.computeStateTax(stateBase, year, state, status, {
-      longTermGain: opts.withSale ? Math.max(0, ltSigned) : ltAnnual,
-      shortTermGain: stGain
+      longTermGain: opts.withSale ? Math.max(0, ltSigned) : nsNetLt,
+      shortTermGain: opts.withSale ? stGain : nsNetSt
     }) || 0;
     // fedTotal mirrors baseline-table.js: ordinaryTax + recapTax +
     // ltTax + amtTopUp. NIIT, Add'l Medicare, SE tax stack on top.

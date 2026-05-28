@@ -202,7 +202,12 @@
     // §1211(b) $3K ordinary offset on the remainder. Mirrors the
     // with-sale path, which passes the signed STG through unclamped.
     var stGainSec02 = _num('short-term-gain');
-    var ltGainIncome = Math.max(0, _num('long-term-gain'));
+    // Not clamped to >=0: a non-property long-term capital LOSS is also
+    // independent of the sale and must flow through the no-sale baseline
+    // (nets against any LT income, then §1211(b) $3K ordinary offset),
+    // same as the short-term field. The federal breakdown + the capped
+    // state base below handle the netting.
+    var ltGainIncome = _num('long-term-gain');
     // NIIT base sans-sale = recurring portfolio income only (interest +
     // ord div + qualified div + rental + recurring LT/ST). No property
     // gain, no recapture. Mirrors what the engine would set if cfg had
