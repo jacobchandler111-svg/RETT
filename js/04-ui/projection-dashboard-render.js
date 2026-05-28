@@ -554,38 +554,59 @@
   // especially the structured sale, where the loss ramps up year-over-year
   // (the position grows as installments deploy) but the final installment's
   // gain is small, so the last slug of capital only manufactures an
-  // unusable carryforward + extra fees. We sweep the deployment AMOUNT and
-  // pick the SMALLEST that's within a hair of the best net (savings − fees),
-  // measured by the engine so it captures that timing waste (the old
-  // proportional approximation could not). Cheap-exits to full when there's
-  // no wasted loss, so no-waste strategies (e.g. lump-sum A) are untouched
-  // and fast. Returns a fraction in [0,1] of cfg.availableCapital; the
-  // caller re-runs _scenarioMetrics at that fraction for the displayed math.
+  // unusable carryforward + extra fees (carryforward past the projection
+  // window is valued at $0 — advisor confirmed 2026-05-28). We sweep the
+  // deployment AMOUNT and pick the SMALLEST that's within a hair of the
+  // best net (savings − fees), measured by the engine so it captures that
+  // timing waste (the old proportional approximation could not).
+  //
+  // Search = two passes (advisor 2026-05-28): a COARSE pass at 5% steps
+  // (95%→30%) to localize the peak, then a FINE pass at 1% steps in a ±5%
+  // window around the coarse winner — final resolution 1% without the cost
+  // of a 1% sweep over the whole range (~23 engine runs vs ~70). Runs are
+  // cached + de-duped by integer percent, so the fine pass never re-runs a
+  // coarse point. Cheap-exits to full when there's no wasted loss, so
+  // no-waste strategies (e.g. lump-sum A) are untouched and fast. Returns a
+  // fraction in [0,1] of cfg.availableCapital; the caller re-runs
+  // _scenarioMetrics at that fraction for the displayed math.
   function _netMaxDeployFraction(cfg) {
     var availCap = Number(cfg && cfg.availableCapital) || 0;
     if (!(availCap > 0) || typeof window.unifiedTaxComparison !== 'function') return 1;
-    function run(frac) {
-      var cap = Math.round(availCap * frac);
-      if (cap <= 0) return null;
+    var _cache = {};                           // pct -> result | null, dedups coarse/fine overlap
+    function run(pct) {
+      pct = Math.round(pct);
+      if (pct <= 0 || pct > 100) return null;
+      if (pct in _cache) return _cache[pct];
+      var cap = Math.round(availCap * (pct / 100));
+      if (cap <= 0) return (_cache[pct] = null);
       var c = _engineFlavoredCfg(Object.assign({}, cfg, { availableCapital: cap, investment: cap, investedCapital: cap }));
-      var cmp; try { cmp = window.unifiedTaxComparison(c); } catch (e) { return null; }
-      if (!cmp) return null;
+      var cmp; try { cmp = window.unifiedTaxComparison(c); } catch (e) { return (_cache[pct] = null); }
+      if (!cmp) return (_cache[pct] = null);
       var fees = Number.isFinite(cmp.totalAllFees) ? cmp.totalAllFees
                : (Number(cmp.totalFees || 0) + Number(cmp.totalBrookhavenFees || 0));
       var gen = 0, applied = 0;
       (cmp.rows || []).forEach(function (r) { gen += r.lossGenerated || 0; applied += r.lossApplied || 0; });
-      return { frac: frac, cap: cap, net: (Number(cmp.totalSavings) || 0) - fees, waste: gen - applied };
+      return (_cache[pct] = { frac: pct / 100, cap: cap, net: (Number(cmp.totalSavings) || 0) - fees, waste: gen - applied });
     }
-    var full = run(1);
+    var full = run(100);
     if (!full) return 1;
     if (full.waste < 1000) return 1;          // no wasted loss → full is already optimal (cheap exit)
-    var scored = [full];
-    [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3].forEach(function (f) { var r = run(f); if (r) scored.push(r); });
+    var scored = [], _seen = {};
+    function consider(pct) {
+      pct = Math.round(pct);
+      if (pct < 1 || pct > 100 || _seen[pct]) return;
+      var r = run(pct);
+      if (r) { _seen[pct] = 1; scored.push(r); }
+    }
+    // Coarse pass: 5% steps, 100% → 30%, to localize the net peak.
+    consider(100);
+    for (var p = 95; p >= 30; p -= 5) consider(p);
+    // Fine pass: 1% steps within ±5% of the coarse winner (cache skips the
+    // multiples-of-5 already run, so this adds only the in-between points).
+    var bestCoarse = scored.reduce(function (a, b) { return b.net > a.net ? b : a; });
+    var bp = Math.round(bestCoarse.frac * 100);
+    for (var q = bp - 5; q <= bp + 5; q++) consider(q);
     var maxNet = scored.reduce(function (m, s) { return Math.max(m, s.net); }, -Infinity);
-    var bestFrac = scored.reduce(function (a, b) { return b.net > a.net ? b : a; }).frac;
-    [bestFrac + 0.05, bestFrac - 0.05].forEach(function (f) {
-      if (f > 0.01 && f < 1) { var r = run(f); if (r) { scored.push(r); if (r.net > maxNet) maxNet = r.net; } }
-    });
     if (maxNet <= 0) return 0;                 // even the best deployment loses money → don't deploy
     // Prefer the SMALLEST deployment within a hair of the best net — don't
     // deploy extra capital that only adds fees for ~no extra net.
