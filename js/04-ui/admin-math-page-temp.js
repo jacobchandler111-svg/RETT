@@ -154,9 +154,21 @@
       return '<div class="admin-math-section"><h4>Strategy ' + letter + ' &mdash; ' + _esc(name) + '</h4>' +
         '<p class="admin-math-empty">Strategy not available for these inputs.</p></div>';
     }
+    // Reflect the optimizer's partial-investment dial-back: build the
+    // tranche matrix at the DEPLOYED capital, not full available. Without
+    // this the matrix showed every tranche at full deployment (e.g. the
+    // whole $5M) even when the strategy only deploys the dialed-back amount
+    // — inconsistent with the client temp page + comparison cards (2026-05-28).
+    var ecfg = entry.cfg;
+    var pd = entry._partialDeploy;
+    if (pd && Number.isFinite(Number(pd.deployed)) &&
+        Math.round(Number(pd.deployed)) !== Math.round(Number(ecfg.availableCapital) || 0)) {
+      var _dep = Math.max(0, Math.round(Number(pd.deployed)));
+      ecfg = Object.assign({}, ecfg, { availableCapital: _dep, investment: _dep, investedCapital: _dep });
+    }
     var cmp = null;
-    if (entry.cfg && typeof root.unifiedTaxComparison === 'function') {
-      try { cmp = root.unifiedTaxComparison(entry.cfg, { includeTrancheBreakdown: true }); }
+    if (ecfg && typeof root.unifiedTaxComparison === 'function') {
+      try { cmp = root.unifiedTaxComparison(ecfg, { includeTrancheBreakdown: true }); }
       catch (e) { cmp = null; }
     }
     if (!cmp) {
