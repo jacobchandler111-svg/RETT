@@ -213,7 +213,13 @@ function _baseScenarioForYear(cfg, yr, gainTakenThisYear, recaptureThisYear) {
       var _taxableSS = 0;
       if (_scaledGrossSS > 0 && typeof _computeTaxableSocialSecurity === 'function') {
             var _ssRecapForProv = Math.max(0, Number(recaptureThisYear) || 0);
-            var _otherAgi = ordOverride + _scaledQualDiv + _scaledInvOrd
+            // §86 provisional income = AGI-excluding-SS + tax-exempt
+            // interest + 50% gross SS. ordOverride (baseOrdinaryIncome)
+            // ALREADY contains interest + dividends + rental, so
+            // _scaledInvOrd must NOT be added again — doing so
+            // double-counted portfolio income and could push low-income
+            // filers into a higher §86 inclusion tier (50%→85%).
+            var _otherAgi = ordOverride + _scaledQualDiv
                   + Math.max(0, shortOverride) + ltAmt + _ssRecapForProv;
             _taxableSS = _computeTaxableSocialSecurity(_scaledGrossSS, _otherAgi, 0, cfg.filingStatus);
       }
