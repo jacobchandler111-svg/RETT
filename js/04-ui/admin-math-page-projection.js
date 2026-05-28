@@ -47,6 +47,14 @@
     try { cmp = root.unifiedTaxComparison(entry.cfg, { includeTrancheBreakdown: true }); }
     catch (e) { return { error: 'engine threw: ' + (e.message || e) }; }
     var m = entry.metrics || {};
+    // Partial-investment optimizer breadcrumb (set in buildInterestedSummary):
+    // how much of the available capital it actually deployed, and the
+    // full-deployment loss it would have wasted (which justified dialing
+    // back). cmp here is the FULL-deployment engine run, so its rows give
+    // the at-full loss generated vs applied.
+    var pd = entry._partialDeploy || null;
+    var _lossGen = 0, _lossApp = 0;
+    (cmp.rows || []).forEach(function (r) { _lossGen += _num(r.lossGenerated); _lossApp += _num(r.lossApplied); });
     // Strategy A immediate path: card reads brooklynFees from
     // ProjectionEngine.run (actual-hold-period close), NOT from
     // unifiedTaxComparison.totalFees (annualized accrual). These
@@ -76,6 +84,12 @@
       projFees: projFees,
       optScale: entry._optScale != null ? entry._optScale : 1,
       _opt: entry._opt || null,
+      partialScale:    pd ? _num(pd.scale) : 1,
+      deployedCap:     pd ? _num(pd.deployed)  : _num((entry.cfg || {}).availableCapital),
+      availCap:        pd ? _num(pd.available) : _num((entry.cfg || {}).availableCapital),
+      lossGenFull:     _lossGen,
+      lossAppliedFull: _lossApp,
+      wastedFull:      Math.max(0, _lossGen - _lossApp),
       // Post-optimizer headline values (match Page 3 cards):
       cardSavings: _num(m.savings != null ? m.savings : m._savingsAtFull),
       cardBrooklynFees: _num(m.brooklynFees),
@@ -345,22 +359,26 @@
     return html;
   }
 
-  // When Brooklyn fully absorbs the gain AND the optimizer dialed back,
-  // surface the unused capital so the advisor sees "you have $X sitting on
-  // the side". Reads from entry._opt + cfg.availableCapital.
-  function _fullyWipedCallout(analysis, cfg) {
-    var opt = (analysis && analysis._opt) || null;
-    var availCap = _num(cfg.availableCapital);
-    if (!opt || availCap <= 0) return '';
-    var rec = _num(opt.recommendedInvestment);
-    var dialBack = !!opt.dialBack;
-    var leftover = Math.max(0, availCap - rec);
-    if (!dialBack || leftover < 1000) return '';
+  // Partial-investment callout: surfaces the optimizer's "don't invest all"
+  // decision — how much it deployed vs available, and the full-deployment
+  // loss it would have WASTED (carried forward past the projection, pure
+  // fees). Reads the _partialDeploy breadcrumb + the at-full loss waste.
+  function _deploymentCallout(a) {
+    var avail = _num(a.availCap), deployed = _num(a.deployedCap);
+    var leftover = Math.max(0, avail - deployed);
+    if (leftover < 1000) return '';        // deployed essentially all → nothing to explain
+    var pct = avail > 0 ? (deployed / avail * 100).toFixed(1) : '100';
+    var wasteLine = a.wastedFull > 1000
+      ? ' At full $' + Math.round(avail).toLocaleString('en-US') +
+        ', Brooklyn would generate ' + _fmtUSD(a.lossGenFull) + ' of loss but only ' +
+        _fmtUSD(a.lossAppliedFull) + ' is usable — the other ' + _fmtUSD(a.wastedFull) +
+        ' carries forward unused (past the projection window), so the extra capital is pure fees.'
+      : '';
     return '<div class="admin-math-callout">' +
-      '<strong>Gain absorbed in full; ' + _fmtUSD(leftover) + ' freed up.</strong> ' +
-      'Optimizer dial-back: <code>' + (opt.recommendedScale * 100).toFixed(1) + '%</code> of available capital deployed. ' +
-      'Remaining ' + _fmtUSD(leftover) + ' is not invested in Brooklyn (no fees, no losses, sitting in trust). ' +
-      'Reason: <code>' + _esc(opt.reason) + '</code>' +
+      '<strong>Partial investment: ' + _fmtUSD(deployed) + ' of ' + _fmtUSD(avail) +
+      ' deployed (' + pct + '%).</strong> ' +
+      'The optimizer held back the remaining ' + _fmtUSD(leftover) +
+      ' because deploying it would not raise net benefit.' + wasteLine +
       '</div>';
   }
 
@@ -422,7 +440,11 @@
       _autoPickRow('Cover taxes',        cfg.coverTaxesFromSale ? 'Yes' : 'No',
                                          cfg.coverTaxesFromSale ? 'Y0-only tax-reserve tranche added (withdraws Apr 1 Y1)' : null),
       _autoPickRow('Available capital',  _fmtUSD(_num(cfg.availableCapital)),
-                                         'Total Brooklyn investment commitment')
+                                         'Total Brooklyn investment commitment'),
+      _autoPickRow('Deployed (optimizer)', _fmtUSD(_num(analysis.deployedCap)),
+                                         analysis.partialScale < 0.999
+                                           ? 'PARTIAL — ' + (analysis.partialScale * 100).toFixed(0) + '% of available; the rest would only add fees (see callout)'
+                                           : 'Full deployment (no waste to dial back)')
     ];
     var cardSummary =
       '<p class="admin-math-subtitle" style="margin-top:10px;">Page 3 card values (post-optimizer):</p>' +
@@ -441,7 +463,7 @@
         '<tbody>' + pickRows.join('') + '</tbody>' +
       '</table>' +
       cardSummary +
-      _fullyWipedCallout(analysis, cfg) +
+      _deploymentCallout(analysis) +
       '<p class="admin-math-subtitle" style="margin-top:10px;">Per-year engine output (Brooklyn fee reconciled to card; other columns are raw engine pre-optimizer):</p>' +
       _perYearTable(cmp, analysis.projFees, analysis.optScale) +
       '<p class="admin-math-subtitle" style="margin-top:10px;">Per-tranche breakdown (each Brooklyn deposit aged through every year):</p>' +
