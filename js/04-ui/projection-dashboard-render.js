@@ -2537,7 +2537,25 @@
       '<button type="button" class="rett-use-strategy-btn" data-use-strategy="' + typeLabel + '">' +
         (chosen ? '✓ Selected &mdash; continue to Supplemental' : 'Use This Strategy &rarr;') +
       '</button>';
-    var donutHtml = (visuals && visuals.donut) ? visuals.donut : '';
+    // New cash walk-away (advisor 2026-05-28): replaces the donut in
+    // Show Details. = "Cash Kept from Sale" (Tab 2 middle tile,
+    // salePrice − sale tax) + this strategy's Net Benefit. Shown as a
+    // blue figure mirroring the Tax Implications cash-kept tile so the
+    // client sees the new total cash they walk away with under the
+    // strategy. Read the Tab 2 value straight from the DOM so it's the
+    // exact number the client already saw there.
+    var _cashKeptEl = (typeof document !== 'undefined') ? document.getElementById('bt-cash-kept') : null;
+    var _cashKept = (_cashKeptEl && typeof parseUSD === 'function')
+      ? (parseUSD(_cashKeptEl.textContent) || 0) : 0;
+    var _netBen = Number(metrics.net) || 0;
+    var _newWalkAway = _cashKept + _netBen;
+    var walkAwayHtml =
+      '<div class="rett-interested-walkaway">' +
+        '<div class="rett-walkaway-label">New cash you walk away with</div>' +
+        '<div class="rett-walkaway-value">' + _fmt(_newWalkAway) + '</div>' +
+        '<div class="rett-walkaway-sub">Cash kept from sale ' + _fmt(_cashKept) +
+          ' + net benefit ' + _fmt(_netBen) + '</div>' +
+      '</div>';
     // Payment schedule (B + C - per advisor 2026-05-26 B now has a
     // multi-year payment cadence too) lives BELOW the Use This Strategy
     // button as a small chevron-only toggle, so the button line stays
@@ -2558,12 +2576,12 @@
       '<div class="rett-interested-net-label">Net Benefit</div>' +
       '<div class="rett-interested-net-value">' + _fmt(metrics.net) + '</div>' +
       '<div class="rett-interested-lockup">' +
-        '<span class="rett-interested-lockup-label">Distribution Period</span>' +
+        '<span class="rett-interested-lockup-label">Payment Period</span>' +
         '<span class="rett-interested-lockup-value">' + lockupValue + '</span>' +
       '</div>' +
       '<details class="rett-interested-details">' +
         '<summary>Show details</summary>' +
-        donutHtml +
+        walkAwayHtml +
       '</details>' +
       chooseBtn +
       paymentArrow +

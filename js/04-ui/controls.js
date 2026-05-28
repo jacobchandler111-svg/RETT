@@ -519,7 +519,7 @@ function _refreshStrategyLockupDisplays() {
     if (!pickedMonths && cfg && cfg.structuredSaleDurationMonths) {
       pickedMonths = cfg.structuredSaleDurationMonths;
     }
-    cEl.textContent = (pickedMonths ? pickedMonths : 36) + ' Month Distribution Period';
+    cEl.textContent = (pickedMonths ? pickedMonths : 36) + ' Month Payment Period';
   }
 }
 

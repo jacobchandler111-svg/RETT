@@ -254,7 +254,7 @@
         // Lump-sum: a single Year-1 deposit, no structured-sale
         // tranches. Phrase it as a one-liner that flags the absence of
         // a structured-sale lockup.
-        investedClause = 'Lump-sum sale (no structured-sale distribution period): the full ' +
+        investedClause = 'Lump-sum sale (no structured-sale payment period): the full ' +
           _fmt(invested) + ' lands in Brooklyn ' + strategy + ' on engagement and absorbs the entire gain in Year 1';
       } else if (trancheParts.length === 1) {
         investedClause = 'Investing ' + trancheParts[0] + ' in ' + strategy;

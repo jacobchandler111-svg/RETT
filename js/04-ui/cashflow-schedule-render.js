@@ -329,7 +329,7 @@
 
     var lumpSum = _isLumpSum(cfg, comp, rows);
     var brookSub = lumpSum
-      ? 'Lump-sum scenario: the full sale proceeds are received at close and deployed into Brooklyn in Year 1 — no structured-sale distribution period, no later tranche releases.'
+      ? 'Lump-sum scenario: the full sale proceeds are received at close and deployed into Brooklyn in Year 1 — no structured-sale payment period, no later tranche releases.'
       : 'New capital deployed each year — basis cash on engagement plus structured-sale tranche releases. Each row shows the assumed implementation date for that year’s deposit and the cumulative position for context.';
 
     var ssSection;

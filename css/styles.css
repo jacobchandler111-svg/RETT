@@ -4689,6 +4689,36 @@ body { font-size: 16px; }
     letter-spacing: -0.01em;
     margin-bottom: 14px;
 }
+
+/* "New cash you walk away with" — shown inside Show Details, replacing
+   the donut (advisor 2026-05-28). Blue to mirror the Tax Implications
+   "Cash Kept from Sale" tile. = cash kept from sale + net benefit. */
+.rett-interested-walkaway {
+    text-align: center;
+    padding: 14px 10px 6px;
+}
+.rett-walkaway-label {
+    font-family: var(--font-mono);
+    font-size: 0.72em;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+}
+.rett-walkaway-value {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 2.4em;
+    color: #1d4ed8;
+    letter-spacing: -0.01em;
+    line-height: 1.05;
+}
+.rett-walkaway-sub {
+    font-size: 0.78em;
+    color: var(--muted);
+    margin-top: 8px;
+}
 /* Page-3 Lockup line — replaces the old "Time horizon · Leverage"
    auto-pick text. Centered, bigger font so it reads from across the
    room: blue mono label on top, italic display value under. Leverage
