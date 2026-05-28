@@ -182,12 +182,18 @@ function _baseScenarioForYear(cfg, yr, gainTakenThisYear, recaptureThisYear) {
       // is recognized in the sale year only (idx === 0); LT-flavored
       // strategy deferrals don't apply to ST gain.
       const _stOverride = (cfg.shortGainByYear && cfg.shortGainByYear[idx] != null) ? cfg.shortGainByYear[idx] : (cfg.baseShortTermGain || 0);
-      const shortOverride = _stOverride + ((idx === 0) ? (cfg.shortTermPropertyGain || 0) : 0);
+      // Additional Funds (Section 03): the proportional gain triggered by
+      // liquidating securities to fund the strategy is a ONE-TIME event,
+      // recognized in the sale year only (idx === 0) — like
+      // shortTermPropertyGain. Signed (a portfolio position can be a loss).
+      const _addY0ST = (idx === 0) ? (Number(cfg.additionalY0ShortGain) || 0) : 0;
+      const _addY0LT = (idx === 0) ? (Number(cfg.additionalY0LongGain)  || 0) : 0;
+      const shortOverride = _stOverride + ((idx === 0) ? (cfg.shortTermPropertyGain || 0) : 0) + _addY0ST;
       // Q7: baseLongTermGain mirrors baseShortTermGain — non-property LT
       // income (stocks held >1yr, crypto, etc.) recurs each year. Engine
       // falls back to it when longGainByYear[idx] is not set.
       const longOverride  = (cfg.longGainByYear  && cfg.longGainByYear[idx]  != null) ? cfg.longGainByYear[idx]  : (cfg.baseLongTermGain || 0);
-      const ltAmt = (gainTakenThisYear != null ? gainTakenThisYear : 0) + longOverride;
+      const ltAmt = (gainTakenThisYear != null ? gainTakenThisYear : 0) + longOverride + _addY0LT;
       // Passive / portfolio income inside ordinary (rental + non-qualified
       // div / interest) is also part of the §1411 NIIT base. Inflated
       // alongside baseOrdinaryIncome so high-income clients with heavy

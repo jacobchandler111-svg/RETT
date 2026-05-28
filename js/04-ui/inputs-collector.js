@@ -540,8 +540,15 @@ function collectInputs() {
                   var _liq = Math.min(_addFunds, _acctVal);   // can't liquidate more than exists
                   cfg.availableCapital = (Number(cfg.availableCapital) || 0) + _liq;
                   cfg.investment       = (Number(cfg.investment) || 0) + _liq;
-                  cfg.baseLongTermGain  = (Number(cfg.baseLongTermGain)  || 0) + _liq * (_acctLT / _acctVal);
-                  cfg.baseShortTermGain = (Number(cfg.baseShortTermGain) || 0) + _liq * (_acctST / _acctVal);
+                  // The triggered gains are a ONE-TIME Y0 event (the
+                  // liquidation happens once). Route them through Y0-only
+                  // channels — NOT baseLongTermGain / baseShortTermGain,
+                  // which RECUR every projection year in
+                  // _baseScenarioForYear (they model recurring annual
+                  // stock/crypto income). Folding a one-time sale into them
+                  // taxed the gain every year.
+                  cfg.additionalY0LongGain  = _liq * (_acctLT / _acctVal);   // signed (loss ok)
+                  cfg.additionalY0ShortGain = _liq * (_acctST / _acctVal);   // signed (loss ok)
                   cfg.additionalFundsApplied = _liq;   // breadcrumb for admin/debug
             }
       }

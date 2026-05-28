@@ -4,32 +4,34 @@
 // The Tab-1 Section-03 inputs (account value / unrealized LT gain /
 // unrealized ST gain / contribution) plus the Projection-tab "Include
 // Additional Funds" toggle are wired in index.html. collectInputs()
-// folds a contribution in when the toggle is ON (proportional
-// liquidation → extra Brooklyn capital + triggered LT/ST gains).
+// folds a contribution in when the toggle is ON: capped liquidation adds
+// to availableCapital + investment, and the proportional ONE-TIME (Y0)
+// triggered gains go to cfg.additionalY0LongGain / additionalY0ShortGain.
 //
-// This file implements the suggested-amount optimizer the UI calls. It
-// returns the liquidation amount (dollars) to recommend, or null.
+// ---- What "net benefit" means here (advisor 2026-05-28) --------------
+// The target is to maximize the net benefit of OFFSETTING THE REAL-ESTATE
+// SALE tax — NOT of offsetting the gains created by liquidating the
+// securities portfolio. Selling more of the portfolio can look optimal on
+// paper because Brooklyn then offsets those self-created gains, which
+// reads as "savings" — but that's circular (the client wouldn't owe that
+// tax if they didn't liquidate). So we strip it out:
 //
-// IMPORTANT — phantom-savings caveat (found 2026-05-28):
-//   Liquidating securities realizes gain that Brooklyn then offsets.
-//   Because the triggered gains sit in BOTH the do-nothing baseline and
-//   the with-strategy path (collectInputs folds them into base gains),
-//   "offsetting them" reads as savings — so the raw best-net grows
-//   monotonically with the liquidation amount (→ "liquidate everything").
-//   That over-states the benefit, so we do NOT chase the raw net-max.
+//   netBenefit(C) = [ rawNet(C) - rawNet(0) ]          // extra strategy net
+//                 - [ baselineTax(C) - baselineTax(0) ] // one-time tax from
+//                                                        // liquidating (the
+//                                                        // triggered Y0 gain)
 //
-//   The RELIABLE, non-phantom benefit is the Schwab TIER-BUMP: getting
-//   available capital up to the next combo minimum ($1M → 145/45,
-//   $3M → 200/100) unlocks a higher loss-rate that better offsets the
-//   client's EXISTING sale gain and starts generating returns earlier.
-//   We suggest the smallest tier gap that genuinely improves the best
-//   strategy's net. The broader "fully offset Year-0 tax" / net-max goal
-//   needs a phantom-free benefit metric (do-nothing baseline WITHOUT the
-//   voluntary liquidation gains) — flagged for a follow-up.
+// rawNet = best strategy's (savings - fees) from buildInterestedSummary.
+// baselineTax = the do-nothing total tax (unifiedTaxComparison.totalBaseline);
+// its delta isolates the tax created purely by the liquidation. Subtracting
+// it leaves the benefit attributable to better offsetting the SALE — so the
+// optimum sits at "deploy enough to cover the sale," not "liquidate
+// everything." We then prefer the SMALLEST contribution within a small
+// tolerance of the best netBenefit (the efficient minimum — usually a tier
+// threshold), and never exceed the account value.
 //
-// Net-benefit oracle: buildInterestedSummary() (~100ms, recomputes when
-// the contribution changes). Only runs when the account has value
-// (AV > 0), so the common no-additional-funds case is an instant null.
+// Only runs when the account has value (AV > 0), so the common
+// no-additional-funds case is an instant null.
 
 (function (root) {
   'use strict';
@@ -44,65 +46,81 @@
     return Number.isFinite(v) ? v : 0;
   }
 
-  // Best net across A/B/C at a given contribution. Temporarily forces the
+  // Probe the engine at a given contribution. Temporarily forces the
   // toggle ON + writes #additional-funds (no change events dispatched, so
-  // the live UI doesn't react), then restores. contribution <= 0 measures
-  // the do-nothing baseline (toggle OFF).
-  function _bestNetAt(contribution) {
+  // the live UI doesn't react), then restores. Returns
+  // { rawNet, baselineTax } or null. contribution <= 0 = do-nothing.
+  function _probe(contribution) {
     var fEl = _el('additional-funds'), tEl = _el('additional-funds-toggle');
-    if (!fEl || !tEl || typeof root.buildInterestedSummary !== 'function') return null;
+    if (!fEl || !tEl) return null;
     var prevF = fEl.value, prevT = tEl.checked;
-    var net = null;
+    var out = { rawNet: null, baselineTax: 0 };
     try {
       fEl.value = (contribution > 0) ? String(Math.round(contribution)) : '';
       tEl.checked = contribution > 0;
-      var sum = root.buildInterestedSummary();
-      if (sum && sum.entries && sum.entries.length) {
-        net = -Infinity;
-        sum.entries.forEach(function (e) {
-          if (e && e.metrics && Number.isFinite(e.metrics.net)) net = Math.max(net, e.metrics.net);
-        });
-        if (!Number.isFinite(net)) net = null;
+      if (typeof root.buildInterestedSummary === 'function') {
+        var sum = root.buildInterestedSummary();
+        if (sum && sum.entries && sum.entries.length) {
+          var n = -Infinity;
+          sum.entries.forEach(function (e) {
+            if (e && e.metrics && Number.isFinite(e.metrics.net)) n = Math.max(n, e.metrics.net);
+          });
+          out.rawNet = Number.isFinite(n) ? n : null;
+        }
       }
-    } catch (e) { net = null; }
+      if (typeof root.unifiedTaxComparison === 'function' && typeof root.collectInputs === 'function') {
+        var cmp = root.unifiedTaxComparison(root.collectInputs());
+        out.baselineTax = Number(cmp && cmp.totalBaseline) || 0;
+      }
+    } catch (e) { out = null; }
     fEl.value = prevF; tEl.checked = prevT;
-    return net;
+    return out;
   }
 
   function rettSuggestAdditionalFunds() {
     var AV = _pv('additional-account-value');
     if (!(AV > 0)) return null;                         // no account → no suggestion (cheap exit)
     if (typeof root.collectInputs !== 'function' ||
-        typeof root.buildInterestedSummary !== 'function' ||
-        typeof root.listSchwabCombosForStrategy !== 'function') return null;
+        typeof root.buildInterestedSummary !== 'function') return null;
 
-    // Base Brooklyn capital WITHOUT additional funds (read the field
-    // directly; collectInputs would fold the contribution in when ON).
-    var curCap = _pv('available-capital');
+    var curCap = _pv('available-capital');              // base Brooklyn capital (no add'l funds)
 
-    var cfg;
-    try { cfg = root.collectInputs(); } catch (e) { return null; }
-    var stratKey = (cfg && cfg.tierKey) || 'beta1';
-
-    // Reachable higher-tier gaps, ascending (the only candidates we trust).
+    // ---- Candidates = reachable Schwab tier gaps ONLY ------------------
+    // We deliberately do NOT sweep arbitrary fractions of the account.
+    // Deploying past the point that covers the real-estate sale only
+    // washes the self-created liquidation gains (offsetting them at an
+    // unlocked tier can even show a sliver of "benefit" — still phantom).
+    // The clean, non-phantom lever is the TIER BUMP: getting capital to
+    // the next combo minimum ($1M → 145/45, $3M → 200/100) unlocks a
+    // higher loss-rate that offsets the SALE gain more efficiently.
     var gaps = [];
-    (root.listSchwabCombosForStrategy(stratKey) || []).forEach(function (c) {
-      var min = Number(c && c.minInvestment) || 0;
-      if (min > curCap && (min - curCap) <= AV) gaps.push(Math.round(min - curCap));
-    });
+    try {
+      var cfg = root.collectInputs();
+      var stratKey = (cfg && cfg.tierKey) || 'beta1';
+      if (typeof root.listSchwabCombosForStrategy === 'function') {
+        (root.listSchwabCombosForStrategy(stratKey) || []).forEach(function (c) {
+          var min = Number(c && c.minInvestment) || 0;
+          if (min > curCap && (min - curCap) <= AV) gaps.push(Math.round(min - curCap));
+        });
+      }
+    } catch (e) { return null; }
     gaps.sort(function (a, b) { return a - b; });
     if (!gaps.length) return null;
 
-    var baseNet = _bestNetAt(0);
-    if (baseNet == null) baseNet = 0;
-
-    // Suggest the smallest tier gap that meaningfully improves the best
-    // strategy's net (require > $1,000 so we don't recommend liquidating
-    // for noise).
-    var EPS = 1000;
+    // ---- Score each gap by netBenefit (offset-of-sale, phantom-free) ---
+    //   netBenefit = (extra strategy net) − (one-time liquidation tax)
+    // Suggest the SMALLEST tier gap whose netBenefit clears $1K — i.e. the
+    // cheapest tier jump that genuinely helps offset the real-estate sale.
+    // Returns null when no tier bump helps (e.g. the sale is already
+    // covered at current capital).
+    var base = _probe(0);
+    if (!base || base.rawNet == null) return null;
     for (var i = 0; i < gaps.length; i++) {
-      var net = _bestNetAt(gaps[i]);
-      if (net != null && (net - baseNet) > EPS) return gaps[i];
+      var p = _probe(gaps[i]);
+      if (!p || p.rawNet == null) continue;
+      var triggeredTax = p.baselineTax - base.baselineTax;
+      var netBenefit = (p.rawNet - base.rawNet) - triggeredTax;
+      if (netBenefit > 1000) return gaps[i];
     }
     return null;
   }
