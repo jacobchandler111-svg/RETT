@@ -158,22 +158,24 @@ function _baseScenarioForYear(cfg, yr, gainTakenThisYear, recaptureThisYear) {
       // Did Nothing" — which has always summed recapture into the
       // ordinary stack.
       const idx = yr - cfg.year1;
-      // When no per-year override is supplied, scale ordinary income by
-      // the same inflation factor the engine uses for bracket projection
-      // (2% per year past base). Without this, brackets inflate but
-      // income stays flat — clients silently drift into a lower
-      // effective marginal rate, understating baseline tax (and thus
-      // overstating savings) by ~10% over a 5-year horizon.
-      // Read inflation rate from TAX_DATA directly — keeping a literal
-      // 0.02 fallback silently drifts from the data file if it's ever
-      // tuned. If TAX_DATA isn't loaded, fall through to 0 so the math
-      // breaks loudly rather than silently using a stale rate.
-      const _infl = (typeof TAX_DATA !== 'undefined' && TAX_DATA && typeof TAX_DATA.inflationRate === 'number')
-            ? TAX_DATA.inflationRate
-            : ((typeof window !== 'undefined' && window.TAX_DATA && typeof window.TAX_DATA.inflationRate === 'number')
-                  ? window.TAX_DATA.inflationRate : 0);
-      const _scaledBaseOrd = (cfg.baseOrdinaryIncome || 0) * Math.pow(1 + _infl, Math.max(0, idx));
-      const _scaledBaseWages = (cfg.wages || 0) * Math.pow(1 + _infl, Math.max(0, idx));
+      // Multi-year projection assumption (advisor 2026-05-27): income is
+      // held FLAT at year-1 values across the projection horizon. Only
+      // the tax BRACKETS / LTCG breakpoints inflate 2%/yr (handled
+      // separately in tax-calc-federal via _yearProjectionFactor). This
+      // is the advisor's stated model — a single explicit assumption.
+      //
+      // Prior versions also inflated income 2%/yr to keep the effective
+      // marginal rate constant in real terms; that was dropped because
+      // it (a) wasn't the intended assumption and (b) pushed wages above
+      // the FROZEN $250K Additional-Medicare threshold, making that
+      // surcharge appear and grow in later years. With flat income the
+      // surcharge stays at its year-1 value. Note: flat income against
+      // inflating brackets lets the same income drift into wider
+      // brackets, so baseline tax eases slightly each year — but this
+      // applies identically to the baseline and the with-strategy path,
+      // so the net benefit (the savings) is unaffected.
+      const _scaledBaseOrd = (cfg.baseOrdinaryIncome || 0);
+      const _scaledBaseWages = (cfg.wages || 0);
       const ordOverride = (cfg.ordinaryByYear   && cfg.ordinaryByYear[idx]   != null) ? cfg.ordinaryByYear[idx]   : _scaledBaseOrd;
       // Q2 multi-property holding-period: shortTermPropertyGain captures
       // any property the user marked as held < 1 year. ST property gain
@@ -190,7 +192,7 @@ function _baseScenarioForYear(cfg, yr, gainTakenThisYear, recaptureThisYear) {
       // div / interest) is also part of the §1411 NIIT base. Inflated
       // alongside baseOrdinaryIncome so high-income clients with heavy
       // rental income pay the right NIIT every year.
-      const _scaledInvOrd = (cfg.investmentIncomeOrdinary || 0) * Math.pow(1 + _infl, Math.max(0, idx));
+      const _scaledInvOrd = (cfg.investmentIncomeOrdinary || 0);
       const _recap = Math.max(0, Number(recaptureThisYear) || 0);
       // Qualified dividends — recurring annual income, inflation-scaled
       // alongside other recurring streams. IRC §1(h)(11): preferential
@@ -198,7 +200,7 @@ function _baseScenarioForYear(cfg, yr, gainTakenThisYear, recaptureThisYear) {
       // base. Engine path: scenario.qualifiedDividend → opts.qualified-
       // Dividend → computeFederalTaxBreakdown ltAmount + investment-
       // Income. Wired 2026-05-27.
-      const _scaledQualDiv = (cfg.qualifiedDividend || 0) * Math.pow(1 + _infl, Math.max(0, idx));
+      const _scaledQualDiv = (cfg.qualifiedDividend || 0);
       // Social Security (gross). IRC §86 — taxable portion derived via
       // the provisional-income worksheet. The taxable portion taxes at
       // ordinary brackets but does NOT enter the NIIT base (Form 8960
@@ -207,7 +209,7 @@ function _baseScenarioForYear(cfg, yr, gainTakenThisYear, recaptureThisYear) {
       // year's other ordinary income + capital gains + 50% of gross SS.
       // SS itself is COLA-indexed, scale gross by the same inflation
       // factor as wages so multi-year projections are coherent.
-      const _scaledGrossSS = (cfg.socialSecurityBenefits || 0) * Math.pow(1 + _infl, Math.max(0, idx));
+      const _scaledGrossSS = (cfg.socialSecurityBenefits || 0);
       var _taxableSS = 0;
       if (_scaledGrossSS > 0 && typeof _computeTaxableSocialSecurity === 'function') {
             var _ssRecapForProv = Math.max(0, Number(recaptureThisYear) || 0);
@@ -240,7 +242,7 @@ function _baseScenarioForYear(cfg, yr, gainTakenThisYear, recaptureThisYear) {
             // computeFederalTaxBreakdown's internal wage = w2 +
             // (seIncome × 0.9235). Scaled by inflation alongside
             // wages so multi-year projections stay coherent.
-            seIncome: (cfg.seIncome || 0) * Math.pow(1 + _infl, Math.max(0, idx)),
+            seIncome: (cfg.seIncome || 0),
             _taxableSocialSecurity: _taxableSS,
             _grossSocialSecurity:   _scaledGrossSS,
             // NIIT base = LT gain + ST gain + §1250 unrecaptured gain +
