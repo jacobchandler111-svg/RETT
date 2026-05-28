@@ -438,38 +438,42 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       const _deductionConsumedOnOrd = Math.max(0, ordinaryGross - taxableOrdinary - _carriedLossOrdOffset);
       const _leftoverDeduction = Math.max(0, deduction - _deductionConsumedOnOrd);
 
-      // §1(h)(1)(E) unrecaptured §1250 gain — PER-SLICE 25% cap
-      // (advisor methodology, confirmed 2026-05-27). Recap stacks on
-      // top of taxableOrdinary minus recap (= W-2/STG/etc. after std
-      // deduction). For each ordinary bracket the recap slice touches,
-      // that piece is taxed at min(bracket rate, 25%). Differs from
-      // the IRS Schedule D Tax Worksheet, which uses a total-comparison
-      // cap (min(stacked-at-ordinary, 25% × recap)); the per-slice
-      // method is taxpayer-favorable for scenarios where part of recap
-      // falls into a bracket above 25% (the over-25% portion gets
-      // capped; the below-25% portion does NOT get pulled up to 25%
-      // by the worksheet's all-or-nothing comparison).
+      // §1(h) / Schedule D Tax Worksheet stacking. The income layers,
+      // bottom → top, are:
+      //   1) ordinary income (W-2 / STG, after the standard deduction)
+      //   2) "adjusted net capital gain" — regular LTCG + qualified
+      //      dividends, taxed 0/15/20%, stacked DIRECTLY on ordinary
+      //   3) unrecaptured §1250 gain (depreciation recapture), taxed at
+      //      up to 25%, stacked ABOVE the regular LTCG
+      //   4) 28% collectibles gain (not modeled)
+      // Source: IRS Instructions for Schedule D, Schedule D Tax
+      // Worksheet (taxes 0/15/20% on adjusted net capital gain first,
+      // THEN 25% on unrecaptured §1250 gain).
+      //
+      // (Fixed 2026-05-28 to match IRS Schedule D — confirmed against
+      // irs.gov. The prior code folded recapture into the ordinary base
+      // before the LTCG bracket walk, which (a) wrongly pushed regular
+      // LTCG up a bracket, e.g. 15%→20% [+$10K on a $200K-recap /
+      // $5M-sale case], and (b) read the recapture's own rate at a low
+      // stack position [~24%] instead of its true top-of-stack position
+      // where a high earner's ordinary rate exceeds 25%, so the 25% cap
+      // binds. Net over-tax of ~$8.1K in recapture years.)
       const _recapInTaxable = Math.min(_recap, taxableOrdinary);
       const _taxableOrdExRecap = Math.max(0, taxableOrdinary - _recapInTaxable);
-      const ordinaryTaxExRecap = _flatBracketTax(_taxableOrdExRecap, ordBrk);
-      const ordinaryTaxIncRecap = _flatBracketTax(taxableOrdinary, ordBrk);
-      const recapTax = (_recapInTaxable > 0)
-            ? _flatBracketTaxCapped(_recapInTaxable, _taxableOrdExRecap, ordBrk, 0.25)
-            : 0;
-      // Keep these for AMT-comparison and other call sites that read them.
-      const _recapTaxAtOrdinary = Math.max(0, ordinaryTaxIncRecap - ordinaryTaxExRecap);
-      const _recapTaxCapped = _recapInTaxable * 0.25;
-      const ordinaryTax = ordinaryTaxExRecap;
 
+      // Layer 1: ordinary income only (recapture is NOT in this base).
+      const ordinaryTax = _flatBracketTax(_taxableOrdExRecap, ordBrk);
+
+      // Layer 2: regular LTCG (0/15/20) stacked on ordinary income only.
       let ltTax = 0;
       const ltAmount = longTermGain + qualifiedDividend;
-      if (ltAmount > 0 && ltBrk && ltBrk.length) {
-            // Apply leftover standard deduction to the LTCG slab — the
-            // first _leftoverDeduction dollars of LT gain are taxed at $0
-            // (the deduction effectively shifts the LTCG bracket floors).
-            const taxableLt = Math.max(0, ltAmount - _leftoverDeduction);
+      // Apply leftover standard deduction to the LTCG slab — the first
+      // _leftoverDeduction dollars of LT gain are taxed at $0 (the
+      // deduction effectively shifts the LTCG bracket floors).
+      const taxableLt = Math.max(0, ltAmount - _leftoverDeduction);
+      if (taxableLt > 0 && ltBrk && ltBrk.length) {
             let remaining = taxableLt;
-            let stackBase = taxableOrdinary;
+            let stackBase = _taxableOrdExRecap;
             let prevMax = 0;
             for (const b of ltBrk) {
                   const cap = b[0], rate = b[1];
@@ -483,6 +487,17 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
                   prevMax = cap;
             }
       }
+
+      // Layer 3: unrecaptured §1250 recapture, per-slice min(bracket,
+      // 25%), stacked ABOVE ordinary income + the regular LTCG. At a
+      // high earner's top-of-stack position the ordinary rate exceeds
+      // 25% so the cap binds (recap → 25%); a genuinely low-bracket
+      // taxpayer keeps the lower ordinary rate (taxpayer-favorable, per
+      // the §1250 "ordinary rate up to 25%" rule).
+      const _recapStackBase = _taxableOrdExRecap + taxableLt;
+      const recapTax = (_recapInTaxable > 0)
+            ? _flatBracketTaxCapped(_recapInTaxable, _recapStackBase, ordBrk, 0.25)
+            : 0;
 
       // AMTI for exemption-phaseout purposes includes BOTH the
       // ordinary taxable amount AND the LTCG amount (per Form 6251
