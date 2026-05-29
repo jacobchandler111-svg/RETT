@@ -2408,13 +2408,19 @@
     var salePrice = Math.max(0, Number(cfg.salePrice) || 0);
     var basis = Math.max(0, Number(cfg.costBasis) || 0);
     var depr = Math.max(0, Number(cfg.acceleratedDepreciation) || 0);
-    var totalLT = Math.max(0, salePrice - basis - depr);
     var contractPriceForLT = Math.max(0, salePrice - depr);
     if (contractPriceForLT <= 0) return '';
-    var paymentAmount = contractPriceForLT / N;
-    var gpRatio = totalLT / contractPriceForLT;
-    var basisPerPayment = paymentAmount * (1 - gpRatio);
-    var gainPerPayment = paymentAmount * gpRatio;
+    // Use the engine's auto-picked §453 installment weights so the
+    // displayed cash matches what the engine actually deploys (and the
+    // Tab 7 tranche matrix). Equal split is only a fallback when weights
+    // are absent — otherwise the card showed equal payments while the
+    // engine deployed a non-equal weighted schedule, so the two views
+    // disagreed.
+    var weights = (Array.isArray(cfg.installmentScheduleWeights) && cfg.installmentScheduleWeights.length === N)
+      ? cfg.installmentScheduleWeights : null;
+    function _paymentFor(i) {
+      return weights ? contractPriceForLT * (Number(weights[i]) || 0) : contractPriceForLT / N;
+    }
 
     // Build cash entries, then COMBINE any that land on the same date so
     // the schedule shows actual cash received per date. For Strategy B
@@ -2433,7 +2439,7 @@
       entries.push({ date: _fmtClosingDate(cfg.implementationDate, closingYear), cash: depr });
     }
     for (var i = 0; i < N; i++) {
-      entries.push({ date: 'Jan 1, ' + (year1 + 1 + i), cash: paymentAmount });
+      entries.push({ date: 'Jan 1, ' + (year1 + 1 + i), cash: _paymentFor(i) });
     }
     var merged = [], byDate = {};
     entries.forEach(function (e) {
