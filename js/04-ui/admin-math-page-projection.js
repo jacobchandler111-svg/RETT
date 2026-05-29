@@ -76,12 +76,28 @@
         }
       } catch (e) { projFees = null; }
     }
+    // Cover-taxes set-aside at the ACTUAL (dialed-back) deployment, so the
+    // displayed figure matches the chosen plan. B/C: total cash held back
+    // from the January installments to pay the sale tax (not invested). A:
+    // the Y0 sale tax shown for planning (A deploys in full, no Y1 sale).
+    var _coverSetAside = 0, _coverSaleTaxY0 = 0;
+    if (entry.cfg && entry.cfg.coverTaxesFromSale) {
+      try {
+        var _dCap = pd ? _num(pd.deployed) : _num(entry.cfg.availableCapital);
+        var _dCfg = Object.assign({}, entry.cfg, { availableCapital: _dCap, investment: _dCap, investedCapital: _dCap });
+        var _dCmp = root.unifiedTaxComparison(_dCfg);
+        _coverSetAside = _num(_dCmp.totalTaxSetAside);
+        _coverSaleTaxY0 = _num(_dCmp.coverTaxSaleTaxY0);
+      } catch (e) { /* */ }
+    }
     return {
       type: type,
       picked: entry.picked || {},
       cfg: entry.cfg || {},
       cmp: cmp,
       projFees: projFees,
+      coverSetAside:   _coverSetAside,
+      coverSaleTaxY0:  _coverSaleTaxY0,
       optScale: entry._optScale != null ? entry._optScale : 1,
       _opt: entry._opt || null,
       partialScale:    pd ? _num(pd.scale) : 1,
@@ -459,7 +475,10 @@
       lossRateRow,
       feeRateRow,
       _autoPickRow('Cover taxes',        cfg.coverTaxesFromSale ? 'Yes' : 'No',
-                                         cfg.coverTaxesFromSale ? 'Y0-only tax-reserve tranche added (withdraws Apr 1 Y1)' : null),
+                                         !cfg.coverTaxesFromSale ? null
+                                           : (letter === 'A'
+                                               ? 'Est. sale tax ' + _fmtUSD(analysis.coverSaleTaxY0) + ' — shown for planning; A is Y0-only, no Y1 sale modeled'
+                                               : _fmtUSD(analysis.coverSetAside) + ' set aside from the January installments to pay the sale tax — NOT invested in Brooklyn')),
       _autoPickRow('Available capital',  _fmtUSD(_num(cfg.availableCapital)),
                                          'Total Brooklyn investment commitment'),
       _autoPickRow('Deployed (optimizer)', _fmtUSD(_num(analysis.deployedCap)),
