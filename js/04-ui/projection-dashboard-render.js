@@ -1208,6 +1208,21 @@
     }
     var userDurationFallback = baseCfg.structuredSaleDurationMonths || 36;
     var best = null;
+    // Dial-back-aware combo selection (2026-05-29): the sweep scores every
+    // candidate at FULL deployment, but a combo can over-deploy at full
+    // (lower full net) yet dial back to a HIGHER net than the full-winner —
+    // confirmed on the structured sale (200/100 dialed beats 145/45 by
+    // ~$17K in a $5M/$1M case where 145/45 won at full). Track each combo's
+    // best-FULL candidate here, then re-score them at their dial-back
+    // optimum after the sweep (see below) and pick the genuinely net-best.
+    var _bestPerComboFull = {};   // comboId -> { picked, fullNet }
+    function _recordCombo(pk, fullNet) {
+      if (!pk || !pk.comboId || !isFinite(fullNet)) return;
+      var k = pk.comboId;
+      if (!_bestPerComboFull[k] || fullNet > _bestPerComboFull[k].fullNet) {
+        _bestPerComboFull[k] = { picked: pk, fullNet: fullNet };
+      }
+    }
     horizons.forEach(function (hor) {
       // Strategy-specific minimum horizons:
       //   • B (Seller-Finance §453 installment): hor >= 2 — engine deferred
@@ -1272,13 +1287,11 @@
             if (!_firstDepositLegalC(D)) return null;
             var typedCfg = _scenarioCfgFor(type, cfgSection, 3, 36, null, null, D);
             var m = _scenarioMetrics(typedCfg);
-            if (m && (!best || m.net > best.net)) {
-              best = {
-                horizon: hor, shortPct: p.shortPct, comboId: p.comboId,
-                bestRecC: 3, net: m.net, durationMonths: 36,
-                parkRatio: null, y0DownPayment: D
-              };
-            }
+            if (!m) return null;
+            var _pk = { horizon: hor, shortPct: p.shortPct, comboId: p.comboId,
+              bestRecC: 3, net: m.net, durationMonths: 36, parkRatio: null, y0DownPayment: D };
+            _recordCombo(_pk, m.net);
+            if (!best || m.net > best.net) best = _pk;
             return m;
           };
 
@@ -1366,11 +1379,11 @@
           }
           function _maybeUpdateBest(out) {
             if (!out) return;
-            if (!best || out.metrics.net > best.net) {
-              best = { horizon: hor, shortPct: p.shortPct, comboId: p.comboId,
-                bestRecC: nForHor, net: out.metrics.net, durationMonths: userDurationFallback,
-                installmentWeights: out.weights, y0DownPayment: out.D };
-            }
+            var _pk = { horizon: hor, shortPct: p.shortPct, comboId: p.comboId,
+              bestRecC: nForHor, net: out.metrics.net, durationMonths: userDurationFallback,
+              installmentWeights: out.weights, y0DownPayment: out.D };
+            _recordCombo(_pk, out.metrics.net);
+            if (!best || out.metrics.net > best.net) best = _pk;
           }
           function _sweepBD(lockedWeights) {
             if (_bDMax <= 0) return;
@@ -1530,6 +1543,49 @@
         }
       });
     });
+
+    // Dial-back-aware combo refinement (2026-05-29). Re-score each combo's
+    // best-FULL candidate at its dial-back optimum and switch `best` to the
+    // genuinely net-best — so the optimizer doesn't lock in a combo that
+    // wins at full deployment but loses once dialed back (the structured
+    // sale's 200/100-vs-145/45 mis-pick). B/C only; A has no dial-back.
+    if (best && (type === 'B' || type === 'C')) {
+      var _comboKeys = Object.keys(_bestPerComboFull);
+      if (_comboKeys.length > 1 && typeof _netMaxDeployFraction === 'function') {
+        var _dialedNetForPick = function (pk) {
+          var sec = Object.assign({}, baseCfg, {
+            horizonYears: pk.horizon, leverage: pk.shortPct / 100,
+            leverageCap: pk.shortPct / 100, comboId: pk.comboId
+          });
+          var iw = Array.isArray(pk.installmentWeights) ? pk.installmentWeights : null;
+          var pr = Number.isFinite(pk.parkRatio) ? pk.parkRatio : null;
+          var y0 = Number.isFinite(pk.y0DownPayment) ? pk.y0DownPayment : null;
+          var cfg = _scenarioCfgFor(type, sec, pk.bestRecC, pk.durationMonths || userDurationFallback, pr, iw, y0);
+          var m = _scenarioMetrics(cfg);
+          if (!m) return -Infinity;
+          var avail = Number(cfg.availableCapital) || 0;
+          if (!(avail > 0)) return m.net;
+          var scale = _netMaxDeployFraction(cfg);
+          if (scale >= 1) return m.net;
+          if (scale <= 0) return Math.max(0, m.net);   // no-engage floor
+          var redCap = Math.round(avail * scale);
+          var m2 = _scenarioMetrics(Object.assign({}, cfg, { availableCapital: redCap, investment: redCap, investedCapital: redCap }));
+          return (m2 && m2.net > m.net) ? m2.net : m.net;
+        };
+        var _bestDialed = null;
+        _comboKeys.forEach(function (k) {
+          var pk = _bestPerComboFull[k].picked;
+          var dn = _dialedNetForPick(pk);
+          if (!_bestDialed || dn > _bestDialed.dn) _bestDialed = { pk: pk, dn: dn };
+        });
+        // Only switch if the dial-back winner genuinely beats the current
+        // pick's dialed net (avoids churn on ties).
+        if (_bestDialed && _bestDialed.pk && _bestDialed.pk.comboId !== best.comboId) {
+          var _curDialed = _dialedNetForPick(best);
+          if (_bestDialed.dn > _curDialed + 250) best = _bestDialed.pk;
+        }
+      }
+    }
     return best || { horizon: 5, shortPct: 100, comboId: null, bestRecC: 2, durationMonths: 36, parkRatio: 0 };
   }
 
