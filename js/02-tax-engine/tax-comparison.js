@@ -975,15 +975,16 @@ function unifiedTaxComparison(cfg, opts) {
       //
       // Skipped in installment mode (Strategy B has no Y0 Brooklyn
       // tranche to split).
+      // Cover-taxes (advisor 2026-05-28 revision): Strategy A no longer
+      // carves a Y0 tax-reserve tranche that "sells" Apr 1 Y1 — A's
+      // projection is Y0-only, so modeling a Y1 sale would introduce Y1
+      // tax implications we don't want to show. A now deploys its full Y0
+      // basis and the estimated sale tax is surfaced for DISPLAY only
+      // (computed in the recognition loop as withStrategy − no-sale tax).
+      // The installment strategies (B/C) cover taxes by setting aside each
+      // year's actual tax from that year's January payment (loop below).
       var _taxReserveY0 = 0;
-      if (cfg.coverTaxesFromSale && !_isInstallment && basisCash > 0) {
-            var _y0RecognizedLT = isDeferred ? _unparkedY1Gain : totalLT;
-            var _y0TaxableEstimate = _y0RecognizedLT + Math.max(0, recapture);
-            var _y0EstimatedRate = (typeof _estimateGainTaxRate === 'function')
-                  ? _estimateGainTaxRate(cfg) : 0.25;
-            _taxReserveY0 = Math.min(basisCash, _y0TaxableEstimate * _y0EstimatedRate);
-      }
-      var _permanentBasis = Math.max(0, basisCash - _taxReserveY0);
+      var _permanentBasis = basisCash;
 
       const tranches = [];
       // Tier-jumping decision is made on TOTAL Y0 deployment (basisCash)
@@ -1267,6 +1268,21 @@ function unifiedTaxComparison(cfg, opts) {
       const rows = [];
       const recognitionSchedule = [];
 
+      // Cover-taxes-from-sale set-aside (advisor 2026-05-28). When ON, the
+      // installment strategies (B/C) hold back each year's ACTUAL sale tax
+      // from that year's January payment instead of reinvesting it — so the
+      // tax money never deploys to Brooklyn / generates no offsetting loss.
+      // Single-pass + sequential (no circularity): year i's January
+      // reinvestment is carved by the PRIOR year's sale tax (the tax due
+      // that April on last year's recognized gain). Sale tax = that year's
+      // with-strategy total tax − the no-sale baseline tax (isolates the
+      // sale's impact after Brooklyn offsets). _coverTaxSaleTaxA captures
+      // the Y0 figure for Strategy A's display-only readout.
+      var _coverTax = !!cfg.coverTaxesFromSale;
+      var _priorYearSaleTax = 0;     // sale tax carried into THIS year's carve
+      var _totalTaxSetAside  = 0;    // running total actually held back
+      var _coverTaxSaleTaxA  = 0;    // Y0 sale tax (Strategy A display)
+
       for (let i = 0; i < horizon; i++) {
             const year = _y0 + i;
 
@@ -1519,23 +1535,28 @@ function unifiedTaxComparison(cfg, opts) {
             // because basis recovery is also cash, not just principal
             // returned silently.
             const trancheTaxCarve = gainRecThisYear * _gainTaxRate;
+            // Cover-taxes set-aside (B/C): hold back the PRIOR year's sale
+            // tax from this January's payment — that cash pays the April
+            // tax bill, so it never deploys to Brooklyn. Capped at the
+            // payment (can't reserve more cash than arrives that year).
+            var _coverTaxCarve = (_coverTax && _isInstallment) ? Math.max(0, _priorYearSaleTax) : 0;
+            var _setAsideThisYear = 0;   // actual cash held back from this year's payment
             let reinvested;
             if (_isInstallment) {
                   // Installment mode: Brooklyn deploys per-payment.
                   //   • i = startIdx..maturityIdx: yearly installment
-                  //     creates a new tranche of (payment − taxCarve)
-                  //     dollars (basis + gain combined per §453).
-                  //   • i = 0 (sale year): no reinvest tranche. Any
-                  //     Y0 cash from a down-payment was already deployed
-                  //     as the basisCash tranche at engine setup;
-                  //     recognizing Y0 gain on it doesn't add new cash.
+                  //     creates a new tranche of (payment − taxCarve −
+                  //     coverTax set-aside) dollars.
+                  //   • i = 0 (sale year): no reinvest tranche.
                   if (i >= startIdx && i <= maturityIdx) {
                         var _basePayment = _installmentPaymentForIdx(i - startIdx);
                         // Recapture cash (+ sub-min Y0 down) that couldn't
                         // open a Y0 tranche rolls into the FIRST installment
                         // so it still gets deployed into Brooklyn.
                         if (i === startIdx) _basePayment += _y0RollToFirstInstallment;
-                        reinvested = Math.max(0, _basePayment - trancheTaxCarve);
+                        _setAsideThisYear = Math.min(_coverTaxCarve, Math.max(0, _basePayment - trancheTaxCarve));
+                        _totalTaxSetAside += _setAsideThisYear;
+                        reinvested = Math.max(0, _basePayment - trancheTaxCarve - _setAsideThisYear);
                   } else {
                         reinvested = 0;
                   }
@@ -1646,6 +1667,18 @@ function unifiedTaxComparison(cfg, opts) {
 
             stCF = Math.max(0, withStrat._lossUnused || 0);
 
+            // Cover-taxes: this year's ACTUAL sale tax (after Brooklyn
+            // offsets) = with-strategy total − the no-sale baseline tax
+            // (gain=0, recap=0 → the client's regular tax). It carries into
+            // NEXT year's January carve. Y0's figure is also kept for
+            // Strategy A's display-only readout. Only computed when ON.
+            if (_coverTax) {
+                  var _noSaleTax = _yearTaxes(_baseScenarioForYear(cfg, year, 0, 0)).total;
+                  var _saleTaxThisYear = Math.max(0, withStratTax.total - _noSaleTax);
+                  if (i === 0) _coverTaxSaleTaxA = _saleTaxThisYear;   // A display (Y0)
+                  _priorYearSaleTax = _saleTaxThisYear;                // next year's carve
+            }
+
             const bh = brookhavenSchedule ? brookhavenSchedule.perYear[i] : { setup: 0, quarterly: 0, total: 0 };
 
             // Append the new reinvest tranche to the per-year breakdown
@@ -1675,6 +1708,7 @@ function unifiedTaxComparison(cfg, opts) {
                   year: year,
                   gainRecognized: gainRecThisYear,
                   taxCarveOut: trancheTaxCarve,
+                  taxSetAside: _setAsideThisYear,   // cover-taxes: cash held back from this Jan payment
                   reinvestedThisYear: reinvested,
                   lossGenerated: yearLoss,
                   lossApplied: withStrat._lossUsed || 0,
@@ -1789,7 +1823,15 @@ function unifiedTaxComparison(cfg, opts) {
             recognitionSchedule: recognitionSchedule,
             durationYears: durationYears,
             unrecognizedGain: gainRemaining,
-            deferred: isDeferred
+            deferred: isDeferred,
+            // Cover-taxes-from-sale (advisor 2026-05-28): total cash held
+            // back from January installment payments to pay the sale tax
+            // (B/C, not deployed to Brooklyn). coverTaxSaleTaxY0 is the Y0
+            // sale tax for Strategy A's display-only readout (A deploys in
+            // full; no sale is modeled). Both 0 when the toggle is off.
+            coverTaxesOn: _coverTax,
+            totalTaxSetAside: _totalTaxSetAside,
+            coverTaxSaleTaxY0: _coverTaxSaleTaxA
       };
 }
 
