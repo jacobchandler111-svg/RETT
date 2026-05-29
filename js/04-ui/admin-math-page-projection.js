@@ -425,11 +425,20 @@
       ? root._rettEffectiveComboId(p.comboId, _deployedCap) : p.comboId;
     var combo = (_effComboId && typeof root.getSchwabCombo === 'function')
       ? root.getSchwabCombo(_effComboId) : _ceilingCombo;
-    var comboLabel = combo ? (combo.leverageLabel + ' (' + combo.strategyLabel + ')') : (p.comboId || '—');
-    var _comboNote = (_ceilingCombo && combo && _ceilingCombo.id !== combo.id)
-      ? 'Operating tier — deployment (' + _fmtUSD(_deployedCap) + ') stays below the ' +
-        _ceilingCombo.leverageLabel + ' minimum, so it runs at ' + combo.leverageLabel
-      : 'Best-net combo from the auto-pick sweep across leverage tiers';
+    // Tier-migration label from the actual per-tranche combos: when early
+    // tranches open under a lower combo and later ones ratchet up, show
+    // "145/45 → 200/100" instead of just the ceiling/effective tier.
+    var _migLev = (combo && typeof root._comboMigrationFromCmp === 'function')
+      ? root._comboMigrationFromCmp(analysis.cmp, combo.leverageLabel)
+      : (combo ? combo.leverageLabel : null);
+    var _isMig = !!(combo && _migLev && _migLev.indexOf('→') !== -1);
+    var comboLabel = combo ? (_migLev + ' (' + combo.strategyLabel + ')') : (p.comboId || '—');
+    var _comboNote = _isMig
+      ? 'Tranches ratchet up as cumulative deposits cross each combo minimum ($1M &rarr; 145/45, $3M &rarr; 200/100)'
+      : (_ceilingCombo && combo && _ceilingCombo.id !== combo.id)
+        ? 'Operating tier — deployment (' + _fmtUSD(_deployedCap) + ') stays below the ' +
+          _ceilingCombo.leverageLabel + ' minimum, so it runs at ' + combo.leverageLabel
+        : 'Best-net combo from the auto-pick sweep across leverage tiers';
     var y0LossRate = combo && combo.lossByYear ? combo.lossByYear[0] : null;
     var lossRateRow = y0LossRate != null
       ? _autoPickRow('Loss rate (Y0)', (y0LossRate * 100).toFixed(1) + '%',

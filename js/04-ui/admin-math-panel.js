@@ -273,6 +273,37 @@
     _init();
   }
 
+  // Tier-migration-aware leverage label, derived from the engine's
+  // actual per-tranche combos (cmp.rows[].trancheBreakdown). When the
+  // plan opens early tranches under a lower combo and later ones ratchet
+  // up (e.g. 145/45 → 200/100 as cumulative deposits cross $3M), this
+  // returns "145/45 → 200/100" instead of just the ceiling. Falls back
+  // to fallbackLabel (the ceiling leverageLabel) when there's no jump or
+  // no tranche data. Shared by the Strategy/Projection admin panels.
+  function _comboMigrationFromCmp(cmp, fallbackLabel) {
+    if (!cmp || !cmp.rows || typeof root.getSchwabCombo !== 'function') return fallbackLabel;
+    var byIdx = {}, order = [];
+    cmp.rows.forEach(function (r) {
+      (r.trancheBreakdown || []).forEach(function (tr) {
+        if (byIdx[tr.trancheIdx] == null) {
+          byIdx[tr.trancheIdx] = { open: tr.openYear, combo: tr.comboId };
+          order.push(tr.trancheIdx);
+        }
+      });
+    });
+    if (!order.length) return fallbackLabel;
+    order.sort(function (a, b) { return (byIdx[a].open - byIdx[b].open) || (a - b); });
+    var labels = [], last = null;
+    order.forEach(function (i) {
+      var c = root.getSchwabCombo(byIdx[i].combo);
+      var lab = c ? c.leverageLabel : byIdx[i].combo;
+      if (lab && lab !== last) { labels.push(lab); last = lab; }
+    });
+    if (labels.length <= 1) return labels[0] || fallbackLabel;
+    return labels.join(' → ');
+  }
+
   root.renderAdminMath = renderAdminMath;
   root._registerPageMath = _registerPageMath;
+  root._comboMigrationFromCmp = _comboMigrationFromCmp;
 })(window);

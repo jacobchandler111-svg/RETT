@@ -126,7 +126,18 @@
     var combo = (p.comboId && typeof root.getSchwabCombo === 'function')
       ? root.getSchwabCombo(p.comboId) : null;
     var y0LossRate = combo && combo.lossByYear ? combo.lossByYear[0] : null;
-    var comboLabel = combo ? (combo.leverageLabel + ' (' + combo.strategyLabel + ')') : (p.comboId || '—');
+    // Tier-migration label from the engine's actual per-tranche combos —
+    // shows "145/45 → 200/100" when the plan ratchets up, not just the
+    // ceiling. This panel has no cmp, so fetch the tranche breakdown.
+    var _migLev = combo ? combo.leverageLabel : null;
+    if (combo && cfg && typeof root.unifiedTaxComparison === 'function'
+        && typeof root._comboMigrationFromCmp === 'function') {
+      try {
+        var _cmpMig = root.unifiedTaxComparison(cfg, { includeTrancheBreakdown: true });
+        _migLev = root._comboMigrationFromCmp(_cmpMig, combo.leverageLabel);
+      } catch (e) { /* keep ceiling label */ }
+    }
+    var comboLabel = combo ? (_migLev + ' (' + combo.strategyLabel + ')') : (p.comboId || '—');
     var lossRateRow = y0LossRate != null
       ? _row('Loss rate (Y0)', (y0LossRate * 100).toFixed(1) + '%',
              'Combo ' + _esc(comboLabel) + ' first-year loss/$ ratio &mdash; decays in subsequent years')
