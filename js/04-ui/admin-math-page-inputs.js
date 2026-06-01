@@ -128,6 +128,7 @@
     sections.push(_section('Sale Proceeds Handling', [
       _row('availableCapital', cfg.availableCapital, '#available-capital - cash deployable to Brooklyn'),
       _row('investment', cfg.investment, 'Aliased: same as availableCapital unless legacy override'),
+      _row('forcedY0Payment', cfg.forcedY0Payment, 'Personal-use cash + amount-owed payoff carved off proceeds at closing. Already netted out of availableCapital. For deferred sales (B/C) this triggers a Y0 taxable event: F &times; gross-profit-ratio of LT gain is recognized in year zero (see Strategies tab). Not deployed to Brooklyn.'),
       _row('coverTaxesFromSale', cfg.coverTaxesFromSale, 'When yes, carves tax estimate out of proceeds before Brooklyn'),
       _row('structuredSaleDurationMonths', cfg.structuredSaleDurationMonths, 'Strategy C term - 36/48/60/72mo'),
       _row('recognitionStartYearIndex', cfg.recognitionStartYearIndex, '0=immediate (A), 1=year+1 (B/C)'),

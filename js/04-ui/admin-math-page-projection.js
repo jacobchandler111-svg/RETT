@@ -25,10 +25,17 @@
 
   // Same approach as Tab 3: read post-optimizer entries from
   // buildInterestedSummary so the headline net matches the card.
-  // We ALSO call unifiedTaxComparison(entry.cfg) to get the per-year
-  // engine row breakdown - those are pre-optimizer rows but they
-  // represent the raw engine output the CPA wants to see. The
-  // headline net + savings + fees reflect the post-optimizer values.
+  // We ALSO call unifiedTaxComparison(...) to get the per-year engine
+  // row breakdown. CRITICAL: we run the engine on the DIALED-BACK cfg
+  // (entry._partialDeploy.deployed), NOT entry.cfg, so the per-year
+  // and per-tranche numbers match what the optimizer actually chose.
+  // Previously this called engine on full cfg and scaled fees by
+  // optScale, which gave the right total by coincidence but wrong
+  // per-year/per-tranche breakdowns (tier-jumping is non-linear in
+  // capital — fee structure at $5M deployment is not just 0.61× the
+  // fee structure at $3.05M deployment, the tranches live on different
+  // Schwab combos). Tab 7 (temp-page-render.js) has used this dialed
+  // path all along; this brings projection admin in line.
   function _strategyAnalysis(type) {
     if (typeof root.buildInterestedSummary !== 'function') {
       return { error: 'buildInterestedSummary unavailable' };
@@ -43,16 +50,25 @@
     var entry = (summary.entries || []).find(function (e) { return e.type === type; });
     if (!entry) return { error: 'no entry for ' + type };
 
+    // Build the engine cfg at the DIALED-BACK deployment so per-year /
+    // per-tranche rows reconcile to the card without post-scaling.
+    var pd = entry._partialDeploy || null;
+    var ecfg = entry.cfg;
+    if (pd && Number.isFinite(Number(pd.deployed))) {
+      var _dep = Math.max(0, Math.round(Number(pd.deployed)));
+      if (_dep !== Math.round(Number(ecfg.availableCapital) || 0)) {
+        ecfg = Object.assign({}, ecfg, {
+          availableCapital: _dep, investment: _dep, investedCapital: _dep
+        });
+      }
+    }
+    if (typeof root.rettFlavorEngineCfg === 'function') {
+      try { ecfg = root.rettFlavorEngineCfg(ecfg); } catch (e) { /* */ }
+    }
     var cmp;
-    try { cmp = root.unifiedTaxComparison(entry.cfg, { includeTrancheBreakdown: true }); }
+    try { cmp = root.unifiedTaxComparison(ecfg, { includeTrancheBreakdown: true }); }
     catch (e) { return { error: 'engine threw: ' + (e.message || e) }; }
     var m = entry.metrics || {};
-    // Partial-investment optimizer breadcrumb (set in buildInterestedSummary):
-    // how much of the available capital it actually deployed, and the
-    // full-deployment loss it would have wasted (which justified dialing
-    // back). cmp here is the FULL-deployment engine run, so its rows give
-    // the at-full loss generated vs applied.
-    var pd = entry._partialDeploy || null;
     var _lossGen = 0, _lossApp = 0;
     (cmp.rows || []).forEach(function (r) { _lossGen += _num(r.lossGenerated); _lossApp += _num(r.lossApplied); });
     // Strategy A immediate path: card reads brooklynFees from
@@ -166,11 +182,14 @@
       // annualized accrual. Without this the per-year fee column shows
       // $84,815 while the card reads $54,733 — same scenario, two
       // different engines, a $30K phantom gap that looked like a bug.
-      // B/C: scale by optimizer dial-back so deferred-mode rows also
-      // reconcile to the card.
+      // B/C: r.fee is already at the dialed-back deployment (engine
+      // was called with pd.deployed), so no post-scaling needed. The
+      // legacy `_num(r.fee) * scale` pattern was an attempt to scale
+      // FULL-cfg fees down, but tier-jumping makes that non-linear
+      // and produced bogus per-year fees. Use engine truth directly.
       var f = (projFees && projFees.byYear && projFees.byYear[r.year] != null)
         ? _num(projFees.byYear[r.year])
-        : _num(r.fee) * scale;
+        : _num(r.fee);
       var fh = _num(r.brookhavenFee);
       totG += g; totL += l; totS += s; totF += f; totFH += fh; totR += newDep; totWd += withdrawn;
       cumL += l; cumS += s; cumFAll += (f + fh);
@@ -230,12 +249,12 @@
   function _perTrancheTable(cmp, projFees, optScale) {
     var rows = cmp.rows || [];
     if (!rows.length) return '';
-    // A: scale tranche-level fees by (projFees.total / sum of unified
-    //    fees) so the per-tranche grid also reconciles to the card.
-    //    A is single-tranche / single-year so this is a straight
-    //    substitution in practice — kept as a ratio for safety.
-    // B/C: scale by optScale to absorb optimizer dial-back.
-    var feeScale = (typeof optScale === 'number' && isFinite(optScale)) ? optScale : 1;
+    // A: ratio-scale tranche fees to projFees.total (single-tranche
+    //    single-year so it's a straight substitution; kept as ratio
+    //    for safety).
+    // B/C: NO scaling — cmp was already run at the dialed deployment
+    //    (see _strategyAnalysis), so tranche fees are already correct.
+    var feeScale = 1;
     if (projFees && projFees.total != null) {
       var unifiedFeeTotal = 0;
       rows.forEach(function (r) { unifiedFeeTotal += _num(r.fee); });
@@ -486,6 +505,26 @@
                                            ? 'PARTIAL — ' + (analysis.partialScale * 100).toFixed(0) + '% of available; the rest would only add fees (see callout)'
                                            : 'Full deployment (no waste to dial back)')
     ];
+    // Forced Y0 payment (personal-use + amount-owed carved off at
+    // closing). For deferred strategies (B/C) this cash is received in
+    // year zero, so it pulls F × gross-profit-ratio of LT gain forward
+    // into the Y0 row of the per-year table below (and is NOT deployed
+    // to Brooklyn). Strategy A already recognizes everything Y0, so
+    // there it only shrinks available capital.
+    var _forced = _num(cfg.forcedY0Payment);
+    if (_forced > 0) {
+      var _recapF    = Math.max(0, _num(cfg.acceleratedDepreciation));
+      var _ltGF      = Math.max(0, _num(cfg.salePrice) - _num(cfg.costBasis) - _recapF - _num(cfg.shortTermPropertyGain));
+      var _contractF = Math.max(0, _num(cfg.salePrice) - _recapF);
+      var _gpF       = _contractF > 0 ? _ltGF / _contractF : 0;
+      var _forcedGainF = _forced * _gpF;
+      pickRows.push(_autoPickRow('Forced Y0 payment', _fmtUSD(_forced),
+        letter === 'A'
+          ? 'Personal-use + amount-owed carved off proceeds at closing. Strategy A recognizes all gain Y0 anyway, so this only reduces available capital — no extra recognition.'
+          : 'Personal-use + amount-owed carved off at closing. Received Y0 &rarr; recognizes ' +
+            _fmtUSD(_forcedGainF) + ' of LT gain in year zero (F &times; gross-profit-ratio ' +
+            (_gpF * 100).toFixed(1) + '%). Pulled forward out of the deferral schedule (included in the Y0 Gain Recog. row below). NOT deployed to Brooklyn.'));
+    }
     var cardSummary =
       '<p class="admin-math-subtitle" style="margin-top:10px;">Page 3 card values (post-optimizer):</p>' +
       '<table class="admin-math-table">' +
