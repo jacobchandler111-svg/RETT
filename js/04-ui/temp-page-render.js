@@ -782,6 +782,52 @@
   // − comp.totalAllFees) so the displayed net equals Strategy Summary
   // exactly. Per-year breakdown above is informational; the bottom
   // panel is the canonical reconciliation.
+  // Strategy C frequently over-generates Brooklyn short-term loss: more
+  // loss is harvested than there is gain to absorb, so a chunk exits the
+  // last engine row unused (lastEngineCarry). We don't try to assign that
+  // unused loss an economic value (≈30¢/$ is too hand-wavy to report);
+  // instead we identify the FEE cost that was spent generating it, so the
+  // CPA can see "this much unused short-term loss cost this much in fees."
+  // Gated to excess > $10,000 — anything smaller is incidental byproduct.
+  // Identification only: this is NOT subtracted from net benefit anywhere.
+  var EXCESS_LOSS_FLOOR = 10000;
+  function _renderExcessLossPanel(ctx) {
+    if (!ctx || !ctx.entry || ctx.chosen !== 'C') return '';
+    var comp = ctx.comp || {};
+    var rows = comp.rows || [];
+    if (!rows.length) return '';
+    var excess = Math.max(0, Number(rows[rows.length - 1] &&
+      rows[rows.length - 1].stCarryForward) || 0);
+    if (excess <= EXCESS_LOSS_FLOOR) return '';
+    var totalLossGen = 0;
+    rows.forEach(function (r) { totalLossGen += Math.max(0, Number(r && r.lossGenerated) || 0); });
+    if (totalLossGen <= 0) return '';
+    // Loss is harvested on the Brooklyn (Asset Manager) side, so attribute
+    // the loss-generation fee pool proportionally: cost of the unused slice
+    // = brooklynFees × (unused loss / total loss generated).
+    var m = ctx.entry.metrics || {};
+    var brooklynFees = Math.max(0, Math.round(Number(m.brooklynFees || 0) || 0));
+    var excessFeeCost = Math.round(brooklynFees * (excess / totalLossGen));
+    var lastYr = Number(rows[rows.length - 1].year) || null;
+    var yrTag = lastYr ? (' (through ' + lastYr + ')') : '';
+    return '' +
+      '<div class="temp-excess-loss-panel">' +
+        '<div class="temp-excess-loss-head">Excess carryover loss' + yrTag + '</div>' +
+        '<div class="temp-excess-loss-body">' +
+          '<div class="temp-excess-loss-line">' +
+            '<span class="temp-excess-loss-amt">' + _fmt(excess) + '</span>' +
+            '<span class="temp-excess-loss-label">unused short-term loss carried forward</span>' +
+          '</div>' +
+          '<div class="temp-excess-loss-line">' +
+            '<span class="temp-excess-loss-amt">&minus;' + _fmt(excessFeeCost) + '</span>' +
+            '<span class="temp-excess-loss-label">Asset Manager fees spent generating it</span>' +
+          '</div>' +
+          '<div class="temp-excess-loss-note"><em>Identified for transparency &mdash; not deducted from net benefit. ' +
+            'The unused loss has no claimed economic value here; exiting the structure earlier could avoid this cost.</em></div>' +
+        '</div>' +
+      '</div>';
+  }
+
   function _renderFeesPanel(ctx) {
     if (!ctx || !ctx.entry) return '';
     var m = ctx.entry.metrics || {};
@@ -1119,7 +1165,7 @@
     var coversTax = ctx.entry && ctx.entry.cfg &&
       (ctx.entry.cfg.coverTaxesFromSale === true || ctx.entry.cfg.coverTaxesFromSale === 'yes');
     host.classList.toggle('temp-baselines--withdrawals', !!coversTax);
-    host.innerHTML = html + _renderFeesPanel(ctx);
+    host.innerHTML = html + _renderExcessLossPanel(ctx) + _renderFeesPanel(ctx);
   }
 
   root.renderTempPage = render;
