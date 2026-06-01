@@ -1305,6 +1305,37 @@
               coarseBest = { D: D, net: mc.net };
             }
           }
+          // BOUNDARY-VALUE PASS (advisor 2026-06-01): the net(D) curve has
+          // SPIKES at the Schwab combo minimums ($1M for 145/45, $3M for
+          // 200/100). At D = combo_min, the Y0 deposit opens that combo
+          // exactly at the floor, generating the maximum age-0 loss
+          // density. Between spikes net drops by ~$15K because the Y0
+          // tranche either over-shoots the floor (wasted capacity vs
+          // restarting fresh at the next tier) or under-shoots (cash
+          // rolls into Y1 with no Y0 absorption). The 10% coarse grid
+          // can step OVER these spikes (e.g. with $4.9M D_max it samples
+          // $0, $490K, $980K, $1.47M — missing $1M and $3M). Explicitly
+          // probe the combo-min boundaries so the optimum lands on the
+          // spike when it dominates.
+          if (typeof root.listSchwabCombosForStrategy === 'function') {
+            try {
+              var _stratKeyC = (cfgSection.tierKey || cfgSection.strategyKey || 'beta1');
+              var _allCombos = root.listSchwabCombosForStrategy(_stratKeyC) || [];
+              var _userCapC = Number(cfgSection.leverageCap != null ? cfgSection.leverageCap
+                              : (cfgSection.leverage != null ? cfgSection.leverage : 1));
+              _allCombos.forEach(function (c) {
+                if (!c || !Number.isFinite(c.minInvestment) || c.minInvestment <= 0) return;
+                if (Number(c.leverage) > _userCapC + 1e-6) return;
+                var Dbound = Math.round(c.minInvestment);
+                if (Dbound > _dMax) return;
+                if (!_firstDepositLegalC(Dbound)) return;
+                var mb = _evalD(Dbound);
+                if (mb && (!coarseBest || mb.net > coarseBest.net)) {
+                  coarseBest = { D: Dbound, net: mb.net };
+                }
+              });
+            } catch (e) { /* keep coarse winner */ }
+          }
           // Fine pass ±10% of D_max in 2% steps around coarse peak.
           var fineBest = coarseBest;
           if (coarseBest) {
@@ -1385,9 +1416,16 @@
             _recordCombo(_pk, out.metrics.net);
             if (!best || out.metrics.net > best.net) best = _pk;
           }
-          function _sweepBD(lockedWeights) {
-            if (_bDMax <= 0) return;
-            // Coarse 10% steps.
+          // Coarse 10%-step down-payment sweep on a fixed weight set.
+          // Returns the best { metrics, weights, D } found (or null).
+          // Also probes the Schwab combo minimums ($1M / $3M) as boundary
+          // values — the net(D) curve spikes at those D values because
+          // the Y0 deposit opens that tier exactly at the floor (max
+          // age-0 loss density). The 10% grid can step over these spikes
+          // (e.g. with $4.9M D_max it samples $980K + $1.47M, missing
+          // $1M). Mirror of the same fix on Strategy C above.
+          function _sweepBDCoarse(lockedWeights) {
+            if (_bDMax <= 0) return null;
             var coarseBest = null;
             for (var ci = 0; ci <= 10; ci++) {
               var D = Math.round(_bDMax * (ci / 10));
@@ -1396,21 +1434,41 @@
               if (m && (!coarseBest || m.metrics.net > coarseBest.metrics.net)) coarseBest = m;
               _maybeUpdateBest(m);
             }
-            // Fine ±10% in 2% steps.
-            var fineBest = coarseBest;
-            if (coarseBest) {
-              for (var f = 1; f <= 5; f++) {
-                [-1, 1].forEach(function (sign) {
-                  var D = Math.round(coarseBest.D + sign * f * 0.02 * _bDMax);
-                  if (D < 0 || D > _bDMax) return;
-                  if (!_firstDepositLegalB(lockedWeights, D)) return;
-                  var m = _evalB(lockedWeights, D);
-                  if (m && (!fineBest || m.metrics.net > fineBest.metrics.net)) fineBest = m;
-                  _maybeUpdateBest(m);
+            if (typeof root.listSchwabCombosForStrategy === 'function') {
+              try {
+                var _stratKeyB = (cfgSection.tierKey || cfgSection.strategyKey || 'beta1');
+                var _allCombosB = root.listSchwabCombosForStrategy(_stratKeyB) || [];
+                var _userCapB = Number(cfgSection.leverageCap != null ? cfgSection.leverageCap
+                                : (cfgSection.leverage != null ? cfgSection.leverage : 1));
+                _allCombosB.forEach(function (c) {
+                  if (!c || !Number.isFinite(c.minInvestment) || c.minInvestment <= 0) return;
+                  if (Number(c.leverage) > _userCapB + 1e-6) return;
+                  var Dbound = Math.round(c.minInvestment);
+                  if (Dbound > _bDMax) return;
+                  if (!_firstDepositLegalB(lockedWeights, Dbound)) return;
+                  var mb = _evalB(lockedWeights, Dbound);
+                  if (mb && (!coarseBest || mb.metrics.net > coarseBest.metrics.net)) coarseBest = mb;
+                  _maybeUpdateBest(mb);
                 });
-              }
+              } catch (e) { /* keep coarse winner */ }
             }
-            // Ultra ±2% in 0.5% steps.
+            return coarseBest;
+          }
+          // Fine (±10% @ 2%) + ultra (±2% @ 0.5%) refinement around a
+          // coarse winner, for a fixed weight set.
+          function _sweepBDRefine(lockedWeights, coarseBest) {
+            if (!coarseBest) return;
+            var fineBest = coarseBest;
+            for (var f = 1; f <= 5; f++) {
+              [-1, 1].forEach(function (sign) {
+                var D = Math.round(coarseBest.D + sign * f * 0.02 * _bDMax);
+                if (D < 0 || D > _bDMax) return;
+                if (!_firstDepositLegalB(lockedWeights, D)) return;
+                var m = _evalB(lockedWeights, D);
+                if (m && (!fineBest || m.metrics.net > fineBest.metrics.net)) fineBest = m;
+                _maybeUpdateBest(m);
+              });
+            }
             if (fineBest) {
               for (var u = 1; u <= 4; u++) {
                 [-1, 1].forEach(function (sign) {
@@ -1421,6 +1479,38 @@
                 });
               }
             }
+          }
+          function _sweepBD(lockedWeights) {
+            _sweepBDRefine(lockedWeights, _sweepBDCoarse(lockedWeights));
+          }
+          // Joint (weights × down-payment) coverage (2026-06-01). The
+          // best weights at D=0 are NOT necessarily the best weights at
+          // the optimal down-payment. The decisive case: some weight
+          // splits are ILLEGAL at D=0 (first deposit < the $1M Schwab
+          // account-opening minimum) yet become legal — and optimal —
+          // once a mid down-payment lifts the first deposit over $1M
+          // (e.g. [0.2,0.6,0.2] @ ~$300K down, a real ~0.5% win that a
+          // two-stage "weights@D=0 then D" search can never see, because
+          // those weights return null at D=0 and never enter its
+          // candidate set).
+          //
+          // Fix: sweep the FULL coarse weight grid jointly with the
+          // coarse down-payment sweep. _sweepBDCoarse skips D's where the
+          // first deposit is illegal, so an illegal-at-D=0 weight is
+          // still scored at the D where it becomes legal. Pick the global
+          // best (weights, D), then refine the down-payment around it.
+          // The separate 2D fine/ultra weight passes above already
+          // sharpen the D=0 weight peak, so coarse weight resolution here
+          // is enough to GUARANTEE the joint optimum is contained.
+          function _sweepBDJoint(weightGrid) {
+            if (_bDMax <= 0 || !weightGrid || !weightGrid.length) return;
+            var jointBest = null;
+            weightGrid.forEach(function (w) {
+              if (!w) return;
+              var cb = _sweepBDCoarse(w);
+              if (cb && (!jointBest || cb.metrics.net > jointBest.metrics.net)) jointBest = cb;
+            });
+            if (jointBest) _sweepBDRefine(jointBest.weights, jointBest);
           }
 
           if (nForHor === 1) {
@@ -1462,9 +1552,15 @@
                 if (w1U <= 0.05 || w1U >= 0.95) continue;
                 _maybeUpdateBest(_evalB([w1U, Math.round((1 - w1U) * 1000) / 1000]));
               }
-              // Y0 down sweep on the locally-best weights from the
-              // ultra-fine pass.
-              _sweepBD(fineBestB2.weights);
+              // Joint (weights × Y0 down-payment) sweep over the FULL
+              // coarse weight grid plus the ultra-fine D=0 winner — so
+              // splits that are illegal at D=0 but optimal at a mid
+              // down-payment are still found (closes ~0.5% gap).
+              var gridB2 = coarseW2.map(function (w1) {
+                return [w1, Math.round((1 - w1) * 1000) / 1000];
+              });
+              gridB2.push(fineBestB2.weights);
+              _sweepBDJoint(gridB2);
             }
           } else { // nForHor === 3
             // 3-pass 2D sweep on (w1, w2) with w3 = 1 − w1 − w2:
@@ -1518,9 +1614,22 @@
                   _maybeUpdateBest(_evalB([w1uf, w2uf, w3uf]));
                 }
               }
-              // Y0 down sweep on locally-best N=3 weights from the
-              // 2D ultra-fine pass.
-              _sweepBD(fineBestB3.weights);
+              // Joint (weights × Y0 down-payment) sweep over the FULL
+              // coarse 2D weight grid plus the 2D ultra-fine D=0 winner —
+              // closes the ~0.5% joint-optimum gap where a split that is
+              // illegal at D=0 (first deposit < $1M) wins once a mid
+              // down-payment lifts its first deposit over the $1M floor
+              // (e.g. [0.2,0.6,0.2] @ ~$300K down).
+              var gridB3 = [];
+              coarseW3.forEach(function (w1) {
+                coarseW3.forEach(function (w2) {
+                  var w3 = Math.round((1 - w1 - w2) * 1000) / 1000;
+                  if (w3 < 0.05 || w3 > 0.9) return;
+                  gridB3.push([w1, w2, w3]);
+                });
+              });
+              gridB3.push(fineBestB3.weights);
+              _sweepBDJoint(gridB3);
             }
             // C-coverage guarantee (advisor 2026-05-27): Strategy C is
             // locked to [0.40, 0.40, 0.20] + a Y0-down sweep. B's
