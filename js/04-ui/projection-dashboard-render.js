@@ -2869,6 +2869,40 @@
   // cards) and Page 4 (Strategy Summary). Returns null when inputs
   // aren't ready yet. Callers are responsible for filtering by interest
   // and rendering — this function only computes.
+  // Strategy C over-harvests Brooklyn short-term loss: even after the
+  // optimizer dials deployment back, a residual unused carryforward can
+  // remain. That loss has real but unquantifiable value (≈30¢/$ is too
+  // hand-wavy to claim). Instead of claiming the value, we REFUND the AM
+  // fee spent generating the excess — credited back to net benefit. Gated
+  // to excess > $10,000 (smaller is incidental byproduct). C-only by
+  // design; B is verified never to leave a material carryforward. Returns
+  // the fee credit (a positive dollar amount) or 0. Mirrors the deferred
+  // path of _scenarioMetrics (direct unifiedTaxComparison, no immediate-
+  // path flavoring) so it operates on the same numbers that produced
+  // e.metrics.brooklynFees.
+  var EXCESS_LOSS_FLOOR = 10000;
+  function _excessLossFeeCredit(e) {
+    if (!e || e.type !== 'C' || !e.cfg || !e.metrics) return 0;
+    var bf = Math.max(0, Number(e.metrics.brooklynFees) || 0);
+    if (bf <= 0) return 0;   // scale=0 / below account floor → no fee to refund
+    var dep = (e._partialDeploy && Number.isFinite(Number(e._partialDeploy.deployed)))
+      ? Math.max(0, Math.round(Number(e._partialDeploy.deployed)))
+      : Math.round(Number(e.cfg.availableCapital) || 0);
+    if (dep <= 0) return 0;
+    if (typeof window === 'undefined' || typeof window.unifiedTaxComparison !== 'function') return 0;
+    var ecfg = Object.assign({}, e.cfg, { availableCapital: dep, investment: dep, investedCapital: dep });
+    var comp;
+    try { comp = window.unifiedTaxComparison(ecfg); } catch (err) { return 0; }
+    if (!comp || !Array.isArray(comp.rows) || !comp.rows.length) return 0;
+    var rows = comp.rows;
+    var excess = Math.max(0, Number(rows[rows.length - 1].stCarryForward) || 0);
+    if (excess <= EXCESS_LOSS_FLOOR) return 0;
+    var totalLossGen = 0;
+    rows.forEach(function (r) { totalLossGen += Math.max(0, Number(r && r.lossGenerated) || 0); });
+    if (totalLossGen <= 0) return 0;
+    return Math.round(bf * (excess / totalLossGen));
+  }
+
   function buildInterestedSummary() {
     if (typeof collectInputs !== 'function') return null;
     var currentCfg;
@@ -3109,6 +3143,24 @@
         e.metrics.net            = 0;
         e._partialDeploy = { available: Math.round(entAvail), deployed: 0, scale: 0 };
         e._belowAccountFloor = belowAccountFloor;   // breadcrumb for admin/UI
+      }
+    });
+
+    // Excess-carryover-loss fee credit (Strategy C). Refund the AM fee
+    // spent generating the residual unused short-term loss (>$10k) by
+    // reducing the displayed fees and adding the same amount back to net.
+    // Single source of truth: _excessLossFeeCredit runs the engine at the
+    // entry's deployed capital. Applied AFTER the optimizer/floors (so it
+    // operates on final deployment) and BEFORE ranking (so the honest,
+    // credited net drives the recommendation). The raw excess loss + this
+    // credit are surfaced on Tab 7 via metrics._excessLossFeeCredit.
+    entries.forEach(function (e) {
+      var credit = _excessLossFeeCredit(e);
+      e.metrics._excessLossFeeCredit = credit || 0;
+      if (credit > 0) {
+        e.metrics.brooklynFees = Math.max(0, (e.metrics.brooklynFees || 0) - credit);
+        e.metrics.fees         = Math.max(0, (e.metrics.fees || 0) - credit);
+        e.metrics.net          = (e.metrics.net || 0) + credit;
       }
     });
 
