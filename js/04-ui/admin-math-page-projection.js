@@ -126,7 +126,15 @@
       cardSavings: _num(m.savings != null ? m.savings : m._savingsAtFull),
       cardBrooklynFees: _num(m.brooklynFees),
       cardBrookhavenFees: _num(m.brookhavenFees),
-      cardNet: _num(m.net)
+      cardNet: _num(m.net),
+      // Excess-loss fee credit (Strategy C only): when Brooklyn
+      // generates >$10K of carryover loss that can't be absorbed,
+      // the AM fee on that excess is refunded into net. Already
+      // baked into m.brooklynFees / m.net by projection-dashboard-
+      // render.js. Surfacing here as an explicit line so the admin
+      // reconciliation doesn't show a phantom $14K gap between
+      // "savings − fees" and "NET BENEFIT (on card)".
+      excessLossFeeCredit: _num(m._excessLossFeeCredit || 0)
     };
   }
 
@@ -136,7 +144,7 @@
       (note ? '<td class="admin-math-note-cell">' + note + '</td>' : '<td></td>') + '</tr>';
   }
 
-  function _perYearTable(cmp, projFees, optScale) {
+  function _perYearTable(cmp, projFees, optScale, excessLossFeeCredit) {
     var rows = cmp.rows || [];
     if (!rows.length) return '<p class="admin-math-empty">No per-year rows from engine.</p>';
     var scale = (typeof optScale === 'number' && isFinite(optScale)) ? optScale : 1;
@@ -233,10 +241,23 @@
         '<td class="admin-math-num"><strong>' + _fmtUSD(net) + '</strong></td>' +
       '</tr>' +
       '<tr class="admin-math-total">' +
-        '<td colspan="13"><strong>Raw engine net</strong> &mdash; sum of per-year (savings &minus; fees), pre-optimizer</td>' +
+        '<td colspan="13"><strong>Raw engine net</strong> &mdash; sum of per-year (savings &minus; fees)' +
+          (excessLossFeeCredit > 0 ? ', before excess-loss credit' : '') +
+        '</td>' +
         '<td class="admin-math-num"><strong>' + _fmtUSD(net) + '</strong></td>' +
-      '</tr>' +
-      '</tbody></table>' +
+      '</tr>';
+    if (excessLossFeeCredit > 0) {
+      html +=
+        '<tr class="admin-math-total">' +
+          '<td colspan="13">+ Excess-loss fee credit (Strategy C: refunds AM fee on residual unused short-term loss &gt; $10K)</td>' +
+          '<td class="admin-math-num"><strong>+' + _fmtUSD(excessLossFeeCredit) + '</strong></td>' +
+        '</tr>' +
+        '<tr class="admin-math-total">' +
+          '<td colspan="13"><strong>Reconciles to NET BENEFIT on card</strong></td>' +
+          '<td class="admin-math-num"><strong>' + _fmtUSD(net + excessLossFeeCredit) + '</strong></td>' +
+        '</tr>';
+    }
+    html += '</tbody></table>' +
       '</div>';
     return html;
   }
@@ -525,15 +546,26 @@
             _fmtUSD(_forcedGainF) + ' of LT gain in year zero (F &times; gross-profit-ratio ' +
             (_gpF * 100).toFixed(1) + '%). Pulled forward out of the deferral schedule (included in the Y0 Gain Recog. row below). NOT deployed to Brooklyn.'));
     }
+    // Build card-values block. Strategy C may have an excess-loss fee
+    // credit baked into cardBrooklynFees + cardNet; surface it so the
+    // CPA can see the arithmetic close: savings − net fees − BH = card net.
+    var _excessCredit = analysis.excessLossFeeCredit || 0;
+    var _grossBrkFees = analysis.cardBrooklynFees + _excessCredit;  // pre-credit
+    var cardSummaryRows = '';
+    cardSummaryRows += '<tr><td>Gross tax savings</td><td class="admin-math-num">' + _fmtUSD(analysis.cardSavings) + '</td><td class="admin-math-note-cell">post-optimizer</td></tr>';
+    if (_excessCredit > 0) {
+      cardSummaryRows += '<tr><td>Brooklyn fees (gross)</td><td class="admin-math-num">' + _fmtUSD(_grossBrkFees) + '</td><td class="admin-math-note-cell">at deployed capital</td></tr>';
+      cardSummaryRows += '<tr><td>&nbsp;&nbsp;Excess-loss fee credit</td><td class="admin-math-num">&minus;' + _fmtUSD(_excessCredit) + '</td><td class="admin-math-note-cell">Strategy C: AM fee refunded on residual unused short-term loss (&gt;$10K)</td></tr>';
+      cardSummaryRows += '<tr><td>Brooklyn fees (net of credit)</td><td class="admin-math-num">' + _fmtUSD(analysis.cardBrooklynFees) + '</td><td class="admin-math-note-cell">used in NET BENEFIT below</td></tr>';
+    } else {
+      cardSummaryRows += '<tr><td>Brooklyn fees</td><td class="admin-math-num">' + _fmtUSD(analysis.cardBrooklynFees) + '</td><td class="admin-math-note-cell">post-optimizer</td></tr>';
+    }
+    cardSummaryRows += '<tr><td>Brookhaven fees</td><td class="admin-math-num">' + _fmtUSD(analysis.cardBrookhavenFees) + '</td><td></td></tr>';
+    cardSummaryRows += '<tr class="admin-math-total"><td><strong>NET BENEFIT (on card)</strong></td><td class="admin-math-num"><strong>' + _fmtUSD(analysis.cardNet) + '</strong></td><td class="admin-math-note-cell">savings − net fees</td></tr>';
     var cardSummary =
       '<p class="admin-math-subtitle" style="margin-top:10px;">Page 3 card values (post-optimizer):</p>' +
       '<table class="admin-math-table">' +
-        '<tbody>' +
-          '<tr><td>Gross tax savings</td><td class="admin-math-num">' + _fmtUSD(analysis.cardSavings) + '</td><td class="admin-math-note-cell">post-optimizer</td></tr>' +
-          '<tr><td>Brooklyn fees</td><td class="admin-math-num">' + _fmtUSD(analysis.cardBrooklynFees) + '</td><td class="admin-math-note-cell">post-optimizer</td></tr>' +
-          '<tr><td>Brookhaven fees</td><td class="admin-math-num">' + _fmtUSD(analysis.cardBrookhavenFees) + '</td><td></td></tr>' +
-          '<tr class="admin-math-total"><td><strong>NET BENEFIT (on card)</strong></td><td class="admin-math-num"><strong>' + _fmtUSD(analysis.cardNet) + '</strong></td><td class="admin-math-note-cell">savings − fees</td></tr>' +
-        '</tbody>' +
+        '<tbody>' + cardSummaryRows + '</tbody>' +
       '</table>';
     return '<div class="admin-math-section">' +
       '<h4>Strategy ' + letter + ' &mdash; ' + _esc(name) + ' &mdash; ' + _esc(comboLabel) + '</h4>' +
@@ -544,7 +576,7 @@
       cardSummary +
       _deploymentCallout(analysis) +
       '<p class="admin-math-subtitle" style="margin-top:10px;">Per-year engine output (Brooklyn fee reconciled to card; other columns are raw engine pre-optimizer):</p>' +
-      _perYearTable(cmp, analysis.projFees, analysis.optScale) +
+      _perYearTable(cmp, analysis.projFees, analysis.optScale, analysis.excessLossFeeCredit) +
       '<p class="admin-math-subtitle" style="margin-top:10px;">Per-tranche breakdown (each Brooklyn deposit aged through every year):</p>' +
       _perTrancheTable(cmp, analysis.projFees, analysis.optScale) +
       '<p class="admin-math-subtitle" style="margin-top:10px;">Brookhaven planning fee schedule (setup + quarterly accrual):</p>' +

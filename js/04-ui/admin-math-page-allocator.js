@@ -52,17 +52,38 @@
     var brookhavenFees = _num(m.brookhavenFees);
     var allFees = _num(m.fees);
     var net = _num(m.net);
+    // Excess-loss fee credit (Strategy C only) — already baked into
+    // m.brooklynFees and m.net; surface it so the hero reconciliation
+    // is honest (raw engine fees → credit → net fees → net).
+    var excessLossFeeCredit = _num(m._excessLossFeeCredit || 0);
     // doNothing on metrics is the baseline tax; with-strategy tax is
     // doNothing - savings.
     var baselineTax = _num(m.doNothing);
     var withStrategyTax = baselineTax - savings;
-    // Also pull the raw engine cmp so the Brooklyn/Brookhaven fee
-    // breakdown sections can show per-year rows. Pre-optimizer (the
-    // engine doesn't expose post-scale per-year rows), but the per-
-    // year structure is what the CPA needs to verify the math.
+    // Pull the raw engine cmp on the DIALED-BACK cfg so the per-year
+    // rows below the hero reconcile to the card. Previously called
+    // with entry.cfg (FULL availableCapital), which made fee
+    // structure non-comparable to the post-optimizer numbers in the
+    // hero above. Mirrors admin-math-page-projection.js's pattern
+    // (the canonical fix from commit f503d9f).
     var cmp = null;
     if (entry.cfg && typeof root.unifiedTaxComparison === 'function') {
-      try { cmp = root.unifiedTaxComparison(entry.cfg); }
+      try {
+        var _ecfgAlloc = entry.cfg;
+        var _pdAlloc = entry._partialDeploy;
+        if (_pdAlloc && Number.isFinite(Number(_pdAlloc.deployed))) {
+          var _depAlloc = Math.max(0, Math.round(Number(_pdAlloc.deployed)));
+          if (_depAlloc !== Math.round(Number(_ecfgAlloc.availableCapital) || 0)) {
+            _ecfgAlloc = Object.assign({}, _ecfgAlloc, {
+              availableCapital: _depAlloc, investment: _depAlloc, investedCapital: _depAlloc
+            });
+          }
+        }
+        if (typeof root.rettFlavorEngineCfg === 'function') {
+          try { _ecfgAlloc = root.rettFlavorEngineCfg(_ecfgAlloc); } catch (e) { /* */ }
+        }
+        cmp = root.unifiedTaxComparison(_ecfgAlloc);
+      }
       catch (e) { cmp = null; }
     }
     // Strategy A immediate path: card's brooklynFees come from
@@ -96,6 +117,7 @@
       brookhavenFees: brookhavenFees,
       allFees: allFees,
       primaryNet: net,
+      excessLossFeeCredit: excessLossFeeCredit,
       optScale: entry._optScale != null ? entry._optScale : 1
     };
   }
@@ -124,10 +146,18 @@
                                               'What they owe WITH the chosen strategy (post-optimizer)') +
           _row('Gross tax savings',           _fmtUSD(a.savings),
                                               'baseline − with-strategy') +
-          _row('Brooklyn fees',               _fmtUSD(a.brooklynFees), 'Post-optimizer (scaled if dialed back)') +
+          (a.excessLossFeeCredit > 0
+            ? (_row('Brooklyn fees (gross)',    _fmtUSD(a.brooklynFees + a.excessLossFeeCredit),
+                                                'Pre-credit raw engine fees at deployed capital') +
+               _row('&nbsp;&nbsp;Excess-loss fee credit', '&minus;' + _fmtUSD(a.excessLossFeeCredit),
+                                                'Strategy C: AM fee refunded on residual unused short-term loss (&gt; $10K)') +
+               _row('Brooklyn fees (net of credit)', _fmtUSD(a.brooklynFees),
+                                                'Used in NET BENEFIT below'))
+            : _row('Brooklyn fees',             _fmtUSD(a.brooklynFees), 'Post-optimizer')
+          ) +
           _row('Brookhaven fees',             _fmtUSD(a.brookhavenFees), null) +
           _row('Total fees',                  _fmtUSD(a.allFees),
-                                              'Brooklyn + Brookhaven') +
+                                              'Brooklyn (net of credit, if any) + Brookhaven') +
           '<tr class="admin-math-total"><td><strong>NET BENEFIT (hero)</strong></td>' +
             '<td class="admin-math-num"><strong>' + _fmtUSD(a.primaryNet) + '</strong></td>' +
             '<td class="admin-math-note-cell">savings &minus; total fees (matches Page 5 hero)</td></tr>' +
@@ -291,18 +321,20 @@
     var tableRows = '';
     var sumFee = 0;
     var projFees = a.projFees;
-    // Reconcile to the hero row above. Two effects to capture:
+    // Reconcile to the hero row above.
     //   A: cmp.rows[].fee comes from unifiedTaxComparison (annualized),
     //      but the card reads ProjectionEngine.cumulativeFees (actual
     //      hold-period). projFees.byYear holds the engine values.
-    //   B/C: the optimizer can dial back deployment (e.g. 99% of
-    //      available), which the card scales but the cmp does not.
-    //      Apply optScale to make the per-year rows reconcile.
-    var optScale = _num(a.optScale != null ? a.optScale : 1);
+    //   B/C: cmp was now run at the DIALED-BACK cfg (see _analyze),
+    //      so r.fee is already at the optimizer's chosen scale — no
+    //      post-scaling needed. The old `* optScale` was a workaround
+    //      for the old "engine at full cfg" pattern that's been
+    //      retired (commit f503d9f for projection, this commit for
+    //      allocator).
     rows.forEach(function (r) {
       var fee = (projFees && projFees.byYear && projFees.byYear[r.year] != null)
         ? _num(projFees.byYear[r.year])
-        : _num(r.fee) * optScale;
+        : _num(r.fee);
       // F6 fix (Round 5): engine row field is `investmentThisYear`
       // (cumulative deployed capital), not `invested`. The old typo
       // showed $0 for every year and an empty Calc column despite
@@ -328,9 +360,23 @@
         '<td class="admin-math-note-cell">' + yfImpliedNote + '</td>' +
       '</tr>';
     });
-    tableRows += '<tr class="admin-math-total"><td colspan="3"><strong>Total Brooklyn fee</strong></td>' +
+    tableRows += '<tr class="admin-math-total"><td colspan="3"><strong>Total Brooklyn fee (gross)</strong></td>' +
       '<td class="admin-math-num"><strong>' + _fmtUSD(sumFee) + '</strong></td>' +
       '<td class="admin-math-note-cell">Sum of per-year fees</td></tr>';
+    // If Strategy C earned an excess-loss fee credit, surface it so the
+    // table reconciles to the hero's net-of-credit Brooklyn fees value.
+    // Without this the table summed to a different number than the hero
+    // ($37,728 sum vs $18,407 hero on a representative C scenario), a
+    // real-feel discrepancy on the same admin panel.
+    var _credit = a.excessLossFeeCredit || 0;
+    if (_credit > 0) {
+      tableRows += '<tr class="admin-math-total"><td colspan="3">&minus; Excess-loss fee credit</td>' +
+        '<td class="admin-math-num"><strong>&minus;' + _fmtUSD(_credit) + '</strong></td>' +
+        '<td class="admin-math-note-cell">Strategy C: AM fee refunded on residual unused short-term loss (&gt; $10K)</td></tr>';
+      tableRows += '<tr class="admin-math-total"><td colspan="3"><strong>Net Brooklyn fee</strong></td>' +
+        '<td class="admin-math-num"><strong>' + _fmtUSD(sumFee - _credit) + '</strong></td>' +
+        '<td class="admin-math-note-cell">Matches Brooklyn fees row in the hero above</td></tr>';
+    }
 
     return '<div class="admin-math-section">' +
       '<h4>Brooklyn Fee Breakdown &mdash; ' + _esc(comboLabel) + '</h4>' +
