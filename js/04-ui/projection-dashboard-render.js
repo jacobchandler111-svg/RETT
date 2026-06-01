@@ -3012,6 +3012,46 @@
     return Math.round(bf * (excess / totalLossGen));
   }
 
+  // Carryover-loss net-benefit credit (A/B/C). When the projection ends
+  // with a residual short-term loss carryforward, the FIRST idle year
+  // after deployment (when we'd otherwise show a blank temporary page)
+  // still gets one §1211(b) $3,000 ordinary offset ($1,500 MFS) for free.
+  // We put a real dollar value on that single year: tax on the flat
+  // recurring income vs. that income minus the creditable offset
+  // (whatever residual remains, capped at the annual limit). Federal-only
+  // by design (conservative — no state conformity assumptions). "This can
+  // only be for one year" — we do NOT carry it further. Layer-by-size:
+  // mutually exclusive with _excessLossFeeCredit (C, residual > $10k), so
+  // the small/incidental residual band is the only thing this values.
+  function _carryoverOffsetCredit(e) {
+    if (!e || !e.cfg || !e.metrics) return 0;
+    if ((Number(e.metrics._excessLossFeeCredit) || 0) > 0) return 0;   // fee credit already fired (layer-by-size)
+    if (typeof window === 'undefined' ||
+        typeof window.unifiedTaxComparison !== 'function' ||
+        typeof window.computeFederalTax !== 'function') return 0;
+    var dep = (e._partialDeploy && Number.isFinite(Number(e._partialDeploy.deployed)))
+      ? Math.max(0, Math.round(Number(e._partialDeploy.deployed)))
+      : Math.round(Number(e.cfg.availableCapital) || 0);
+    if (dep <= 0) return 0;
+    var ecfg = Object.assign({}, e.cfg, { availableCapital: dep, investment: dep, investedCapital: dep });
+    var comp;
+    try { comp = window.unifiedTaxComparison(ecfg); } catch (err) { return 0; }
+    if (!comp || !Array.isArray(comp.rows) || !comp.rows.length) return 0;
+    var rows = comp.rows;
+    var lastRow = rows[rows.length - 1];
+    var residual = Math.max(0, Number(lastRow.stCarryForward) || 0);
+    if (residual <= 0) return 0;
+    var status = e.cfg.filingStatus || 'mfj';
+    var ordCap = (status === 'mfs' || status === 'married_separate') ? 1500 : 3000;
+    var creditable = Math.min(residual, ordCap);
+    if (creditable <= 0) return 0;
+    var idleYear = (Number(lastRow.year) || 0) + 1;
+    var ord = Math.max(0, Number(e.cfg.baseOrdinaryIncome) || 0);
+    var t0 = Number(window.computeFederalTax(ord, idleYear, status)) || 0;
+    var t1 = Number(window.computeFederalTax(Math.max(0, ord - creditable), idleYear, status)) || 0;
+    return Math.max(0, Math.round(t0 - t1));
+  }
+
   function buildInterestedSummary() {
     if (typeof collectInputs !== 'function') return null;
     var currentCfg;
@@ -3271,6 +3311,22 @@
         e.metrics.fees         = Math.max(0, (e.metrics.fees || 0) - credit);
         e.metrics.net          = (e.metrics.net || 0) + credit;
       }
+    });
+
+    // Carryover-loss net-benefit credit (A/B/C). Value the one free
+    // §1211(b) $3,000 ordinary offset the residual carryforward buys in
+    // the first idle year after deployment. Federal-only; mutually
+    // exclusive with the excess-loss fee credit above (layer-by-size).
+    // Applied AFTER optimizer/floors and BEFORE ranking so the optimizer
+    // naturally favors configs that leave ~$3k of residual to harvest.
+    entries.forEach(function (e) {
+      if (!e.metrics || !Number.isFinite(e.metrics.net) || e.metrics.net === 0) {
+        if (e.metrics) e.metrics._carryoverOffsetCredit = 0;
+        return;
+      }
+      var credit = _carryoverOffsetCredit(e);
+      e.metrics._carryoverOffsetCredit = credit || 0;
+      if (credit > 0) e.metrics.net = (e.metrics.net || 0) + credit;
     });
 
     // ---- Additional Funds: phantom-free net (Stage 2, advisor 2026-05-28)
