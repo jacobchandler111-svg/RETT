@@ -1306,9 +1306,37 @@ function unifiedTaxComparison(cfg, opts) {
                   // installment deferred reinvest depends on existingLoss
                   // (circular), so don't predict — _yearCombo lags by one
                   // year for that path. Strategy A has no reinvest.
+                  //
+                  // CRITICAL: use the NET deposit (post tax-carve, post
+                  // cover-tax set-aside, post optimizer reinvest cap) —
+                  // NOT the gross payment. The gross overshoots actual
+                  // cumulative and triggers premature tier-jumps (e.g.
+                  // T1 misclassified as 200/100 when actual cumulative
+                  // is only $2.88M, well below the $3M floor). The math
+                  // here mirrors lines 1537–1568 exactly so the
+                  // prediction equals the eventual `reinvested` value.
                   var newDeposit = 0;
                   if (_isInstallment && i >= startIdx && i <= maturityIdx) {
-                        newDeposit = _installmentPaymentForIdx(i - startIdx);
+                        var _pIdxPred = i - startIdx;
+                        var _basePred = _installmentPaymentForIdx(_pIdxPred);
+                        if (i === startIdx) _basePred += _y0RollToFirstInstallment;
+                        // Recognized gain this year (post-Y0-down weight).
+                        var _gpRatioPred = (_installmentContractPrice > 0)
+                              ? (totalLT / _installmentContractPrice) : 0;
+                        var _y0DownGainPred = (_y0DownPayment > 0 && _installmentContractPrice > 0)
+                              ? _y0DownPayment * _gpRatioPred : 0;
+                        var _postDownLTPred = Math.max(0, totalLT - _y0DownGainPred);
+                        var _gainPred = _postDownLTPred * _weightForPaymentIdx(_pIdxPred);
+                        if (i === 0) _gainPred += _y0DownGainPred;
+                        var _taxCarvePred = _gainPred * _gainTaxRate;
+                        var _coverCarvePred = (_coverTax && _isInstallment)
+                              ? Math.max(0, _priorYearSaleTax) : 0;
+                        var _setAsidePred = Math.min(_coverCarvePred,
+                              Math.max(0, _basePred - _taxCarvePred));
+                        newDeposit = Math.max(0, _basePred - _taxCarvePred - _setAsidePred);
+                        if (_remainingReinvestCap !== null) {
+                              newDeposit = Math.min(newDeposit, _remainingReinvestCap);
+                        }
                   }
                   var projected = active + newDeposit;
                   if (projected > _peakCumulativeForTier) _peakCumulativeForTier = projected;

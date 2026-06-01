@@ -19,8 +19,8 @@ const BROOKLYN_STRATEGIES = {
                           dataPoints: [
                                 { leverage: 0,    longPct: 100, shortPct: 0,   lossRate: 0.104, label: 'Long-Only', minInvestment: 250000  },
                                       { leverage: 0.30, longPct: 130, shortPct: 30,  lossRate: 0.248, label: '130/30',    minInvestment: 500000  },
-                                            { leverage: 0.45, longPct: 145, shortPct: 45,  lossRate: 0.322, label: '145/45',    minInvestment: 500000  },
-                                                  { leverage: 1.00, longPct: 200, shortPct: 100, lossRate: 0.590, label: '200/100',   minInvestment: 1000000 },
+                                            { leverage: 0.45, longPct: 145, shortPct: 45,  lossRate: 0.322, label: '145/45',    minInvestment: 1000000 },
+                                                  { leverage: 1.00, longPct: 200, shortPct: 100, lossRate: 0.590, label: '200/100',   minInvestment: 3000000 },
                                                         { leverage: 1.50, longPct: 250, shortPct: 150, lossRate: 0.855, label: '250/150',   minInvestment: 1000000 },
                                                               { leverage: 2.25, longPct: 325, shortPct: 225, lossRate: 1.224, label: '325/225',   minInvestment: 1000000 }
                                                                   ],
