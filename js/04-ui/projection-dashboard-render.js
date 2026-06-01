@@ -2980,16 +2980,20 @@
   // and rendering — this function only computes.
   // Strategy C over-harvests Brooklyn short-term loss: even after the
   // optimizer dials deployment back, a residual unused carryforward can
-  // remain. That loss has real but unquantifiable value (≈30¢/$ is too
-  // hand-wavy to claim). Instead of claiming the value, we REFUND the AM
-  // fee spent generating the excess — credited back to net benefit. Gated
-  // to excess > $10,000 (smaller is incidental byproduct). C-only by
-  // design; B is verified never to leave a material carryforward. Returns
-  // the fee credit (a positive dollar amount) or 0. Mirrors the deferred
-  // path of _scenarioMetrics (direct unifiedTaxComparison, no immediate-
-  // path flavoring) so it operates on the same numbers that produced
-  // e.metrics.brooklynFees.
-  var EXCESS_LOSS_FLOOR = 10000;
+  // remain. The FIRST $3,000 ($1,500 MFS) of that residual is usable next
+  // year as a §1211(b) ordinary offset, and is valued separately by
+  // _carryoverOffsetCredit. Everything ABOVE that one-year offset is
+  // genuinely unusable within the horizon — rather than claim its
+  // far-future value (≈30¢/$ is too hand-wavy), we REFUND the AM fee spent
+  // generating it, credited back to net. The two credits are complementary
+  // and split at the §1211(b) boundary (no double-count): below it we VALUE
+  // the offset, above it we REFUND the fee. Floor is the offset amount
+  // itself ($3,000 / $1,500), and we subtract it before prorating the fee.
+  // C-only by design; B is verified never to leave a material carryforward.
+  // Returns the fee credit (a positive dollar amount) or 0. Mirrors the
+  // deferred path of _scenarioMetrics (direct unifiedTaxComparison, no
+  // immediate-path flavoring) so it operates on the same numbers that
+  // produced e.metrics.brooklynFees.
   function _excessLossFeeCredit(e) {
     if (!e || e.type !== 'C' || !e.cfg || !e.metrics) return 0;
     var bf = Math.max(0, Number(e.metrics.brooklynFees) || 0);
@@ -3004,8 +3008,11 @@
     try { comp = window.unifiedTaxComparison(ecfg); } catch (err) { return 0; }
     if (!comp || !Array.isArray(comp.rows) || !comp.rows.length) return 0;
     var rows = comp.rows;
-    var excess = Math.max(0, Number(rows[rows.length - 1].stCarryForward) || 0);
-    if (excess <= EXCESS_LOSS_FLOOR) return 0;
+    var residual = Math.max(0, Number(rows[rows.length - 1].stCarryForward) || 0);
+    var status = e.cfg.filingStatus || 'mfj';
+    var ordCap = (status === 'mfs' || status === 'married_separate') ? 1500 : 3000;
+    var excess = residual - ordCap;   // keep one usable offset year; refund fee on the rest
+    if (excess <= 0) return 0;
     var totalLossGen = 0;
     rows.forEach(function (r) { totalLossGen += Math.max(0, Number(r && r.lossGenerated) || 0); });
     if (totalLossGen <= 0) return 0;
@@ -3020,12 +3027,12 @@
   // recurring income vs. that income minus the creditable offset
   // (whatever residual remains, capped at the annual limit). Federal-only
   // by design (conservative — no state conformity assumptions). "This can
-  // only be for one year" — we do NOT carry it further. Layer-by-size:
-  // mutually exclusive with _excessLossFeeCredit (C, residual > $10k), so
-  // the small/incidental residual band is the only thing this values.
+  // only be for one year" — we do NOT carry it further. Complementary to
+  // _excessLossFeeCredit, split at the offset boundary: this VALUES the
+  // first $3,000 / $1,500 of residual as a usable offset; the fee credit
+  // REFUNDS the AM fee on anything above that. No double-count.
   function _carryoverOffsetCredit(e) {
     if (!e || !e.cfg || !e.metrics) return 0;
-    if ((Number(e.metrics._excessLossFeeCredit) || 0) > 0) return 0;   // fee credit already fired (layer-by-size)
     if (typeof window === 'undefined' ||
         typeof window.unifiedTaxComparison !== 'function' ||
         typeof window.computeFederalTax !== 'function') return 0;
@@ -3296,7 +3303,8 @@
     });
 
     // Excess-carryover-loss fee credit (Strategy C). Refund the AM fee
-    // spent generating the residual unused short-term loss (>$10k) by
+    // spent generating residual unused short-term loss ABOVE the one-year
+    // §1211(b) offset ($3,000 / $1,500 MFS) by
     // reducing the displayed fees and adding the same amount back to net.
     // Single source of truth: _excessLossFeeCredit runs the engine at the
     // entry's deployed capital. Applied AFTER the optimizer/floors (so it
@@ -3314,9 +3322,10 @@
     });
 
     // Carryover-loss net-benefit credit (A/B/C). Value the one free
-    // §1211(b) $3,000 ordinary offset the residual carryforward buys in
-    // the first idle year after deployment. Federal-only; mutually
-    // exclusive with the excess-loss fee credit above (layer-by-size).
+    // §1211(b) $3,000 ($1,500 MFS) ordinary offset the residual
+    // carryforward buys in the first idle year after deployment.
+    // Federal-only; complementary to the fee credit above (it values the
+    // first $3k/$1.5k, the fee credit refunds the AM fee on the rest).
     // Applied AFTER optimizer/floors and BEFORE ranking so the optimizer
     // naturally favors configs that leave ~$3k of residual to harvest.
     entries.forEach(function (e) {
