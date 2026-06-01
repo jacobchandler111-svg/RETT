@@ -315,6 +315,16 @@ function collectInputs() {
                 // fallback only — stops stale saved-state values from
                 // overriding the user's current Available Capital edit.
                 investment:          (_val('available-capital') !== '' ? parseUSD(_val('available-capital')) : null) ?? parseUSD(_val('invested-capital')),
+                // Forced Y0 payment = personal-use cash + outstanding-debt
+                // payoff carved off the sale proceeds at closing. Already
+                // netted out of availableCapital upstream; the engine uses
+                // this to recognize F × GP-ratio of gain at Y0 for the
+                // deferred strategies (B/C) since that cash was received at
+                // closing rather than deferred. Not deployed to Brooklyn.
+                forcedY0Payment: (
+                      ((typeof window.__rettSumPersonalUseAmount === 'function') ? (window.__rettSumPersonalUseAmount() || 0) : 0) +
+                      ((typeof window.__rettSumAmountOwed === 'function') ? (window.__rettSumAmountOwed() || 0) : 0)
+                ),
                 tierKey:             _val('strategy-select') || 'beta1',
                 // leverage default; the Schwab-combo and variable-leverage
                 // blocks below override this with the actual selection.

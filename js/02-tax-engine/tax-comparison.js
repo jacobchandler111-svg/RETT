@@ -887,6 +887,29 @@ function unifiedTaxComparison(cfg, opts) {
             ? Math.min(_y0DownPaymentRaw, _y0DownPaymentCap)
             : 0;
 
+      // Forced Y0 payment (advisor 2026-06-01): when the seller carves
+      // proceeds off the table at closing — personal-use cash and/or
+      // outstanding-debt payoff (cfg.forcedY0Payment = personal-use +
+      // amount-owed, already netted out of availableCapital upstream) —
+      // those dollars ARE received at closing, so for a deferred sale
+      // (Strategy B §453 / Strategy C structured) they trigger a Y0
+      // taxable event: F × GP-ratio of LT gain is recognized in year
+      // zero, pulled forward out of the deferral pool. Unlike the
+      // optional Y0 down-payment above, this cash does NOT deploy to
+      // Brooklyn — it left the table to pay debt/personal use. (Brooklyn
+      // deployment is already gated by availableCapital, which excludes
+      // F.) Capped, together with any down-payment, at the contract
+      // price so we never recognize more than totalLT. Strategy A
+      // (immediate) is unaffected: it recognizes all gain Y0 regardless.
+      const _gpContractPrice = Math.max(0, (cfg.salePrice || 0) - Math.max(0, recapture));
+      const _forcedY0PaymentRaw = Math.max(0, Number(cfg.forcedY0Payment) || 0);
+      const _forcedY0Payment = isDeferred
+            ? Math.min(_forcedY0PaymentRaw, Math.max(0, _gpContractPrice - _y0DownPayment))
+            : 0;
+      const _forcedY0Gain = (_forcedY0Payment > 0 && _gpContractPrice > 0)
+            ? _forcedY0Payment * (totalLT / _gpContractPrice)
+            : 0;
+
       let basisCash, _unparkedY1Gain, _parkedGain;
       // Recapture cash deployment (advisor 2026-05-27): §453(i) forces
       // the §1250 recapture to be recognized Y0 as ordinary income, but
@@ -1481,6 +1504,13 @@ function unifiedTaxComparison(cfg, opts) {
                   gainRecThisYear += _y0DownGain;
                   gainRemaining   -= _y0DownGain;
             }
+            // Forced Y0 payment gain (Strategy B): debt-payoff/personal-use
+            // cash carved off at closing recognizes F × GP-ratio of LT gain
+            // in year zero, pulled forward out of the installment stream.
+            if (i === 0 && _isInstallment && _forcedY0Gain > 0) {
+                  gainRecThisYear += _forcedY0Gain;
+                  gainRemaining   -= _forcedY0Gain;
+            }
             if (_isInstallment && i >= startIdx && i <= maturityIdx) {
                   // Per-year gain recognition uses the weight for this
                   // payment index (0-based from startIdx). Weights apply
@@ -1490,7 +1520,7 @@ function unifiedTaxComparison(cfg, opts) {
                   // when D = 0.
                   var _pIdx = i - startIdx;
                   var _postDownLT = Math.max(0, totalLT - (_y0DownPayment > 0 && _installmentContractPrice > 0
-                        ? _y0DownPayment * (totalLT / _installmentContractPrice) : 0));
+                        ? _y0DownPayment * (totalLT / _installmentContractPrice) : 0) - _forcedY0Gain);
                   var _installmentGainThisYear = _postDownLT * _weightForPaymentIdx(_pIdx);
                   gainRecThisYear += _installmentGainThisYear;
                   gainRemaining   -= _installmentGainThisYear;
@@ -1503,6 +1533,18 @@ function unifiedTaxComparison(cfg, opts) {
             if (i === 0 && isDeferred && !_isInstallment && _unparkedY1Gain > 0) {
                   gainRecThisYear += _unparkedY1Gain;
                   gainRemaining   -= _unparkedY1Gain;
+            }
+            // Forced Y0 payment gain (Strategy C): debt-payoff/personal-use
+            // cash carved off at closing pulls parked gain forward into
+            // year zero (F × GP-ratio), capped at the still-parked balance
+            // so we never double-count gain already unparked as Y0 closing
+            // cash. Shrinks _parkedGain so the MetLife schedule below
+            // spreads only the residual.
+            if (i === 0 && isDeferred && !_isInstallment && _forcedY0Gain > 0 && _parkedGain > 0) {
+                  var _forcedCGain = Math.min(_forcedY0Gain, _parkedGain);
+                  gainRecThisYear += _forcedCGain;
+                  gainRemaining   -= _forcedCGain;
+                  _parkedGain     -= _forcedCGain;
             }
             if (!_isInstallment && i >= startIdx && i <= maturityIdx && gainRemaining > 0) {
                   const maxAbsorbable = Math.max(0, (stCF + existingLoss - _recapDrag) / denom);
