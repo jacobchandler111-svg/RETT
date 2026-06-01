@@ -1830,6 +1830,65 @@ function unifiedTaxComparison(cfg, opts) {
             totalBrookhaven += (r.brookhavenFee || 0);
       });
 
+      // Post-horizon tax catch-up. Any gain still on the books at the
+      // end of the projection window (gainRemaining > 0) will be taxed
+      // in real life — the user owes LT capital-gains tax on it the
+      // year it's actually recognized. totalWith currently sums only
+      // in-horizon withStrategy taxes; if gain is deferred past horizon
+      // it disappears from the model. A plan that defers MORE gain
+      // past horizon then falsely looks better than one that recognizes
+      // in-horizon.
+      //
+      // totalBaseline doesn't need adjustment — the do-nothing baseline
+      // already taxes ALL gain in Y0 (it's the "you sold day 1" world,
+      // which has no unrecognizedGain).
+      //
+      // Mitigation: synthesize a year-(horizon+1) tax bill on the
+      // unrecognized chunk and add it ONLY to totalWith. Net effect:
+      //   • Plans that fully recognize in-horizon (gainRemaining=0):
+      //     unchanged. Auto-pick today behaves this way.
+      //   • Plans that defer past horizon: phantom net benefit is
+      //     neutralized — the deferred chunk pays its tax in the model.
+      //
+      // An HONEST §453 benefit still survives: recognizing later
+      // places gain into wider / inflation-adjusted brackets, which
+      // is a real tax-deferral edge. What disappears is the silent
+      // "gain that's tax-free outside the window" hallucination.
+      var _postHorizonGain = Math.max(0, gainRemaining || 0);
+      var _postHorizonTax = 0;
+      if (_postHorizonGain > 0) {
+            // Year just past the horizon — _y0 + horizon would be
+            // year1+horizon (1 year past last in-horizon year).
+            var _phYear = _y0 + horizon;
+            var _phScenario = _baseScenarioForYear(cfg, _phYear, _postHorizonGain, 0);
+            // Mirror the do-nothing NIIT-base recompute so the post-
+            // horizon LT gain enters NIIT correctly (same pattern as
+            // dnBaseline above).
+            var _phInflRate = (typeof TAX_DATA !== 'undefined' && TAX_DATA && typeof TAX_DATA.inflationRate === 'number')
+                  ? TAX_DATA.inflationRate
+                  : ((typeof window !== 'undefined' && window.TAX_DATA && typeof window.TAX_DATA.inflationRate === 'number')
+                        ? window.TAX_DATA.inflationRate : 0);
+            var _phScaledInvOrd = (cfg.investmentIncomeOrdinary || 0) * Math.pow(1 + _phInflRate, Math.max(0, horizon));
+            var _phScaledQualDiv = (cfg.qualifiedDividend || 0) * Math.pow(1 + _phInflRate, Math.max(0, horizon));
+            _phScenario.investmentIncome = (_phScenario.longTermGain || 0)
+                  + Math.max(0, _phScenario.shortTermGain || 0)
+                  + (_phScenario.depreciationRecapture || 0)
+                  + _phScaledInvOrd + _phScaledQualDiv;
+            // Counterpart no-gain scenario for the SAME year, so we
+            // measure the marginal tax of the unrecognized chunk
+            // (not the whole year's tax including ordinary income).
+            var _phNoGainScenario = _baseScenarioForYear(cfg, _phYear, 0, 0);
+            _phNoGainScenario.investmentIncome = (_phNoGainScenario.longTermGain || 0)
+                  + Math.max(0, _phNoGainScenario.shortTermGain || 0)
+                  + (_phNoGainScenario.depreciationRecapture || 0)
+                  + _phScaledInvOrd + _phScaledQualDiv;
+            var _phWithTax = _yearTaxes(_phScenario).total;
+            var _phNoGainTax = _yearTaxes(_phNoGainScenario).total;
+            _postHorizonTax = Math.max(0, _phWithTax - _phNoGainTax);
+            // Add ONLY to totalWith — see comment above.
+            totalWith     += _postHorizonTax;
+      }
+
       // G2 invariant guard. Three checks, fire loudly if violated —
       // they catch the regression patterns that surfaced F12/F14 in the
       // post-collapse audit. Cheap to compute, dev-only signal.
@@ -1893,6 +1952,13 @@ function unifiedTaxComparison(cfg, opts) {
             recognitionSchedule: recognitionSchedule,
             durationYears: durationYears,
             unrecognizedGain: gainRemaining,
+            // Tax accrued in the synthetic year-(horizon+1) on gain
+            // deferred past horizon. Already folded into totalWith
+            // (so totalSavings already reflects it). Surfaced so the
+            // admin can show it as a separate line — "year-N+1 catch-
+            // up tax: $X" — and CPAs can see why a plan that defers
+            // past horizon doesn't get the silent win it once did.
+            postHorizonTax: _postHorizonTax,
             deferred: isDeferred,
             // Cover-taxes-from-sale (advisor 2026-05-28): total cash held
             // back from January installment payments to pay the sale tax
