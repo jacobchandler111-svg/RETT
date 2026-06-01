@@ -3231,6 +3231,14 @@
   // continues to render the auto-picked combo's positive net (F20).
   root._autoPickSection      = _autoPickSection;
   root._scenarioCfgFor       = _scenarioCfgFor;
+  // Debug/verification hooks (2026-06-01): expose the engine's own
+  // per-scenario scorer and the net-max deployment sweep so an external
+  // brute-force can score arbitrary lever combos (strategy / combo /
+  // horizon / recognition / down-payment / deployment fraction) using the
+  // EXACT same math the optimizer uses — confirming the auto-pick lands on
+  // the global net optimum. Read-only computational helpers.
+  root._scenarioMetrics      = _scenarioMetrics;
+  root._netMaxDeployFraction = _netMaxDeployFraction;
   root.buildInterestedSummary = buildInterestedSummary;
   // Tier-migration display helpers (2026-05-28). Exposed so the admin
   // panels show the EFFECTIVE operating tier instead of the auto-pick
