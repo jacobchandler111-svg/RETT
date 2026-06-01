@@ -3164,6 +3164,52 @@
       }
     });
 
+    // ---- Additional Funds: phantom-free net (Stage 2, advisor 2026-05-28)
+    // When the advisor folded additional funds in (toggle ON →
+    // collectInputs set additionalFundsApplied + the one-time Y0 gains),
+    // each strategy's displayed savings includes Brooklyn OFFSETTING that
+    // self-created liquidation gain. That's circular ("phantom") — the
+    // client only owes that tax because they chose to liquidate. Net
+    // benefit must be measured OFF THE SALE only, so we subtract the
+    // one-time liquidation tax from each deployed entry's net.
+    //
+    //   triggeredTax = doNothingTax(with funds) − doNothingTax(without)
+    //
+    // computed here via two unifiedTaxComparison baselines (NO recursion
+    // into buildInterestedSummary). Skipped while additional-funds.js is
+    // probing (root.__rettAFProbing) — the probe wants the raw net and
+    // subtracts triggeredTax itself, so stripping here too would
+    // double-count. Result: displayed-net(funds ON) − displayed-net(OFF)
+    // == the phantom-free netBenefit. Entries that didn't deploy
+    // (net === 0) never realized the liquidation, so they're left alone.
+    var _afApplied = Math.max(0, Number(currentCfg && currentCfg.additionalFundsApplied) || 0);
+    if (_afApplied > 0 && !root.__rettAFProbing &&
+        typeof window !== 'undefined' && typeof window.unifiedTaxComparison === 'function') {
+      var _afTriggeredTax = 0;
+      try {
+        var _cmpWith = window.unifiedTaxComparison(currentCfg);
+        var _cfgNoFunds = Object.assign({}, currentCfg, {
+          additionalY0LongGain:  0,
+          additionalY0ShortGain: 0,
+          additionalFundsApplied: 0,
+          availableCapital: Math.max(0, (Number(currentCfg.availableCapital) || 0) - _afApplied),
+          investment:       Math.max(0, (Number(currentCfg.investment) || 0) - _afApplied),
+          investedCapital:  Math.max(0, (Number(currentCfg.investedCapital) || 0) - _afApplied)
+        });
+        var _cmpNo = window.unifiedTaxComparison(_cfgNoFunds);
+        _afTriggeredTax = Math.max(0,
+          (Number(_cmpWith && _cmpWith.totalBaseline) || 0) -
+          (Number(_cmpNo && _cmpNo.totalBaseline) || 0));
+      } catch (e) { _afTriggeredTax = 0; }
+      if (_afTriggeredTax > 0) {
+        entries.forEach(function (e) {
+          if (!e.metrics || !Number.isFinite(e.metrics.net) || e.metrics.net === 0) return;
+          e.metrics._additionalFundsTriggeredTax = _afTriggeredTax;
+          e.metrics.net = e.metrics.net - _afTriggeredTax;
+        });
+      }
+    }
+
     var maxNet = -Infinity, recIdx = -1;
     entries.forEach(function (e, i) {
       if (e.metrics.net > maxNet) { maxNet = e.metrics.net; recIdx = i; }

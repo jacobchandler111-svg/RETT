@@ -53,9 +53,15 @@
   function _probe(contribution) {
     var fEl = _el('additional-funds'), tEl = _el('additional-funds-toggle');
     if (!fEl || !tEl) return null;
-    var prevF = fEl.value, prevT = tEl.checked;
+    var prevF = fEl.value, prevT = tEl.checked, prevProbe = root.__rettAFProbing;
     var out = { rawNet: null, baselineTax: 0 };
     try {
+      // Suppress buildInterestedSummary's phantom-strip (Stage 2) while we
+      // probe — we want the RAW net here and subtract triggeredTax
+      // ourselves below. Without this flag the strip would already remove
+      // triggeredTax from p.rawNet, and the netBenefit formula would then
+      // double-subtract it.
+      root.__rettAFProbing = true;
       fEl.value = (contribution > 0) ? String(Math.round(contribution)) : '';
       tEl.checked = contribution > 0;
       if (typeof root.buildInterestedSummary === 'function') {
@@ -73,7 +79,7 @@
         out.baselineTax = Number(cmp && cmp.totalBaseline) || 0;
       }
     } catch (e) { out = null; }
-    fEl.value = prevF; tEl.checked = prevT;
+    fEl.value = prevF; tEl.checked = prevT; root.__rettAFProbing = prevProbe;
     return out;
   }
 
@@ -142,4 +148,43 @@
   }
 
   root.rettSuggestAdditionalFunds = rettSuggestAdditionalFunds;
+
+  // ---- Benefit of the ADVISOR'S ENTERED amount (Stage 1 visibility gate) -
+  // rettSuggestAdditionalFunds() only scores reachable Schwab tier gaps to
+  // pick an optimal amount. The visibility gate instead needs the
+  // phantom-free net benefit of whatever amount is CURRENTLY in
+  // #additional-funds (auto-suggested OR a manual advisor override), so the
+  // "Include additional funds" control can be hidden when that amount
+  // doesn't actually pay off the sale.
+  //
+  // Returns { amount, netBenefit, triggeredTax, qualifies }:
+  //   amount       = capped liquidation (min(entered, accountValue))
+  //   triggeredTax = one-time do-nothing tax the liquidation creates
+  //   netBenefit   = (rawNet_with − rawNet_without) − triggeredTax
+  //                  i.e. benefit OFF THE SALE, with the self-created
+  //                  liquidation gain's offset (the "phantom") removed
+  //   qualifies    = netBenefit > 0  (adding the funds genuinely helps)
+  // Cheap exit (no probing) when there's no account value or no amount.
+  function rettAdditionalFundsBenefit() {
+    var ZERO = { amount: 0, netBenefit: 0, triggeredTax: 0, qualifies: false };
+    var AV = _pv('additional-account-value');
+    var amt = _pv('additional-funds');
+    if (!(AV > 0) || !(amt > 0)) return ZERO;
+    if (typeof root.collectInputs !== 'function' ||
+        typeof root.buildInterestedSummary !== 'function') return ZERO;
+    var liq = Math.min(amt, AV);
+    var base = _probe(0);
+    if (!base || base.rawNet == null) return ZERO;
+    var p = _probe(liq);
+    if (!p || p.rawNet == null) return ZERO;
+    var triggeredTax = Math.max(0, p.baselineTax - base.baselineTax);
+    var netBenefit = (p.rawNet - base.rawNet) - triggeredTax;
+    return {
+      amount: liq,
+      netBenefit: netBenefit,
+      triggeredTax: triggeredTax,
+      qualifies: netBenefit > 0
+    };
+  }
+  root.rettAdditionalFundsBenefit = rettAdditionalFundsBenefit;
 })(window);

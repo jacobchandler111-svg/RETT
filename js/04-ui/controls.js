@@ -1296,6 +1296,12 @@ function bindControls() {
           if (typeof renderInterestedSnapshot === 'function') {
             try { renderInterestedSnapshot(); } catch (e) { if (typeof window !== "undefined" && typeof window.reportFailure === "function") window.reportFailure("non-fatal in controls.js", e); else if (typeof console !== "undefined") console.warn(e); }
           }
+          // Stage 1: re-gate the "Include additional funds" toggle (hide it
+          // when the entered amount yields no off-the-sale benefit). Cheap-
+          // exits when no additional funds are in play.
+          if (typeof window.rettSyncAFToggleVisibility === 'function') {
+            try { window.rettSyncAFToggleVisibility(); } catch (e) { /* */ }
+          }
           if (typeof syncPillSelection === 'function') syncPillSelection();
         } catch (e) { (window.reportFailure || console.warn)('Auto-recalculate failed', e); }
       }, 250);
