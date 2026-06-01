@@ -59,6 +59,13 @@
     'sale-price-5', 'cost-basis-5', 'accelerated-depreciation-5', 'holding-period-5', 'implementation-date-5', 'strategy-implementation-date-5', 'amount-owed-yes-no-5', 'amount-owed-amount-5', 'personal-use-yes-no-5', 'personal-use-amount-5',
     // Page 1: Sale Proceeds questions (drive Available Capital)
     'withhold-yes-no', 'withhold-amount', 'cover-taxes-yes-no',
+    // Page 1 Section 03: Additional Funds. The projection-page toggle
+    // (#additional-funds-toggle) plus the amount / account value /
+    // embedded gains must survive a hard refresh — without these in the
+    // persisted set, the advisor's entries vanish on reload and the
+    // toggle has nothing to fold in. (2026-06-01)
+    'additional-funds-yes-no', 'additional-funds', 'additional-account-value',
+    'additional-lt-gain', 'additional-st-gain', 'additional-funds-toggle',
     // Page 1: Future Sale Loss Target (drives the optimizer's decision
     // on whether to let loss carryforward roll forward to absorb a
     // planned future gain). Simplified shape (2026-05-15): single

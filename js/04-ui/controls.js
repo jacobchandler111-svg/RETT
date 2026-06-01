@@ -1287,6 +1287,15 @@ function bindControls() {
             try { maybeAutoPick(); } catch (e) { if (typeof window !== "undefined" && typeof window.reportFailure === "function") window.reportFailure("non-fatal in controls.js", e); else if (typeof console !== "undefined") console.warn(e); }
           }
           runFullPipeline();
+          // runFullPipeline renders the KPI dashboard but NOT the
+          // Projection-page "Interested" cards (those come from
+          // renderInterestedSnapshot). Without this, a same-page input
+          // change — e.g. flipping the Additional Funds toggle — updates
+          // the engine (__lastResult) but leaves the visible card net
+          // values stale until the user navigates away and back.
+          if (typeof renderInterestedSnapshot === 'function') {
+            try { renderInterestedSnapshot(); } catch (e) { if (typeof window !== "undefined" && typeof window.reportFailure === "function") window.reportFailure("non-fatal in controls.js", e); else if (typeof console !== "undefined") console.warn(e); }
+          }
           if (typeof syncPillSelection === 'function') syncPillSelection();
         } catch (e) { (window.reportFailure || console.warn)('Auto-recalculate failed', e); }
       }, 250);
