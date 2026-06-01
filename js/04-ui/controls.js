@@ -1825,6 +1825,25 @@ function bindControls() {
   for (var _pun = 1; _pun <= 5; _pun++) _wirePersonalUseForBlock(_pun);
   _syncPersonalUseMirror();
 
+  // Per-property "Is there any amount still owed on the property?" wiring.
+  // Yes reveals the payoff Amount input; the entered amount subtracts from
+  // Available Capital (recompute fires via the listener array below, which
+  // reads __rettSumAmountOwed). On No, clear the amount so a stale value
+  // can't keep reducing capital while hidden.
+  function _wireAmountOwedForBlock(n) {
+    var yn = document.getElementById('amount-owed-yes-no-' + n);
+    var grp = document.getElementById('amount-owed-amount-group-' + n);
+    var amt = document.getElementById('amount-owed-amount-' + n);
+    if (!yn || !grp) return;
+    function _toggleVisibility() {
+      grp.hidden = (yn.value !== 'yes');
+      if (yn.value !== 'yes' && amt) amt.value = '';
+    }
+    yn.addEventListener('change', _toggleVisibility);
+    _toggleVisibility();
+  }
+  for (var _aon = 1; _aon <= 5; _aon++) _wireAmountOwedForBlock(_aon);
+
   // Future Sale Loss Target (Section 05): the Yes/No question toggles
   // the conditional fields group. The optimizer reads cfg.futureSale to
   // decide how much of the current Brooklyn position should generate
@@ -2175,11 +2194,16 @@ function bindControls() {
     // #full-projection-region as an engine-only field). The model is:
     //   • "Investing everything?" = Yes  →  avail = sale (keep=0)
     //   • "Investing everything?" = No   →  avail = sale − amount-to-keep
+    //   • "Amount still owed?" = Yes      →  avail −= payoff (proceeds
+    //                                       retire the note before Brooklyn)
     //   • "Cover taxes from sale?" = Yes →  engine adds a Y0-only tax-
     //                                       reserve tranche (does NOT
     //                                       reduce avail here).
+    const owed = (typeof window.__rettSumAmountOwed === 'function')
+      ? (window.__rettSumAmountOwed() || 0)
+      : 0;
     if (!hasError && saleVal > 0) {
-      const newAvailNum = Math.max(0, saleVal - keep);
+      const newAvailNum = Math.max(0, saleVal - keep - owed);
       const newAvail = (typeof fmtUSD === 'function')
         ? fmtUSD(newAvailNum)
         : String(newAvailNum);
@@ -2299,6 +2323,13 @@ function bindControls() {
    'personal-use-yes-no-3', 'personal-use-amount-3',
    'personal-use-yes-no-4', 'personal-use-amount-4',
    'personal-use-yes-no-5', 'personal-use-amount-5',
+   // Per-property outstanding-debt payoff. Subtracts from Available
+   // Capital via _recomputeAvailableCapital (reads __rettSumAmountOwed).
+   'amount-owed-yes-no-1', 'amount-owed-amount-1',
+   'amount-owed-yes-no-2', 'amount-owed-amount-2',
+   'amount-owed-yes-no-3', 'amount-owed-amount-3',
+   'amount-owed-yes-no-4', 'amount-owed-amount-4',
+   'amount-owed-yes-no-5', 'amount-owed-amount-5',
    'filing-status', 'state-code', 'year1',
    'w2-wages', 'se-income', 'biz-revenue', 'rental-income',
    'dividend-income', 'retirement-distributions',

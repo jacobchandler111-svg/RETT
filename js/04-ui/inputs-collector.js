@@ -203,6 +203,22 @@ if (typeof window !== 'undefined') {
             }
             return false;
       };
+      // Outstanding debt / payoff per property. Like personal-use, this is
+      // a Y0 reduction of available capital (proceeds go to retire the
+      // mortgage/note, so they never reach Brooklyn). Summed across active
+      // properties where the "amount still owed" toggle is yes.
+      window.__rettSumAmountOwed = function () {
+            let total = 0;
+            for (let n = 1; n <= 5; n++) {
+                  if (!_propertyIsActive(n)) continue;
+                  const yn = document.getElementById('amount-owed-yes-no-' + n);
+                  if (!yn || yn.value !== 'yes') continue;
+                  const amt = document.getElementById('amount-owed-amount-' + n);
+                  if (!amt) continue;
+                  total += parseUSD(amt.value) || 0;
+            }
+            return total;
+      };
 }
 
 // Most income inputs are clamped to >= 0 (a negative wage / dividend

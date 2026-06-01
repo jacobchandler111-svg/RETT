@@ -29,6 +29,9 @@
     // Per-property personal-use amounts (replaces the old single withhold-amount).
     'personal-use-amount-1', 'personal-use-amount-2', 'personal-use-amount-3',
     'personal-use-amount-4', 'personal-use-amount-5',
+    // Per-property outstanding-debt payoff amounts.
+    'amount-owed-amount-1', 'amount-owed-amount-2', 'amount-owed-amount-3',
+    'amount-owed-amount-4', 'amount-owed-amount-5',
     // Future Sale Loss Target (Section 05) — single estimated gain.
     'future-estimated-gain',
     // Additional Funds (Section 03) — inert/display fields today, but
@@ -63,6 +66,8 @@
     'withhold-amount': 1, 'available-capital': 1,
     'personal-use-amount-1': 1, 'personal-use-amount-2': 1, 'personal-use-amount-3': 1,
     'personal-use-amount-4': 1, 'personal-use-amount-5': 1,
+    'amount-owed-amount-1': 1, 'amount-owed-amount-2': 1, 'amount-owed-amount-3': 1,
+    'amount-owed-amount-4': 1, 'amount-owed-amount-5': 1,
     'future-estimated-gain': 1,
     'interest-income': 1, 'social-security': 1,
     // Additional Funds: account value / liquidation amount / derived

@@ -52,11 +52,11 @@
     // Per-property holding-period toggle (Q2) is persisted alongside each
     // property's currency fields. Per-property visibility is restored
     // post-load by checking if any of the block's fields have data.
-    'holding-period-1', 'personal-use-yes-no-1', 'personal-use-amount-1',
-    'sale-price-2', 'cost-basis-2', 'accelerated-depreciation-2', 'holding-period-2', 'implementation-date-2', 'strategy-implementation-date-2', 'personal-use-yes-no-2', 'personal-use-amount-2',
-    'sale-price-3', 'cost-basis-3', 'accelerated-depreciation-3', 'holding-period-3', 'implementation-date-3', 'strategy-implementation-date-3', 'personal-use-yes-no-3', 'personal-use-amount-3',
-    'sale-price-4', 'cost-basis-4', 'accelerated-depreciation-4', 'holding-period-4', 'implementation-date-4', 'strategy-implementation-date-4', 'personal-use-yes-no-4', 'personal-use-amount-4',
-    'sale-price-5', 'cost-basis-5', 'accelerated-depreciation-5', 'holding-period-5', 'implementation-date-5', 'strategy-implementation-date-5', 'personal-use-yes-no-5', 'personal-use-amount-5',
+    'holding-period-1', 'amount-owed-yes-no-1', 'amount-owed-amount-1', 'personal-use-yes-no-1', 'personal-use-amount-1',
+    'sale-price-2', 'cost-basis-2', 'accelerated-depreciation-2', 'holding-period-2', 'implementation-date-2', 'strategy-implementation-date-2', 'amount-owed-yes-no-2', 'amount-owed-amount-2', 'personal-use-yes-no-2', 'personal-use-amount-2',
+    'sale-price-3', 'cost-basis-3', 'accelerated-depreciation-3', 'holding-period-3', 'implementation-date-3', 'strategy-implementation-date-3', 'amount-owed-yes-no-3', 'amount-owed-amount-3', 'personal-use-yes-no-3', 'personal-use-amount-3',
+    'sale-price-4', 'cost-basis-4', 'accelerated-depreciation-4', 'holding-period-4', 'implementation-date-4', 'strategy-implementation-date-4', 'amount-owed-yes-no-4', 'amount-owed-amount-4', 'personal-use-yes-no-4', 'personal-use-amount-4',
+    'sale-price-5', 'cost-basis-5', 'accelerated-depreciation-5', 'holding-period-5', 'implementation-date-5', 'strategy-implementation-date-5', 'amount-owed-yes-no-5', 'amount-owed-amount-5', 'personal-use-yes-no-5', 'personal-use-amount-5',
     // Page 1: Sale Proceeds questions (drive Available Capital)
     'withhold-yes-no', 'withhold-amount', 'cover-taxes-yes-no',
     // Page 1: Future Sale Loss Target (drives the optimizer's decision
@@ -317,12 +317,14 @@
       var idVal = state['implementation-date-' + pn];
       var sdVal = state['strategy-implementation-date-' + pn];
       var puVal = state['personal-use-amount-' + pn];
+      var aoVal = state['amount-owed-amount-' + pn];
       var hasData = (spVal && String(spVal).trim()) ||
                     (cbVal && String(cbVal).trim()) ||
                     (adVal && String(adVal).trim()) ||
                     (idVal && String(idVal).trim()) ||
                     (sdVal && String(sdVal).trim()) ||
-                    (puVal && String(puVal).trim());
+                    (puVal && String(puVal).trim()) ||
+                    (aoVal && String(aoVal).trim());
       if (hasData) {
         var block = document.getElementById('property-' + pn);
         if (block) block.hidden = false;
