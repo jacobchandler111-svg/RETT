@@ -1264,10 +1264,17 @@ function bindControls() {
    // Structured-sale duration caps the deferred recognition window —
    // changing it must re-run the pipeline so chart / pies / KPIs
    // reflect the new maturity year.
-   'structured-sale-duration-months'].forEach(function (fid) {
+   'structured-sale-duration-months',
+   // Additional Funds: the projection-page toggle folds extra liquid
+   // capital into availableCapital/investment (see inputs-collector.js).
+   // Flipping it — or editing the amount / account value / gains — must
+   // re-run the pipeline so the projection cards reflect the new capital.
+   'additional-funds-toggle', 'additional-funds', 'additional-account-value',
+   'additional-lt-gain', 'additional-st-gain'].forEach(function (fid) {
     const el = document.getElementById(fid);
     if (!el) return;
-    const evt = (el.tagName === 'SELECT') ? 'change' : 'input';
+    const evt = (el.tagName === 'SELECT') ? 'change'
+              : (el.type === 'checkbox') ? 'change' : 'input';
     let _t;
     el.addEventListener(evt, function () {
       clearTimeout(_t);
