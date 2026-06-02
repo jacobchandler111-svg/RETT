@@ -134,7 +134,21 @@
       // render.js. Surfacing here as an explicit line so the admin
       // reconciliation doesn't show a phantom $14K gap between
       // "savings − fees" and "NET BENEFIT (on card)".
-      excessLossFeeCredit: _num(m._excessLossFeeCredit || 0)
+      excessLossFeeCredit: _num(m._excessLossFeeCredit || 0),
+      // Additional Funds (advisor 2026-06-02): when the Projection-tab
+      // toggle is on, collectInputs folds a brokerage liquidation into
+      // capital. The per-card no-funds floor (projection-dashboard-render.js)
+      // lets each strategy USE or DECLINE the funds — a card never drops
+      // below its no-funds net. Surface the decision + the liquidation math.
+      additionalFundsApplied:      _num((entry.cfg || {}).additionalFundsApplied || 0),
+      additionalFundsUsed:         _num(m._additionalFundsUsed != null
+                                     ? m._additionalFundsUsed
+                                     : ((entry.cfg || {}).additionalFundsApplied || 0)),
+      additionalFundsFloored:      !!m._additionalFundsFloored,
+      additionalFundsTriggeredTax: _num(m._additionalFundsTriggeredTax || 0),
+      additionalY0LongGain:        _num((entry.cfg || {}).additionalY0LongGain || 0),
+      additionalY0ShortGain:       _num((entry.cfg || {}).additionalY0ShortGain || 0),
+      netBeforeFloor:              (m._netBeforeFloor != null ? _num(m._netBeforeFloor) : null)
     };
   }
 
@@ -142,6 +156,42 @@
     return '<tr><td>' + _esc(label) + '</td>' +
       '<td class="admin-math-num">' + (value == null ? '—' : value) + '</td>' +
       (note ? '<td class="admin-math-note-cell">' + note + '</td>' : '<td></td>') + '</tr>';
+  }
+
+  // Additional Funds disclosure: shown only when the toggle folded a
+  // brokerage liquidation in (additionalFundsApplied > 0). Discloses whether
+  // THIS strategy uses or declines the funds, and the liquidation math.
+  function _additionalFundsBlock(analysis) {
+    var applied = _num(analysis.additionalFundsApplied);
+    if (!(applied > 0)) return '';
+    var floored = !!analysis.additionalFundsFloored;
+    var lt = _num(analysis.additionalY0LongGain);
+    var st = _num(analysis.additionalY0ShortGain);
+    var tax = _num(analysis.additionalFundsTriggeredTax);
+    var rows = '';
+    rows += '<tr><td>Liquidation considered</td><td class="admin-math-num">' + _fmtUSD(applied) +
+            '</td><td class="admin-math-note-cell">Brokerage sold to add Brooklyn capital (Projection-tab toggle ON)</td></tr>';
+    rows += '<tr><td>Triggered Y0 gain</td><td class="admin-math-num">' + _fmtUSD(lt + st) +
+            '</td><td class="admin-math-note-cell">' + _fmtUSD(lt) + ' LT + ' + _fmtUSD(st) +
+            ' ST realized by the sale (pro-rata to the account’s embedded gain)</td></tr>';
+    rows += '<tr><td>One-time liquidation tax</td><td class="admin-math-num">' + _fmtUSD(tax) +
+            '</td><td class="admin-math-note-cell">tax owed purely for liquidating — not a strategy cost</td></tr>';
+    if (floored) {
+      var forcedNet = (analysis.netBeforeFloor != null) ? _fmtUSD(analysis.netBeforeFloor) : '—';
+      rows += '<tr class="admin-math-total"><td><strong>Decision: DECLINES funds</strong></td>' +
+              '<td class="admin-math-num"><strong>' + _fmtUSD(analysis.cardNet) + '</strong></td>' +
+              '<td class="admin-math-note-cell">funds don’t pay off here — net floored to the no-funds value (' +
+              forcedNet + ' if forced in). The toggle never lowers a card.</td></tr>';
+    } else {
+      rows += '<tr class="admin-math-total"><td><strong>Decision: USES funds</strong></td>' +
+              '<td class="admin-math-num"><strong>' + _fmtUSD(analysis.cardNet) + '</strong></td>' +
+              '<td class="admin-math-note-cell">extra capital improves this strategy by more than the liquidation tax (net already nets the tax above)</td></tr>';
+    }
+    return '<p class="admin-math-subtitle" style="margin-top:10px;">Additional Funds (this strategy’s decision):</p>' +
+      '<table class="admin-math-table">' +
+        '<thead><tr><th>Item</th><th class="admin-math-num">Amount</th><th>Note</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+      '</table>';
   }
 
   function _perYearTable(cmp, projFees, optScale, excessLossFeeCredit) {
@@ -574,6 +624,7 @@
         '<tbody>' + pickRows.join('') + '</tbody>' +
       '</table>' +
       cardSummary +
+      _additionalFundsBlock(analysis) +
       _deploymentCallout(analysis) +
       '<p class="admin-math-subtitle" style="margin-top:10px;">Per-year engine output (Brooklyn fee reconciled to card; other columns are raw engine pre-optimizer):</p>' +
       _perYearTable(cmp, analysis.projFees, analysis.optScale, analysis.excessLossFeeCredit) +

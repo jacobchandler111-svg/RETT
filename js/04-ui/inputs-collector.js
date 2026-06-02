@@ -556,8 +556,13 @@ function collectInputs() {
       // baseLongTermGain / baseShortTermGain (which now accept negatives as
       // §1211 capital losses). Toggle OFF ⇒ zero impact (cfg identical to
       // pre-feature). See ADDITIONAL_FUNDS_OPTIMIZER_SPEC.md §2.
+      // __rettSuppressAdditionalFunds: the no-funds floor pass (in
+      // buildInterestedSummary) sets this so it can measure each strategy's
+      // net WITHOUT liquidating — so a card is never shown worse than its
+      // no-funds value just because the toggle is on.
       var _addFundsToggle = document.getElementById('additional-funds-toggle');
-      if (_addFundsToggle && _addFundsToggle.checked) {
+      if (_addFundsToggle && _addFundsToggle.checked &&
+          !(typeof window !== 'undefined' && window.__rettSuppressAdditionalFunds)) {
             var _addFunds = parseUSD(_val('additional-funds')) || 0;
             var _acctVal  = parseUSD(_val('additional-account-value')) || 0;
             var _acctLT   = parseUSD(_val('additional-lt-gain')) || 0;   // signed

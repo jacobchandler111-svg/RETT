@@ -3389,6 +3389,46 @@
       }
     }
 
+    // ---- Additional Funds: per-card no-funds FLOOR (advisor 2026-06-02) ---
+    // Toggling "Include Additional Funds" on means CONSIDER the funds — it
+    // must never make a card worse than not using them. The phantom-strip
+    // above subtracts the one-time liquidation tax from EVERY deployed card,
+    // so a strategy that doesn't put the extra capital to good use would
+    // otherwise drop below its no-funds net. Run ONE no-funds pass
+    // (collectInputs suppressed via __rettSuppressAdditionalFunds) to get each
+    // strategy's net WITHOUT liquidating, then floor each card at it. A card
+    // thus shows the better of {use the funds, don't} — improve-or-flat, never
+    // a drop. The sub-call sees additionalFundsApplied === 0, so _afApplied is
+    // 0 there and this block + the phantom-strip self-skip (no recursion).
+    // Skipped during additional-funds.js probes (__rettAFProbing) — those want
+    // the raw funds-on net and subtract triggeredTax themselves.
+    if (_afApplied > 0 && !root.__rettAFProbing &&
+        typeof window !== 'undefined' && !window.__rettSuppressAdditionalFunds) {
+      var _noFundsNet = {};
+      window.__rettSuppressAdditionalFunds = true;
+      try {
+        var _nf = buildInterestedSummary();
+        if (_nf && Array.isArray(_nf.entries)) {
+          _nf.entries.forEach(function (e) {
+            if (e && e.metrics && Number.isFinite(e.metrics.net)) _noFundsNet[e.type] = e.metrics.net;
+          });
+        }
+      } catch (e) { /* keep funds-on numbers if the no-funds pass fails */ }
+      window.__rettSuppressAdditionalFunds = false;
+      entries.forEach(function (e) {
+        var nf = _noFundsNet[e.type];
+        if (Number.isFinite(nf) && nf > (e.metrics.net || 0)) {
+          e.metrics._netBeforeFloor         = e.metrics.net;
+          e.metrics._additionalFundsFloored  = true;
+          e.metrics._additionalFundsUsed     = 0;          // this card declines the funds
+          e.metrics.net                      = nf;
+        } else {
+          e.metrics._additionalFundsFloored  = false;
+          e.metrics._additionalFundsUsed     = _afApplied; // this card uses the funds
+        }
+      });
+    }
+
     var maxNet = -Infinity, recIdx = -1;
     entries.forEach(function (e, i) {
       if (e.metrics.net > maxNet) { maxNet = e.metrics.net; recIdx = i; }
