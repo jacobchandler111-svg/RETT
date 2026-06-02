@@ -1646,8 +1646,10 @@
           // cfg fallback so downstream callers always have something.
           var typedCfg2 = _scenarioCfgFor(type, cfgSection, 2, userDurationFallback);
           var m2 = _scenarioMetrics(typedCfg2);
-          if (m2 && (!best || m2.net > best.net)) {
-            best = { horizon: hor, shortPct: p.shortPct, comboId: p.comboId, bestRecC: 2, net: m2.net, durationMonths: userDurationFallback };
+          if (m2) {
+            var _pkA = { horizon: hor, shortPct: p.shortPct, comboId: p.comboId, bestRecC: 2, net: m2.net, durationMonths: userDurationFallback };
+            _recordCombo(_pkA, m2.net);   // F25: feed A into dial-back refinement
+            if (!best || m2.net > best.net) best = _pkA;
           }
         }
       });
@@ -1657,8 +1659,11 @@
     // best-FULL candidate at its dial-back optimum and switch `best` to the
     // genuinely net-best — so the optimizer doesn't lock in a combo that
     // wins at full deployment but loses once dialed back (the structured
-    // sale's 200/100-vs-145/45 mis-pick). B/C only; A has no dial-back.
-    if (best && (type === 'B' || type === 'C')) {
+    // sale's 200/100-vs-145/45 mis-pick). F25 (2026-06-01): A IS dialed
+    // back too (buildInterestedSummary line ~3215), so it gets the same
+    // refinement — fixes the cap=$8M combo mis-pick where A locked a combo
+    // at full deployment that lost once scaled down.
+    if (best && (type === 'A' || type === 'B' || type === 'C')) {
       var _comboKeys = Object.keys(_bestPerComboFull);
       if (_comboKeys.length > 1 && typeof _netMaxDeployFraction === 'function') {
         var _dialedNetForPick = function (pk) {
