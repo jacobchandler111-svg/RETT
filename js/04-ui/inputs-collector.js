@@ -556,14 +556,18 @@ function collectInputs() {
       // baseLongTermGain / baseShortTermGain (which now accept negatives as
       // §1211 capital losses). Toggle OFF ⇒ zero impact (cfg identical to
       // pre-feature). See ADDITIONAL_FUNDS_OPTIMIZER_SPEC.md §2.
-      // __rettSuppressAdditionalFunds: the no-funds floor pass (in
-      // buildInterestedSummary) sets this so it can measure each strategy's
-      // net WITHOUT liquidating — so a card is never shown worse than its
-      // no-funds value just because the toggle is on.
+      // __rettAdditionalFundsOverride: the per-strategy amount sweep (in
+      // buildInterestedSummary) sets this to a specific liquidation amount so
+      // it can measure each strategy's net at a candidate amount (0 = decline,
+      // a tier gap, or the entered amount) regardless of the toggle/DOM value.
+      // A finite override wins over the toggle; override 0 ⇒ no fold.
+      var _afOverride  = (typeof window !== 'undefined') ? window.__rettAdditionalFundsOverride : undefined;
+      var _hasAfOver   = (typeof _afOverride === 'number' && isFinite(_afOverride) && _afOverride >= 0);
       var _addFundsToggle = document.getElementById('additional-funds-toggle');
-      if (_addFundsToggle && _addFundsToggle.checked &&
-          !(typeof window !== 'undefined' && window.__rettSuppressAdditionalFunds)) {
-            var _addFunds = parseUSD(_val('additional-funds')) || 0;
+      var _doAddFunds  = _hasAfOver ? (_afOverride > 0)
+                                    : !!(_addFundsToggle && _addFundsToggle.checked);
+      if (_doAddFunds) {
+            var _addFunds = _hasAfOver ? _afOverride : (parseUSD(_val('additional-funds')) || 0);
             var _acctVal  = parseUSD(_val('additional-account-value')) || 0;
             var _acctLT   = parseUSD(_val('additional-lt-gain')) || 0;   // signed
             var _acctST   = parseUSD(_val('additional-st-gain')) || 0;   // signed

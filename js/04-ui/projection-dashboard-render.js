@@ -3389,43 +3389,103 @@
       }
     }
 
-    // ---- Additional Funds: per-card no-funds FLOOR (advisor 2026-06-02) ---
-    // Toggling "Include Additional Funds" on means CONSIDER the funds — it
-    // must never make a card worse than not using them. The phantom-strip
-    // above subtracts the one-time liquidation tax from EVERY deployed card,
-    // so a strategy that doesn't put the extra capital to good use would
-    // otherwise drop below its no-funds net. Run ONE no-funds pass
-    // (collectInputs suppressed via __rettSuppressAdditionalFunds) to get each
-    // strategy's net WITHOUT liquidating, then floor each card at it. A card
-    // thus shows the better of {use the funds, don't} — improve-or-flat, never
-    // a drop. The sub-call sees additionalFundsApplied === 0, so _afApplied is
-    // 0 there and this block + the phantom-strip self-skip (no recursion).
-    // Skipped during additional-funds.js probes (__rettAFProbing) — those want
-    // the raw funds-on net and subtract triggeredTax themselves.
+    // ---- Additional Funds: PER-STRATEGY amount sweep (advisor 2026-06-02) ---
+    // Toggling "Include Additional Funds" on means CONSIDER the funds for each
+    // strategy — it must never make a card worse, and it shouldn't force every
+    // card to use the SAME amount. The phantom-strip above subtracts the
+    // one-time liquidation tax from every deployed card, so a strategy that
+    // can't put the extra capital to good use would otherwise drop below its
+    // no-funds net. Instead, let each strategy independently pick the
+    // liquidation amount that maximizes ITS OWN phantom-free net.
+    //
+    // Candidates = { 0 (decline), reachable Schwab tier gaps, the entered
+    // amount }. We deliberately do NOT sweep arbitrary fractions — per
+    // additional-funds.js, deploying past "cover the sale" only washes the
+    // self-created liquidation gains (phantom). Tier bumps ($1M → 145/45,
+    // $3M → 200/100) are the clean lever, so those gaps + the advisor's entered
+    // amount + 0 are the only candidates worth probing.
+    //
+    // Each candidate is scored by re-running buildInterestedSummary at that
+    // amount via the __rettAdditionalFundsOverride hook (collectInputs folds
+    // the override instead of the DOM value). __rettAFSweeping guards against
+    // recursion (the sub-runs skip this block). Because 0 is always a
+    // candidate, no card can land below its no-funds net — improve-or-flat,
+    // never a drop. Skipped during additional-funds.js probes (__rettAFProbing).
     if (_afApplied > 0 && !root.__rettAFProbing &&
-        typeof window !== 'undefined' && !window.__rettSuppressAdditionalFunds) {
-      var _noFundsNet = {};
-      window.__rettSuppressAdditionalFunds = true;
+        typeof window !== 'undefined' && !window.__rettAFSweeping) {
+      // Account value + the base (no-funds) Brooklyn capital, used to compute
+      // which tier gaps are reachable by liquidating part of the account.
+      var _avEl = (typeof document !== 'undefined') ? document.getElementById('additional-account-value') : null;
+      var _avSweep = _avEl ? ((typeof root.parseUSD === 'function')
+                        ? (root.parseUSD(_avEl.value) || 0)
+                        : (parseFloat(String(_avEl.value).replace(/[^0-9.\-]/g, '')) || 0)) : 0;
+      var _baseCapNoFunds = Math.max(0, (Number(currentCfg.availableCapital) || 0) - _afApplied);
+
+      // Build the candidate amount set.
+      var _cands = [0, _afApplied];
       try {
-        var _nf = buildInterestedSummary();
-        if (_nf && Array.isArray(_nf.entries)) {
-          _nf.entries.forEach(function (e) {
-            if (e && e.metrics && Number.isFinite(e.metrics.net)) _noFundsNet[e.type] = e.metrics.net;
+        var _tierKey = (currentCfg && currentCfg.tierKey) || 'beta1';
+        if (typeof root.listSchwabCombosForStrategy === 'function') {
+          (root.listSchwabCombosForStrategy(_tierKey) || []).forEach(function (c) {
+            var min = Number(c && c.minInvestment) || 0;
+            var gap = Math.round(min - _baseCapNoFunds);
+            if (gap > 0 && gap <= _avSweep) _cands.push(gap);
           });
         }
-      } catch (e) { /* keep funds-on numbers if the no-funds pass fails */ }
-      window.__rettSuppressAdditionalFunds = false;
+      } catch (e) { /* tier gaps optional — entered + 0 always present */ }
+
+      // Score per candidate, per strategy: { amount -> { type -> {net, trig} } }.
+      // The entered amount is already computed (it's what `entries` holds now).
+      var _byCand = {};
+      _byCand[_afApplied] = {};
       entries.forEach(function (e) {
-        var nf = _noFundsNet[e.type];
-        if (Number.isFinite(nf) && nf > (e.metrics.net || 0)) {
-          e.metrics._netBeforeFloor         = e.metrics.net;
-          e.metrics._additionalFundsFloored  = true;
-          e.metrics._additionalFundsUsed     = 0;          // this card declines the funds
-          e.metrics.net                      = nf;
-        } else {
-          e.metrics._additionalFundsFloored  = false;
-          e.metrics._additionalFundsUsed     = _afApplied; // this card uses the funds
+        if (e.metrics && Number.isFinite(e.metrics.net)) {
+          _byCand[_afApplied][e.type] = {
+            net:  e.metrics.net,
+            trig: Number(e.metrics._additionalFundsTriggeredTax) || 0
+          };
         }
+      });
+
+      window.__rettAFSweeping = true;
+      var _prevOverride = window.__rettAdditionalFundsOverride;
+      _cands.forEach(function (c) {
+        if (_byCand.hasOwnProperty(c)) return;           // dedup (incl. entered)
+        window.__rettAdditionalFundsOverride = c;
+        try {
+          var r = buildInterestedSummary();
+          var m = {};
+          if (r && Array.isArray(r.entries)) {
+            r.entries.forEach(function (e) {
+              if (e.metrics && Number.isFinite(e.metrics.net)) {
+                m[e.type] = { net: e.metrics.net, trig: Number(e.metrics._additionalFundsTriggeredTax) || 0 };
+              }
+            });
+          }
+          _byCand[c] = m;
+        } catch (e) { /* keep entered-amount numbers if a candidate run fails */ }
+      });
+      window.__rettAdditionalFundsOverride = _prevOverride;
+      window.__rettAFSweeping = false;
+
+      // Each strategy adopts its best candidate (ties prefer the smaller
+      // amount — the efficient minimum, matching the suggestion logic).
+      entries.forEach(function (e) {
+        var enteredNet = (e.metrics.net || 0);            // funds-on at entered amount
+        var bestAmt = _afApplied, bestNet = enteredNet, bestTrig = Number(e.metrics._additionalFundsTriggeredTax) || 0;
+        Object.keys(_byCand).forEach(function (k) {
+          var amt = Number(k);
+          var rec = _byCand[k] && _byCand[k][e.type];
+          if (!rec || !Number.isFinite(rec.net)) return;
+          if (rec.net > bestNet + 0.5 || (Math.abs(rec.net - bestNet) <= 0.5 && amt < bestAmt)) {
+            bestNet = rec.net; bestAmt = amt; bestTrig = rec.trig;
+          }
+        });
+        e.metrics._netBeforeFloor            = enteredNet;     // what it'd be at the entered amount
+        e.metrics.net                        = bestNet;
+        e.metrics._additionalFundsUsed       = bestAmt;
+        e.metrics._additionalFundsTriggeredTax = bestTrig;
+        e.metrics._additionalFundsFloored    = (bestAmt !== _afApplied);  // chose a different amount
       });
     }
 

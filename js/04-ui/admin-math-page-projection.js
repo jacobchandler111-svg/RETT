@@ -137,9 +137,10 @@
       excessLossFeeCredit: _num(m._excessLossFeeCredit || 0),
       // Additional Funds (advisor 2026-06-02): when the Projection-tab
       // toggle is on, collectInputs folds a brokerage liquidation into
-      // capital. The per-card no-funds floor (projection-dashboard-render.js)
-      // lets each strategy USE or DECLINE the funds — a card never drops
-      // below its no-funds net. Surface the decision + the liquidation math.
+      // capital. The per-strategy amount sweep (projection-dashboard-render.js)
+      // lets each strategy pick the liquidation amount (0 / a tier gap / the
+      // entered amount) that maximizes ITS net — a card never drops below its
+      // no-funds net. Surface the chosen amount + the liquidation math.
       additionalFundsApplied:      _num((entry.cfg || {}).additionalFundsApplied || 0),
       additionalFundsUsed:         _num(m._additionalFundsUsed != null
                                      ? m._additionalFundsUsed
@@ -159,34 +160,46 @@
   }
 
   // Additional Funds disclosure: shown only when the toggle folded a
-  // brokerage liquidation in (additionalFundsApplied > 0). Discloses whether
-  // THIS strategy uses or declines the funds, and the liquidation math.
+  // brokerage liquidation in (additionalFundsApplied > 0). Each strategy
+  // picks its own optimal amount; discloses the chosen amount + math.
   function _additionalFundsBlock(analysis) {
-    var applied = _num(analysis.additionalFundsApplied);
+    var applied = _num(analysis.additionalFundsApplied);   // advisor's entered/considered amount
     if (!(applied > 0)) return '';
-    var floored = !!analysis.additionalFundsFloored;
-    var lt = _num(analysis.additionalY0LongGain);
-    var st = _num(analysis.additionalY0ShortGain);
-    var tax = _num(analysis.additionalFundsTriggeredTax);
+    var used = _num(analysis.additionalFundsUsed);         // this strategy's chosen amount
+    // Y0 gains scale pro-rata with the CHOSEN amount (cfg holds them at the
+    // entered amount, so rescale by used/applied).
+    var ratio = applied > 0 ? (used / applied) : 0;
+    var lt = _num(analysis.additionalY0LongGain) * ratio;
+    var st = _num(analysis.additionalY0ShortGain) * ratio;
+    var tax = _num(analysis.additionalFundsTriggeredTax);  // already the chosen amount's tax
+    var consideredNote = (Math.abs(used - applied) > 0.5)
+      ? ' (advisor considered ' + _fmtUSD(applied) + ')' : '';
     var rows = '';
-    rows += '<tr><td>Liquidation considered</td><td class="admin-math-num">' + _fmtUSD(applied) +
-            '</td><td class="admin-math-note-cell">Brokerage sold to add Brooklyn capital (Projection-tab toggle ON)</td></tr>';
+    rows += '<tr><td>Liquidation (this strategy)</td><td class="admin-math-num">' + _fmtUSD(used) +
+            '</td><td class="admin-math-note-cell">Brokerage sold to add Brooklyn capital' + consideredNote +
+            ' — each strategy picks the amount that helps it most</td></tr>';
     rows += '<tr><td>Triggered Y0 gain</td><td class="admin-math-num">' + _fmtUSD(lt + st) +
             '</td><td class="admin-math-note-cell">' + _fmtUSD(lt) + ' LT + ' + _fmtUSD(st) +
             ' ST realized by the sale (pro-rata to the account’s embedded gain)</td></tr>';
     rows += '<tr><td>One-time liquidation tax</td><td class="admin-math-num">' + _fmtUSD(tax) +
             '</td><td class="admin-math-note-cell">tax owed purely for liquidating — not a strategy cost</td></tr>';
-    if (floored) {
-      var forcedNet = (analysis.netBeforeFloor != null) ? _fmtUSD(analysis.netBeforeFloor) : '—';
-      rows += '<tr class="admin-math-total"><td><strong>Decision: DECLINES funds</strong></td>' +
-              '<td class="admin-math-num"><strong>' + _fmtUSD(analysis.cardNet) + '</strong></td>' +
-              '<td class="admin-math-note-cell">funds don’t pay off here — net floored to the no-funds value (' +
-              forcedNet + ' if forced in). The toggle never lowers a card.</td></tr>';
+    var forcedNet = (analysis.netBeforeFloor != null) ? _fmtUSD(analysis.netBeforeFloor) : '—';
+    var verdict, note;
+    if (!(used > 0)) {
+      verdict = 'DECLINES funds';
+      note = 'funds don’t pay off here — net held at the no-funds value (' + forcedNet +
+             ' at the full ' + _fmtUSD(applied) + '). The toggle never lowers a card.';
+    } else if (Math.abs(used - applied) <= 0.5) {
+      verdict = 'USES funds (full)';
+      note = 'extra capital improves this strategy by more than the liquidation tax (net already nets the tax above)';
     } else {
-      rows += '<tr class="admin-math-total"><td><strong>Decision: USES funds</strong></td>' +
-              '<td class="admin-math-num"><strong>' + _fmtUSD(analysis.cardNet) + '</strong></td>' +
-              '<td class="admin-math-note-cell">extra capital improves this strategy by more than the liquidation tax (net already nets the tax above)</td></tr>';
+      verdict = 'USES funds (partial)';
+      note = 'liquidates ' + _fmtUSD(used) + ' — the tier amount that maximizes this strategy; more would only add liquidation tax (' +
+             forcedNet + ' at the full ' + _fmtUSD(applied) + ')';
     }
+    rows += '<tr class="admin-math-total"><td><strong>Decision: ' + verdict + '</strong></td>' +
+            '<td class="admin-math-num"><strong>' + _fmtUSD(analysis.cardNet) + '</strong></td>' +
+            '<td class="admin-math-note-cell">' + note + '</td></tr>';
     return '<p class="admin-math-subtitle" style="margin-top:10px;">Additional Funds (this strategy’s decision):</p>' +
       '<table class="admin-math-table">' +
         '<thead><tr><th>Item</th><th class="admin-math-num">Amount</th><th>Note</th></tr></thead>' +
