@@ -1457,6 +1457,12 @@ body.rett-multi-property #property-1 .property-remove-btn { display: none; }
   font-size: 0.82em;
   color: #8fb3e0;
 }
+.rett-scenario-schedule {
+  font-size: 0.82em;
+  color: #d6e4f7;
+  margin-top: 3px;
+  font-variant-numeric: tabular-nums;
+}
 .rett-scenario-winner {
   background: rgba(95, 217, 126, 0.08);
 }
@@ -3526,6 +3532,13 @@ body { font-size: 16px; }
     font-size: 0.92em;
     margin-top: 4px;
     line-height: 1.4;
+}
+.rett-scenario-schedule {
+    color: var(--ink);
+    font-size: 0.86em;
+    margin-top: 4px;
+    line-height: 1.4;
+    font-variant-numeric: tabular-nums;
 }
 .rett-scenario-badge {
     background: var(--ink);
@@ -7861,6 +7874,14 @@ body { font-size: 16px; }
     color: var(--ink);
 }
 .temp-strategy-pill.temp-pill-empty { color: var(--muted); border-style: dashed; }
+.temp-strategy-schedule {
+    margin-top: 8px;
+    font-family: var(--font-mono);
+    font-size: 0.82em;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.5;
+}
 
 .temp-baselines { display: flex; flex-direction: column; gap: 14px; }
 .temp-empty {

@@ -256,7 +256,18 @@
       return;
     }
     var label = _stratLabel(ctx.chosen);
-    host.innerHTML = '<span class="temp-strategy-pill">Chosen strategy: <strong>' + label + '</strong></span>';
+    var html = '<span class="temp-strategy-pill">Chosen strategy: <strong>' + label + '</strong></span>';
+    // Recommended payment terms for the deferred installment strategies
+    // (B / C), rendered from the SAME helper the Tab-4 comparison table
+    // uses (projection-dashboard-render.js) and from THIS strategy's
+    // chosen cfg (ctx.entry.cfg already reflects its additional-funds
+    // amount), so the two pages can never disagree on the schedule.
+    var _sched = '';
+    if (ctx.entry && ctx.entry.cfg && typeof root.__rettScheduleSummaryLine === 'function') {
+      try { _sched = root.__rettScheduleSummaryLine(ctx.entry.cfg) || ''; } catch (e) { _sched = ''; }
+    }
+    if (_sched) html += '<div class="temp-strategy-schedule">' + _sched + '</div>';
+    host.innerHTML = html;
   }
 
   // INCOME side — reducible buckets the strategy can touch. Hide

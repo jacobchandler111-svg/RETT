@@ -78,6 +78,62 @@
     return sign + '$' + Math.round(abs).toLocaleString('en-US');
   }
 
+  // Human-readable payment / gain-recognition schedule for the deferred
+  // §453 installment strategies (B Installment Sale, C Structured Sale).
+  // Returns null for the immediate strategy (A) or any non-installment
+  // cfg. Derived PURELY from the cfg fields the engine itself consumes
+  // (tax-comparison.js ~764-911: totalLT, _gpContractPrice, the GP ratio,
+  // y0DownPayment, installmentScheduleWeights), so the terms displayed to
+  // the advisor are exactly what the optimizer modeled — no re-derivation
+  // that could drift from the engine.
+  //
+  //   contractPrice (GP) = salePrice − recapture
+  //   GP ratio           = totalLT / contractPrice
+  //   Y0 (sale year)     = down payment D + recapture cash; D recognizes
+  //                        D × GP of LT gain, recap is Y0 ordinary
+  //   Installment year i = (contractPrice − D) × weight[i] cash, which
+  //                        recognizes that × GP of LT gain (Jan 1 dates)
+  function _describeInstallmentSchedule(cfg) {
+    if (!cfg) return null;
+    var N = Math.max(0, Math.min(3, Number(cfg.installmentPayments) || 0));
+    if (N < 1) return null;                 // immediate (A) — no schedule
+    var sale  = Math.max(0, Number(cfg.salePrice) || 0);
+    var basis = Math.max(0, Number(cfg.costBasis) || 0);
+    var recap = Math.max(0, Number(cfg.acceleratedDepreciation) || 0);
+    var stp   = Math.max(0, Number(cfg.shortTermPropertyGain) || 0);
+    var totalLT  = Math.max(0, sale - basis - recap - stp);
+    var contract = Math.max(0, sale - recap);          // §453 GP contract price
+    var gp = contract > 0 ? totalLT / contract : 0;
+    var D = Math.max(0, Math.min(Number(cfg.y0DownPayment) || 0, contract));
+    var y0 = Number(cfg.year1) || (new Date()).getFullYear();
+    var weights = (Array.isArray(cfg.installmentScheduleWeights)
+          && cfg.installmentScheduleWeights.length === N)
+          ? cfg.installmentScheduleWeights : null;
+    var remaining = Math.max(0, contract - D);
+    var rows = [];   // { year, cash, ltGain, recap, atClosing }
+    if (D > 0.5 || recap > 0.5) {
+      rows.push({ year: y0, cash: D + recap, ltGain: D * gp, recap: recap, atClosing: true });
+    }
+    for (var i = 0; i < N; i++) {
+      var w = weights ? Math.max(0, Number(weights[i]) || 0) : (1 / N);
+      var pay = remaining * w;
+      rows.push({ year: y0 + 1 + i, cash: pay, ltGain: pay * gp, recap: 0, atClosing: false });
+    }
+    return { gpRatio: gp, totalLT: totalLT, downPayment: D, payments: N, rows: rows };
+  }
+
+  // One-line "Recommended terms: …" summary for the comparison table and
+  // the temp page. Empty string when there's no installment schedule.
+  function _scheduleSummaryLine(cfg) {
+    var s = _describeInstallmentSchedule(cfg);
+    if (!s || !s.rows.length) return '';
+    var parts = s.rows.map(function (r) {
+      return _fmt(r.cash) + (r.atClosing ? ' at closing (' + r.year + ')'
+                                          : ' on Jan 1, ' + r.year);
+    });
+    return 'Recommended terms: ' + parts.join('  +  ');
+  }
+
   function _kpiTile(label, value, sub, kind) {
     var cls = 'rett-kpi-tile';
     if (kind === 'positive') cls += ' kpi-positive';
@@ -760,13 +816,15 @@
       type: 'B', rec: 2, maxRec: 1,
       label: 'Installment Sale',
       sub: 'Gain hits Year 2 naturally — no structured-sale product needed',
-      metrics: mB
+      metrics: mB,
+      cfg: pickedB && pickedB.cfg
     });
     if (bestC) rows.push({
       type: 'C', rec: bestRecC, maxRec: null,
       label: 'Structured Installment Sale (' + userDuration + ' months)',
       sub: 'Insurance product defers gain to Year ' + bestRecC + ' under the legal window',
-      metrics: bestC
+      metrics: bestC,
+      cfg: pickedC && pickedC.cfg
     });
 
     if (!rows.length) return '';
@@ -901,6 +959,11 @@
       if (isNetNegative) html += ' <span class="rett-scenario-badge rett-scenario-badge-warn">NET NEGATIVE</span>';
       html += '</div>';
       html += '<div class="rett-scenario-sub">' + row.sub + '</div>';
+      // Deferred strategies (B / C): surface the optimizer's recommended
+      // payment terms so the advisor knows what to negotiate, and so this
+      // table reconciles with the temp/tax-implication page.
+      var _sched = row.cfg ? _scheduleSummaryLine(row.cfg) : '';
+      if (_sched) html += '<div class="rett-scenario-schedule">' + _sched + '</div>';
       html += '</td>';
       html += '<td class="num">' + _fmt(row.metrics.tax) + '</td>';
       html += '<td class="num">' + _fmt(row.metrics.fees) + '</td>';
@@ -2459,6 +2522,10 @@
   }
 
   root.renderProjectionDashboard = renderProjectionDashboard;
+  // Exposed so the temp / tax-implication page can render the SAME
+  // recommended payment terms as the comparison table (single source).
+  root.__rettDescribeInstallmentSchedule = _describeInstallmentSchedule;
+  root.__rettScheduleSummaryLine = _scheduleSummaryLine;
 
   // -------------------------------------------------------------------
   // Page-3 minimal view: filter to scenarios marked Interested on Page 2,
