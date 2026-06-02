@@ -873,14 +873,28 @@
         }
       } catch (e) { /* */ }
     }
-    var totalGross = brooklynGross + suppBenefit;
+    // Carryover-loss offset credit (A/B/C) — the value of the free
+    // §1211(b) $3,000/$1,500 ordinary offset the residual carryforward
+    // buys in the first idle year after deployment. buildInterestedSummary
+    // adds it straight to metrics.net (projection-dashboard-render.js), but
+    // it never touches savings or fees — so the panel must surface it as
+    // its own benefit line, or the "gross − fees" net would sit BELOW the
+    // card / Strategy-Summary net by exactly this credit and trip the
+    // reconciliation check (the Strategy-C "⚠ mismatch" bug). Same applies
+    // to the additional-funds liquidation tax, which metrics.net subtracts
+    // but the panel otherwise wouldn't see.
+    var carryoverCredit = Math.round(Number(m._carryoverOffsetCredit || 0) || 0);
+    var addlFundsTax    = Math.round(Number(m._additionalFundsTriggeredTax || 0) || 0);
+    var totalGross = brooklynGross + suppBenefit + carryoverCredit;
     var brooklynFees   = Math.round(Number(m.brooklynFees   || 0) || 0);
     var brookhavenFees = Math.round(Number(m.brookhavenFees || 0) || 0);
     var totalFees      = brooklynFees + brookhavenFees;
-    var net = totalGross - totalFees;
+    var net = totalGross - totalFees - addlFundsTax;
     // Strategy Summary's displayed net = primary net (Brooklyn savings
-    // − fees) + supplementalBenefit. entry.metrics.net is the primary
-    // piece only; adding suppBenefit gives the user-facing total.
+    // − fees + carryover credit − additional-funds tax) + supplementalBenefit.
+    // entry.metrics.net is the primary piece only; adding suppBenefit gives
+    // the user-facing total. With the credit + tax now folded into `net`
+    // above, the two sides reconcile to the dollar.
     var primaryNet = Math.round(Number(m.net || 0) || 0);
     var ssDisplayedNet = primaryNet + suppBenefit;
     var checkOk = Math.abs(net - ssDisplayedNet) <= 5;
@@ -896,6 +910,13 @@
     var brooklynRows =
       '<tr><td>Brooklyn gross savings (across all years)</td><td class="temp-amt">' + _fmt(brooklynGross) + '</td></tr>' +
       lbbFootnote;
+    // Surfaced only when nonzero so the simple lump-sum cases stay clean.
+    var carryoverRow = (carryoverCredit > 5)
+      ? '<tr><td>Carryover-loss offset credit (§1211(b) annual offset)</td><td class="temp-amt">' + _fmt(carryoverCredit) + '</td></tr>'
+      : '';
+    var addlFundsTaxRow = (addlFundsTax > 5)
+      ? '<tr><td>Additional-funds liquidation tax (one-time)</td><td class="temp-amt">&minus;' + _fmt(addlFundsTax) + '</td></tr>'
+      : '';
 
     return '' +
       '<div class="temp-fees-panel">' +
@@ -903,9 +924,11 @@
         '<table class="temp-fees-table"><tbody>' +
           brooklynRows +
           '<tr><td>Supplemental tax savings (vetted total)</td><td class="temp-amt">' + _fmt(suppBenefit) + '</td></tr>' +
+          carryoverRow +
           '<tr class="temp-fees-subtotal"><td><strong>Total gross benefit</strong></td><td class="temp-amt temp-fees-gross"><strong>' + _fmt(totalGross) + '</strong></td></tr>' +
           '<tr><td>Asset Manager fees (across all years)</td><td class="temp-amt">&minus;' + _fmt(brooklynFees) + '</td></tr>' +
           '<tr><td>Brookhaven fees (across all years)</td><td class="temp-amt">&minus;' + _fmt(brookhavenFees) + '</td></tr>' +
+          addlFundsTaxRow +
           '<tr class="temp-fees-total"><td><strong>Net benefit (gross − fees)</strong></td><td class="temp-amt"><strong>' + _fmt(net) + '</strong></td></tr>' +
           '<tr class="temp-fees-check' + (checkOk ? ' is-ok' : ' is-mismatch') + '"><td>Strategy Summary net benefit ' + (checkOk ? '✓ matches' : '⚠ mismatch') + '</td><td class="temp-amt">' + _fmt(ssDisplayedNet) + '</td></tr>' +
         '</tbody></table>' +
