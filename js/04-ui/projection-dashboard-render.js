@@ -3444,14 +3444,20 @@
 
       // Score per candidate, per strategy: { amount -> { type -> {net, trig} } }.
       // The entered amount is already computed (it's what `entries` holds now).
+      // _entByCand parallels _byCand but holds the candidate's full ENTRY
+      // (cfg + _partialDeploy) so a strategy that adopts a different amount
+      // can also pick up that amount's CONFIG — see the adoption loop below.
       var _byCand = {};
+      var _entByCand = {};
       _byCand[_afApplied] = {};
+      _entByCand[_afApplied] = {};
       entries.forEach(function (e) {
         if (e.metrics && Number.isFinite(e.metrics.net)) {
           _byCand[_afApplied][e.type] = {
             net:  e.metrics.net,
             trig: Number(e.metrics._additionalFundsTriggeredTax) || 0
           };
+          _entByCand[_afApplied][e.type] = e;
         }
       });
 
@@ -3463,14 +3469,17 @@
         try {
           var r = buildInterestedSummary();
           var m = {};
+          var em = {};
           if (r && Array.isArray(r.entries)) {
             r.entries.forEach(function (e) {
               if (e.metrics && Number.isFinite(e.metrics.net)) {
                 m[e.type] = { net: e.metrics.net, trig: Number(e.metrics._additionalFundsTriggeredTax) || 0 };
+                em[e.type] = e;
               }
             });
           }
           _byCand[c] = m;
+          _entByCand[c] = em;
         } catch (e) { /* keep entered-amount numbers if a candidate run fails */ }
       });
       window.__rettAdditionalFundsOverride = _prevOverride;
@@ -3494,6 +3503,23 @@
         e.metrics._additionalFundsUsed       = bestAmt;
         e.metrics._additionalFundsTriggeredTax = bestTrig;
         e.metrics._additionalFundsFloored    = (bestAmt !== _afApplied);  // chose a different amount
+        // Adopt the chosen amount's CONFIG, not just its net. Every
+        // downstream reader of e.cfg — chiefly the temp / tax-implication
+        // page, which re-runs unifiedTaxComparison(entry.cfg) — must see the
+        // additional-funds amount this strategy ACTUALLY chose. Without this,
+        // a strategy that declined (bestAmt 0) or under-used the funds still
+        // carried the ENTERED-amount fold (full availableCapital +
+        // additionalY0LongGain), so the tax page showed a phantom Year-0
+        // liquidation gain (e.g. the full $500K) the strategy never realized.
+        // The candidate sub-run's entry is internally consistent (cfg folded
+        // at bestAmt + matching _partialDeploy), so swap both together.
+        if (bestAmt !== _afApplied) {
+          var _be = _entByCand[bestAmt] && _entByCand[bestAmt][e.type];
+          if (_be && _be.cfg) {
+            e.cfg = _be.cfg;
+            e._partialDeploy = _be._partialDeploy;
+          }
+        }
       });
     }
 
