@@ -16,12 +16,18 @@
 // reads as "savings" — but that's circular (the client wouldn't owe that
 // tax if they didn't liquidate). So we strip it out:
 //
-//   netBenefit(C) = [ rawNet(C) - rawNet(0) ]          // extra strategy net
-//                 - [ baselineTax(C) - baselineTax(0) ] // one-time tax from
+//   netBenefit(C) = MAX over strategies of
+//                     [ net_s(C) - net_s(0) ]            // that strategy's
+//                                                        // extra net
+//                   - [ baselineTax(C) - baselineTax(0) ] // one-time tax from
 //                                                        // liquidating (the
 //                                                        // triggered Y0 gain)
 //
-// rawNet = best strategy's (savings - fees) from buildInterestedSummary.
+// net_s = strategy s's (savings - fees) from buildInterestedSummary. We score
+// off the MAX over strategies (not the single best-net strategy's delta):
+// a large benefit to a weaker strategy must still surface the toggle. Without
+// this the toggle was a FALSE NEGATIVE whenever the benefit landed on a
+// non-top strategy (fixed 2026-06-02 — see _maxPerCardImprove).
 // baselineTax = the do-nothing total tax (unifiedTaxComparison.totalBaseline);
 // its delta isolates the tax created purely by the liquidation. Subtracting
 // it leaves the benefit attributable to better offsetting the SALE — so the
@@ -49,17 +55,23 @@
   // Probe the engine at a given contribution. Temporarily forces the
   // toggle ON + writes #additional-funds (no change events dispatched, so
   // the live UI doesn't react), then restores. Returns
-  // { rawNet, baselineTax } or null. contribution <= 0 = do-nothing.
+  // { nets, rawNet, baselineTax } or null. contribution <= 0 = do-nothing.
+  //   nets    = per-strategy RAW net keyed by entry type (A/B/C) — so the
+  //             scorer can measure the improvement to EACH strategy, not
+  //             just the single best-net one (the false-negative bug:
+  //             a big benefit to a weaker strategy was invisible when only
+  //             the top strategy's delta was measured).
+  //   rawNet  = max(nets) (kept for the cheap exit check).
   function _probe(contribution) {
     var fEl = _el('additional-funds'), tEl = _el('additional-funds-toggle');
     if (!fEl || !tEl) return null;
     var prevF = fEl.value, prevT = tEl.checked, prevProbe = root.__rettAFProbing;
-    var out = { rawNet: null, baselineTax: 0 };
+    var out = { nets: {}, rawNet: null, baselineTax: 0 };
     try {
       // Suppress buildInterestedSummary's phantom-strip (Stage 2) while we
       // probe — we want the RAW net here and subtract triggeredTax
       // ourselves below. Without this flag the strip would already remove
-      // triggeredTax from p.rawNet, and the netBenefit formula would then
+      // triggeredTax from p.nets, and the netBenefit formula would then
       // double-subtract it.
       root.__rettAFProbing = true;
       fEl.value = (contribution > 0) ? String(Math.round(contribution)) : '';
@@ -68,8 +80,11 @@
         var sum = root.buildInterestedSummary();
         if (sum && sum.entries && sum.entries.length) {
           var n = -Infinity;
-          sum.entries.forEach(function (e) {
-            if (e && e.metrics && Number.isFinite(e.metrics.net)) n = Math.max(n, e.metrics.net);
+          sum.entries.forEach(function (e, idx) {
+            if (e && e.metrics && Number.isFinite(e.metrics.net)) {
+              out.nets[e.type || ('idx' + idx)] = e.metrics.net;
+              n = Math.max(n, e.metrics.net);
+            }
           });
           out.rawNet = Number.isFinite(n) ? n : null;
         }
@@ -81,6 +96,24 @@
     } catch (e) { out = null; }
     fEl.value = prevF; tEl.checked = prevT; root.__rettAFProbing = prevProbe;
     return out;
+  }
+
+  // Max over strategies of the phantom-free improvement at this probe:
+  //   improve(s) = (nets_c[s] − nets_0[s]) − triggeredTax
+  // triggeredTax is the one-time liquidation tax (global — the brokerage is
+  // sold once regardless of how each strategy deploys the capital), so it is
+  // subtracted from every card, matching the render's per-card phantom strip.
+  // Taking the MAX answers "does AT LEAST ONE strategy positively benefit?"
+  // — a drop in another strategy is irrelevant (the render's per-card sweep
+  // makes that strategy DECLINE so it never shows a lower number).
+  function _maxPerCardImprove(base, p, triggeredTax) {
+    var maxImp = -Infinity;
+    Object.keys(p.nets).forEach(function (k) {
+      if (!(k in base.nets)) return;
+      var imp = (p.nets[k] - base.nets[k]) - triggeredTax;
+      if (imp > maxImp) maxImp = imp;
+    });
+    return Number.isFinite(maxImp) ? maxImp : null;
   }
 
   function rettSuggestAdditionalFunds() {
@@ -123,40 +156,39 @@
                  .sort(function (a, b) { return a - b; });
     if (!cands.length) return null;
 
-    // ---- Score each gap by netBenefit (offset-of-sale, phantom-free) ---
-    //   netBenefit    = (extra strategy net) − (one-time liquidation tax)
-    //   triggeredTax  = the extra tax the liquidation creates this year
+    // ---- Score each candidate by max-per-card netBenefit (phantom-free) -
+    //   netBenefit(c) = MAX over strategies of the phantom-free improvement
+    //                   that strategy gets from contribution c (see
+    //                   _maxPerCardImprove). Taking the max means the
+    //                   suggestion fires whenever ANY strategy genuinely
+    //                   benefits — aligning the auto-populate (which gates
+    //                   toggle visibility) with the user's invariant
+    //                   "show if AT LEAST ONE strategy positively benefits."
     //
-    // Only-when-it-clearly-pays guard (advisor 2026-05-28): the suggestion
-    // should fire when the SAVINGS dwarf the ADDITIONAL TAX the client pays
-    // to realize the gain — e.g. "put in $10K, save $100K" — and NOT reach
-    // for a small win with a big liquidation ("put in $500K to save $10K").
-    // So require the net benefit to be MUCH larger than the triggered tax:
-    //     netBenefit > max($1K, BENEFIT_MULT × triggeredTax)
-    // BENEFIT_MULT = 2 ⇒ the net win must be ≥ 2× the extra tax (gross
-    // savings ≥ ~3× the tax). Tiny tier-unlocks (a few $ from a threshold →
-    // ~$0 triggered tax) still clear the $1K floor; big liquidations that
-    // only edge out a positive net are suppressed.
-    var BENEFIT_MULT = 2;
+    // Noise floor only (was BENEFIT_MULT × triggeredTax, advisor 2026-05-28).
+    // The old 2× multiplier suppressed genuine wins because the phantom-free
+    // netBenefit ALREADY subtracts the liquidation's triggered tax — the
+    // extra multiplier double-penalized and hid real benefits. The user's
+    // 2026-06-02 invariant is "positively benefits" = improvement > 0, so we
+    // keep only a $1K noise floor to ignore rounding-scale wins.
+    var FLOOR = 1000;
 
     var base = _probe(0);
-    if (!base || base.rawNet == null) return null;
+    if (!base || !base.nets || !Object.keys(base.nets).length) return null;
 
-    // Suggest the amount with the HIGHEST phantom-free net benefit; within a
-    // small tolerance prefer the SMALLER amount (the efficient minimum). Only
-    // amounts whose benefit clears the bar (>> the tax the liquidation
-    // triggers) qualify. null when none do — sale already covered, or the win
-    // doesn't dwarf the additional tax. cands is ascending, so the smaller of
-    // two near-tied amounts is kept (a later, larger amount only wins if it
-    // beats the current best by more than the tolerance).
+    // Suggest the amount with the HIGHEST max-per-card net benefit; within a
+    // small tolerance prefer the SMALLER amount (the efficient minimum). null
+    // when no amount clears the noise floor — sale already covered for every
+    // strategy, or no strategy gains more than rounding noise. cands is
+    // ascending, so the smaller of two near-tied amounts is kept (a later,
+    // larger amount only wins if it beats the current best by > tolerance).
     var TOL = 1000, best = null;
     for (var i = 0; i < cands.length; i++) {
       var p = _probe(cands[i]);
-      if (!p || p.rawNet == null) continue;
+      if (!p || !p.nets || !Object.keys(p.nets).length) continue;
       var triggeredTax = Math.max(0, p.baselineTax - base.baselineTax);
-      var netBenefit = (p.rawNet - base.rawNet) - triggeredTax;
-      var bar = Math.max(1000, BENEFIT_MULT * triggeredTax);
-      if (netBenefit <= bar) continue;
+      var netBenefit = _maxPerCardImprove(base, p, triggeredTax);
+      if (netBenefit == null || netBenefit <= FLOOR) continue;
       if (!best || netBenefit > best.nb + TOL) best = { amt: cands[i], nb: netBenefit };
     }
     return best ? best.amt : null;
@@ -175,10 +207,13 @@
   // Returns { amount, netBenefit, triggeredTax, qualifies }:
   //   amount       = capped liquidation (min(entered, accountValue))
   //   triggeredTax = one-time do-nothing tax the liquidation creates
-  //   netBenefit   = (rawNet_with − rawNet_without) − triggeredTax
-  //                  i.e. benefit OFF THE SALE, with the self-created
-  //                  liquidation gain's offset (the "phantom") removed
-  //   qualifies    = netBenefit > 0  (adding the funds genuinely helps)
+  //   netBenefit   = MAX over strategies of the phantom-free improvement
+  //                  each strategy gets (see _maxPerCardImprove) — NOT just
+  //                  the top-net strategy's delta. This is what makes the
+  //                  gate honor "show if AT LEAST ONE strategy benefits": a
+  //                  big benefit to a weaker strategy now counts even when
+  //                  the best-net strategy is unaffected.
+  //   qualifies    = netBenefit > 0  (at least one strategy genuinely helps)
   // Cheap exit (no probing) when there's no account value or no amount.
   function rettAdditionalFundsBenefit() {
     var ZERO = { amount: 0, netBenefit: 0, triggeredTax: 0, qualifies: false };
@@ -189,11 +224,12 @@
         typeof root.buildInterestedSummary !== 'function') return ZERO;
     var liq = Math.min(amt, AV);
     var base = _probe(0);
-    if (!base || base.rawNet == null) return ZERO;
+    if (!base || !base.nets || !Object.keys(base.nets).length) return ZERO;
     var p = _probe(liq);
-    if (!p || p.rawNet == null) return ZERO;
+    if (!p || !p.nets || !Object.keys(p.nets).length) return ZERO;
     var triggeredTax = Math.max(0, p.baselineTax - base.baselineTax);
-    var netBenefit = (p.rawNet - base.rawNet) - triggeredTax;
+    var netBenefit = _maxPerCardImprove(base, p, triggeredTax);
+    if (netBenefit == null) return ZERO;
     return {
       amount: liq,
       netBenefit: netBenefit,
