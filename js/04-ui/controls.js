@@ -318,7 +318,7 @@ function _bindCaseControls() {
     if (!window.confirm('Start a new client? The form will be cleared.')) return;
     window.__rettSuppressAutoSave = true;
     store.startNewCase();
-    resetAllInputs(true);
+    resetAllInputs(true, true);   // clear form but stay on the current tab
     _refreshCaseDropdown('');
     if (nameInput) {
       nameInput.value = '';
@@ -329,7 +329,7 @@ function _bindCaseControls() {
   });
 }
 
-function resetAllInputs(skipConfirm) {
+function resetAllInputs(skipConfirm, stayOnCurrentPage) {
   // Reset all editable form fields on Page 1 and Page 2 to their initial state.
   // Resets the underlying defaults selected in HTML — does NOT clear localStorage
   // (the app does not persist anything yet).
@@ -463,7 +463,7 @@ function resetAllInputs(skipConfirm) {
     setTimeout(function () { if (typeof hideBanner === 'function') hideBanner(); }, 2000);
   }
 
-  showPage('page-inputs');
+  if (!stayOnCurrentPage) showPage('page-inputs');
 }
 
 // Refresh the visual state of the three Strategy-Selection cards
