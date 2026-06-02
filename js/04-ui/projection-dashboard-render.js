@@ -3421,7 +3421,11 @@
                         : (parseFloat(String(_avEl.value).replace(/[^0-9.\-]/g, '')) || 0)) : 0;
       var _baseCapNoFunds = Math.max(0, (Number(currentCfg.availableCapital) || 0) - _afApplied);
 
-      // Build the candidate amount set.
+      // Build the candidate amount set: 0 (decline), the entered amount,
+      // reachable Schwab tier gaps, and fractional account amounts (so a
+      // capital-constrained strategy can pick the slice that offsets the most
+      // REAL gain even when no tier unlock is involved — matches the broadened
+      // suggestion logic in additional-funds.js).
       var _cands = [0, _afApplied];
       try {
         var _tierKey = (currentCfg && currentCfg.tierKey) || 'beta1';
@@ -3433,6 +3437,10 @@
           });
         }
       } catch (e) { /* tier gaps optional — entered + 0 always present */ }
+      [0.25, 0.5, 0.75, 1].forEach(function (f) {
+        var amt = Math.round(_avSweep * f);
+        if (amt > 0 && amt <= _avSweep) _cands.push(amt);
+      });
 
       // Score per candidate, per strategy: { amount -> { type -> {net, trig} } }.
       // The entered amount is already computed (it's what `entries` holds now).

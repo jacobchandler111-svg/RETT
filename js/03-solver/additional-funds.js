@@ -91,27 +91,37 @@
 
     var curCap = _pv('available-capital');              // base Brooklyn capital (no add'l funds)
 
-    // ---- Candidates = reachable Schwab tier gaps ONLY ------------------
-    // We deliberately do NOT sweep arbitrary fractions of the account.
-    // Deploying past the point that covers the real-estate sale only
-    // washes the self-created liquidation gains (offsetting them at an
-    // unlocked tier can even show a sliver of "benefit" — still phantom).
-    // The clean, non-phantom lever is the TIER BUMP: getting capital to
-    // the next combo minimum ($1M → 145/45, $3M → 200/100) unlocks a
-    // higher loss-rate that offsets the SALE gain more efficiently.
-    var gaps = [];
+    // ---- Candidates = tier gaps + fractional account amounts -----------
+    // Two kinds of clean, non-phantom lever:
+    //   (1) TIER BUMP — getting capital to the next combo minimum
+    //       ($1M → 145/45, $3M → 200/100) unlocks a higher loss-rate that
+    //       offsets the SALE gain more efficiently.
+    //   (2) CAPITAL TO COVER MORE REAL GAIN — when the sale gain isn't yet
+    //       fully offset (a strategy is capital-constrained, e.g. already at
+    //       the top tier), adding capital WITHIN the tier still offsets more
+    //       REAL gain. (Broadened 2026-06-02 — the old tier-gap-ONLY set hid
+    //       the toggle at the top tier even when more capital clearly helped.)
+    // Sweeping fractions is safe because the phantom-free scoring below nets
+    // any self-created liquidation gain to ~0 (its offset is cancelled by the
+    // triggered tax), so over-liquidation can never look beneficial.
+    var cands = [];
     try {
       var cfg = root.collectInputs();
       var stratKey = (cfg && cfg.tierKey) || 'beta1';
       if (typeof root.listSchwabCombosForStrategy === 'function') {
         (root.listSchwabCombosForStrategy(stratKey) || []).forEach(function (c) {
           var min = Number(c && c.minInvestment) || 0;
-          if (min > curCap && (min - curCap) <= AV) gaps.push(Math.round(min - curCap));
+          if (min > curCap && (min - curCap) <= AV) cands.push(Math.round(min - curCap));
         });
       }
     } catch (e) { return null; }
-    gaps.sort(function (a, b) { return a - b; });
-    if (!gaps.length) return null;
+    [0.25, 0.5, 0.75, 1].forEach(function (f) {
+      var amt = Math.round(AV * f);
+      if (amt > 0) cands.push(amt);
+    });
+    cands = cands.filter(function (v, i, a) { return v > 0 && a.indexOf(v) === i; })
+                 .sort(function (a, b) { return a - b; });
+    if (!cands.length) return null;
 
     // ---- Score each gap by netBenefit (offset-of-sale, phantom-free) ---
     //   netBenefit    = (extra strategy net) − (one-time liquidation tax)
@@ -132,19 +142,24 @@
     var base = _probe(0);
     if (!base || base.rawNet == null) return null;
 
-    // Suggest the SMALLEST tier gap whose net benefit clears the bar — the
-    // cheapest tier jump that pays off far more than the tax it triggers.
-    // null when none do (sale already covered, or the win doesn't dwarf the
-    // additional tax).
-    for (var i = 0; i < gaps.length; i++) {
-      var p = _probe(gaps[i]);
+    // Suggest the amount with the HIGHEST phantom-free net benefit; within a
+    // small tolerance prefer the SMALLER amount (the efficient minimum). Only
+    // amounts whose benefit clears the bar (>> the tax the liquidation
+    // triggers) qualify. null when none do — sale already covered, or the win
+    // doesn't dwarf the additional tax. cands is ascending, so the smaller of
+    // two near-tied amounts is kept (a later, larger amount only wins if it
+    // beats the current best by more than the tolerance).
+    var TOL = 1000, best = null;
+    for (var i = 0; i < cands.length; i++) {
+      var p = _probe(cands[i]);
       if (!p || p.rawNet == null) continue;
       var triggeredTax = Math.max(0, p.baselineTax - base.baselineTax);
       var netBenefit = (p.rawNet - base.rawNet) - triggeredTax;
       var bar = Math.max(1000, BENEFIT_MULT * triggeredTax);
-      if (netBenefit > bar) return gaps[i];
+      if (netBenefit <= bar) continue;
+      if (!best || netBenefit > best.nb + TOL) best = { amt: cands[i], nb: netBenefit };
     }
-    return null;
+    return best ? best.amt : null;
   }
 
   root.rettSuggestAdditionalFunds = rettSuggestAdditionalFunds;
