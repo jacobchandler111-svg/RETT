@@ -105,21 +105,32 @@
     var contract = Math.max(0, sale - recap);          // §453 GP contract price
     var gp = contract > 0 ? totalLT / contract : 0;
     var D = Math.max(0, Math.min(Number(cfg.y0DownPayment) || 0, contract));
+    // Forced Y0 payment — sale proceeds the seller must take at closing to
+    // pay off outstanding debt / personal-use cash (cfg.forcedY0Payment =
+    // amount-owed + personal-use, summed in inputs-collector.js). That cash
+    // is received at closing, so for a §453 deferral it recognizes F × GP
+    // of LT gain in Y0 and is NOT available to deploy to Brooklyn. Capped,
+    // together with the down payment, at the contract price — mirrors the
+    // engine's _forcedY0Payment handling (tax-comparison.js ~904-911), so
+    // the schedule reflects the same Y0 gain the engine recognizes.
+    var F = Math.max(0, Math.min(Number(cfg.forcedY0Payment) || 0, Math.max(0, contract - D)));
     var y0 = Number(cfg.year1) || (new Date()).getFullYear();
     var weights = (Array.isArray(cfg.installmentScheduleWeights)
           && cfg.installmentScheduleWeights.length === N)
           ? cfg.installmentScheduleWeights : null;
-    var remaining = Math.max(0, contract - D);
-    var rows = [];   // { year, cash, ltGain, recap, atClosing }
-    if (D > 0.5 || recap > 0.5) {
-      rows.push({ year: y0, cash: D + recap, ltGain: D * gp, recap: recap, atClosing: true });
+    var remaining = Math.max(0, contract - D - F);
+    var rows = [];   // { year, cash, ltGain, recap, downPayment, debtPayoff, atClosing }
+    if (D > 0.5 || F > 0.5 || recap > 0.5) {
+      rows.push({ year: y0, cash: D + F + recap, ltGain: (D + F) * gp,
+        recap: recap, downPayment: D, debtPayoff: F, atClosing: true });
     }
     for (var i = 0; i < N; i++) {
       var w = weights ? Math.max(0, Number(weights[i]) || 0) : (1 / N);
       var pay = remaining * w;
-      rows.push({ year: y0 + 1 + i, cash: pay, ltGain: pay * gp, recap: 0, atClosing: false });
+      rows.push({ year: y0 + 1 + i, cash: pay, ltGain: pay * gp,
+        recap: 0, downPayment: 0, debtPayoff: 0, atClosing: false });
     }
-    return { gpRatio: gp, totalLT: totalLT, downPayment: D, payments: N, rows: rows };
+    return { gpRatio: gp, totalLT: totalLT, downPayment: D, debtPayoff: F, payments: N, rows: rows };
   }
 
   // One-line "Recommended terms: …" summary for the comparison table and
@@ -128,8 +139,9 @@
     var s = _describeInstallmentSchedule(cfg);
     if (!s || !s.rows.length) return '';
     var parts = s.rows.map(function (r) {
-      return _fmt(r.cash) + (r.atClosing ? ' at closing (' + r.year + ')'
-                                          : ' on Jan 1, ' + r.year);
+      if (!r.atClosing) return _fmt(r.cash) + ' on Jan 1, ' + r.year;
+      var note = (r.debtPayoff > 0.5) ? ', incl. ' + _fmt(r.debtPayoff) + ' debt payoff' : '';
+      return _fmt(r.cash) + ' at closing (' + r.year + note + ')';
     });
     return 'Recommended terms: ' + parts.join('  +  ');
   }
