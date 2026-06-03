@@ -8715,3 +8715,163 @@ body { font-size: 16px; }
    the rows on its own pass — the class survives the restore. */
 .recap-split { display: none; }
 .recap-split.recap-split-active { display: flex; }
+
+/* ============================================================
+   Tab 2 — Proceeds Bar (Sale Anatomy)
+   ------------------------------------------------------------
+   Stacked horizontal bar across the full sale price, segmented
+   into return-of-basis · §1245 recap · §1250 recap · LT gain.
+   Top bracket spans the bar (Sale Price). Bottom bracket spans
+   basis + recap (Original Purchase Price) so the taxable gain
+   becomes visually obvious as "everything past the original
+   purchase price bracket."
+   ============================================================ */
+.proceeds-wrap {
+  /* Brand-aligned palette: slate (neutral) → danger red (worst) →
+     brand blue (capped) → success green (best). Mirrors the rest of
+     the RETT UI's tile / strategy color language. */
+  --pb-basis:     #6c7894;             /* slate — return of capital  */
+  --pb-1245:      var(--rett-danger);  /* danger red — full marginal */
+  --pb-1250:      var(--rett-blue);    /* brand blue — 25% capped    */
+  --pb-lt:        var(--rett-success); /* success green — 20% LTCG   */
+  margin: 0 0 28px 0;
+  padding: 24px 28px 22px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+.proceeds-eyebrow {
+  font-family: 'JetBrains Mono', 'Spline Sans Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+.proceeds-frame { margin-top: 8px; }
+.proceeds-bar {
+  height: 60px;
+  display: flex;
+  width: 100%;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.04);
+}
+.proceeds-bar .pseg {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 10px;
+  color: #fff;
+  min-width: 0;
+  overflow: hidden;
+  transition: flex-basis .25s ease;
+}
+.proceeds-bar .pseg .pamt {
+  font-family: 'JetBrains Mono', 'Spline Sans Mono', monospace;
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.proceeds-bar .pseg .pnm {
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.92;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+/* Brackets — top spans Sale Price, bottom spans Original Purchase Price. */
+.bracket { position: relative; width: 100%; }
+.bracket.top { height: 38px; }
+.bracket.bottom { height: 38px; }
+.bracket .bk {
+  position: absolute;
+  box-sizing: border-box;
+}
+.bracket.top .bk {
+  top: 22px;
+  height: 14px;
+  border: 2px solid var(--ink);
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+}
+.bracket.bottom .bk {
+  bottom: 22px;
+  height: 14px;
+  border: 2px solid var(--ink);
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  opacity: 0.55;
+}
+.bracket .bk-label {
+  position: absolute;
+  text-align: center;
+  font-family: 'JetBrains Mono', 'Spline Sans Mono', monospace;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.bracket.top .bk-label { top: 0; color: var(--ink); }
+.bracket.bottom .bk-label { bottom: 0; color: var(--ink-soft); }
+.proceeds-key {
+  display: flex;
+  gap: 22px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+.proceeds-key .pk { display: flex; align-items: center; gap: 8px; }
+.proceeds-key .sw {
+  width: 12px; height: 12px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.proceeds-key .pk-amt {
+  font-family: 'JetBrains Mono', 'Spline Sans Mono', monospace;
+  font-weight: 600;
+  color: var(--ink);
+}
+.proceeds-hint {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--rule-soft);
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.proceeds-hint b { color: var(--ink); font-weight: 600; }
+
+/* ============================================================
+   Tab 2 — Three-tile auto-reveal on scroll
+   ------------------------------------------------------------
+   The 3-tile row starts dimmed + slid down. IntersectionObserver
+   in baseline-table.js adds .baseline-reveal-shown which fades
+   + slides them into place. Respects reduced-motion.
+   ============================================================ */
+.baseline-reveal-target {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 480ms ease, transform 520ms ease;
+}
+.baseline-reveal-target.baseline-reveal-shown {
+  opacity: 1;
+  transform: translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .baseline-reveal-target,
+  .baseline-reveal-target.baseline-reveal-shown {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
