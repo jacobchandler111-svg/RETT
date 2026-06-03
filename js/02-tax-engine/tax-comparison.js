@@ -200,6 +200,22 @@ function _baseScenarioForYear(cfg, yr, gainTakenThisYear, recaptureThisYear) {
       // rental income pay the right NIIT every year.
       const _scaledInvOrd = (cfg.investmentIncomeOrdinary || 0);
       const _recap = Math.max(0, Number(recaptureThisYear) || 0);
+      // §1245/§1250 split (advisor 2026-06-04). When the user fills the
+      // recap split sub-inputs on Section 02, cfg carries both pieces:
+      //   cfg.acceleratedDepreciation1245 (ordinary income — full marginal,
+      //     NO 25% cap, NOT in NIIT base under active-trade/biz assumption)
+      //   cfg.acceleratedDepreciation1250 (per-slice 25% cap, in NIIT base)
+      // For multi-year scenarios where recaptureThisYear varies (e.g. Y0
+      // = full recap, Y1+ = 0), preserve the user-entered 1245/1250 RATIO
+      // and apply it to the year's recap amount. If the user didn't fill
+      // the split (both zero), default the whole recap to §1250 — that's
+      // what the engine has always assumed.
+      const _ad1245 = Math.max(0, Number(cfg.acceleratedDepreciation1245) || 0);
+      const _ad1250 = Math.max(0, Number(cfg.acceleratedDepreciation1250) || 0);
+      const _adSplitTotal = _ad1245 + _ad1250;
+      const _recap1245Ratio = _adSplitTotal > 0 ? (_ad1245 / _adSplitTotal) : 0;
+      const _recap1245 = _recap * _recap1245Ratio;
+      const _recap1250 = _recap - _recap1245;
       // Qualified dividends — recurring annual income, inflation-scaled
       // alongside other recurring streams. IRC §1(h)(11): preferential
       // LTCG rates, stacks on ordinary for bracket placement, in NIIT
@@ -243,7 +259,14 @@ function _baseScenarioForYear(cfg, yr, gainTakenThisYear, recaptureThisYear) {
             // _yearTaxes - acceptable for GA-first audience, P1 to
             // refine per-state SS exemption.
             ordinaryIncome: ordOverride + _taxableSS,
+            // Recapture: kept as a single backward-compat total. The split
+            // is carried in depreciationRecapture1245 / depreciationRecapture1250
+            // so tax-calc-federal can route §1245 to ordinary marginal rates
+            // and §1250 to the §1(h)(1)(E) 25% cap. Sum-equality invariant:
+            //   depreciationRecapture === depreciationRecapture1245 + depreciationRecapture1250
             depreciationRecapture: _recap,
+            depreciationRecapture1245: _recap1245,
+            depreciationRecapture1250: _recap1250,
             shortTermGain: shortOverride,
             longTermGain: ltAmt,
             qualifiedDividend: _scaledQualDiv,
@@ -259,15 +282,14 @@ function _baseScenarioForYear(cfg, yr, gainTakenThisYear, recaptureThisYear) {
             _grossSocialSecurity:   _scaledGrossSS,
             // NIIT base = LT gain + ST gain + §1250 unrecaptured gain +
             // passive ordinary (rental / non-qualified div / interest).
-            // Per §1411, depreciation recapture from a property sale IS
-            // net investment income (it's gain from disposition of
-            // property held in a passive activity / investment), so it
-            // belongs in the NIIT base. Previously omitted, which
-            // under-reported NIIT on recapture-heavy scenarios. Loss
-            // netting in _applyLossesToScenario / _applyLossesWithSTCfCap
-            // now subtracts offset amounts from this same base, keeping
-            // ledger consistent.
-            investmentIncome: ltAmt + Math.max(0, shortOverride) + _recap + _scaledInvOrd + _scaledQualDiv,
+            // §1250 unrecap is investment income (gain from disposition of
+            // real property). §1245 recapture is ORDINARY income from an
+            // active trade or business and is generally NOT subject to
+            // NIIT — the active-business assumption is the default for
+            // real-estate clients using cost segregation (advisor
+            // 2026-06-04 / research confirmed). Only _recap1250 enters
+            // here, NOT _recap1245.
+            investmentIncome: ltAmt + Math.max(0, shortOverride) + _recap1250 + _scaledInvOrd + _scaledQualDiv,
             // Additional-Medicare wage base. cfg.wages (W-2 + SE only)
             // when supplied — scaled by the same inflation factor as
             // baseOrdinaryIncome so wages grow alongside brackets.
