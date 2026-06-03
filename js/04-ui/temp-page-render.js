@@ -686,33 +686,54 @@
     var bhFeeYear = Math.round((Number(row && row.brookhavenFee) || 0) * bhScale);
     var netForYear = grossBenefit - amFeeYear - bhFeeYear;
 
-    // Surface what Brooklyn losses were APPLIED against this year. The
-    // CPA otherwise sees "ST loss generated $1.8M" but doesn't know
-    // where the $1.8M went (esp. when no LT gain is shown for the
-    // year). The bucket label is inferred from row context:
-    //   gainRecognized > 0     → applied to LT capital gain
-    //   Y0 + recap > 0         → applied to §1250 depreciation recapture
-    //                           (Brooklyn ST losses absorb recap via
-    //                           §1212(b) netting before §1211(b) ord cap)
-    //   else lossApp ≤ $3K     → applied to ordinary income (§1211(b) cap)
-    //   else                   → generic "gain / recap"
+    // Surface what Brooklyn losses were APPLIED against this year as
+    // SEPARATE rows per bucket — the engine now exposes the per-bucket
+    // breakdown so we can render:
+    //   • Loss applied to ST capital gain     (rarely populated)
+    //   • Loss applied to LT capital gain     (most common)
+    //   • Loss applied to §1250 unrecap gain  (after LT is exhausted)
+    //   • Loss applied to ordinary income     (§1211(b) $3K/$1.5K cap)
+    // Previously the temp page lumped everything into a single
+    // "Loss applied to ..." line whose label was inferred from row
+    // context — misleading when (e.g.) LT $1.5M + Brooklyn loss
+    // $1.502M absorbed $1.5M into LT and $2,130 into ordinary but
+    // the single line read "Loss applied to LT capital gain $1,502,130".
     var lossApp = Math.max(0, Number(row && row.lossApplied) || 0);
-    var lossAppLabel = '';
-    if (lossApp > 0) {
-      var rowGain = Math.max(0, Number(row && row.gainRecognized) || 0);
-      var cfgRecap = Math.max(0, Number(cfg && cfg.acceleratedDepreciation) || 0);
-      if (rowGain > 0) lossAppLabel = 'Loss applied to LT capital gain';
-      else if (displayedI === 0 && cfgRecap > 0) lossAppLabel = 'Loss applied to §1250 recapture';
-      else if (lossApp <= 3001) lossAppLabel = 'Loss applied to ordinary income (§1211(b) cap)';
-      else lossAppLabel = 'Loss applied (gain / recap)';
-    }
+    var ltOffset      = Math.max(0, Number(row && row.ltOffsetApplied)        || 0);
+    var stOffset      = Math.max(0, Number(row && row.shortOffsetApplied)     || 0);
+    var recap1250Off  = Math.max(0, Number(row && row.recap1250OffsetApplied) || 0);
+    // ordOffsetBrooklyn already computed upstream (line 476-479) from
+    // row.ordOffsetApplied / withStrategy._ordOffsetApplied.
+    // Sanity floor: when the engine row predates the breakdown fields
+    // (legacy code path), fall back to lumping the total under whichever
+    // single bucket label fits — preserves pre-fix display behavior.
+    var hasBreakdown = (stOffset + ltOffset + recap1250Off + ordOffsetBrooklyn) > 0;
 
     var rows = [];
-    if (stLoss > 0)      rows.push(['ST loss generated',     _fmt(stLoss)]);
-    if (lossApp > 0)     rows.push([lossAppLabel,             _fmt(lossApp)]);
-    if (ordOffset > 0)   rows.push(['Ordinary income offset', _fmt(ordOffset)]);
-    if (ltGainAdded > 0) rows.push(['LT gain added',          _fmt(ltGainAdded)]);
-    if (other > 0)       rows.push(['Other tax savings (PTET, etc.)', _fmt(other)]);
+    if (stLoss > 0)        rows.push(['ST loss generated',                     _fmt(stLoss)]);
+    if (hasBreakdown) {
+      if (stOffset > 0)     rows.push(['Loss applied to ST capital gain',     _fmt(stOffset)]);
+      if (ltOffset > 0)     rows.push(['Loss applied to LT capital gain',     _fmt(ltOffset)]);
+      if (recap1250Off > 0) rows.push(['Loss applied to §1250 unrecap gain',  _fmt(recap1250Off)]);
+      // §1245 deliberately omitted — capital losses can't reach §1245
+      // (it's ordinary, only the $3K cap below applies).
+      if (ordOffsetBrooklyn > 0) {
+        rows.push(['Loss applied to ordinary income (§1211(b) cap)', _fmt(ordOffsetBrooklyn)]);
+      }
+    } else if (lossApp > 0) {
+      // Legacy fallback (engine row missing breakdown fields).
+      var rowGain = Math.max(0, Number(row && row.gainRecognized) || 0);
+      var cfgRecap = Math.max(0, Number(cfg && cfg.acceleratedDepreciation) || 0);
+      var legacyLabel = '';
+      if (rowGain > 0) legacyLabel = 'Loss applied to LT capital gain';
+      else if (displayedI === 0 && cfgRecap > 0) legacyLabel = 'Loss applied to §1250 recapture';
+      else if (lossApp <= 3001) legacyLabel = 'Loss applied to ordinary income (§1211(b) cap)';
+      else legacyLabel = 'Loss applied (gain / recap)';
+      rows.push([legacyLabel, _fmt(lossApp)]);
+    }
+    if (ordOffsetSupp > 0) rows.push(['Ordinary income offset (supplemental)', _fmt(ordOffsetSupp)]);
+    if (ltGainAdded > 0)   rows.push(['LT gain added',                         _fmt(ltGainAdded)]);
+    if (other > 0)         rows.push(['Other tax savings (PTET, etc.)', _fmt(other)]);
     // "Gain from lower tax bracket" — deferred-strategy timing benefit,
     // allocated entirely to Y0. Shows what the client gains by recognizing
     // gain in inflation-bumped later-year brackets (and, for Strategy C,

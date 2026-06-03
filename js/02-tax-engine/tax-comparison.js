@@ -520,13 +520,16 @@ function _applyLossesWithSTCfCap(scenario, lossAvailable, capOrdinary) {
       out.shortTermGain = (out.shortTermGain || 0) - offsetShort;
       out.investmentIncome = Math.max(0, (out.investmentIncome || 0) - offsetShort);
       loss -= offsetShort;
+      let _shortOffsetApplied = offsetShort;
 
       // Step 2: Regular LT gain.
+      let _ltOffsetApplied = 0;
       if (loss > 0) {
             const offsetLong = Math.min(out.longTermGain || 0, loss);
             out.longTermGain = (out.longTermGain || 0) - offsetLong;
             out.investmentIncome = Math.max(0, (out.investmentIncome || 0) - offsetLong);
             loss -= offsetLong;
+            _ltOffsetApplied = offsetLong;
       }
 
       // Step 3: §1250 unrecaptured gain. The §1250 portion of the
@@ -536,6 +539,7 @@ function _applyLossesWithSTCfCap(scenario, lossAvailable, capOrdinary) {
       // (kept as backward-compat sum = §1245 + §1250) by the offset
       // amount. NIIT base also shrinks (the §1250 piece was in
       // investmentIncome upstream via _baseScenarioForYear).
+      let _recap1250OffsetApplied = 0;
       if (loss > 0) {
             const _r1250 = Number(out.depreciationRecapture1250) || 0;
             const offset1250 = Math.min(_r1250, loss);
@@ -546,6 +550,7 @@ function _applyLossesWithSTCfCap(scenario, lossAvailable, capOrdinary) {
                   out.investmentIncome = Math.max(0,
                         (out.investmentIncome || 0) - offset1250);
                   loss -= offset1250;
+                  _recap1250OffsetApplied = offset1250;
             }
       }
 
@@ -568,6 +573,18 @@ function _applyLossesWithSTCfCap(scenario, lossAvailable, capOrdinary) {
       out._lossUsed = lossAvailable - loss;
       out._lossUnused = loss;
       out._ordOffsetApplied = _ordOffsetApplied;
+      // Per-bucket offset breakdown so downstream renderers (Tab 7) can
+      // show LT-absorbed vs §1250-absorbed vs ordinary-absorbed as
+      // separate rows. Previously the temp page lumped everything under
+      // a single "Loss applied to LT capital gain" label, which on a
+      // scenario like LT $1.5M + Brooklyn loss $1.502M would show
+      // "Loss applied to LT capital gain $1,502,130" — misleading,
+      // since $1.5M went to LT and $2,130 actually went to ordinary
+      // via the §1211(b) cap. Now exposed: _shortOffsetApplied,
+      // _ltOffsetApplied, _recap1250OffsetApplied, _ordOffsetApplied.
+      out._shortOffsetApplied = _shortOffsetApplied;
+      out._ltOffsetApplied = _ltOffsetApplied;
+      out._recap1250OffsetApplied = _recap1250OffsetApplied;
       return out;
 }
 
@@ -1856,15 +1873,17 @@ function unifiedTaxComparison(cfg, opts) {
                   reinvestedThisYear: reinvested,
                   lossGenerated: yearLoss,
                   lossApplied: withStrat._lossUsed || 0,
-                  // §1211(b) ordinary-offset breadcrumb. _applyLossesWithSTCfCap
-                  // sets _ordOffsetApplied on the with-strategy SCENARIO object,
-                  // but _yearTaxes returns a fresh tax-only object and drops it.
-                  // Surface it on the row so Tab 7 can render an "Ordinary income
-                  // offset $X" line — without this, the temp page silently
-                  // hid the $3K cap firing (e.g. $619K LT gain + $3K ord
-                  // offset = $622K lossApplied was visible but the "$3K to
-                  // ordinary" breakdown disappeared).
-                  ordOffsetApplied: Math.max(0, Number(withStrat._ordOffsetApplied) || 0),
+                  // Per-bucket offset breakdown so Tab 7 can show each
+                  // application separately ("$1.5M to LT capital gain",
+                  // "$250K to §1250 unrecap", "$3K to ordinary") instead
+                  // of one misleading "Loss applied to LT capital gain"
+                  // line that lumps everything. _applyLossesWithSTCfCap
+                  // sets these on the with-strategy SCENARIO object, but
+                  // _yearTaxes returns a tax-only object and drops them.
+                  shortOffsetApplied:        Math.max(0, Number(withStrat._shortOffsetApplied) || 0),
+                  ltOffsetApplied:           Math.max(0, Number(withStrat._ltOffsetApplied) || 0),
+                  recap1250OffsetApplied:    Math.max(0, Number(withStrat._recap1250OffsetApplied) || 0),
+                  ordOffsetApplied:          Math.max(0, Number(withStrat._ordOffsetApplied) || 0),
                   stCarryForward: stCF,
                   investmentThisYear: yearInvested,
                   trancheBreakdown: trancheRows,
