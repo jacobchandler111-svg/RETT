@@ -1881,69 +1881,79 @@ function bindControls() {
   function _wireRecapSplitForBlock(n) {
     var suffix = (n === 1 ? '' : '-' + n);
     var parent = document.getElementById('accelerated-depreciation' + suffix);
-    // Sub-rows currently only added for Property 1. Multi-property support
-    // is a follow-up (each property's recap could have its own split).
     var row1245 = document.getElementById('recap-split-1245-row-' + n);
     var row1250 = document.getElementById('recap-split-1250-row-' + n);
-    var rowVal  = document.getElementById('recap-split-validator-row-' + n);
     var inp1245 = document.getElementById('accelerated-depreciation-1245' + (n === 1 ? '' : '-' + n));
     var inp1250 = document.getElementById('accelerated-depreciation-1250' + (n === 1 ? '' : '-' + n));
-    var valEl   = document.getElementById('recap-split-validator-' + n);
     if (!parent || !row1245 || !row1250) return;
-    function _fmtUSD(n) {
+
+    function _parseUSDsafe(v) {
+      return (typeof parseUSD === 'function' ? parseUSD(v) : Number(v)) || 0;
+    }
+    function _fmtUSDsafe(n) {
+      if (typeof fmtUSD === 'function') return fmtUSD(n);
       var v = Math.round(Number(n) || 0);
-      return (v < 0 ? '-' : '') + '$' + Math.abs(v).toLocaleString('en-US');
+      return '$' + v.toLocaleString('en-US');
     }
-    function _updateValidator() {
-      if (!valEl) return;
-      var total = (typeof parseUSD === 'function' ? parseUSD(parent.value) : Number(parent.value)) || 0;
-      var a1245 = inp1245 ? ((typeof parseUSD === 'function' ? parseUSD(inp1245.value) : Number(inp1245.value)) || 0) : 0;
-      var a1250 = inp1250 ? ((typeof parseUSD === 'function' ? parseUSD(inp1250.value) : Number(inp1250.value)) || 0) : 0;
-      var sum = a1245 + a1250;
-      if (a1245 === 0 && a1250 === 0) {
-        valEl.textContent = 'Both blank → engine defaults 100% to §1250';
-        valEl.style.color = '#888';
-      } else if (Math.abs(sum - total) < 0.5) {
-        valEl.textContent = 'Sum: ' + _fmtUSD(sum) + ' ✓ matches';
-        valEl.style.color = '#2a9d3a';
-      } else {
-        valEl.textContent = 'Sum: ' + _fmtUSD(sum) + ' (' + (sum < total ? 'short by ' : 'over by ') + _fmtUSD(Math.abs(sum - total)) + ')';
-        valEl.style.color = '#c44';
-      }
-    }
+
     function _toggleSplitVisibility() {
       // Reveal the §1245 / §1250 split sub-block ONLY when the parent
       // "Accelerated Depreciation Recapture" field has a positive value.
-      // Uses a class (not the [hidden] attribute) so case-storage restore
-      // can't silently re-hide them — see CSS .recap-split.recap-split-active.
-      var total = (typeof parseUSD === 'function' ? parseUSD(parent.value) : Number(parent.value)) || 0;
+      // Uses a class (not [hidden]) so case-storage restore can't re-hide.
+      var total = _parseUSDsafe(parent.value);
       var show = total > 0;
-      [row1245, row1250, rowVal].forEach(function (r) {
+      [row1245, row1250].forEach(function (r) {
         if (!r) return;
         if (show) r.classList.add('recap-split-active');
         else r.classList.remove('recap-split-active');
       });
-      // When the parent goes to $0, clear the sub-amounts so a stale split
-      // can't keep poisoning cfg downstream.
+      // Parent went to $0 — clear sub-amounts so stale data can't poison
+      // cfg downstream once the split is hidden.
       if (!show) {
         if (inp1245) inp1245.value = '';
         if (inp1250) inp1250.value = '';
       }
-      _updateValidator();
     }
+
+    // Auto-fill-the-other: when the user types in one box, fill the
+    // other with (parent recap − this box). User doesn't need a sum-
+    // validator line; the math holds by construction. Skip auto-fill
+    // when the user is actively typing in the OTHER input (avoid feedback
+    // loops) and when the parent is $0 / blank (no meaningful complement).
+    function _autoFillOther(typedInto, otherInput) {
+      if (!typedInto || !otherInput) return;
+      var total = _parseUSDsafe(parent.value);
+      if (total <= 0) return;
+      var typed = _parseUSDsafe(typedInto.value);
+      // Clamp negative or over-total to a valid complement so the other
+      // field never goes negative. If the user typed > total, set their
+      // value to total and the other to 0.
+      if (typed > total) {
+        typedInto.value = _fmtUSDsafe(total);
+        typed = total;
+      }
+      var other = Math.max(0, total - typed);
+      var newOtherVal = _fmtUSDsafe(other);
+      if (otherInput.value !== newOtherVal) {
+        otherInput.value = newOtherVal;
+        // No need to dispatch a synthetic event — collectInputs reads
+        // .value directly on each engine call. Avoid feedback loop.
+      }
+    }
+
     parent.addEventListener('input',  _toggleSplitVisibility);
     parent.addEventListener('change', _toggleSplitVisibility);
     if (inp1245) {
-      inp1245.addEventListener('input',  _updateValidator);
-      inp1245.addEventListener('change', _updateValidator);
+      var _do1245 = function () { _autoFillOther(inp1245, inp1250); };
+      inp1245.addEventListener('input',  _do1245);
+      inp1245.addEventListener('change', _do1245);
     }
     if (inp1250) {
-      inp1250.addEventListener('input',  _updateValidator);
-      inp1250.addEventListener('change', _updateValidator);
+      var _do1250 = function () { _autoFillOther(inp1250, inp1245); };
+      inp1250.addEventListener('input',  _do1250);
+      inp1250.addEventListener('change', _do1250);
     }
-    // Initial pass: reveal sub-block if a saved scenario has a non-zero
-    // parent value, and run the validator once so the line shows clean
-    // copy from the start.
+    // Initial pass: reveal if saved cfg has a non-zero parent value.
     _toggleSplitVisibility();
   }
   // Only Property 1 has the split sub-block today. Properties 2-5 will follow.

@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=1780528000000">
+  <link rel="stylesheet" href="css/styles.css?v=1780529000000">
   <!-- html2pdf.js: turns the page-allocator DOM into a downloadable
        PDF on click. Bundled build (includes html2canvas + jsPDF).
        Script loads async/defer-friendly; window.html2pdf is the
@@ -86,7 +86,7 @@
     <div class="pmq-toprow">
       <div class="pmq-left-col">
       <button type="button" id="pmq-collapse-btn" class="pmq-collapse-btn" aria-label="Collapse Pre-Meeting tab" title="Collapse Pre-Meeting tab â€” leaves a small dash in the nav so you can reopen it">Collapse &mdash;</button>
-      <!-- Client Information — consolidated per advisor 2026-05-17.
+      <!-- Client Information ï¿½ consolidated per advisor 2026-05-17.
            Previously two sections (Client identity + Case Management).
            Now one card holds the canonical name, contact info, the
            load-client combobox, and case actions. IDs preserved
@@ -139,7 +139,7 @@
         </div>
       </div>
 
-      <!-- Filing Information — duplicate of Tab 1 Section 01. Step 1 of
+      <!-- Filing Information ï¿½ duplicate of Tab 1 Section 01. Step 1 of
            the move: visible card with namespaced IDs (pmq-*) so it
            cannot collide with the live Tab 1 fields. State <option>
            list is cloned at runtime from the existing Tab 1
@@ -244,7 +244,7 @@
 
         <!-- ====== Income Sources ======
              Reordered 2026-05-27 to follow Form 1040 line order. New fields
-             marked data-inert="true" are visual placeholders only — they
+             marked data-inert="true" are visual placeholders only ï¿½ they
              are NOT read by inputs-collector.js and have NO effect on
              engine math. See INCOME_SOURCES_RESEARCH.md for the engine
              bot's wiring proposal. Legacy IDs se-income and biz-revenue
@@ -262,12 +262,12 @@
               <div class="label">W-2 Wages</div>
               <div class="currency-input"><input type="text" id="w2-wages" placeholder="0" inputmode="numeric" autocomplete="off"></div>
             </div>
-            <!-- 1040 Line 2b — taxable interest, ordinary brackets + NIIT base -->
+            <!-- 1040 Line 2b ï¿½ taxable interest, ordinary brackets + NIIT base -->
             <div class="input-row">
               <div class="label">Interest Income</div>
               <div class="currency-input"><input type="text" id="interest-income" placeholder="0" inputmode="numeric" autocomplete="off"></div>
             </div>
-            <!-- Dividends (simplified 2026-05-27 per advisor — no
+            <!-- Dividends (simplified 2026-05-27 per advisor ï¿½ no
                  qualified vs ordinary split; engine treats this whole
                  amount as ordinary investment income for the baseline).
                  Hidden qualified-dividends input retained at 0 so engine
@@ -282,7 +282,7 @@
               <div class="label">Retirement Distributions</div>
               <div class="currency-input"><input type="text" id="retirement-distributions" placeholder="0" inputmode="numeric" autocomplete="off"></div>
             </div>
-            <!-- 1040 Line 6a (gross). Engine applies §86 provisional-
+            <!-- 1040 Line 6a (gross). Engine applies ï¿½86 provisional-
                  income worksheet in _baseScenarioForYear to derive
                  Line 6b (taxable portion: 0% / 50% / 85%). -->
             <div class="input-row">
@@ -299,7 +299,7 @@
               <div class="label">Short-Term Capital Gain</div>
               <div class="currency-input"><input type="text" id="short-term-gain" placeholder="0" inputmode="numeric" autocomplete="off"></div>
             </div>
-            <!-- Schedule D Part II — non-property LT cap gain
+            <!-- Schedule D Part II ï¿½ non-property LT cap gain
                  (stocks held >1yr, crypto, fund distributions, etc.).
                  Engine treats as recurring annual LT income via
                  cfg.baseLongTermGain. Property-derived LT gain from the
@@ -311,7 +311,7 @@
               <div class="currency-input"><input type="text" id="long-term-gain" placeholder="0" inputmode="numeric" autocomplete="off"></div>
             </div>
 
-            <!-- Business Income (simplified 2026-05-27 per advisor —
+            <!-- Business Income (simplified 2026-05-27 per advisor ï¿½
                  single amount, no Schedule C vs K-1 type dropdown. The
                  engine should treat this whole amount as ordinary
                  income; SE-tax / NIIT-routing distinctions deferred. -->
@@ -320,7 +320,7 @@
               <div class="currency-input"><input type="text" id="business-income-amount" placeholder="0" inputmode="numeric" autocomplete="off"></div>
             </div>
             <!-- Legacy inputs preserved (hidden) for any engine wiring
-                 still reading them — both stay at 0. -->
+                 still reading them ï¿½ both stay at 0. -->
             <input type="hidden" id="se-income" value="">
             <input type="hidden" id="biz-revenue" value="">
           </div>
@@ -336,7 +336,7 @@
              behind the "+ Additional Real Estate Sale" button. Each
              block carries its own sale figures + closing date. The
              Strategy Implementation Date is a SHARED single field at
-             the bottom of the section — one strategy applies to all
+             the bottom of the section ï¿½ one strategy applies to all
              properties. inputs-collector aggregates the per-property
              values; engine sees a single cfg.salePrice / costBasis /
              acceleratedDepreciation = sum across visible blocks.
@@ -365,24 +365,20 @@
                 <div class="label">Accelerated Depreciation Recapture</div>
                 <div class="currency-input"><input type="text" id="accelerated-depreciation" placeholder="0" inputmode="numeric" autocomplete="off"></div>
               </div>
-              <!-- §1245 / §1250 split sub-block. Always visible so it's not
+              <!-- ï¿½1245 / ï¿½1250 split sub-block. Always visible so it's not
                    blocked by case-restore re-hiding the rows. When the user
                    leaves both blank the engine defaults the whole recap to
-                   §1250 (backward-compat); the validator line shows live
+                   ï¿½1250 (backward-compat); the validator line shows live
                    guidance.
-                   §1245 = personal property / cost-seg 5-7-15-yr assets ? ordinary income rates.
-                   §1250 = real property / 39-yr building shell ? LTCG with 25% cap. -->
+                   ï¿½1245 = personal property / cost-seg 5-7-15-yr assets ? ordinary income rates.
+                   ï¿½1250 = real property / 39-yr building shell ? LTCG with 25% cap. -->
               <div class="input-row recap-split recap-split-1" id="recap-split-1245-row-1">
-                <div class="label">&nbsp;&nbsp;Amount of §1245</div>
+                <div class="label">Amount of ï¿½1245</div>
                 <div class="currency-input"><input type="text" id="accelerated-depreciation-1245" placeholder="0" inputmode="numeric" autocomplete="off"></div>
               </div>
               <div class="input-row recap-split recap-split-1" id="recap-split-1250-row-1">
-                <div class="label">&nbsp;&nbsp;Amount of §1250</div>
+                <div class="label">Amount of ï¿½1250</div>
                 <div class="currency-input"><input type="text" id="accelerated-depreciation-1250" placeholder="0" inputmode="numeric" autocomplete="off"></div>
-              </div>
-              <div class="input-row recap-split recap-split-validator-row" id="recap-split-validator-row-1">
-                <div class="label" style="font-size:0.85em;color:#888;">&nbsp;&nbsp;Sum should match total above</div>
-                <div id="recap-split-validator-1" style="font-size:0.85em;color:#888;padding-left:6px;">&mdash;</div>
               </div>
               <div class="input-row">
                 <div class="label">Has this property been held a year?</div>
@@ -651,7 +647,7 @@
               </div>
             </div>
 
-            <!-- Cover-Tax question — single client-level decision applied to
+            <!-- Cover-Tax question ï¿½ single client-level decision applied to
                  the aggregate. Personal-use carve-out moved to per-property
                  (see "Any sale proceeds needed for personal use?" inside
                  each property block). The legacy #withhold-yes-no and
@@ -678,7 +674,7 @@
               <p id="withhold-error" class="error-text" role="alert" hidden></p>
             </div>
 
-            <!-- + Additional Real Estate Sale button — sits at the very
+            <!-- + Additional Real Estate Sale button ï¿½ sits at the very
                  bottom of Section 03 (per advisor request) so clicking it
                  reads as "add another property to this section" rather
                  than appearing to insert something inside Property 1.
@@ -686,7 +682,7 @@
                  controls.js _showNextSlot and appears in its fixed slot
                  above the strategy implementation date / withhold area. -->
             <!-- Multi-property "+ Additional Real Estate Sale" button
-                 hidden temporarily per advisor (2026-05-17) — the engine's
+                 hidden temporarily per advisor (2026-05-17) ï¿½ the engine's
                  per-property tranche routing isn't built out yet (sales
                  collapse to the earliest date, Brooklyn opens at the
                  earliest strategy date, minimum checks are aggregate-
@@ -698,7 +694,7 @@
             <div class="property-add-row" hidden>
               <button type="button" id="property-add-btn" class="property-add-btn">+ Additional Real Estate Sale</button>
             </div>
-            <!-- Multi-year-sale notice — only meaningful when multi-
+            <!-- Multi-year-sale notice ï¿½ only meaningful when multi-
                  property is exposed. Kept in the DOM (hidden) for the
                  future re-enable; controls.js's toggle logic still
                  runs against it but with no property-2..5 visible it
@@ -714,7 +710,7 @@
 
         <!-- ====== Additional Funds ======
              NEW 2026-05-28. Captures a taxable investment/brokerage
-             account the client could tap. INERT for now (data-inert) —
+             account the client could tap. INERT for now (data-inert) ï¿½
              not wired into the engine yet. The only live behavior is a
              client-side derived Cost Basis = Account Value - LT gain -
              ST gain, so the advisor sees the gain-vs-basis proportion.
@@ -734,7 +730,7 @@
                  sparks the "could you add funds?" conversation. Whether
                  the funds actually move the projection is still controlled
                  by the Projection-tab "Include Additional Funds" toggle
-                 (default off — the advisor flips it to reveal the extra
+                 (default off ï¿½ the advisor flips it to reveal the extra
                  savings). -->
             <div class="input-row">
               <div class="label">Do you have additional funds to invest?</div>
@@ -767,7 +763,7 @@
                 <span id="additional-funds-auto-note" class="addfunds-auto-note" hidden></span>
               </div>
             </div>
-            <!-- Live proportional realized-gain breakdown — liquidating
+            <!-- Live proportional realized-gain breakdown ï¿½ liquidating
                  from the account triggers gains pro-rata to the account's
                  gain composition. Client-side display only. -->
             <div id="additional-funds-breakdown" class="addfunds-breakdown" hidden>
@@ -844,7 +840,7 @@
       <select id="leverage-cap-select" disabled>
         <option value="" selected>-- choose custodian first --</option>
       </select>
-      <!-- Q7: legacy hidden #long-term-gain removed — replaced by the
+      <!-- Q7: legacy hidden #long-term-gain removed ï¿½ replaced by the
            visible field in Section 02 (Income Sources). -->
     </div>
 
@@ -870,10 +866,10 @@
     <h2 class="page-inputs-title">Tax Baseline without Strategies</h2>
 
     <!-- 2026-05-27 redesign: 3-tile row.
-         Left  — red "Tax Due from the Sale" hero (existing).
-         Middle — blue "Cash Kept from Sale" tile (salePrice - tax),
+         Left  ï¿½ red "Tax Due from the Sale" hero (existing).
+         Middle ï¿½ blue "Cash Kept from Sale" tile (salePrice - tax),
                   i.e. what the client walks away with after tax.
-         Right — donut showing share of GAIN kept vs lost.
+         Right ï¿½ donut showing share of GAIN kept vs lost.
                   Denominator = sale - basis (economic gain on the
                   property). Blue slice = gain kept, red slice = gain
                   lost. Center number = % of gain lost to tax (red).
@@ -885,7 +881,7 @@
       <div class="baseline-tile baseline-tile--delta baseline-tile--hero">
         <div class="baseline-tile-label">Tax Due from the Sale</div>
         <div class="baseline-tile-value" id="bt-delta">$0</div>
-        <div class="baseline-tile-sub" id="bt-delta-sub">Recap · LT · NIIT · State</div>
+        <div class="baseline-tile-sub" id="bt-delta-sub">Recap ï¿½ LT ï¿½ NIIT ï¿½ State</div>
       </div>
       <div class="baseline-tile baseline-tile--cash-kept">
         <div class="baseline-tile-label">Cash Kept from Sale</div>
@@ -904,7 +900,7 @@
           <svg class="baseline-pie-svg" viewBox="-160 -10 520 240" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
             <g id="bt-pie-slices"></g>
             <g id="bt-pie-leaders"></g>
-            <text id="bt-pie-center" x="110" y="110" text-anchor="middle" dominant-baseline="central" class="baseline-pie-center">—</text>
+            <text id="bt-pie-center" x="110" y="110" text-anchor="middle" dominant-baseline="central" class="baseline-pie-center">ï¿½</text>
           </svg>
           <!-- Legacy IDs retained (hidden) so legacy _set calls don't throw. -->
           <span id="bt-pie-keep-amt" hidden>$0</span>
@@ -921,11 +917,11 @@
       <span id="baseline-year-sub" hidden></span>
     </div>
 
-    <!-- Q3: Per-property tax breakdown panel — revealed by double-click
+    <!-- Q3: Per-property tax breakdown panel ï¿½ revealed by double-click
          on the middle "Tax Due to the Sale" tile when 2+ properties are
          active. Hidden by default; baseline-table.js populates the rows. -->
     <div id="baseline-breakdown-panel" class="baseline-breakdown-panel" hidden>
-      <div class="baseline-breakdown-title">Tax Due — by Property</div>
+      <div class="baseline-breakdown-title">Tax Due ï¿½ by Property</div>
       <div id="baseline-breakdown-list" class="baseline-breakdown-list"></div>
     </div>
 
@@ -956,7 +952,7 @@
 
     <div id="strategy-pick-list" class="strategy-pick-grid">
 
-      <!-- Card 1: Proceeds at Sale (Cash in Hand is the keyaspect — the
+      <!-- Card 1: Proceeds at Sale (Cash in Hand is the keyaspect ï¿½ the
            thing the strategy delivers, kept in the highlighted box below). -->
       <div class="strategy-pick-card" data-strategy="A" id="strategy-pick-A">
         <div class="strategy-pick-card-header">
@@ -996,7 +992,7 @@
           </div>
         </div>
 
-        <!-- Empty placeholder — reserves the same row as Card 2's
+        <!-- Empty placeholder ï¿½ reserves the same row as Card 2's
              default-risk toggle so the Interested/Not Interested
              button row lines up horizontally across all three cards. -->
         <div class="strategy-default-risk-row strategy-default-risk-row--spacer" aria-hidden="true"></div>
@@ -1039,7 +1035,7 @@
           </div>
         </div>
 
-        <!-- Default-risk toggle — click to switch Yes/No. Yes reveals
+        <!-- Default-risk toggle ï¿½ click to switch Yes/No. Yes reveals
              Card 3 (Structured Installment Sale) which distributes the
              payment across multiple years to mitigate the risk of
              buyer default.
@@ -1047,7 +1043,7 @@
              Using <div role="button"> rather than <button> because a
              browser UA rule (or a global stylesheet reset earlier in
              this file) was beating every CSS approach to color the
-             <button> background — specificity, !important, even
+             <button> background ï¿½ specificity, !important, even
              inline styles. A div renders the background cleanly.
 
              The hidden <select id="default-risk-yes-no"> is the
@@ -1073,7 +1069,7 @@
         </div>
       </div>
 
-      <!-- Card 3: Structured Installment Sale — hidden by default. Revealed
+      <!-- Card 3: Structured Installment Sale ï¿½ hidden by default. Revealed
            when EITHER:
              - the default-risk-yes-no toggle on Card 2 is set to "yes", OR
              - Card 3's net benefit is at least 5% higher than BOTH Card 1
@@ -1104,7 +1100,7 @@
           </div>
         </div>
 
-        <!-- Empty placeholder — same height as Card 2's default-risk
+        <!-- Empty placeholder ï¿½ same height as Card 2's default-risk
              toggle so the buttons line up across all three cards. -->
         <div class="strategy-default-risk-row strategy-default-risk-row--spacer" aria-hidden="true"></div>
 
@@ -1409,91 +1405,91 @@
   <!-- ============ Subsystem load order: 00 -> 01 -> 02 -> 03 -> 05 -> 04 ============ -->
   <!-- date-utils is loaded ahead of 00-data so schwab-strategies can use the
        shared parseLocalDate global instead of defining its own copy. -->
-  <script src="js/01-brooklyn/date-utils.js?v=1780528000000"></script>
-  <script src="js/00-data/custodians.js?v=1780528000000"></script>
-  <script src="js/00-data/schwab-strategies.js?v=1780528000000"></script>
-  <script src="js/01-brooklyn/brooklyn-data.js?v=1780528000000"></script>
-  <script src="js/01-brooklyn/time-weight.js?v=1780528000000"></script>
-  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1780528000000"></script>
-  <script src="js/01-brooklyn/variable-leverage.js?v=1780528000000"></script>
+  <script src="js/01-brooklyn/date-utils.js?v=1780529000000"></script>
+  <script src="js/00-data/custodians.js?v=1780529000000"></script>
+  <script src="js/00-data/schwab-strategies.js?v=1780529000000"></script>
+  <script src="js/01-brooklyn/brooklyn-data.js?v=1780529000000"></script>
+  <script src="js/01-brooklyn/time-weight.js?v=1780529000000"></script>
+  <script src="js/01-brooklyn/brooklyn-interpolation.js?v=1780529000000"></script>
+  <script src="js/01-brooklyn/variable-leverage.js?v=1780529000000"></script>
 
-  <script src="js/02-tax-engine/tax-data.js?v=1780528000000"></script>
-  <script src="js/02-tax-engine/tax-loader.js?v=1780528000000"></script>
-  <script src="js/02-tax-engine/tax-lookups.js?v=1780528000000"></script>
-  <script src="js/02-tax-engine/tax-calc-federal.js?v=1780528000000"></script>
-  <script src="js/02-tax-engine/tax-calc-state.js?v=1780528000000"></script>
-  <script src="js/02-tax-engine/tax-comparison.js?v=1780528000000"></script>
-  <script src="js/02-tax-engine/engine-self-test.js?v=1780528000000"></script>
+  <script src="js/02-tax-engine/tax-data.js?v=1780529000000"></script>
+  <script src="js/02-tax-engine/tax-loader.js?v=1780529000000"></script>
+  <script src="js/02-tax-engine/tax-lookups.js?v=1780529000000"></script>
+  <script src="js/02-tax-engine/tax-calc-federal.js?v=1780529000000"></script>
+  <script src="js/02-tax-engine/tax-calc-state.js?v=1780529000000"></script>
+  <script src="js/02-tax-engine/tax-comparison.js?v=1780529000000"></script>
+  <script src="js/02-tax-engine/engine-self-test.js?v=1780529000000"></script>
 
-  <script src="js/03-solver/fees.js?v=1780528000000"></script>
-  <script src="js/03-solver/fee-split.js?v=1780528000000"></script>
-  <script src="js/03-solver/brookhaven-fees.js?v=1780528000000"></script>
-  <script src="js/03-solver/single-year-solver.js?v=1780528000000"></script>
-  <script src="js/03-solver/multi-year-solver.js?v=1780528000000"></script>
-  <script src="js/03-solver/structured-sale.js?v=1780528000000"></script>
-  <script src="js/03-solver/calc-oil-gas.js?v=1780528000000"></script>
-  <script src="js/03-solver/calc-delphi.js?v=1780528000000"></script>
-  <script src="js/03-solver/calc-supplemental-extra.js?v=1780528000000"></script>
-  <script src="js/03-solver/decision-engine.js?v=1780528000000"></script>
+  <script src="js/03-solver/fees.js?v=1780529000000"></script>
+  <script src="js/03-solver/fee-split.js?v=1780529000000"></script>
+  <script src="js/03-solver/brookhaven-fees.js?v=1780529000000"></script>
+  <script src="js/03-solver/single-year-solver.js?v=1780529000000"></script>
+  <script src="js/03-solver/multi-year-solver.js?v=1780529000000"></script>
+  <script src="js/03-solver/structured-sale.js?v=1780529000000"></script>
+  <script src="js/03-solver/calc-oil-gas.js?v=1780529000000"></script>
+  <script src="js/03-solver/calc-delphi.js?v=1780529000000"></script>
+  <script src="js/03-solver/calc-supplemental-extra.js?v=1780529000000"></script>
+  <script src="js/03-solver/decision-engine.js?v=1780529000000"></script>
   <!-- Master solver registry + Page-5 supplemental defaults. master-solver
        declares register*/list*/runMasterSolver; supplemental-defaults uses
        those to register Oil & Gas. Future supplemental strategies append
        to supplemental-defaults â€” calc-* modules don't reach into this. -->
-  <script src="js/03-solver/master-solver.js?v=1780528000000"></script>
-  <script src="js/03-solver/additional-funds.js?v=1780528000000"></script>
-  <script src="js/03-solver/supplemental-defaults.js?v=1780528000000"></script>
-  <script src="js/03-solver/supplemental-extra-registry.js?v=1780528000000"></script>
-  <script src="js/03-solver/supplemental-investment-shims.js?v=1780528000000"></script>
+  <script src="js/03-solver/master-solver.js?v=1780529000000"></script>
+  <script src="js/03-solver/additional-funds.js?v=1780529000000"></script>
+  <script src="js/03-solver/supplemental-defaults.js?v=1780529000000"></script>
+  <script src="js/03-solver/supplemental-extra-registry.js?v=1780529000000"></script>
+  <script src="js/03-solver/supplemental-investment-shims.js?v=1780529000000"></script>
 
-  <script src="js/05-projections/carryforward-tracker.js?v=1780528000000"></script>
-  <script src="js/05-projections/projection-engine.js?v=1780528000000"></script>
+  <script src="js/05-projections/carryforward-tracker.js?v=1780529000000"></script>
+  <script src="js/05-projections/projection-engine.js?v=1780529000000"></script>
 
   <!-- format-helpers loads first inside 04-ui so every renderer can use
        fmtUSD / fmtPct / fmtNum directly without a defensive fallback. -->
-  <script src="js/04-ui/format-helpers.js?v=1780528000000"></script>
-  <script src="js/04-ui/money-format.js?v=1780528000000"></script>
-  <script src="js/04-ui/banner.js?v=1780528000000"></script>
-  <script src="js/04-ui/number-animator.js?v=1780528000000"></script>
+  <script src="js/04-ui/format-helpers.js?v=1780529000000"></script>
+  <script src="js/04-ui/money-format.js?v=1780529000000"></script>
+  <script src="js/04-ui/banner.js?v=1780529000000"></script>
+  <script src="js/04-ui/number-animator.js?v=1780529000000"></script>
   <!-- us-states MUST load before case-storage/controls so the State
-       <select> options exist when the saved-case restore runs —
+       <select> options exist when the saved-case restore runs ï¿½
        otherwise restore can't set state-code to the saved value (no
        matching option yet) and it falls back to the NY default. -->
-  <script src="js/04-ui/us-states.js?v=1780528000000"></script>
-  <script src="js/04-ui/case-storage.js?v=1780528000000"></script>
-  <script src="js/04-ui/pill-toggles.js?v=1780528000000"></script>
-  <script src="js/04-ui/variable-leverage-ui.js?v=1780528000000"></script>
-  <script src="js/04-ui/input-validation.js?v=1780528000000"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1780528000000"></script>
-  <script src="js/04-ui/controls.js?v=1780528000000"></script>
-  <script src="js/04-ui/recommendation-render.js?v=1780528000000"></script>
-  <script src="js/04-ui/projection-dashboard-render.js?v=1780528000000"></script>
-  <script src="js/04-ui/savings-ribbon.js?v=1780528000000"></script>
-  <script src="js/04-ui/cashflow-schedule-render.js?v=1780528000000"></script>
-  <script src="js/04-ui/narrative-render.js?v=1780528000000"></script>
-  <script src="js/04-ui/strategy-summary-render.js?v=1780528000000"></script>
-  <script src="js/04-ui/baseline-table.js?v=1780528000000"></script>
-  <script src="js/04-ui/supplemental-render.js?v=1780528000000"></script>
-  <script src="js/04-ui/supplemental-extra-render.js?v=1780528000000"></script>
+  <script src="js/04-ui/us-states.js?v=1780529000000"></script>
+  <script src="js/04-ui/case-storage.js?v=1780529000000"></script>
+  <script src="js/04-ui/pill-toggles.js?v=1780529000000"></script>
+  <script src="js/04-ui/variable-leverage-ui.js?v=1780529000000"></script>
+  <script src="js/04-ui/input-validation.js?v=1780529000000"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1780529000000"></script>
+  <script src="js/04-ui/controls.js?v=1780529000000"></script>
+  <script src="js/04-ui/recommendation-render.js?v=1780529000000"></script>
+  <script src="js/04-ui/projection-dashboard-render.js?v=1780529000000"></script>
+  <script src="js/04-ui/savings-ribbon.js?v=1780529000000"></script>
+  <script src="js/04-ui/cashflow-schedule-render.js?v=1780529000000"></script>
+  <script src="js/04-ui/narrative-render.js?v=1780529000000"></script>
+  <script src="js/04-ui/strategy-summary-render.js?v=1780529000000"></script>
+  <script src="js/04-ui/baseline-table.js?v=1780529000000"></script>
+  <script src="js/04-ui/supplemental-render.js?v=1780529000000"></script>
+  <script src="js/04-ui/supplemental-extra-render.js?v=1780529000000"></script>
 
-  <script src="js/04-ui/pmq-handler.js?v=1780528000000"></script>
-  <script src="js/04-ui/temp-page-render.js?v=1780528000000"></script>
-  <script src="js/04-ui/admin-math-panel.js?v=1780528000000"></script>
-  <script src="js/04-ui/admin-math-page-inputs.js?v=1780528000000"></script>
-  <script src="js/04-ui/admin-math-page-baseline.js?v=1780528000000"></script>
-  <script src="js/04-ui/admin-math-page-strategies.js?v=1780528000000"></script>
-  <script src="js/04-ui/admin-math-page-projection.js?v=1780528000000"></script>
-  <script src="js/04-ui/admin-math-page-supplemental.js?v=1780528000000"></script>
-  <script src="js/04-ui/admin-math-page-allocator.js?v=1780528000000"></script>
-  <script src="js/04-ui/admin-math-page-temp.js?v=1780528000000"></script>
+  <script src="js/04-ui/pmq-handler.js?v=1780529000000"></script>
+  <script src="js/04-ui/temp-page-render.js?v=1780529000000"></script>
+  <script src="js/04-ui/admin-math-panel.js?v=1780529000000"></script>
+  <script src="js/04-ui/admin-math-page-inputs.js?v=1780529000000"></script>
+  <script src="js/04-ui/admin-math-page-baseline.js?v=1780529000000"></script>
+  <script src="js/04-ui/admin-math-page-strategies.js?v=1780529000000"></script>
+  <script src="js/04-ui/admin-math-page-projection.js?v=1780529000000"></script>
+  <script src="js/04-ui/admin-math-page-supplemental.js?v=1780529000000"></script>
+  <script src="js/04-ui/admin-math-page-allocator.js?v=1780529000000"></script>
+  <script src="js/04-ui/admin-math-page-temp.js?v=1780529000000"></script>
 
   <!-- defaults LAST so auto-populate hook runs after controls.js wires the build button -->
-  <script src="js/01-brooklyn/defaults.js?v=1780528000000"></script>
+  <script src="js/01-brooklyn/defaults.js?v=1780529000000"></script>
 
   <!-- Additional Funds (Tab 1 Section 03): a Yes/No gate reveals the
        fields (mirrors the Future Sale question), the derived cost basis +
        proportional realized-gain breakdown update live, and the
        "Additional Funds" amount AUTO-POPULATES the optimizer's optimal
-       (window.rettSuggestAdditionalFunds) — or stays empty when there's
+       (window.rettSuggestAdditionalFunds) ï¿½ or stays empty when there's
        no benefit. The advisor can type their own number to override.
        Whether the funds move the projection is gated by the Projection-
        tab "Include Additional Funds" toggle (default off). -->
@@ -1524,8 +1520,8 @@
         _syncBreakdown(avV, ltV, stV);
       }
       // Proportional realized-gain breakdown: liquidating $X from an
-      // account worth $av realizes ltRealized = X×(lt/av), stRealized =
-      // X×(st/av), basisReturned = the rest. Display-only.
+      // account worth $av realizes ltRealized = Xï¿½(lt/av), stRealized =
+      // Xï¿½(st/av), basisReturned = the rest. Display-only.
       function _syncBreakdown(avV, ltV, stV) {
         var bd = _el('additional-funds-breakdown'), fundsEl = _el('additional-funds');
         if (!bd || !fundsEl) return;
@@ -1555,7 +1551,7 @@
         _afProgrammatic = true;
         if (sug != null && isFinite(sug) && sug > 0) {
           fundsEl.value = _fmtUSD(sug);
-          if (note) { note.textContent = 'optimal · editable'; note.hidden = false; }
+          if (note) { note.textContent = 'optimal ï¿½ editable'; note.hidden = false; }
         } else {
           fundsEl.value = '';
           if (note) note.hidden = true;
@@ -1607,7 +1603,7 @@
         _afTimer = setTimeout(_autoPopulate, 400);
       }
 
-      // Yes/No gate — reveal/hide the fields (conversation starter).
+      // Yes/No gate ï¿½ reveal/hide the fields (conversation starter).
       function _syncYesNo() {
         var yn = _el('additional-funds-yes-no'), grp = _el('additional-funds-fields-group');
         if (!yn || !grp) return;
@@ -1641,7 +1637,7 @@
             if (_afProgrammatic) return;                       // ignore our own writes
             _afUserOverride = (String(fundsEl.value).trim() !== '');  // cleared ? resume auto
             _sync();
-            // Re-gate the toggle for the advisor's typed amount (debounced —
+            // Re-gate the toggle for the advisor's typed amount (debounced ï¿½
             // the benefit probe runs the engine twice).
             clearTimeout(_afGateTimer);
             _afGateTimer = setTimeout(_syncToggleVisibility, 450);
@@ -1656,7 +1652,7 @@
         // moves. Covers the sale (gain to offset), the account fields, the
         // base Brooklyn capital + strategy/leverage/custodian (which set
         // the tier thresholds), and the income lines (marginal rates).
-        // Gated on Yes/No + debounced 400ms, so it only fires — once — when
+        // Gated on Yes/No + debounced 400ms, so it only fires ï¿½ once ï¿½ when
         // the section is active and typing has settled.
         document.addEventListener('change', function (e) {
           if (e && e.target && /^(sale-price|cost-basis|accelerated-depreciation|short-term-gain|long-term-gain|w2-wages|interest-income|dividend-income|retirement-distributions|social-security|rental-income|business-income-amount|available-capital|invested-capital|strategy-select|leverage-cap-select|custodian-select|state-code|filing-status|additional-account-value|additional-lt-gain|additional-st-gain)$/.test(e.target.id)) {
