@@ -46,18 +46,15 @@
   // the strategy is gated out (auto-marked Not Interested). If a
   // required answer is null (unanswered), the strategy stays neutral.
   //
-  // Per advisor 2026-05-26: only business-owner gating applies now.
-  // Non-business cards (oilGas, delphi, charitableGifts, equipment
-  // leasing) always show - the advisor no longer filters them via PMQ.
-  // Business-owner-gated cards: ptet, slot08 (Augusta), slot12 (Farm
-  // Equipment).
-  // (Heavy Vehicle slot06, 401k slot09, Aircraft slot10 hidden from the
-  // rail per advisor 2026-06-03 — gates removed alongside.)
-  var STRATEGY_GATES = {
-    ptet:    { businessOwner: true },
-    slot08:  { businessOwner: true },                         // Augusta Rule
-    slot12:  { businessOwner: true }                          // Farm / Business Equipment
-  };
+  // Strategy gating retired here per advisor 2026-06-03. The three
+  // business-only strategies (PTET, Augusta slot08, Farm Equipment
+  // slot12) are now gated by the Page-1 BUSINESS-INCOME field rather
+  // than a PMQ yes/no: they only render on the supplemental rail when
+  // business income > 0. That logic lives in supplemental-extra-
+  // render.js (BUSINESS_GATED + _businessIncomePresent). Keeping this
+  // map empty leaves the PMQ infrastructure intact for any future
+  // questionnaire-driven gate without double-gating these three.
+  var STRATEGY_GATES = {};
 
   function _answers() {
     if (!root[ANSWERS_KEY]) root[ANSWERS_KEY] = {};

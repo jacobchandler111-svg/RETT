@@ -519,10 +519,38 @@
       '</div>';
   }
 
+  // Business-income gate (advisor 2026-06-03). Three strategies only
+  // make sense when the client runs an operating business / pass-
+  // through: PTET (entity pays state tax), Augusta §280A(g) (rent home
+  // to your business), and Farm/Business Equipment §179 (capped by
+  // business income). They stay OFF the rail until the Page-1 business-
+  // income field has a value. The other four (Oil & Gas, Delphi,
+  // Charitable Gifts, Equipment Leasing) are generic and always show.
+  var BUSINESS_GATED = { ptet: true, slot08: true, slot12: true };
+
+  function _businessIncomePresent() {
+    // Fail OPEN (show) when inputs aren't ready yet, so a load-time
+    // race never permanently buries a card. On a real cfg read, the
+    // gate is strictly business income > 0.
+    if (typeof root.collectInputs !== 'function') return true;
+    try {
+      var cfg = root.collectInputs();
+      if (!cfg) return true;
+      return (Number(cfg.businessIncomeAmount) || 0) > 0;
+    } catch (e) { return true; }
+  }
+
+  function _specVisible(spec) {
+    if (BUSINESS_GATED[spec.id] && !_businessIncomePresent()) return false;
+    return true;
+  }
+
   function _renderHost() {
     var host = document.getElementById('supplemental-extra-host');
     if (!host) return;
     var iState = _interestState();
+    // Drop business-gated cards entirely when business income is blank.
+    var visibleSpecs = SPECS.filter(_specVisible);
     // Sort:
     //   1. Not-interested cards drop to the very end.
     //   2. Cards that need a chip-pick (Independent strategies whose
@@ -530,7 +558,7 @@
     //      that auto-fill from sale data / wages — so the advisor
     //      can rapid-fire Interested/Not Interested on the easy ones
     //      first, then deal with the chip-prompt cards.
-    var sorted = SPECS.slice().sort(function (a, b) {
+    var sorted = visibleSpecs.slice().sort(function (a, b) {
       var aNo = iState[a.id] === false ? 1 : 0;
       var bNo = iState[b.id] === false ? 1 : 0;
       if (aNo !== bNo) return aNo - bNo;
@@ -741,6 +769,15 @@
     if (navSupp) navSupp.addEventListener('click', function () {
       setTimeout(_renderHost, 0);
     });
+    // Re-render the rail when the Page-1 business-income field changes
+    // so the business-gated cards (PTET / Augusta / Farm) appear or
+    // disappear live. Safe to fire while the user types on Page 1 —
+    // the rail host isn't focused, so no caret is lost.
+    var bizInput = document.getElementById('business-income-amount');
+    if (bizInput) {
+      bizInput.addEventListener('input',  function () { setTimeout(_renderHost, 0); });
+      bizInput.addEventListener('change', function () { setTimeout(_renderHost, 0); });
+    }
   }
 
   if (document.readyState === 'loading') {
