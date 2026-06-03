@@ -114,13 +114,20 @@
     // §1245/§1250 recap split (advisor 2026-06-04). The snapshot
     // exposes both pieces; pass them through so the engine routes §1245
     // to ordinary marginal rates (not 25% capped) and excludes §1245
-    // from NIIT (active trade/business default). NIIT base also rebuilt
-    // here to drop the §1245 portion that snap's nIIT_base may include
-    // via the legacy "all recap" path. When the user leaves the split
-    // blank, recap1245=0 and recap1250=full recap — identical to the
-    // pre-split behavior.
-    var recap1245 = snap ? Number(snap.recap1245) || 0 : 0;
-    var recap1250 = snap ? Number(snap.recap1250) || recap : recap;
+    // from NIIT (active trade/business default).
+    //
+    // CRITICAL: when the user sets §1245 = 100% (so §1250 = $0), the
+    // bare `Number(snap.recap1250) || recap` fallback treated $0 as
+    // falsy and mis-routed the whole recap as §1250 in the engine call,
+    // double-counting (engine sees recap1245=$X, recap1250=$X, totaling
+    // 2X). Use an explicit "has split" gate instead: if either snap
+    // bucket > 0, trust the split verbatim; only fall back when both
+    // are 0 (legacy default = all §1250).
+    var _snap1245 = snap ? Number(snap.recap1245) || 0 : 0;
+    var _snap1250 = snap ? Number(snap.recap1250) || 0 : 0;
+    var _hasSplit = (_snap1245 + _snap1250) > 0;
+    var recap1245 = _snap1245;
+    var recap1250 = _hasSplit ? _snap1250 : recap;
     var nIIT_base_split = Math.max(0, ltGain) + stGain + recap1250 + qualDiv
                   + Math.max(0, _num('rental-income'))
                   + Math.max(0, _num('dividend-income'))
