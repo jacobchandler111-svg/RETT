@@ -781,16 +781,16 @@
     });
   }
 
+  // Hidden per advisor 2026-06-03: Cost Seg (slot05), Heavy Vehicle
+  // (slot06), 401(k)+PS (slot09), Aircraft (slot10), STR (slot11) are
+  // pulled from the rail. Their calc fns above are kept dormant (not
+  // mapped → never run, never registered) so reviving one is a single
+  // line back into this map + the matching SPECS entry.
   var _CALCS = {
     ptet:            _calcPtet,
     charitableGifts: _calcCharitableGifts,
-    slot05:          _calcCostSeg,
-    slot06:          _calcHeavyVehicle,
     slot07:          _calcEquipmentLeasing,
     slot08:          _calcAugusta,
-    slot09:          _calc401k,
-    slot10:          _calcAircraft,
-    slot11:          _calcStrLoophole,
     slot12:          _calcFarmEquipment
   };
 

@@ -47,17 +47,15 @@
   // required answer is null (unanswered), the strategy stays neutral.
   //
   // Per advisor 2026-05-26: only business-owner gating applies now.
-  // Non-business cards (oilGas, delphi, charitableGifts, cost seg /
-  // STR / equipment leasing) always show - the advisor no longer
-  // filters them via PMQ. Business-owner-gated cards: ptet, slot06
-  // (Heavy Vehicle), slot08 (Augusta), slot09 (401k), slot10 (Aircraft),
-  // slot12 (Farm Equipment).
+  // Non-business cards (oilGas, delphi, charitableGifts, equipment
+  // leasing) always show - the advisor no longer filters them via PMQ.
+  // Business-owner-gated cards: ptet, slot08 (Augusta), slot12 (Farm
+  // Equipment).
+  // (Heavy Vehicle slot06, 401k slot09, Aircraft slot10 hidden from the
+  // rail per advisor 2026-06-03 — gates removed alongside.)
   var STRATEGY_GATES = {
     ptet:    { businessOwner: true },
-    slot06:  { businessOwner: true },                         // Heavy Vehicle
     slot08:  { businessOwner: true },                         // Augusta Rule
-    slot09:  { businessOwner: true },                         // 401(k) + Profit Share
-    slot10:  { businessOwner: true },                         // Aircraft Purchase
     slot12:  { businessOwner: true }                          // Farm / Business Equipment
   };
 

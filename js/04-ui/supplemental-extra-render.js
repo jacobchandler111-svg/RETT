@@ -83,24 +83,6 @@
         { label: '$100K', value: 100000 }
       ]
     },
-    slot05: {
-      primaryField: 'purchasePrice',
-      prompt:       'Real estate basis',
-      picks: [
-        { label: '$500K', value: 500000 },
-        { label: '$1M',   value: 1000000 },
-        { label: '$2M',   value: 2000000 }
-      ]
-    },
-    slot06: {
-      primaryField: 'vehicleCost',
-      prompt:       'Vehicle cost',
-      picks: [
-        { label: '$80K',  value: 80000 },
-        { label: '$120K', value: 120000 },
-        { label: '$200K', value: 200000 }
-      ]
-    },
     slot07: {
       primaryField: 'investmentAmount',
       prompt:       'Investment amount',
@@ -117,24 +99,6 @@
         { label: '$1,000', value: 1000 },
         { label: '$1,500', value: 1500 },
         { label: '$2,500', value: 2500 }
-      ]
-    },
-    slot10: {
-      primaryField: 'aircraftCost',
-      prompt:       'Aircraft acquisition cost',
-      picks: [
-        { label: '$2M', value: 2000000 },
-        { label: '$3M', value: 3000000 },
-        { label: '$5M', value: 5000000 }
-      ]
-    },
-    slot11: {
-      primaryField: 'propertyCost',
-      prompt:       'Property cost',
-      picks: [
-        { label: '$1M',   value: 1000000 },
-        { label: '$1.5M', value: 1500000 },
-        { label: '$2.5M', value: 2500000 }
       ]
     },
     slot12: {
@@ -229,65 +193,6 @@
     // entry. No layout work required at swap-in.
     // ----------------------------------------------------------------
     {
-      id: 'slot05',
-      num: '06',
-      name: 'Cost Segregation Study',
-      shortName: 'Cost Seg',
-      keyaspect: 'Accelerated Depreciation',
-      descriptor: 'Each dollar of building basis generates 25&ndash;35&cent; in year-one bonus depreciation against ordinary income.',
-      audience: 'Real estate owner',
-      bucket: 'capital',
-      investmentField: 'purchasePrice',
-      defaults: {
-        purchasePrice: 2000000,
-        landPct:       20,
-        propertyType:  'apartment',
-        newlyAcquired: true
-      },
-      detailRows: [
-        { id: 'purchasePrice', label: 'Property purchase price',        kind: 'usd', placeholder: '2,000,000' },
-        { id: 'landPct',       label: 'Land allocation (%)',            kind: 'pct', placeholder: '20' },
-        { id: 'propertyType',  label: 'Property type',                  kind: 'select', options: [
-            { value: 'apartment',     label: 'Apartment / Multifamily (~25%)' },
-            { value: 'hotel',         label: 'Hotel (~30%)' },
-            { value: 'office',        label: 'Office (~22%)' },
-            { value: 'retail',        label: 'Retail (~26%)' },
-            { value: 'industrial',    label: 'Manufacturing / Industrial (~35%)' },
-            { value: 'restaurant',    label: 'Restaurant (~35%)' },
-            { value: 'medical',       label: 'Medical / Dental (~30%)' },
-            { value: 'selfStorage',   label: 'Self-Storage (~35%)' },
-            { value: 'shortTerm',     label: 'STR / Vacation Rental (~30%)' }
-        ] },
-        { id: 'newlyAcquired', label: 'Newly acquired this year?',      kind: 'yesno' }
-      ]
-    },
-    {
-      id: 'slot06',
-      num: '07',
-      name: 'Heavy Vehicle Deduction',
-      shortName: 'Heavy Vehicle',
-      keyaspect: 'Vehicle Expensing',
-      descriptor: 'Each dollar of business-use vehicle cost fully expenses in year one through &sect;179 plus 100% bonus.',
-      audience: 'Business owner',
-      bucket: 'asset',
-      defaults: {
-        vehicleCost:  120000,
-        vehicleClass: 'suvHeavy',
-        bizUsePct:    100
-      },
-      detailRows: [
-        { id: 'vehicleCost',  label: 'Vehicle cost',                  kind: 'usd', placeholder: '120,000' },
-        { id: 'vehicleClass', label: 'Vehicle class',                 kind: 'select', options: [
-            { value: 'lightAuto',   label: 'Light auto / truck (≤6,000 lb GVWR)' },
-            { value: 'suvHeavy',    label: 'Heavy SUV (6,001-14,000 lb)' },
-            { value: 'heavyPickup', label: 'Heavy pickup w/ ≥6-ft bed' },
-            { value: 'cargoVan',    label: 'Cargo van (no rear seats)' },
-            { value: 'over14000',   label: 'Vehicle &gt;14,000 lb GVWR' }
-        ] },
-        { id: 'bizUsePct',    label: 'Business use (%)',              kind: 'pct', placeholder: '100' }
-      ]
-    },
-    {
       id: 'slot07',
       num: '08',
       name: 'Equipment Leasing Fund',
@@ -332,73 +237,6 @@
         { id: 'daysRented',     label: 'Days rented (max 14)',                kind: 'num', placeholder: '14' },
         { id: 'fmvPerDay',      label: 'FMV rental per day',                  kind: 'usd', placeholder: '1,500' },
         { id: 'annualRecurring',label: 'Recurs each year (multi-year)?',      kind: 'yesno' }
-      ]
-    },
-    {
-      id: 'slot09',
-      num: '04',
-      name: '401(k) + Profit Sharing',
-      shortName: '401(k) + PS',
-      keyaspect: 'Retirement Deferral',
-      descriptor: 'Each dollar deferred reduces taxable income now and grows tax-deferred &mdash; up to $72,000 annual addition for the owner.',
-      audience: 'Business owner',
-      bucket: 'ordinary',
-      defaults: {
-        compensation:    300000,
-        ownerAge:        55,
-        priorYearWages:  200000,
-        annualRecurring: false      // 401(k) contributions repeat annually; toggle multiplies benefit across the strategy horizon
-      },
-      detailRows: [
-        { id: 'compensation',    label: 'Eligible compensation / SE earnings', kind: 'usd', placeholder: '300,000' },
-        { id: 'ownerAge',        label: 'Owner age',                            kind: 'num', placeholder: '55' },
-        { id: 'priorYearWages',  label: 'Prior-year FICA wages',                kind: 'usd', placeholder: '200,000' },
-        { id: 'annualRecurring', label: 'Recurs each year (multi-year)?',       kind: 'yesno' }
-      ]
-    },
-    {
-      id: 'slot10',
-      num: '10',
-      name: 'Aircraft Purchase',
-      shortName: 'Aircraft',
-      keyaspect: 'Business Aviation Bonus',
-      descriptor: 'Each dollar of aircraft cost expenses 100% in year one when business use exceeds 50%.',
-      audience: 'Business aviation user',
-      bucket: 'asset',
-      // No investmentField — aircraft is a physical-asset purchase the
-      // client wants anyway; doesn't compete with Brooklyn for capital.
-      // The depreciation tax savings flow into net benefit; the asset
-      // cost surfaces in the Page-5 physical-asset breakdown.
-      defaults: {
-        aircraftCost: 3000000,
-        qbuPct:       75
-      },
-      detailRows: [
-        { id: 'aircraftCost', label: 'Aircraft acquisition cost',     kind: 'usd', placeholder: '3,000,000' },
-        { id: 'qbuPct',       label: 'Qualified business use (%)',    kind: 'pct', placeholder: '75' }
-      ]
-    },
-    {
-      id: 'slot11',
-      num: '11',
-      name: 'Short-Term Rental',
-      shortName: 'STR',
-      keyaspect: 'Non-Passive Loss',
-      descriptor: 'Each dollar of property basis generates ~30&cent; in year-one paper losses against W-2 income (≤7-day stays + material participation).',
-      audience: 'STR investor',
-      bucket: 'capital',
-      investmentField: 'propertyCost',
-      defaults: {
-        propertyCost:    1500000,
-        landPct:         20,
-        avgUseDays:      5,
-        materialPart:    true
-      },
-      detailRows: [
-        { id: 'propertyCost', label: 'Property cost',                       kind: 'usd', placeholder: '1,500,000' },
-        { id: 'landPct',      label: 'Land allocation (%)',                 kind: 'pct', placeholder: '20' },
-        { id: 'avgUseDays',   label: 'Avg guest stay (days)',               kind: 'num', placeholder: '5' },
-        { id: 'materialPart', label: 'Material participation (any test)?', kind: 'yesno' }
       ]
     },
     {
