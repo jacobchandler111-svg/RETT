@@ -389,6 +389,8 @@ function _yearTaxes(scenario) {
       const _lt  = Number(_s.longTermGain)   || 0;
       const _qd  = Number(_s.qualifiedDividend) || 0;
       const _rcp = Number(_s.depreciationRecapture) || 0;
+      const _rcp1245 = Number(_s.depreciationRecapture1245) || 0;
+      const _rcp1250 = Number(_s.depreciationRecapture1250) || 0;
       const _inv = (_s.investmentIncome != null) ? Number(_s.investmentIncome) : (_lt + _qd);
       const _w   = (_s.wages != null) ? Number(_s.wages) : 0;
       const _se  = Number(_s.seIncome) || 0;
@@ -408,6 +410,8 @@ function _yearTaxes(scenario) {
             _yr, _stat,
             { longTermGain: _lt, shortTermGain: _st, qualifiedDividend: _qd,
               depreciationRecapture: _rcp,
+              depreciationRecapture1245: _rcp1245,
+              depreciationRecapture1250: _rcp1250,
               investmentIncome: _inv, wages: _w,
               seIncome: _se,
               itemized: _itm });
@@ -450,6 +454,8 @@ function _yearTaxes(scenario) {
       //   total = federal + state.
       var _ord1 = Number(fed && fed.ordinaryTax) || 0;
       var _rcp1 = Number(fed && fed.recapTax)    || 0;
+      var _rcp1245Out = Number(fed && fed.recapTax1245) || 0;
+      var _rcp1250Out = Number(fed && fed.recapTax1250) || 0;
       var _lt1  = Number(fed && fed.ltTax)       || 0;
       var _amt1 = Number(fed && fed.amtTopUp)    || 0;
       return {
@@ -457,6 +463,8 @@ function _yearTaxes(scenario) {
             federalIncomeTax: _ord1 + _rcp1 + _lt1 + _amt1,
             ordinaryTax: _ord1,
             recapTax: _rcp1,
+            recapTax1245: _rcp1245Out,
+            recapTax1250: _rcp1250Out,
             ltTax: _lt1,
             amt: _amt1,
             niit: Number(fed && fed.niit) || 0,

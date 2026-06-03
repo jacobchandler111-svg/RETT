@@ -160,16 +160,38 @@
     var stGain = Math.max(0, _readNum('short-term-gain'));
     var lt = Math.max(0, Number(row && row.gainRecognized) || 0);
     var recap = 0;
+    var recap1245 = 0;
+    var recap1250 = 0;
     // Recapture lands in the year-of-sale for all three strategies:
     //   A — row[0] (sale year, immediate)
     //   B — row[0] (sale year, ordinary §453(i); LT gain comes in row[1])
     //   C — row[0] (sale year; LT gain spreads across later rows)
-    // displayedI === 0 maps to engine row[0] for all three under the
+    // displayedY === 0 maps to engine row[0] for all three under the
     // new (post-§453-update) rendering path.
     if (displayedI === 0 && (chosen === 'A' || chosen === 'B' || chosen === 'C')) {
       recap = Math.max(0, Number(cfg && cfg.acceleratedDepreciation) || 0);
+      // §1245/§1250 split (advisor 2026-06-04). When the user filled
+      // both sub-amounts on Section 02, surface each separately so the
+      // CPA-facing card shows the tax-character breakdown. When blank,
+      // default the whole recap to §1250 (legacy behavior).
+      var _ad1245 = Math.max(0, Number(cfg && cfg.acceleratedDepreciation1245) || 0);
+      var _ad1250 = Math.max(0, Number(cfg && cfg.acceleratedDepreciation1250) || 0);
+      if (_ad1245 + _ad1250 > 0) {
+        recap1245 = _ad1245;
+        recap1250 = _ad1250;
+      } else {
+        recap1245 = 0;
+        recap1250 = recap;
+      }
     }
-    return { ordinary: ord, longTermGain: lt, shortTermGain: stGain, recapture: recap };
+    return {
+      ordinary: ord,
+      longTermGain: lt,
+      shortTermGain: stGain,
+      recapture: recap,
+      recapture1245: recap1245,
+      recapture1250: recap1250
+    };
   }
 
   // Resolve the chosen strategy's engine output + funded supplementals.
@@ -284,9 +306,22 @@
     var rows = [
       ['Ordinary income',          incomes.ordinary,    true],
       ['Long-term capital gain',   incomes.longTermGain, false],
-      ['Short-term capital gain',  incomes.shortTermGain, false],
-      ['Depreciation recapture',   incomes.recapture,    false]
+      ['Short-term capital gain',  incomes.shortTermGain, false]
     ];
+    // §1245 / §1250 recap split (advisor 2026-06-04). Show both rows
+    // when EITHER has a non-zero value; collapse to a single "Depreciation
+    // recapture" line for legacy / pre-split cases where the split sub-
+    // amounts aren't set. §1245 is ordinary-flavored (full marginal,
+    // not in NIIT); §1250 is the §1(h)(1)(E) per-slice 25% cap.
+    var _r1245 = Number(incomes.recapture1245) || 0;
+    var _r1250 = Number(incomes.recapture1250) || 0;
+    var _rTotal = Number(incomes.recapture)    || 0;
+    if (_r1245 > 0 || _r1250 > 0) {
+      rows.push(['Depreciation recapture (§1245)', _r1245, false]);
+      rows.push(['Depreciation recapture (§1250)', _r1250, false]);
+    } else {
+      rows.push(['Depreciation recapture',         _rTotal, false]);
+    }
     html += rows.map(function (r) {
       var amt = Number(r[1]) || 0;
       if (!r[2] && amt === 0) return '';
@@ -303,6 +338,8 @@
     var fedOrd = Number(b.ordinaryTax) || 0;
     var fedLt  = Number(b.ltTax)       || 0;
     var fedRcp = Number(b.recapTax)    || 0;
+    var fedRcp1245 = Number(b.recapTax1245) || 0;
+    var fedRcp1250 = Number(b.recapTax1250) || 0;
     var amt    = Number(b.amt)         || 0;
     var niit   = Number(b.niit)        || 0;
     var addmed = Number(b.addlMedicare)|| 0;
@@ -311,19 +348,28 @@
     var fedTotal = (b.federalIncomeTax != null) ? Number(b.federalIncomeTax) : (fedOrd + fedRcp + fedLt + amt);
     var total = (b.total != null) ? Number(b.total) : (fedTotal + niit + addmed + setax + state);
 
-    // opts.forceRecap — show the §1250 recap line even when it's $0
-    // (used by the Results column so the CPA sees the strategy drove
-    // recapture tax from $X down to $0 via Brooklyn absorption).
+    // opts.forceRecap — show the recap lines even when $0 (Results column
+    // uses this so the CPA sees the strategy drove recapture tax from $X
+    // down via Brooklyn absorption).
     var rows = [
       ['Ordinary income tax',     fedOrd, true],
-      ['LT capital gains tax',    fedLt,  true],
-      ['Depreciation recap tax',  fedRcp, !!opts.forceRecap],
-      ['AMT top-up',              amt,    false],
-      ['NIIT (3.8%)',             niit,   false],
-      ['Additional Medicare',     addmed, false],
-      ['SE / FICA tax',           setax,  false],
-      ['State income tax',        state,  true]
+      ['LT capital gains tax',    fedLt,  true]
     ];
+    // §1245 / §1250 recap-tax split (advisor 2026-06-04). Mirrors the
+    // income-side split. When the user split the recap on Section 02,
+    // show both tax rows. Otherwise collapse to a single "Depreciation
+    // recap tax" line (legacy display).
+    if (fedRcp1245 > 0 || fedRcp1250 > 0) {
+      rows.push(['Depreciation recap tax (§1245)', fedRcp1245, !!opts.forceRecap]);
+      rows.push(['Depreciation recap tax (§1250)', fedRcp1250, !!opts.forceRecap]);
+    } else {
+      rows.push(['Depreciation recap tax',         fedRcp,     !!opts.forceRecap]);
+    }
+    rows.push(['AMT top-up',              amt,    false]);
+    rows.push(['NIIT (3.8%)',             niit,   false]);
+    rows.push(['Additional Medicare',     addmed, false]);
+    rows.push(['SE / FICA tax',           setax,  false]);
+    rows.push(['State income tax',        state,  true]);
     return rows.map(function (r) {
       var amt2 = Number(r[1]) || 0;
       if (!r[2] && amt2 === 0) return '';
