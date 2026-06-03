@@ -494,20 +494,24 @@ function _applyLossesWithSTCfCap(scenario, lossAvailable, capOrdinary) {
       let loss = lossAvailable;
 
       // Loss ordering — Brooklyn short-term capital losses absorb gain
-      // buckets highest-rate first (taxpayer-favorable):
-      //   1) ST gain (ordinary rates, up to 37%)
+      // buckets per IRS Schedule D Tax Worksheet:
+      //   1) ST gain (ordinary rates)
       //   2) Regular LT gain (0/15/20%)
-      //   3) Ordinary income (capped at $3K / $1.5K MFS)
+      //   3) §1250 unrecaptured gain (capital-classified, 25% cap) —
+      //      taxpayer split rule per advisor 2026-06-04. §1250 unrecap
+      //      gain IS capital, so capital losses net against it without
+      //      the $3K limit. IRS Schedule D Tax Worksheet puts it AFTER
+      //      regular LT (losses reduce 0/15/20% gain first, then 25%
+      //      gain) — this is the worksheet's stated mechanic even
+      //      though it's slightly taxpayer-unfavorable per dollar.
+      //   4) Ordinary income (§1211(b) capped at $3K / $1.5K MFS).
       //
-      // Depreciation recapture is INTENTIONALLY NOT in this list
-      // (advisor 2026-05-27): the "accelerated depreciation recapture"
-      // input represents §1250(a)-style recapture recognized as ORDINARY
-      // income in the year of sale per §453(i). It is not a capital gain
-      // bucket Brooklyn's capital losses can offset — it stays fully
-      // taxed at its (25%-capped) rate regardless of the loss generated.
-      // Previously this function had a Step 2 that reduced
-      // depreciationRecapture by the loss, which zeroed the recapture
-      // tax on Tab 7 even with $200K of recapture present — wrong.
+      // §1245 recapture is INTENTIONALLY NOT in this list — it's
+      // ORDINARY income (not capital), so it can only be reached via
+      // the $3K §1211(b) cap, same as any other ordinary income. The
+      // depreciationRecapture1245 amount stays in the ordinary stack
+      // and is taxed at full marginal rates. (User confirmation
+      // 2026-06-04.)
 
       // Step 1: ST gain. ST cap gain is investment income for §1411 NIIT
       // purposes (per the same logic as LT below), so the NIIT base must
@@ -517,14 +521,32 @@ function _applyLossesWithSTCfCap(scenario, lossAvailable, capOrdinary) {
       out.investmentIncome = Math.max(0, (out.investmentIncome || 0) - offsetShort);
       loss -= offsetShort;
 
-      // Step 2: LT gain (the recognized property gain in year R). Note
-      // recapture is skipped — capital losses flow straight from ST gain
-      // to LT gain, leaving the ordinary recapture untouched.
+      // Step 2: Regular LT gain.
       if (loss > 0) {
             const offsetLong = Math.min(out.longTermGain || 0, loss);
             out.longTermGain = (out.longTermGain || 0) - offsetLong;
             out.investmentIncome = Math.max(0, (out.investmentIncome || 0) - offsetLong);
             loss -= offsetLong;
+      }
+
+      // Step 3: §1250 unrecaptured gain. The §1250 portion of the
+      // depreciation recapture is capital (taxed at LTCG rates capped
+      // at 25%). Brooklyn capital losses CAN net against it. Reduce
+      // BOTH the §1250 bucket and the legacy total `depreciationRecapture`
+      // (kept as backward-compat sum = §1245 + §1250) by the offset
+      // amount. NIIT base also shrinks (the §1250 piece was in
+      // investmentIncome upstream via _baseScenarioForYear).
+      if (loss > 0) {
+            const _r1250 = Number(out.depreciationRecapture1250) || 0;
+            const offset1250 = Math.min(_r1250, loss);
+            if (offset1250 > 0) {
+                  out.depreciationRecapture1250 = _r1250 - offset1250;
+                  out.depreciationRecapture = Math.max(0,
+                        (Number(out.depreciationRecapture) || 0) - offset1250);
+                  out.investmentIncome = Math.max(0,
+                        (out.investmentIncome || 0) - offset1250);
+                  loss -= offset1250;
+            }
       }
 
       // Step 4: ordinary income, capped at $3,000 (or $1,500 for MFS).
