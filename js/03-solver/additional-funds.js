@@ -152,6 +152,22 @@
       var amt = Math.round(AV * f);
       if (amt > 0) cands.push(amt);
     });
+    // (3) SMALL ABSOLUTE amounts (the near-wiped band). When base Brooklyn
+    //     capital ALMOST covers the sale, the residual gain — and therefore
+    //     the optimal extra deployment — is small (well under 25% of the
+    //     account). The fractional ladder above can't reach it: even its
+    //     smallest rung (25% of a large account) overshoots the tiny residual
+    //     and scores NEGATIVE, so suggest() returned null. Auto-populate then
+    //     CLEARED the field, and the visibility gate (which scores the entered
+    //     amount) saw $0 and HID the toggle — even though a small deployment
+    //     genuinely helps. That violated the advisor's invariant "show the
+    //     toggle if AT LEAST ONE strategy benefits" (bug found 2026-06-03:
+    //     base ≈ $6.75M on a $7M/$3M sale, $3M account — $25k–$100k benefited
+    //     +$1.9k–$3.5k but suggest returned null). An absolute ladder finds
+    //     those small optima regardless of how large the account is.
+    [25000, 50000, 100000, 250000, 500000].forEach(function (amt) {
+      if (amt > 0 && amt <= AV) cands.push(amt);
+    });
     cands = cands.filter(function (v, i, a) { return v > 0 && a.indexOf(v) === i; })
                  .sort(function (a, b) { return a - b; });
     if (!cands.length) return null;
