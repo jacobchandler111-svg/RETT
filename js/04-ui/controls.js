@@ -1866,6 +1866,66 @@ function bindControls() {
   }
   for (var _aon = 1; _aon <= 5; _aon++) _wireAmountOwedForBlock(_aon);
 
+  // §1245/§1250 recap split (Section 02 sub-block).
+  //   When the user enters a non-zero "Accelerated Depreciation Recapture",
+  //   reveal two sub-inputs so they can attribute the recap to its tax
+  //   character: §1245 (personal property / cost-seg short-life) gets
+  //   ordinary income treatment, while §1250 (real property / 39-yr shell)
+  //   gets the §1(h)(1)(E) 25% cap + capital-loss-offset eligibility.
+  //   The two sub-amounts SHOULD sum to the parent total; the validator
+  //   line shows the live delta so the CPA can confirm.
+  //   Backward compat: if the user leaves the sub-inputs blank, the engine
+  //   defaults the whole parent amount to §1250 (current behavior, since
+  //   that's what the engine has always assumed). So this is opt-in
+  //   precision without regressing existing saved cases.
+  function _wireRecapSplitForBlock(n) {
+    var suffix = (n === 1 ? '' : '-' + n);
+    var parent = document.getElementById('accelerated-depreciation' + suffix);
+    // Sub-rows currently only added for Property 1. Multi-property support
+    // is a follow-up (each property's recap could have its own split).
+    var row1245 = document.getElementById('recap-split-1245-row-' + n);
+    var row1250 = document.getElementById('recap-split-1250-row-' + n);
+    var rowVal  = document.getElementById('recap-split-validator-row-' + n);
+    var inp1245 = document.getElementById('accelerated-depreciation-1245' + (n === 1 ? '' : '-' + n));
+    var inp1250 = document.getElementById('accelerated-depreciation-1250' + (n === 1 ? '' : '-' + n));
+    var valEl   = document.getElementById('recap-split-validator-' + n);
+    if (!parent || !row1245 || !row1250) return;
+    function _fmtUSD(n) {
+      var v = Math.round(Number(n) || 0);
+      return (v < 0 ? '-' : '') + '$' + Math.abs(v).toLocaleString('en-US');
+    }
+    function _updateValidator() {
+      if (!valEl) return;
+      var total = (typeof parseUSD === 'function' ? parseUSD(parent.value) : Number(parent.value)) || 0;
+      var a1245 = inp1245 ? ((typeof parseUSD === 'function' ? parseUSD(inp1245.value) : Number(inp1245.value)) || 0) : 0;
+      var a1250 = inp1250 ? ((typeof parseUSD === 'function' ? parseUSD(inp1250.value) : Number(inp1250.value)) || 0) : 0;
+      var sum = a1245 + a1250;
+      if (a1245 === 0 && a1250 === 0) {
+        valEl.textContent = 'Both blank → engine defaults 100% to §1250';
+        valEl.style.color = '#888';
+      } else if (Math.abs(sum - total) < 0.5) {
+        valEl.textContent = 'Sum: ' + _fmtUSD(sum) + ' ✓ matches';
+        valEl.style.color = '#2a9d3a';
+      } else {
+        valEl.textContent = 'Sum: ' + _fmtUSD(sum) + ' (' + (sum < total ? 'short by ' : 'over by ') + _fmtUSD(Math.abs(sum - total)) + ')';
+        valEl.style.color = '#c44';
+      }
+    }
+    parent.addEventListener('input',  _updateValidator);
+    parent.addEventListener('change', _updateValidator);
+    if (inp1245) {
+      inp1245.addEventListener('input',  _updateValidator);
+      inp1245.addEventListener('change', _updateValidator);
+    }
+    if (inp1250) {
+      inp1250.addEventListener('input',  _updateValidator);
+      inp1250.addEventListener('change', _updateValidator);
+    }
+    _updateValidator();
+  }
+  // Only Property 1 has the split sub-block today. Properties 2-5 will follow.
+  _wireRecapSplitForBlock(1);
+
   // Future Sale Loss Target (Section 05): the Yes/No question toggles
   // the conditional fields group. The optimizer reads cfg.futureSale to
   // decide how much of the current Brooklyn position should generate

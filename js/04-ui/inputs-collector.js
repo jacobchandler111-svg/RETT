@@ -389,6 +389,21 @@ function collectInputs() {
                 salePrice:               _sumPropertyField('sale-price'),
                 costBasis:               _sumPropertyField('cost-basis'),
                 acceleratedDepreciation: _sumPropertyField('accelerated-depreciation'),
+                // §1245/§1250 split (UI sub-block under acceleratedDepreciation).
+                //   §1245 (personal property / cost-seg 5-7-15-yr) → ordinary
+                //     income rates, NOT subject to NIIT (active trade/business
+                //     assumption), AMT lumps into ordinary slice (26/28%).
+                //   §1250 (real property / 39-yr building shell) → unrecaptured
+                //     §1250 gain, taxed at per-slice min(marginal, 25%) via
+                //     §1(h)(1)(E), included in NIIT base, capital losses can
+                //     offset it via §1(h) netting.
+                //   Backward compat: if the split fields are blank, the engine
+                //     defaults the whole acceleratedDepreciation to §1250
+                //     (current behavior). Sum validator in controls.js flags
+                //     mismatch but doesn't block; engine trusts the split when
+                //     either field is non-blank.
+                acceleratedDepreciation1245: parseUSD(_val('accelerated-depreciation-1245')) || 0,
+                acceleratedDepreciation1250: parseUSD(_val('accelerated-depreciation-1250')) || 0,
                 // Multi-property year-of-sale schedule (Q1-extended).
                 // Empty array when every property closes in the same
                 // calendar year — engine falls through to the legacy

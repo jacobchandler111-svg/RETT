@@ -19,6 +19,9 @@
     'dividend-income', 'retirement-distributions',
     'interest-income', 'social-security', 'business-income-amount',
     'sale-price', 'cost-basis', 'accelerated-depreciation',
+    // §1245/§1250 recap split sub-inputs (Property 1 only today;
+    // Properties 2-5 split will be added when multi-property split UI lands).
+    'accelerated-depreciation-1245', 'accelerated-depreciation-1250',
     // Multi-property (Q1): Properties 2-5 currency fields.
     'sale-price-2', 'cost-basis-2', 'accelerated-depreciation-2',
     'sale-price-3', 'cost-basis-3', 'accelerated-depreciation-3',
@@ -55,6 +58,7 @@
     'w2-wages': 1, 'se-income': 1,
     'dividend-income': 1, 'retirement-distributions': 1,
     'sale-price': 1, 'cost-basis': 1, 'accelerated-depreciation': 1,
+    'accelerated-depreciation-1245': 1, 'accelerated-depreciation-1250': 1,
     'sale-price-2': 1, 'cost-basis-2': 1, 'accelerated-depreciation-2': 1,
     'sale-price-3': 1, 'cost-basis-3': 1, 'accelerated-depreciation-3': 1,
     'sale-price-4': 1, 'cost-basis-4': 1, 'accelerated-depreciation-4': 1,
