@@ -558,7 +558,54 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       // contribution stays in the 26/28% ordinary slice via the
       // taxable - lt - recapInSlice subtraction inside _computeAmt.
       const amtOrdOnly  = _computeAmt(amtAmti, year, status, ltAmount, _recap1250InTaxable, recapTax1250);
-      const amtTotal    = amtOrdOnly + ltTax;
+
+      // === AMT preferential-rate layer (TMT capital-gains stacking) ===
+      // INTENTIONAL DEPARTURE FROM Form 6251 Part III line 44.
+      //
+      // Form 6251 positions the LTCG brackets using line 44 = "line 5 of
+      // the Qualified Dividends & Cap Gain Tax Worksheet (as figured for
+      // the regular tax)" — i.e. regular taxable ordinary income, which is
+      // NET of the standard deduction. Reusing the regular `ltTax` (stacked
+      // on `taxableOrdinary`) would reproduce that.
+      //
+      // Per advisor (CPA-confirmed 2026-06-03): the standard deduction is
+      // disallowed for AMT, full stop — it must not reduce the LTCG stacking
+      // base any more than it reduces the 26/28% ordinary slice. The 26%
+      // ordinary slice already runs on the FULL ordinary AMTI ($230k, std
+      // ded added back via _stdDedAddback); the gains must stack on that
+      // same $230k base, NOT on the regular $197,800. So we recompute the
+      // LTCG layer here with the std-deduction add-back baked into both the
+      // stacking base AND the leftover-deduction shift.
+      //
+      // Mirrors the regular LTCG bracket walk above exactly, but:
+      //   stackBase   = taxableOrdinary + _stdDedAddback  (full AMTI ordinary)
+      //   taxableLt   = ltAmount - _amtLeftoverDeduction  (std ded NOT shifting floors)
+      // For an ITEMIZED filer _stdDedAddback = 0, so this reduces to the
+      // regular ltTax (itemized deductions are retained for AMT) — the
+      // departure only bites when the standard deduction is in play.
+      const _amtDeduction = Math.max(0, deduction - _stdDedAddback);
+      const _amtTaxableOrd = Math.max(0, ordinaryGross - _amtDeduction - _carriedLossOrdOffset);
+      const _amtDeductionConsumedOnOrd = Math.max(0, ordinaryGross - _amtTaxableOrd - _carriedLossOrdOffset);
+      const _amtLeftoverDeduction = Math.max(0, _amtDeduction - _amtDeductionConsumedOnOrd);
+      let _amtLtTax = 0;
+      if (ltAmount > 0 && ltBrk && ltBrk.length) {
+            const _amtTaxableLt = Math.max(0, ltAmount - _amtLeftoverDeduction);
+            let remaining = _amtTaxableLt;
+            let stackBase = _amtTaxableOrd;
+            let prevMax = 0;
+            for (const b of ltBrk) {
+                  const cap = b[0], rate = b[1];
+                  if (remaining <= 0) break;
+                  const slabRoom = Math.max(0, cap - Math.max(stackBase, prevMax));
+                  if (slabRoom <= 0) { prevMax = cap; continue; }
+                  const slabUse = Math.min(slabRoom, remaining);
+                  _amtLtTax += slabUse * rate;
+                  remaining -= slabUse;
+                  stackBase += slabUse;
+                  prevMax = cap;
+            }
+      }
+      const amtTotal    = amtOrdOnly + _amtLtTax;
       // Regular tax for AMT comparison includes recapTax — without
       // it the AMT top-up double-counts the recapture portion.
       const amtTopUp    = Math.max(0, amtTotal - (ordinaryTax + recapTax + ltTax));
