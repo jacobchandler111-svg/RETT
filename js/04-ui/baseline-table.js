@@ -452,8 +452,8 @@
     document.addEventListener('change', debounced, true);
     // Initial paint.
     render();
-    // Wire the scroll-reveal observer for the 3-tile row on Tab 2.
-    _initRevealObserver();
+    // Wire the click-to-reveal button for the 3-tile row on Tab 2.
+    _initRevealButton();
   }
 
   // -----------------------------------------------------------------
@@ -503,16 +503,33 @@
       { key: 'lt',    nm: 'Long-Term Gain',   amt: ltSeg,    col: 'var(--pb-lt)'    }
     ];
 
+    // Non-linear width scaling so small recap segments stay readable
+    // even when the LT gain dwarfs them. Each non-zero segment gets a
+    // guaranteed minimum (~11% of the bar); the rest of the width
+    // distributes by dollar share. Ordering by size is preserved
+    // (the largest segment is still visibly largest) but $400K next
+    // to $6M no longer collapses to "$" with truncated label.
+    var MIN_PCT = 11;
+    var nonZero = segs.filter(function (s) { return s.amt > 0; });
+    var totalAmt = nonZero.reduce(function (a, s) { return a + s.amt; }, 0) || 1;
+    var reserved = MIN_PCT * nonZero.length;
+    var remaining = Math.max(0, 100 - reserved);
+    nonZero.forEach(function (s) {
+      s.visualPct = MIN_PCT + (s.amt / totalAmt) * remaining;
+    });
+    segs.forEach(function (s) {
+      if (s.amt <= 0) s.visualPct = 0;
+    });
+
     var bar = document.getElementById('baseline-proceeds-bar');
     if (bar) {
       bar.innerHTML = segs.map(function (s) {
         if (s.amt <= 0) return '';
-        var pct = (s.amt / sale) * 100;
-        // Show the segment name only when it has room — otherwise the
-        // dollar amount alone (tooltip carries the full label).
-        var showName = pct >= 7;
+        // Show the segment name only when the visual width can fit
+        // ~10 chars of caption. Below that, dollar alone (with tooltip).
+        var showName = s.visualPct >= 10;
         var title = s.nm + ' — ' + _fmt(s.amt);
-        return '<div class="pseg" style="flex:0 0 ' + pct.toFixed(3) +
+        return '<div class="pseg" style="flex:0 0 ' + s.visualPct.toFixed(3) +
                '%;background:' + s.col + '" title="' +
                title.replace(/"/g, '&quot;') + '">' +
                  '<span class="pamt">' + _fmt(s.amt) + '</span>' +
@@ -521,9 +538,13 @@
       }).join('');
     }
 
-    // Brackets. Top = sale (full width). Bottom = basis (% of sale).
+    // Brackets — anchored to the VISUAL widths of the bar, not the
+    // dollar ratios, so the bottom bracket always lines up with the
+    // visual end of the basis + recap segments after min-pct scaling.
     var basisTotal = adjBasis + r45 + r50; // == original basis
-    var basisPct   = (basisTotal / sale) * 100;
+    var basisPct   = segs.slice(0, 3).reduce(function (a, s) {
+      return a + (s.amt > 0 ? s.visualPct : 0);
+    }, 0);
     var topEl    = document.getElementById('baseline-bracket-top');
     var bottomEl = document.getElementById('baseline-bracket-bottom');
     if (topEl) {
@@ -556,31 +577,37 @@
   }
 
   // -----------------------------------------------------------------
-  // Auto-reveal: the 3-tile baseline-pie-row starts dimmed/translated
-  // and fades into place as it scrolls into view. Lets the proceeds
-  // bar own the top of Tab 2; the strategy-impact tiles arrive on
-  // their own beat. Idempotent — runs once on first attach, falls
-  // back to immediate reveal when IntersectionObserver is missing.
+  // Click-to-reveal: the 3-tile baseline-pie-row starts hidden behind
+  // a centered "Show Tax Breakdown" button. Click → button drops out,
+  // spacer expands so the tiles arrive on their own beat, and the
+  // page scrolls the tile row into view. Wired once on first attach;
+  // idempotent (second click is a no-op).
   // -----------------------------------------------------------------
-  function _initRevealObserver() {
-    var targets = document.querySelectorAll('.baseline-reveal-target');
-    if (!targets.length) return;
-    if (typeof IntersectionObserver !== 'function') {
-      // No-IO fallback: just reveal immediately.
+  function _initRevealButton() {
+    var btn      = document.getElementById('baseline-reveal-btn');
+    var btnWrap  = document.getElementById('baseline-reveal-btn-wrap');
+    var spacer   = document.getElementById('baseline-reveal-spacer');
+    var targets  = document.querySelectorAll('.baseline-reveal-target');
+    if (!btn || !btnWrap || !targets.length) return;
+    if (btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', function () {
+      // 1) Spacer expands first so the tiles don't slam into the bar.
+      if (spacer) spacer.classList.add('is-active');
+      // 2) Reveal tiles (CSS keyframe animation fades + slides them in).
       targets.forEach(function (el) {
         el.classList.add('baseline-reveal-shown');
       });
-      return;
-    }
-    var io = new IntersectionObserver(function (entries) {
-      entries.forEach(function (entry) {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('baseline-reveal-shown');
-          io.unobserve(entry.target);
+      // 3) Drop the button itself.
+      btnWrap.classList.add('is-revealed');
+      // 4) Smooth-scroll the tile row into view so the eye follows.
+      setTimeout(function () {
+        var firstTarget = targets[0];
+        if (firstTarget && typeof firstTarget.scrollIntoView === 'function') {
+          firstTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
-      });
-    }, { threshold: 0.18, rootMargin: '0px 0px -40px 0px' });
-    targets.forEach(function (el) { io.observe(el); });
+      }, 80);
+    });
   }
 
   // Donut renderer (advisor 2026-05-27). Denominator = GAIN

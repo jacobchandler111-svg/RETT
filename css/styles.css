@@ -8734,11 +8734,14 @@ body { font-size: 16px; }
   --pb-1245:      var(--rett-danger);  /* danger red — full marginal */
   --pb-1250:      var(--rett-blue);    /* brand blue — 25% capped    */
   --pb-lt:        var(--rett-success); /* success green — 20% LTCG   */
-  margin: 0 0 28px 0;
-  padding: 24px 28px 22px;
+  /* Match width + margins of the 3-tile baseline-pie-row below so
+     they line up left/right edge. */
+  max-width: 1280px;
+  margin: 24px auto 28px;
+  padding: 26px 32px 24px;
   background: var(--paper);
   border: 1px solid var(--rule);
-  border-radius: 8px;
+  border-radius: 16px;
   box-shadow: var(--shadow);
 }
 .proceeds-eyebrow {
@@ -8752,7 +8755,7 @@ body { font-size: 16px; }
 }
 .proceeds-frame { margin-top: 8px; }
 .proceeds-bar {
-  height: 60px;
+  height: 64px;
   display: flex;
   width: 100%;
   border-radius: 4px;
@@ -8773,20 +8776,24 @@ body { font-size: 16px; }
 .proceeds-bar .pseg .pamt {
   font-family: 'JetBrains Mono', 'Spline Sans Mono', monospace;
   font-weight: 600;
-  font-size: 13px;
+  font-size: 13.5px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.15;
 }
 .proceeds-bar .pseg .pnm {
-  font-size: 9.5px;
-  letter-spacing: 0.06em;
+  /* Smaller, lighter — labels feel like a caption under the number,
+     same hierarchy as the friend's HTML calculator. */
+  font-size: 8.5px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  opacity: 0.92;
+  opacity: 0.82;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-top: 2px;
+  margin-top: 3px;
+  font-weight: 500;
 }
 /* Brackets — top spans Sale Price, bottom spans Original Purchase Price. */
 .bracket { position: relative; width: 100%; }
@@ -8852,26 +8859,73 @@ body { font-size: 16px; }
 .proceeds-hint b { color: var(--ink); font-weight: 600; }
 
 /* ============================================================
-   Tab 2 — Three-tile auto-reveal on scroll
+   Tab 2 — Click-to-reveal tax breakdown
    ------------------------------------------------------------
-   The 3-tile row starts dimmed + slid down. IntersectionObserver
-   in baseline-table.js adds .baseline-reveal-shown which fades
-   + slides them into place. Respects reduced-motion.
+   The proceeds bar owns the top of Tab 2. The 3-tile row stays
+   hidden behind a centered button until the user explicitly
+   asks to see the tax due. Click → button fades out, scroll
+   spacer expands, tiles slide in. Honors reduced-motion.
    ============================================================ */
 .baseline-reveal-target {
-  opacity: 0;
-  transform: translateY(14px);
-  transition: opacity 480ms ease, transform 520ms ease;
+  display: none;
 }
 .baseline-reveal-target.baseline-reveal-shown {
-  opacity: 1;
-  transform: translateY(0);
+  display: grid;       /* matches baseline-pie-row's natural display */
+  animation: baselineRevealFadeIn 520ms ease both;
+}
+@keyframes baselineRevealFadeIn {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.baseline-reveal-btn-wrap {
+  max-width: 1280px;
+  margin: 8px auto 24px;
+  display: flex;
+  justify-content: center;
+}
+.baseline-reveal-btn {
+  padding: 14px 32px;
+  background: var(--paper);
+  border: 1.5px dashed var(--rett-blue);
+  border-radius: 4px;
+  color: var(--rett-blue);
+  font-family: 'JetBrains Mono', 'Spline Sans Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all .15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.baseline-reveal-btn:hover {
+  background: var(--rett-blue);
+  color: #fff;
+  border-style: solid;
+}
+.baseline-reveal-btn .chev {
+  display: inline-block;
+  transform: translateY(1px);
+  font-size: 14px;
+}
+.baseline-reveal-btn-wrap.is-revealed {
+  display: none;       /* once clicked, button drops out entirely */
+}
+/* A small spacer kicks in below the bar after reveal so the tiles
+   don't slam into the bar — the user can scroll a touch between
+   the two views. */
+.baseline-reveal-spacer {
+  height: 0;
+  transition: height 360ms ease;
+}
+.baseline-reveal-spacer.is-active {
+  height: 28px;
 }
 @media (prefers-reduced-motion: reduce) {
-  .baseline-reveal-target,
-  .baseline-reveal-target.baseline-reveal-shown {
-    opacity: 1;
-    transform: none;
-    transition: none;
-  }
+  .baseline-reveal-target.baseline-reveal-shown { animation: none; }
+  .baseline-reveal-spacer,
+  .baseline-reveal-spacer.is-active { transition: none; }
 }
