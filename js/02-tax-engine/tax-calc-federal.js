@@ -144,18 +144,29 @@ function _computeAmt(amti, year, status, ltAmount, recapAmount, recapTaxRegular)
           const rcap = Math.max(0, Number(recapAmount) || 0);
           const recapInSlice = Math.min(rcap, Math.max(0, taxable - lt));
           const ordinarySlice = Math.max(0, taxable - lt - recapInSlice);
-          // §1250 unrecaptured gain inside AMT (Form 6251 Part III) runs
-          // through the SAME §1(h) worksheet as regular tax — taxed at the
-          // lesser of the ordinary bracket rate or 25%, NOT a flat 25%.
-          // When the caller supplies the regular-tax recap dollar amount
-          // (recapTaxRegular), reuse its effective rate so the recapture
-          // nets out of the AMT top-up. A flat 25% over-stated the top-up
-          // by (25% − bracketRate) × recap whenever the bracket landed
-          // below 25% (advisor 2026-05-27). Fallback to 25% if the regular
-          // amount isn't passed (preserves the §1(h)(1)(E) ceiling).
-          const _recapEffRate = (rcap > 0 && recapTaxRegular != null && isFinite(recapTaxRegular))
-                ? (recapTaxRegular / rcap)
-                : 0.25;
+          // §1250 unrecaptured gain inside AMT — FLAT 25%.
+          //
+          // §1(h)(1)(E) sets a 25% MAXIMUM rate on §1250 unrecap gain. In
+          // regular tax that's a per-slice ceiling: when the §1250 lands
+          // in a 22-24% bracket the cap doesn't bind, so the recap pays
+          // 22-24%. But INSIDE AMT the surrounding ordinary rate is the
+          // AMT band (26% up to the breakpoint, 28% above). 26% > 25% and
+          // 28% > 25%, so the cap ALWAYS binds inside AMT regardless of
+          // where the §1250 sits relative to the regular brackets.
+          //
+          // Form 6251 mechanically arrives at the same answer via the AMT
+          // QDCG Worksheet, which multiplies the §1250 amount by 25%
+          // directly (no bracket comparison) — the worksheet hard-codes
+          // the cap because at AMT band rates it always binds.
+          //
+          // Prior version reused the regular-tax effective rate
+          // (recapTaxRegular / rcap), which understated AMT §1250 by
+          // (25% − regBracketRate) × recap whenever the §1250 landed in
+          // a sub-25% regular bracket. Caught by the CPA on a $200K §1250
+          // / $230K W-2+rental MFJ scenario where the engine showed
+          // AMT §1250 = $47,728 but Form 6251 / AMT QDCG = $50,000
+          // (advisor 2026-06-04).
+          const _recapEffRate = 0.25;
           const recapAmt = recapInSlice * _recapEffRate;
           if (ordinarySlice <= 0) return recapAmt;
           const ordAmt = ordinarySlice <= a.rate26Threshold
