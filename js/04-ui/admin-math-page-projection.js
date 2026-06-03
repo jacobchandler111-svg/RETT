@@ -582,6 +582,25 @@
                                            : (letter === 'A'
                                                ? 'Est. sale tax ' + _fmtUSD(analysis.coverSaleTaxY0) + ' — shown for planning; A is Y0-only, no Y1 sale modeled'
                                                : _fmtUSD(analysis.coverSetAside) + ' set aside from the January installments to pay the sale tax — NOT invested in Brooklyn')),
+      // Recap composition (§1245 vs §1250). When the user filled the
+      // split sub-block on Section 02, surface it here so the CPA sees
+      // how much of the recap is ordinary-flavored (§1245) vs capped
+      // at 25% (§1250). The engine routes them differently — §1245
+      // pays full marginal and is excluded from NIIT; §1250 keeps the
+      // §1(h)(1)(E) 25% cap and is in the NIIT base.
+      (function () {
+        var _ad      = _num(cfg.acceleratedDepreciation);
+        var _ad1245  = _num(cfg.acceleratedDepreciation1245);
+        var _ad1250  = _num(cfg.acceleratedDepreciation1250);
+        if (_ad <= 0) return '';
+        if (_ad1245 + _ad1250 <= 0) {
+          return _autoPickRow('Recap composition',  _fmtUSD(_ad) + ' all §1250',
+                              'Split sub-block blank — engine defaulting full recap to §1250 unrecap (25% cap, in NIIT). Set the §1245 portion on Section 02 to route the personal-property piece at full marginal rates.');
+        }
+        return _autoPickRow('Recap composition',
+              _fmtUSD(_ad1245) + ' §1245 + ' + _fmtUSD(_ad1250) + ' §1250',
+              '§1245 (personal property / cost-seg): full marginal rates, NOT in NIIT. §1250 (real property): per-slice 25% cap, IN NIIT.');
+      })(),
       _autoPickRow('Available capital',  _fmtUSD(_num(cfg.availableCapital)),
                                          'Total Brooklyn investment commitment'),
       _autoPickRow('Deployed (optimizer)', _fmtUSD(_num(analysis.deployedCap)),

@@ -119,7 +119,9 @@
     sections.push(_section('Property Sale', [
       _row('salePrice', cfg.salePrice, 'Sum across all active properties'),
       _row('costBasis', cfg.costBasis, 'Sum across all active properties'),
-      _row('acceleratedDepreciation', cfg.acceleratedDepreciation, '§1250 recapture base - Y1 ordinary income'),
+      _row('acceleratedDepreciation', cfg.acceleratedDepreciation, 'Total recapture base — sum of §1245 + §1250 (Section 02 sub-block)'),
+      _row('acceleratedDepreciation1245', cfg.acceleratedDepreciation1245 || 0, '§1245 portion: personal property / cost-seg 5-7-15-yr. Taxed at FULL marginal ordinary rates, no 25% cap. NOT in NIIT base (active trade/business default)'),
+      _row('acceleratedDepreciation1250', cfg.acceleratedDepreciation1250 || 0, '§1250 portion: real property / 39-yr shell. Per-slice min(rate, 25%) per §1(h)(1)(E). IN the NIIT base. When split is blank, engine defaults the full acceleratedDepreciation to §1250.'),
       _row('shortTermPropertyGain', cfg.shortTermPropertyGain, 'Property held <12mo - taxed at ordinary rates'),
       _row('implementationDate', cfg.implementationDate, 'Sale / closing date - drives recognition timing'),
       _row('strategyImplementationDate', cfg.strategyImplementationDate, 'When Brooklyn opens position - partial-year fee proration')

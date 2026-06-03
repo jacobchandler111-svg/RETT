@@ -345,11 +345,25 @@ function rettY0BaselineSnapshot() {
             // §1245/§1250 split (advisor 2026-06-04). Downstream tile
             // renderers (baseline-table) route these to the engine so
             // §1245 gets full marginal rates + excluded from NIIT, while
-            // §1250 keeps the 25% cap + NIIT inclusion. When the user
-            // leaves the split blank, recap1245 = 0 and recap1250 = full
-            // recap (legacy default).
-            recap1245: scenario.depreciationRecapture1245 || 0,
-            recap1250: scenario.depreciationRecapture1250 || scenario.depreciationRecapture,
+            // §1250 keeps the 25% cap + NIIT inclusion.
+            //
+            // CRITICAL: when the user sets §1245 = 100% (so §1250 = $0),
+            // the bare `|| scenario.depreciationRecapture` fallback would
+            // mis-treat $0 as falsy and route the WHOLE recap as §1250 —
+            // double-counting. Use an explicit "has split" gate instead:
+            // if EITHER bucket is > 0, trust the split as authoritative;
+            // only when both are 0 do we default the legacy whole-amount-
+            // as-§1250 behavior (preserves backward compat with saved
+            // cases that predate the split).
+            recap1245: (function () {
+                  var a = scenario.depreciationRecapture1245 || 0;
+                  return a;
+            })(),
+            recap1250: (function () {
+                  var a = scenario.depreciationRecapture1245 || 0;
+                  var b = scenario.depreciationRecapture1250 || 0;
+                  return (a + b > 0) ? b : scenario.depreciationRecapture;
+            })(),
             stGain: scenario.shortTermGain,
             ltGain: scenario.longTermGain,
             qualifiedDividend: scenario.qualifiedDividend || 0,
