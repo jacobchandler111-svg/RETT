@@ -1834,6 +1834,15 @@ function unifiedTaxComparison(cfg, opts) {
                   reinvestedThisYear: reinvested,
                   lossGenerated: yearLoss,
                   lossApplied: withStrat._lossUsed || 0,
+                  // §1211(b) ordinary-offset breadcrumb. _applyLossesWithSTCfCap
+                  // sets _ordOffsetApplied on the with-strategy SCENARIO object,
+                  // but _yearTaxes returns a fresh tax-only object and drops it.
+                  // Surface it on the row so Tab 7 can render an "Ordinary income
+                  // offset $X" line — without this, the temp page silently
+                  // hid the $3K cap firing (e.g. $619K LT gain + $3K ord
+                  // offset = $622K lossApplied was visible but the "$3K to
+                  // ordinary" breakdown disappeared).
+                  ordOffsetApplied: Math.max(0, Number(withStrat._ordOffsetApplied) || 0),
                   stCarryForward: stCF,
                   investmentThisYear: yearInvested,
                   trancheBreakdown: trancheRows,
