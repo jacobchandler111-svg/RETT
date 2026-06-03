@@ -8706,3 +8706,12 @@ body { font-size: 16px; }
         align-items: center;
     }
 }
+
+/* §1245 / §1250 recap split sub-block (Section 02).
+   Hidden by default; revealed when the parent "Accelerated Depreciation
+   Recapture" field has a non-zero value (controls.js sets the .recap-
+   split-active class on each .recap-split row). Using a class (not the
+   [hidden] attribute) so case-storage restore can't silently re-hide
+   the rows on its own pass — the class survives the restore. */
+.recap-split { display: none; }
+.recap-split.recap-split-active { display: flex; }

@@ -1911,8 +1911,28 @@ function bindControls() {
         valEl.style.color = '#c44';
       }
     }
-    parent.addEventListener('input',  _updateValidator);
-    parent.addEventListener('change', _updateValidator);
+    function _toggleSplitVisibility() {
+      // Reveal the §1245 / §1250 split sub-block ONLY when the parent
+      // "Accelerated Depreciation Recapture" field has a positive value.
+      // Uses a class (not the [hidden] attribute) so case-storage restore
+      // can't silently re-hide them — see CSS .recap-split.recap-split-active.
+      var total = (typeof parseUSD === 'function' ? parseUSD(parent.value) : Number(parent.value)) || 0;
+      var show = total > 0;
+      [row1245, row1250, rowVal].forEach(function (r) {
+        if (!r) return;
+        if (show) r.classList.add('recap-split-active');
+        else r.classList.remove('recap-split-active');
+      });
+      // When the parent goes to $0, clear the sub-amounts so a stale split
+      // can't keep poisoning cfg downstream.
+      if (!show) {
+        if (inp1245) inp1245.value = '';
+        if (inp1250) inp1250.value = '';
+      }
+      _updateValidator();
+    }
+    parent.addEventListener('input',  _toggleSplitVisibility);
+    parent.addEventListener('change', _toggleSplitVisibility);
     if (inp1245) {
       inp1245.addEventListener('input',  _updateValidator);
       inp1245.addEventListener('change', _updateValidator);
@@ -1921,7 +1941,10 @@ function bindControls() {
       inp1250.addEventListener('input',  _updateValidator);
       inp1250.addEventListener('change', _updateValidator);
     }
-    _updateValidator();
+    // Initial pass: reveal sub-block if a saved scenario has a non-zero
+    // parent value, and run the validator once so the line shows clean
+    // copy from the start.
+    _toggleSplitVisibility();
   }
   // Only Property 1 has the split sub-block today. Properties 2-5 will follow.
   _wireRecapSplitForBlock(1);
