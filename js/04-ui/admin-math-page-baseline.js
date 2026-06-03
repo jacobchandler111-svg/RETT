@@ -55,6 +55,16 @@
     // Property LT for THIS scenario plus the recurring annual LT income.
     var ltSigned = _num(longTermGain) + ltAnnual;
     var recap = _num(recapture);
+    // §1245/§1250 split (advisor 2026-06-04). Preserve the user-entered
+    // ratio when this scenario's recap is a subset of total recap (e.g.
+    // year-by-year scenarios where Y0 sees full recap and later years see
+    // 0). When both split fields are blank, default 100% to §1250 (legacy).
+    var _ad1245 = _num(cfg.acceleratedDepreciation1245);
+    var _ad1250 = _num(cfg.acceleratedDepreciation1250);
+    var _adSplitTotal = _ad1245 + _ad1250;
+    var _recap1245Ratio = _adSplitTotal > 0 ? (_ad1245 / _adSplitTotal) : 0;
+    var recap1245 = recap * _recap1245Ratio;
+    var recap1250 = recap - recap1245;
     var wages = _num(cfg.wages);
     var seInc = _domNum('se-income');
     // §86 taxable Social Security. cfg.baseOrdinaryIncome does NOT
@@ -76,20 +86,21 @@
       taxableSS = ssFn(grossSS, provOther, 0, status);
     }
     ord += taxableSS;
-    // NIIT base = LT (clamped to 0) + STG + recap + rental + dividend +
-    // interest. Recap belongs because §1411 treats §1250 gain as net
-    // investment income from disposition of property. Interest
-    // (§1411(c)(1)(A)(i)) was previously OMITTED here, so the admin
-    // baseline NIIT row didn't move when interest income changed —
-    // mismatching the engine, which has always counted it. (Fixed
-    // 2026-05-28; matches inputs-collector _ordinaryInvestmentIncome.)
-    var nIIT_base = Math.max(0, ltSigned) + stGain + recap
+    // NIIT base = LT (clamped to 0) + STG + §1250 recap + rental + dividend
+    // + interest. §1411 treats §1250 unrecap gain as net investment income
+    // (it's gain from disposition of property). §1245 recapture is ORDINARY
+    // income from an active trade or business and is NOT in the NIIT base.
+    // The split sub-block (Section 02) drives the partition; when blank
+    // the legacy default routes all recap as §1250.
+    var nIIT_base = Math.max(0, ltSigned) + stGain + recap1250
                   + _domNum('rental-income') + _domNum('dividend-income')
                   + _domNum('interest-income');
     var fed = root.computeFederalTaxBreakdown(ord, year, status, {
       longTermGain: ltSigned,
       shortTermGain: stGain,
       depreciationRecapture: recap,
+      depreciationRecapture1245: recap1245,
+      depreciationRecapture1250: recap1250,
       investmentIncome: nIIT_base,
       wages: wages,
       seIncome: seInc
@@ -114,9 +125,11 @@
     }) || 0;
     // fedTotal mirrors baseline-table.js: ordinaryTax + recapTax +
     // ltTax + amtTopUp. NIIT, Add'l Medicare, SE tax stack on top.
-    var fedOrd  = _num(fed.ordinaryTax);
-    var fedRcap = _num(fed.recapTax);
-    var fedLt   = _num(fed.ltTax);
+    var fedOrd     = _num(fed.ordinaryTax);
+    var fedRcap    = _num(fed.recapTax);
+    var fedRcap1245 = _num(fed.recapTax1245);   // §1245: full marginal
+    var fedRcap1250 = _num(fed.recapTax1250);   // §1250: per-slice 25% cap
+    var fedLt      = _num(fed.ltTax);
     var amt     = _num(fed.amtTopUp);
     var tmt     = _num(fed.tentativeMinimumTax);
     var regFed  = _num(fed.regularFederalTax);
@@ -127,7 +140,9 @@
     var sum = fedTotal + niit + addmed + seTax + stateTax;
     return {
       fed: fed, state: stateTax, sum: sum,
-      buckets: { fedOrd: fedOrd, fedRcap: fedRcap, fedLt: fedLt,
+      buckets: { fedOrd: fedOrd, fedRcap: fedRcap,
+                 fedRcap1245: fedRcap1245, fedRcap1250: fedRcap1250,
+                 fedLt: fedLt,
                  amt: amt, tmt: tmt, regFed: regFed,
                  niit: niit, addmed: addmed, seTax: seTax }
     };
@@ -151,13 +166,18 @@
         '<thead><tr><th>Bucket</th><th class="admin-math-num">Amount</th><th>Source</th></tr></thead>' +
         '<tbody>' +
           _bucketRow('Federal ordinary tax',       b.fedOrd,  '2026 bracket stack on baseOrdinaryIncome + §86 taxable SS + STG (after §1211(b) loss offset)') +
-          _bucketRow('Federal §1250 recap tax',    b.fedRcap, 'Capped at 25% per §1(h)(1)(E); 0 in without-sale') +
+          // §1245 + §1250 split (advisor 2026-06-04). Show both rows when
+          // either is non-zero so the CPA sees the rate-treatment delta.
+          // When recap is fully §1250 (legacy default), the §1245 row reads
+          // $0 and only §1250 carries — same visual as the old single row.
+          _bucketRow('Federal §1245 recap tax',    b.fedRcap1245, 'Personal property (cost-seg 5-7-15-yr) — full marginal ordinary rates, no 25% cap, NOT in NIIT base') +
+          _bucketRow('Federal §1250 recap tax',    b.fedRcap1250, 'Real property (39-yr shell) — per-slice min(rate, 25%) per §1(h)(1)(E); IN the NIIT base') +
           _bucketRow('Federal LT cap gain tax',    b.fedLt,   '0% / 15% / 20% stack on max(0, longTermGain)') +
           '<tr class="admin-math-amt-detail"><td><em>&nbsp;&nbsp;Regular federal tax</em></td><td class="admin-math-num"><em>' + _fmtUSD(b.regFed) + '</em></td><td>= ordinary + recap + LT (used as the AMT comparison base)</td></tr>' +
           '<tr class="admin-math-amt-detail"><td><em>&nbsp;&nbsp;Tentative Minimum Tax (TMT)</em></td><td class="admin-math-num"><em>' + _fmtUSD(b.tmt) + '</em></td><td>§55(b) AMT on (ordinary + std-ded add-back) at 26/28% + LT layered at preferential rate</td></tr>' +
           _bucketRow('AMT top-up',                 b.amt,     '= max(0, TMT &minus; Regular federal) = max(0, ' + _fmtUSD(b.tmt) + ' &minus; ' + _fmtUSD(b.regFed) + ')') +
           '<tr class="admin-math-subtotal"><td><strong>Federal subtotal</strong></td><td class="admin-math-num"><strong>' + _fmtUSD(fedTotal) + '</strong></td><td>fedOrd + fedRcap + fedLt + amt</td></tr>' +
-          _bucketRow('NIIT (3.8%)',                b.niit,    '§1411 on LT + STG + recap + rental + dividend + interest above MAGI threshold') +
+          _bucketRow('NIIT (3.8%)',                b.niit,    '§1411 on LT + STG + §1250 recap + rental + dividend + interest above MAGI threshold (§1245 excluded — active trade/business)') +
           _bucketRow('Add\'l Medicare (0.9%)',     b.addmed,  '§3101(b)(2) on wages + SE&times;0.9235 above threshold') +
           _bucketRow('SE tax',                     b.seTax,   'Self-employment FICA portion (Form SE)') +
           _bucketRow('State tax',                  scen.state, 'computeStateTax(' + _esc(scen._stateCode || '') + ', ' + _esc(scen._year || '') + ')') +
@@ -236,7 +256,9 @@
             '<tr><td>Annual ST gain</td><td class="admin-math-num">' + _fmtUSD(cfg.baseShortTermGain) + '</td><td>cfg.baseShortTermGain</td></tr>' +
             '<tr><td>Annual LT gain (non-property)</td><td class="admin-math-num">' + _fmtUSD(cfg.baseLongTermGain) + '</td><td>cfg.baseLongTermGain</td></tr>' +
             '<tr><td>Property LT gain (from sale)</td><td class="admin-math-num">' + _fmtUSD(ltGain) + '</td><td>salePrice &minus; costBasis &minus; acceleratedDepreciation &minus; shortTermPropertyGain</td></tr>' +
-            '<tr><td>Property recapture (§1250)</td><td class="admin-math-num">' + _fmtUSD(recap) + '</td><td>= acceleratedDepreciation</td></tr>' +
+            '<tr><td>Property recapture (total)</td><td class="admin-math-num">' + _fmtUSD(recap) + '</td><td>= acceleratedDepreciation (sum of §1245 + §1250)</td></tr>' +
+            '<tr><td>&nbsp;&nbsp;&mdash; §1245 (personal property)</td><td class="admin-math-num">' + _fmtUSD(_num(cfg.acceleratedDepreciation1245)) + '</td><td>cfg.acceleratedDepreciation1245 &mdash; full marginal ordinary rates, no 25% cap, NOT in NIIT</td></tr>' +
+            '<tr><td>&nbsp;&nbsp;&mdash; §1250 (real property)</td><td class="admin-math-num">' + _fmtUSD(_num(cfg.acceleratedDepreciation1250) || recap) + '</td><td>cfg.acceleratedDepreciation1250 &mdash; per-slice 25% cap per §1(h)(1)(E), IN NIIT base (defaults to full recap when split is blank)</td></tr>' +
             '<tr><td>ST gain (property, ordinary)</td><td class="admin-math-num">' + _fmtUSD(stpg) + '</td><td>cfg.shortTermPropertyGain</td></tr>' +
           '</tbody>' +
         '</table>' +

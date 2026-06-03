@@ -342,6 +342,14 @@ function rettY0BaselineSnapshot() {
             state: cfg.state || 'NONE',
             ordTotal: scenario.ordinaryIncome,
             recap: scenario.depreciationRecapture,
+            // §1245/§1250 split (advisor 2026-06-04). Downstream tile
+            // renderers (baseline-table) route these to the engine so
+            // §1245 gets full marginal rates + excluded from NIIT, while
+            // §1250 keeps the 25% cap + NIIT inclusion. When the user
+            // leaves the split blank, recap1245 = 0 and recap1250 = full
+            // recap (legacy default).
+            recap1245: scenario.depreciationRecapture1245 || 0,
+            recap1250: scenario.depreciationRecapture1250 || scenario.depreciationRecapture,
             stGain: scenario.shortTermGain,
             ltGain: scenario.longTermGain,
             qualifiedDividend: scenario.qualifiedDividend || 0,

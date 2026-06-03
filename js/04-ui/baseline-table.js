@@ -111,13 +111,29 @@
     // treatment (recap caps at §1250 25%; STG folds into the ordinary
     // stack).
     var ord = ordTotal;
+    // §1245/§1250 recap split (advisor 2026-06-04). The snapshot
+    // exposes both pieces; pass them through so the engine routes §1245
+    // to ordinary marginal rates (not 25% capped) and excludes §1245
+    // from NIIT (active trade/business default). NIIT base also rebuilt
+    // here to drop the §1245 portion that snap's nIIT_base may include
+    // via the legacy "all recap" path. When the user leaves the split
+    // blank, recap1245=0 and recap1250=full recap — identical to the
+    // pre-split behavior.
+    var recap1245 = snap ? Number(snap.recap1245) || 0 : 0;
+    var recap1250 = snap ? Number(snap.recap1250) || recap : recap;
+    var nIIT_base_split = Math.max(0, ltGain) + stGain + recap1250 + qualDiv
+                  + Math.max(0, _num('rental-income'))
+                  + Math.max(0, _num('dividend-income'))
+                  + Math.max(0, _num('interest-income'));
     var fedB = (typeof computeFederalTaxBreakdown === 'function')
       ? computeFederalTaxBreakdown(ord, year, status, {
           longTermGain: ltGain,
           shortTermGain: stGain,
           depreciationRecapture: recap,
+          depreciationRecapture1245: recap1245,
+          depreciationRecapture1250: recap1250,
           qualifiedDividend: qualDiv,
-          investmentIncome: nIIT_base,
+          investmentIncome: nIIT_base_split,
           wages: wages,
           seIncome: seInc
         })
