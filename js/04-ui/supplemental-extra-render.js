@@ -74,15 +74,6 @@
   // (oilGas, delphi, ptet, slot09) are NOT in this map — they don't
   // need a prompt because warm-up handles them.
   var CHIPS_CONFIG = {
-    charitableGifts: {
-      primaryField: 'giftAmount',
-      prompt:       'Approximate annual giving',
-      picks: [
-        { label: '$10K',  value: 10000 },
-        { label: '$25K',  value: 25000 },
-        { label: '$100K', value: 100000 }
-      ]
-    },
     slot07: {
       primaryField: 'investmentAmount',
       prompt:       'Investment amount',
@@ -150,36 +141,6 @@
         { id: 'saltCapacityRemaining', label: 'Unused individual SALT cap',          kind: 'usd', placeholder: '0' },
         { id: 'creditPct',             label: 'PTET-to-owner credit (%)',            kind: 'pct', placeholder: '100' },
         { id: 'annualRecurring',       label: 'Recurs each year (multi-year)?',      kind: 'yesno' }
-      ]
-    },
-    {
-      id: 'charitableGifts',
-      num: '05',
-      name: 'Charitable Gifts',
-      shortName: 'Charitable Gifts',
-      keyaspect: 'Charitable Deduction',
-      descriptor: 'Gifts of cash or appreciated assets unlock a §170 deduction and avoid capital gains on the appreciation.',
-      audience: 'Any donor',
-      bucket: 'charity',
-      // No investmentField — gifts leave the estate but don't
-      // compete with Brooklyn for sale-proceed capital (tax-side).
-      defaults: {
-        giftAmount:    100000,
-        giftType:      'cash',     // 'cash' | 'appreciated' | 'daf'
-        appreciation:  0,           // dollars of unrealized gain (appreciated path)
-        agi:           0,           // donor AGI for §170 percentage caps
-        annualGiving:  false        // when true + Strategy B/C, gift repeats each recognition year
-      },
-      detailRows: [
-        { id: 'giftAmount',   label: 'Gift amount',                        kind: 'usd',   placeholder: '100,000' },
-        { id: 'giftType',     label: 'Gift type',                          kind: 'select', options: [
-            { value: 'cash',         label: 'Cash (60% AGI cap)' },
-            { value: 'appreciated',  label: 'Appreciated stock / asset (30% AGI cap)' },
-            { value: 'daf',          label: 'Donor-advised fund (60% AGI cap)' }
-        ] },
-        { id: 'appreciation', label: 'Unrealized gain (appreciated only)', kind: 'usd',   placeholder: '0' },
-        { id: 'agi',          label: 'Donor AGI (for AGI cap, optional)',  kind: 'usd',   placeholder: '0' },
-        { id: 'annualGiving', label: 'Annual giving (repeat each year)?',  kind: 'yesno' }
       ]
     },
     // ----------------------------------------------------------------
