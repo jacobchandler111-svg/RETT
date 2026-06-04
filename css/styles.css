@@ -8722,7 +8722,16 @@ body { font-size: 16px; }
    [hidden] attribute) so case-storage restore can't silently re-hide
    the rows on its own pass — the class survives the restore. */
 .recap-split { display: none; }
-.recap-split.recap-split-active { display: flex; }
+/* When revealed, inherit .input-row's grid layout so the §1245/§1250
+   input boxes line up with all the other input boxes in the same
+   right-side column. Was display:flex, which broke the column. */
+.recap-split.recap-split-active {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 16px;
+}
 
 /* ============================================================
    Tab 2 — Proceeds Bar (Sale Anatomy)
