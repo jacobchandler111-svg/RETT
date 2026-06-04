@@ -159,7 +159,7 @@
       name: 'Equipment Leasing Fund',
       shortName: 'Equip Leasing',
       keyaspect: 'Bonus Pass-Through',
-      descriptor: 'Each dollar invested generates ~90&cent; in year-one K-1 losses that offset active income with material participation.',
+      descriptor: 'Through active participation, an investment offsets ordinary income or generates income deductions.',
       audience: 'Active investor',
       bucket: 'capital',
       investmentField: 'investmentAmount',

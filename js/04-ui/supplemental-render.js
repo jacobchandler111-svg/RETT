@@ -266,7 +266,7 @@
         '<h3 class="strategy-pick-name">Oil &amp; Gas Working Interest</h3>' +
         '<div class="strategy-keyaspect">' +
           '<div class="strategy-keyaspect-label">Ordinary Income Offset</div>' +
-          '<p class="strategy-keyaspect-body">Each dollar invested generates 80&ndash;95&cent; in year-one ordinary deductions through intangible drilling costs.</p>' +
+          '<p class="strategy-keyaspect-body">Investments into oil and gas generate ordinary income deductions.</p>' +
         '</div>' +
         '<div class="strategy-lockup-graphic" data-lockup-style="ordinary">' +
           '<span class="strategy-lockup-icon" aria-hidden="true">' + _oilGasIconSVG() + '</span>' +
@@ -347,7 +347,7 @@
         '<h3 class="strategy-pick-name">Delphi Fund</h3>' +
         '<div class="strategy-keyaspect">' +
           '<div class="strategy-keyaspect-label">Character Conversion</div>' +
-          '<p class="strategy-keyaspect-body">Each dollar invested converts ordinary income to long-term capital gain, capturing the federal rate spread.</p>' +
+          '<p class="strategy-keyaspect-body">Hedge fund strategy that offers tax benefits.</p>' +
         '</div>' +
         '<div class="strategy-lockup-graphic" data-lockup-style="exchange">' +
           '<span class="strategy-lockup-icon" aria-hidden="true">' + _delphiIconSVG() + '</span>' +
