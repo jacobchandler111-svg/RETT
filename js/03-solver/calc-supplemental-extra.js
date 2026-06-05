@@ -158,6 +158,16 @@
   // ----------------------------------------------------------------
   function _calcPtet() {
     var cfg = _cfg(); if (!cfg) return _writeResult('ptet', null);
+    // PTET routes STATE income tax through a pass-through ENTITY, so it
+    // requires pass-through / business income to exist. With no business
+    // income there is no entity to route through and the strategy has no
+    // benefit. Gate here at the calc level (not just by hiding the card
+    // in supplemental-extra-render.js's BUSINESS_GATED visual filter) so
+    // the master solver, temp page, admin math, and Strategy Summary all
+    // exclude it consistently. Without this gate a PTET left "interested"
+    // from a prior business-income scenario kept funding off the state
+    // tax on the capital gain alone — surfacing benefit on a hidden card.
+    if (_num(cfg.businessIncomeAmount) <= 0) return _writeResult('ptet', null);
     var st = _state('ptet');
     var income = Math.max(0, _num(st.taxableIncome));
     var rate = Math.max(0, _num(st.stateRate)) / 100;
@@ -554,6 +564,12 @@
   // ----------------------------------------------------------------
   function _calcAugusta() {
     var cfg = _cfg(); if (!cfg) return _writeResult('slot08', null);
+    // Augusta Rule rents the owner's residence to the OWNER'S BUSINESS
+    // (§280A(g)) — it needs a business to pay (and deduct) the rent. Block
+    // without business income so a hidden, still-"interested" card can't
+    // fund off rental days alone. Consistent with PTET / Farm and the
+    // BUSINESS_GATED visual filter in supplemental-extra-render.js.
+    if (_num(cfg.businessIncomeAmount) <= 0) return _writeResult('slot08', null);
     var st = _state('slot08');
     var days = Math.min(14, Math.max(0, _num(st.daysRented)));
     var fmv = Math.max(0, _num(st.fmvPerDay));
@@ -741,6 +757,13 @@
   // ----------------------------------------------------------------
   function _calcFarmEquipment() {
     var cfg = _cfg(); if (!cfg) return _writeResult('slot12', null);
+    // §179 expensing is limited to BUSINESS taxable income and requires a
+    // trade or business. Block without business income (consistent with
+    // PTET / Augusta and the BUSINESS_GATED visual filter) so a hidden,
+    // still-"interested" card can't fund off the baseOrdinaryIncome
+    // fallback proxy below (which would otherwise let §179 deduct against
+    // the sale's ordinary income with no actual business present).
+    if (_num(cfg.businessIncomeAmount) <= 0) return _writeResult('slot12', null);
     var st = _state('slot12');
     var cost = Math.max(0, _num(st.equipmentCost));
     if (cost <= 0) return _writeResult('slot12', null);
