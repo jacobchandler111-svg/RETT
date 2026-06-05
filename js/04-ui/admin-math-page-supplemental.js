@@ -60,11 +60,29 @@
 
   function _solverSection() {
     if (typeof root.runMasterSolver !== 'function') return '';
-    // Pass the primary net (Strategy Summary's Brooklyn-only net) for
-    // the rivalry decisions. Use 0 here - the absolute value doesn't
-    // matter for per-supp display, but rivalry decisions ARE keyed off
-    // it. Read from window.__rettPrimaryNetBenefit if set; otherwise 0.
+    // Primary (Brooklyn-only) net for the CHOSEN strategy. This feeds the
+    // "Combined primary + supplementals" total below (runMasterSolver
+    // returns totalCombinedNetBenefit = primary + funded-supp benefit).
+    // __rettPrimaryNetBenefit was never set by any caller — it always
+    // read 0, which silently dropped the entire Brooklyn primary net from
+    // the combined line so admin showed only the supp benefit (e.g.
+    // $13,000 where the client hero showed $3,015,935). Derive primary
+    // from buildInterestedSummary's chosen-strategy metrics.net, exactly
+    // as the client temp-page reconciliation does, so the combined total
+    // matches what the client sees. (The per-supp rivalry decisions and
+    // totalSupplementalBenefit do NOT depend on this value — only the
+    // combined total does.)
     var primary = _num(root.__rettPrimaryNetBenefit);
+    if (!primary && typeof root.buildInterestedSummary === 'function') {
+      try {
+        var _sum = root.buildInterestedSummary();
+        var _chosen = root.__rettChosenStrategy || 'A';
+        var _ent = (_sum && _sum.entries || []).find(function (e) { return e.type === _chosen; });
+        if (_ent && _ent.metrics && Number.isFinite(Number(_ent.metrics.net))) {
+          primary = _num(_ent.metrics.net);
+        }
+      } catch (e) { /* leave primary at its prior value */ }
+    }
     var solver;
     try { solver = root.runMasterSolver(primary); } catch (e) {
       return '<p class="admin-math-error">runMasterSolver threw: ' + _esc(e.message || e) + '</p>';
