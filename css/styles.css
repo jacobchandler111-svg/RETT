@@ -7600,6 +7600,24 @@ body { font-size: 16px; }
 .supp-all-grid > #supplemental-strategies-host,
 .supp-all-grid > #supplemental-extra-host { display: contents; }
 .supp-all-grid .supp-strategies-grid { display: contents; }
+/* Fixed presentation order across the two hosts (advisor 2026-06-05).
+   The base three (always shown) lead, then the business-gated three.
+   Equipment Leasing (slot07) lives in the EXTRA host but must sit
+   between Oil & Gas and Delphi (both PRIMARY host) — impossible by DOM
+   order since the primary host always precedes the extra host. CSS
+   `order` reorders the unified grid items regardless of which host
+   rendered them, so each card keeps its own host + event wiring.
+   Row 1: Oil & Gas · Equipment Leasing · Delphi
+   Row 2: Augusta · PTET · Farm Equipment (when business income > 0).
+   Specificity here is (0,3,0); the is-not-interested sink rule below is
+   also (0,3,0) and comes LATER in source, so a Not-Interested card
+   still wins the order:100 sink. */
+.supp-all-grid .strategy-pick-card[data-supp-strategy="oilGas"] { order: 1; }
+.supp-all-grid .strategy-pick-card[data-supp-strategy="slot07"] { order: 2; }
+.supp-all-grid .strategy-pick-card[data-supp-strategy="delphi"] { order: 3; }
+.supp-all-grid .strategy-pick-card[data-supp-strategy="slot08"] { order: 4; }
+.supp-all-grid .strategy-pick-card[data-supp-strategy="ptet"]   { order: 5; }
+.supp-all-grid .strategy-pick-card[data-supp-strategy="slot12"] { order: 6; }
 /* Not-Interested cards float to the bottom of the unified grid via
    CSS order. Neutral and Interested stay at their natural DOM
    position (order: 0). Not-Interested gets a high order value so
@@ -8501,6 +8519,20 @@ body { font-size: 16px; }
 .supp-strategy-card .strategy-pick-num .num-big::before {
     content: counter(supp-num, decimal-leading-zero);
 }
+/* Fixed badge numbers matching the CSS-`order` visual sequence above
+   (advisor 2026-06-05). The supp-num counter increments in DOM order,
+   which no longer matches the visual order once `order` reorders the
+   grid — so for the six known cards we pin the badge number to the
+   visual slot. Higher specificity (0,4,1) overrides the generic counter
+   rule. Note: a card hidden via click-to-hide leaves a number gap here
+   rather than resequencing the remainder (the counter path did that);
+   acceptable for the fixed-order layout. */
+.supp-all-grid .strategy-pick-card[data-supp-strategy="oilGas"] .num-big::before { content: "01"; }
+.supp-all-grid .strategy-pick-card[data-supp-strategy="slot07"] .num-big::before { content: "02"; }
+.supp-all-grid .strategy-pick-card[data-supp-strategy="delphi"] .num-big::before { content: "03"; }
+.supp-all-grid .strategy-pick-card[data-supp-strategy="slot08"] .num-big::before { content: "04"; }
+.supp-all-grid .strategy-pick-card[data-supp-strategy="ptet"]   .num-big::before { content: "05"; }
+.supp-all-grid .strategy-pick-card[data-supp-strategy="slot12"] .num-big::before { content: "06"; }
 /* Clickable affordance on the badge. */
 .supp-strategy-card .supp-num-clickable {
     cursor: pointer;
