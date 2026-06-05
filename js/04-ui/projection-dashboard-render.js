@@ -1283,6 +1283,27 @@
     }
     var userDurationFallback = baseCfg.structuredSaleDurationMonths || 36;
     var best = null;
+
+    // Supplemental Year-0 cash floor (cash-flow timing). Supplementals
+    // deploy their investment in Year 0, so on installment / structured
+    // sales the Y0 cash (down payment) must be at least the supplemental
+    // capital — otherwise the model "invests" more in Y0 than the client
+    // received. Rather than capping the supps, we RAISE the down payment
+    // to cover them: the down-payment optimizers below only consider D >=
+    // this floor, so they still pick the highest-net payment that funds the
+    // supplementals (the user's "adjust the payment, solve for best net").
+    // Computed once — the supplemental deployment is independent of the
+    // strategy / horizon / combo / down-payment being swept. Zero when no
+    // capital-consuming supp is funded (then there's no floor, no change).
+    var _suppY0Floor = 0;
+    try {
+      if (typeof root.runAllocator === 'function') {
+        var _aFloor = root.runAllocator(Math.max(0, Number(baseCfg.availableCapital) || 0));
+        if (_aFloor && Number.isFinite(_aFloor.allocatedToSupplementals)) {
+          _suppY0Floor = Math.max(0, Math.round(_aFloor.allocatedToSupplementals));
+        }
+      }
+    } catch (e) { _suppY0Floor = 0; }
     // Dial-back-aware combo selection (2026-05-29): the sweep scores every
     // candidate at FULL deployment, but a combo can over-deploy at full
     // (lower full net) yet dial back to a HIGHER net than the full-winner —
@@ -1343,6 +1364,9 @@
           // a down beyond what cash the buyer brings, and can't fund
           // Brooklyn beyond availableCapital.
           var _dMax = Math.min(_contractPrice, _availTotal);
+          // Down payment must cover the supplemental Y0 deployment (clamped
+          // to what the proceeds can pay). 0 when no supp is funded.
+          var _floorC = Math.min(Math.max(0, _suppY0Floor), _dMax);
           var _smallestMin = 1000000;
           var _recapC = Math.max(0, Number(cfgSection.acceleratedDepreciation) || 0);
           // First-deposit account-opening gate (advisor 2026-05-27):
@@ -1359,6 +1383,7 @@
           }
 
           var _evalD = function (D) {
+            if (D < _floorC - 0.5) return null;   // must fund the supps' Y0 deployment
             if (!_firstDepositLegalC(D)) return null;
             var typedCfg = _scenarioCfgFor(type, cfgSection, 3, 36, null, null, D);
             var m = _scenarioMetrics(typedCfg);
@@ -1370,10 +1395,15 @@
             return m;
           };
 
+          // Always evaluate the supp floor itself so a feasible D that
+          // funds the supplementals stays in the running even if the
+          // coarse grid steps over it.
+          if (_floorC > 0) _evalD(_floorC);
           // Coarse pass at 0%, 10%, 20%, ..., 100% of D_max.
           var coarseBest = null;
           for (var ci = 0; ci <= 10; ci++) {
             var D = Math.round(_dMax * (ci / 10));
+            if (D < _floorC - 0.5) continue;
             if (!_firstDepositLegalC(D)) continue;
             var mc = _evalD(D);
             if (mc && (!coarseBest || mc.net > coarseBest.net)) {
@@ -1462,6 +1492,8 @@
                 - Number(cfgSection.acceleratedDepreciation || 0));
           var _bAvail = Math.max(0, Number(cfgSection.availableCapital || 0));
           var _bDMax = Math.min(_bContractPrice, _bAvail);
+          // Y0 down payment must cover the supplemental Y0 deployment.
+          var _floorB = Math.min(Math.max(0, _suppY0Floor), _bDMax);
           var _bSmallestMin = 1000000;
           var _bRecap = Math.max(0, Number(cfgSection.acceleratedDepreciation) || 0);
           // Account opens with the first deposit. Y0 deposit pool =
@@ -1477,7 +1509,15 @@
           }
 
           function _evalB(weights, D) {
-            D = D || 0;
+            // Default to the supp FLOOR (not 0). The weight-selection passes
+            // call _evalB(weights) with no D to compare installment splits;
+            // at D=0 the floor would reject them all and collapse weight
+            // selection. Comparing schedules at the floored down payment is
+            // both feasible and correct (we want the best split at a payment
+            // that funds the supps). Explicit D values from the down-payment
+            // sweeps are honored as-is (and still floor-checked below).
+            D = (D == null) ? _floorB : D;
+            if (D < _floorB - 0.5) return null;   // must fund the supps' Y0 deployment
             if (!_firstDepositLegalB(weights, D)) return null;
             var typedCfgB = _scenarioCfgFor('B', cfgSection, nForHor, userDurationFallback, null, weights, D);
             var mB = _scenarioMetrics(typedCfgB);
@@ -1502,8 +1542,15 @@
           function _sweepBDCoarse(lockedWeights) {
             if (_bDMax <= 0) return null;
             var coarseBest = null;
+            // Evaluate the supp floor itself so a feasible D that funds the
+            // supplementals stays in the running even if the grid skips it.
+            if (_floorB > 0) {
+              var mFloor = _evalB(lockedWeights, _floorB);
+              if (mFloor) { coarseBest = mFloor; _maybeUpdateBest(mFloor); }
+            }
             for (var ci = 0; ci <= 10; ci++) {
               var D = Math.round(_bDMax * (ci / 10));
+              if (D < _floorB - 0.5) continue;
               if (!_firstDepositLegalB(lockedWeights, D)) continue;
               var m = _evalB(lockedWeights, D);
               if (m && (!coarseBest || m.metrics.net > coarseBest.metrics.net)) coarseBest = m;
