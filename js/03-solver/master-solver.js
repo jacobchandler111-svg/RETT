@@ -241,8 +241,18 @@
         var inv = (typeof spec.getInvestment === 'function')
           ? Number(spec.getInvestment(result)) || 0 : 0;
         var rate = (inv > 0) ? net / inv : 0;
-        return { id: spec.id, available: !!result, investment: inv, netBenefit: net, rate: rate };
+        return { id: spec.id, available: !!result, investment: inv, netBenefit: net, rate: rate,
+                 ordInfo: _ordInfoOf(spec.id, result, net) };
       });
+
+    // Shared Y0 ordinary-income pool — the rival subset objective below is
+    // saturation-aware so it won't commit capital to an ord-offset supp
+    // that would be crowded out of the pool (realizing ~$0 for real
+    // dollars deployed). `alwaysOnOrd` are the investment-free supps
+    // (PTET / Augusta) that are funded unconditionally but still draw from
+    // the shared pool, so every subset's saturation must include them.
+    var ordPool = _y0OrdPool(cfg);
+    var alwaysOnOrd = [];
 
     var decisions = {};
 
@@ -265,6 +275,8 @@
           decisions[c.id] = { funded: true, reason: 'free-benefit',
             granted: 0, rate: 0, brooklynRate: brooklynYieldRate,
             netBenefit: c.netBenefit, requested: 0 };
+          // Investment-free but still consumes the shared ordinary pool.
+          if (c.ordInfo) alwaysOnOrd.push({ id: c.id, netBenefit: c.netBenefit, ordInfo: c.ordInfo });
         } else {
           decisions[c.id] = { funded: false, reason: 'no-result-or-zero',
             granted: 0, rate: c.rate, brooklynRate: brooklynYieldRate,
@@ -299,19 +311,28 @@
     // implementation for the advisor).
     var k = rivals.length;
     var bestMask = 0;
-    var bestObj = 0;
     var bestInv = 0;
+    // Baseline: fund no rivals — Brooklyn keeps all capital and only the
+    // investment-free pool supps realize benefit. Any rival subset must
+    // beat this saturated baseline net of the capital it pulls.
+    var bestObj = _saturateOrdinary(alwaysOnOrd, ordPool).total;
     if (k > 0 && k <= 20) {
       var subsetCount = 1 << k;
       for (var m = 1; m < subsetCount; m++) {
-        var sumInv = 0, sumNet = 0;
+        var sumInv = 0;
+        var items = alwaysOnOrd.slice();
         for (var i = 0; i < k; i++) {
           if ((m >> i) & 1) {
             sumInv += rivals[i].investment;
-            sumNet += rivals[i].netBenefit;
+            items.push({ id: rivals[i].id, netBenefit: rivals[i].netBenefit, ordInfo: rivals[i].ordInfo });
           }
         }
         if (sumInv > avail) continue;
+        // Saturation-aware combined supp net for this subset (shared pool
+        // allocated best-first), minus the Brooklyn yield foregone on the
+        // capital the subset pulls. A crowded-out ord supp adds ~$0
+        // saturated net but costs sumInv*brooklynRate, so it loses here.
+        var sumNet = _saturateOrdinary(items, ordPool).total;
         var obj = sumNet - sumInv * brooklynYieldRate;
         if (obj > bestObj || (obj === bestObj && sumInv < bestInv)) {
           bestObj = obj;
