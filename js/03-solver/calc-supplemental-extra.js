@@ -785,16 +785,16 @@
     var totalRaw = sec179 + bonus;
     var total = _capDeductionAtOrdPool(cfg, totalRaw);
     var marginal = _fedMarginal(cfg) + _stateMarginal(cfg);
-    // investment = the equipment purchase price. Unlike PTET / Augusta
-    // (tax-side "free-benefit" strategies that draw no capital), buying
-    // farm/business equipment is a real cash outlay: those dollars are
-    // committed to the asset and can't also fund Brooklyn. Reporting the
-    // cost as `investment` (not 0) makes the rivalry/allocator treat Farm
-    // as a true capital rival — it competes against Brooklyn's per-dollar
-    // yield and, when funded, its `granted` is subtracted from Brooklyn's
-    // deployable capital (allocatedToSupplementals → brooklynRemaining →
-    // engine cfg.investment). Previously hard-coded to 0, which let Farm
-    // collect its full §179 benefit while drawing no capital.
+    // investment = the equipment purchase price. Farm DOES draw from the
+    // sale-proceeds capital pool: a dollar spent on farm equipment can't
+    // also fund Brooklyn (same rivalry as Oil & Gas / Delphi). Reporting
+    // the cost as `investment` (not 0) makes the allocator subtract it
+    // from Brooklyn's deployable capital (allocatedToSupplementals →
+    // brooklynRemaining → engine cfg.investment) when Farm is funded.
+    // Unlike PTET / Augusta, which are genuine free-benefits (investment 0,
+    // no outlay). The equipment outlay is also carried on `assetCost` /
+    // detail.assetCost so a drill-down on the tax benefit can show the
+    // cash-vs-equipment split for the client.
     _writeResult('slot12', {
       netBenefit: Math.max(0, Math.round(total * marginal)),
       investment: Math.round(cost),
