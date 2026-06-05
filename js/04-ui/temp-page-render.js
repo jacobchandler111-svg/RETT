@@ -482,8 +482,16 @@
     var ordOffsetSupp = 0;
     var ltGainAddedSupp = 0;
     var otherTaxSaved = 0;
+    // Per-supp itemization: capture each funded supp's contribution to the
+    // four accumulators as a DELTA (snapshot the globals before/after the
+    // accumulation body) so the activity column can list each strategy on
+    // its own line — e.g. "Oil & Gas — ordinary income offset $X" and
+    // "Equipment Leasing — ordinary income offset $Y" as two distinct rows
+    // even though both are ordinary offsets. Display-only; gross/net math
+    // is unaffected (that path runs through _computeSuppSavingsForYear).
+    var suppEntries = [];
     if (Array.isArray(fundedSupps)) {
-      fundedSupps.forEach(function (s) {
+      var _accumulateSupp = function (s) {
         var extraSpec = (root.__rettSupplementalExtra && root.__rettSupplementalExtra[s.id]) || null;
         var coreSpec  = (root.__rettSupplemental      && root.__rettSupplemental[s.id])      || null;
         var last      = (extraSpec && extraSpec.lastResult)
@@ -610,6 +618,18 @@
           var net = Number(s.netBenefit || last.netBenefit || last.totalSaved || 0) || 0;
           if (net > 0) otherTaxSaved += net;
         }
+      };
+      fundedSupps.forEach(function (s) {
+        var _o0 = ordOffsetSupp, _l0 = ltGainAddedSupp, _s0 = stLossSupp, _t0 = otherTaxSaved;
+        _accumulateSupp(s);
+        suppEntries.push({
+          id:    s.id,
+          name:  (s.name || s.id),
+          ord:   ordOffsetSupp   - _o0,
+          lt:    ltGainAddedSupp - _l0,
+          st:    stLossSupp      - _s0,
+          other: otherTaxSaved   - _t0
+        });
       });
     }
 
@@ -710,7 +730,7 @@
     var hasBreakdown = (stOffset + ltOffset + recap1250Off + ordOffsetBrooklyn) > 0;
 
     var rows = [];
-    if (stLoss > 0)        rows.push(['ST loss generated',                     _fmt(stLoss)]);
+    if (stLossBrooklyn > 0) rows.push(['ST loss generated (Brooklyn)',         _fmt(stLossBrooklyn)]);
     if (hasBreakdown) {
       if (stOffset > 0)     rows.push(['Loss applied to ST capital gain',     _fmt(stOffset)]);
       if (ltOffset > 0)     rows.push(['Loss applied to LT capital gain',     _fmt(ltOffset)]);
@@ -731,9 +751,16 @@
       else legacyLabel = 'Loss applied (gain / recap)';
       rows.push([legacyLabel, _fmt(lossApp)]);
     }
-    if (ordOffsetSupp > 0) rows.push(['Ordinary income offset (supplemental)', _fmt(ordOffsetSupp)]);
-    if (ltGainAdded > 0)   rows.push(['LT gain added',                         _fmt(ltGainAdded)]);
-    if (other > 0)         rows.push(['Other tax savings (PTET, etc.)', _fmt(other)]);
+    // Per-supp itemized activity — one row per strategy per effect, so a
+    // CPA testing the page sees each strategy's contribution separately
+    // (two ordinary-offset strategies render as two rows, not one summed
+    // line). Delphi typically shows two rows: ordinary offset + LT gain.
+    suppEntries.forEach(function (e) {
+      if (e.ord   > 0) rows.push([e.name + ' — ordinary income offset', _fmt(e.ord)]);
+      if (e.lt    > 0) rows.push([e.name + ' — long-term gain added',    _fmt(e.lt)]);
+      if (e.st    > 0) rows.push([e.name + ' — ST loss generated',       _fmt(e.st)]);
+      if (e.other > 0) rows.push([e.name + ' — tax saved',               _fmt(e.other)]);
+    });
     // "Gain from lower tax bracket" — deferred-strategy timing benefit,
     // allocated entirely to Y0. Shows what the client gains by recognizing
     // gain in inflation-bumped later-year brackets (and, for Strategy C,
