@@ -843,6 +843,13 @@
       var last      = (extraSpec && extraSpec.lastResult)
                    || (coreSpec  && coreSpec.lastResult) || null;
       if (!last) return;
+      // Shared ordinary-pool saturation scale from the master solver: when
+      // multiple ord-offset supps stacked and the Y0 ordinary income ran
+      // out, the crowded-out supp's realized benefit is scaled down (often
+      // to 0). Apply it here so the per-year cards sum to the bottom panel
+      // (which already uses the saturated solverOut.totalSupplementalBenefit).
+      var satScale = Number(s.saturationScale);
+      if (!Number.isFinite(satScale)) satScale = 1;
       var detail = last.detail || {};
       var perYear = Array.isArray(last.perYear) ? last.perYear : null;
       // Multi-year (Oil & Gas style): perYear[i].totalSaved already
@@ -856,7 +863,7 @@
         var py = perYear[displayedI];
         var pyGross = Number(py.totalSaved || 0) || 0;
         var pyFee   = Number(py.mgmtFeeDollars || 0) || 0;
-        sum += Math.max(0, pyGross - pyFee);
+        sum += Math.max(0, pyGross - pyFee) * satScale;
         return;
       }
       // Unified multi-year shape (post-rename 2026-05-09): every
@@ -868,15 +875,15 @@
       if (detail.taxSavingsY0 != null || detail.taxSavingsRestPerYear != null) {
         var yc = Number(detail.yearCount || 1);
         if (displayedI < yc) {
-          sum += (displayedI === 0)
+          sum += ((displayedI === 0)
             ? Number(detail.taxSavingsY0 || 0)
-            : Number(detail.taxSavingsRestPerYear || 0);
+            : Number(detail.taxSavingsRestPerYear || 0)) * satScale;
         }
         return;
       }
       // Single-year fallback: full netBenefit on Y0.
       if (displayedI === 0) {
-        sum += Number(s.netBenefit || last.netBenefit || last.totalSaved || 0) || 0;
+        sum += (Number(s.netBenefit || last.netBenefit || last.totalSaved || 0) || 0) * satScale;
       }
     });
     return sum;

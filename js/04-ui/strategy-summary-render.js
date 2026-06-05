@@ -684,7 +684,9 @@
     // lastResult to show what bucket it touches.
     var suppEffects = [];
     (fundedSupplements || []).forEach(function (s) {
-      var benefit = Number(s.netBenefit) || 0;
+      // Realized (post shared-ordinary-pool saturation) benefit.
+      var benefit = Number.isFinite(Number(s.realizedNetBenefit))
+        ? Number(s.realizedNetBenefit) : (Number(s.netBenefit) || 0);
       if (benefit <= 0) return;
       // Best-effort label of which bucket the supp affects.
       // Most placeholder-rail supps are ordinary-income deductions;
@@ -877,7 +879,10 @@
     if (solverOut && Array.isArray(solverOut.supplementals)) {
       solverOut.supplementals.forEach(function (s) {
         if (!(s.enabled && s.available && s.rivalry && s.rivalry.funded)) return;
-        var net = Number(s.netBenefit) || 0;
+        // Use realized (post shared-ordinary-pool saturation) benefit so
+        // the breakdown sums to the saturated hero, not the raw double-count.
+        var net = Number.isFinite(Number(s.realizedNetBenefit))
+          ? Number(s.realizedNetBenefit) : (Number(s.netBenefit) || 0);
         var bucket = String(s.incomeBucket || 'cash').toLowerCase();
         if (bucket === 'charity') {
           charityNet += net;
@@ -939,15 +944,22 @@
     // pending / disabled rows are hidden — the advisor explains in
     // conversation that some Interested picks didn't add benefit and
     // were dropped. Keeps Page 5 focused on what the client gets.
+    function _realized(s) {
+      return Number.isFinite(Number(s.realizedNetBenefit))
+        ? Number(s.realizedNetBenefit) : (Number(s.netBenefit) || 0);
+    }
     var contributing = solverOut.supplementals.filter(function (s) {
       if (!s.enabled || !s.available) return false;
       if (s.rivalry && !s.rivalry.funded) return false;
-      return Number(s.netBenefit) > 0;
+      // Hide supps the shared ordinary pool fully crowded out (realized $0)
+      // — they don't add to the client's net, so they shouldn't list here.
+      return _realized(s) > 0;
     });
     if (!contributing.length) return '';
     var rows = contributing.map(function (s) {
-      var sign = s.netBenefit >= 0 ? '+' : '';
-      var amt = sign + _fmt(s.netBenefit);
+      var rNet = _realized(s);
+      var sign = rNet >= 0 ? '+' : '';
+      var amt = sign + _fmt(rNet);
       return '' +
         '<div class="supp-strat-row" data-supp-row="' + s.id + '">' +
           '<label class="supp-row-toggle">' +

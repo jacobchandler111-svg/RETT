@@ -108,14 +108,25 @@
     var body = supps.map(function (s) {
       var rivalryReason = (s.rivalry && (s.rivalry.reason || (s.rivalry.funded ? 'funded' : '?'))) || '—';
       var fundedLabel = s.rivalry && s.rivalry.funded ? 'funded' : 'NOT funded';
-      var contrib = (s.enabled && s.available && s.rivalry && s.rivalry.funded) ? s.netBenefit : 0;
+      // Realized (post-saturation) benefit is what actually flows into the
+      // combined total — when several ord-offset supps share the finite Y0
+      // ordinary pool, a crowded-out supp's realized benefit is scaled
+      // below its raw net (often to $0). Show realized; note the raw when
+      // they differ so the advisor sees the pool saturation at work.
+      var realized = Number(s.realizedNetBenefit);
+      if (!Number.isFinite(realized)) {
+        realized = (s.enabled && s.available && s.rivalry && s.rivalry.funded) ? s.netBenefit : 0;
+      }
+      var rawNote = (s.rivalry && s.rivalry.funded && Math.abs(realized - s.netBenefit) > 1)
+        ? ' <span class="admin-math-note-cell">(raw ' + _fmtUSD(s.netBenefit) + ', clipped by shared ordinary pool)</span>'
+        : '';
       return '<tr>' +
         '<td><strong>' + _esc(s.name) + '</strong><br><span class="admin-math-note-cell">' + _esc(s.descriptor || '') + '</span></td>' +
         '<td>' + (s.interested ? 'Yes' : '—') + '</td>' +
         '<td>' + (s.enabled ? 'Yes' : 'No') + '</td>' +
         '<td>' + _esc(fundedLabel) + ' (' + _esc(rivalryReason) + ')</td>' +
-        '<td class="admin-math-num">' + _fmtUSD(s.netBenefit) + '</td>' +
-        '<td class="admin-math-note-cell">contributes ' + _fmtUSD(contrib) + ' to combined</td>' +
+        '<td class="admin-math-num">' + _fmtUSD(realized) + rawNote + '</td>' +
+        '<td class="admin-math-note-cell">contributes ' + _fmtUSD(realized) + ' to combined</td>' +
       '</tr>';
     }).join('');
     body +=
