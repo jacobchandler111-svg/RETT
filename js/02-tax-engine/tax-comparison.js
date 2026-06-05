@@ -1014,11 +1014,22 @@ function unifiedTaxComparison(cfg, opts) {
       var _y0RollToFirstInstallment = 0;
       if (_isInstallment) {
             var _y0Pool = _y0DownPayment + Math.max(0, recapture);
-            if (_y0Pool >= _smallestComboMin && _y0Pool > 0) {
-                  basisCash = _y0Pool;
+            // Supplementals (Oil & Gas, etc.) deploy their Year-0 investment
+            // out of the SAME Year-0 cash pool (down payment + recapture).
+            // Reserve their share BEFORE sizing Brooklyn's Y0 tranche, so the
+            // two together never exceed the cash actually paid that year.
+            // Without this, Brooklyn claims the whole pool and the supps are
+            // funded on top of it — deploying more in Y0 than the client
+            // received. cfg.suppY0Deployment is 0 for the rivalry's
+            // Brooklyn-yield probe (full-pool) and immediate sales, so this
+            // only reduces the displayed/optimized installment tranches.
+            var _suppY0Reserve = Math.max(0, Number(cfg.suppY0Deployment) || 0);
+            var _y0PoolForBrooklyn = Math.max(0, _y0Pool - _suppY0Reserve);
+            if (_y0PoolForBrooklyn >= _smallestComboMin && _y0PoolForBrooklyn > 0) {
+                  basisCash = _y0PoolForBrooklyn;
             } else {
                   basisCash = 0;
-                  _y0RollToFirstInstallment = _y0Pool;
+                  _y0RollToFirstInstallment = _y0PoolForBrooklyn;
             }
             _unparkedY1Gain = 0;
             _parkedGain = 0;

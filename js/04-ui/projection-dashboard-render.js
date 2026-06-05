@@ -3206,6 +3206,15 @@
       var rawCap = Math.max(0, Number(currentCfg.availableCapital) || 0);
       var alloc = root.runAllocator(rawCap);
       var brooklynCap = Math.max(0, alloc.brooklynRemaining || 0);
+      // Supplementals' Year-0 cash draw. Threaded onto the cfg so the
+      // installment engine (tax-comparison.js) reserves their share of the
+      // Year-0 pool (down payment + recapture) before sizing Brooklyn's Y0
+      // tranche — otherwise Brooklyn claims the whole pool and the supps
+      // deploy on top of it, exceeding the cash actually paid in Y0. Flows
+      // to every A/B/C entry cfg and into _autoPickSection's down-payment
+      // optimization (both spread currentCfg). 0 when no supp is funded.
+      var _suppY0Deploy = Math.max(0, Math.round(alloc.allocatedToSupplementals || 0));
+      currentCfg = Object.assign({}, currentCfg, { suppY0Deployment: _suppY0Deploy });
       if (brooklynCap !== rawCap) {
         currentCfg = Object.assign({}, currentCfg, {
           availableCapital: brooklynCap,
