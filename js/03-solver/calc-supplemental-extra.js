@@ -180,7 +180,14 @@
     var qbi     = _qbiHaircut(cfg);
     var saltCap = Math.max(0, _num(st.saltCapacityRemaining));
     var creditPct = Math.max(0, Math.min(100, _num(st.creditPct) || 100)) / 100;
-    var annualRecurring = !!st.annualRecurring;
+    // PTET always recurs over the VIEWED strategy's horizon — it's a tax
+    // paid every recognition year, so its benefit spans the same window
+    // the sale strategy deploys over. _strategyYearCount returns 1 for a
+    // normal sale (Strategy A → Y0 only) and the recognition-year count
+    // for installment strategies (B/C → benefit each of those years).
+    // Unconditional (not gated on a per-case toggle) so the behavior is
+    // automatic and isn't left stale by previously-saved state.
+    var annualRecurring = true;
 
     // Per-year marginal rates. Y0 has the §1250 recap added to the
     // ordinary baseline (sale year), pushing the federal bracket up.
@@ -575,7 +582,13 @@
     var fmv = Math.max(0, _num(st.fmvPerDay));
     if (days <= 0 || fmv <= 0) return _writeResult('slot08', null);
     var businessRent = days * fmv;
-    var annualRecurring = !!st.annualRecurring;
+    // Augusta is structurally annual — the §280A(g) rental recurs every
+    // recognition year of the VIEWED strategy. _strategyYearCount returns
+    // 1 for a normal sale (Strategy A → Y0 only) and the recognition-year
+    // count for installment strategies (B/C). Unconditional (not gated on
+    // a per-case toggle) so the behavior is automatic and isn't left stale
+    // by previously-saved state.
+    var annualRecurring = true;
 
     // Per-year marginals (recap-pushed Y0 vs no-recap Y1+).
     var baseOrd = _num(cfg.baseOrdinaryIncome);

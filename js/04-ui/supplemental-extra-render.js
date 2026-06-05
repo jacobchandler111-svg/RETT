@@ -133,14 +133,16 @@
         stateRate:             5.49,
         saltCapacityRemaining: 0,        // unused individual SALT cap headroom
         creditPct:             100,       // % of PTET creditable on owner state return (MA = 90)
-        annualRecurring:       false      // true + Strategy B/C → benefit repeats each recognition year
+        annualRecurring:       true       // PTET recurs every recognition year of the viewed strategy
+                                          // (Strategy A → Y0 only via _strategyYearCount; B/C → each year)
       },
       detailRows: [
         { id: 'taxableIncome',         label: 'Pass-through income',                 kind: 'usd', placeholder: '1,000,000' },
         { id: 'stateRate',             label: 'State PTET rate (%)',                 kind: 'pct', placeholder: '5.49' },
         { id: 'saltCapacityRemaining', label: 'Unused individual SALT cap',          kind: 'usd', placeholder: '0' },
-        { id: 'creditPct',             label: 'PTET-to-owner credit (%)',            kind: 'pct', placeholder: '100' },
-        { id: 'annualRecurring',       label: 'Recurs each year (multi-year)?',      kind: 'yesno' }
+        { id: 'creditPct',             label: 'PTET-to-owner credit (%)',            kind: 'pct', placeholder: '100' }
+        // (No "Recurs each year?" toggle — PTET always recurs over the
+        // viewed strategy's horizon; the calc forces it unconditionally.)
       ]
     },
     // ----------------------------------------------------------------
@@ -192,12 +194,14 @@
       defaults: {
         daysRented:      14,
         fmvPerDay:       1500,
-        annualRecurring: false      // Augusta is structurally annual; toggle multiplies benefit across the strategy horizon
+        annualRecurring: true       // Augusta is structurally annual — recurs every recognition year of the
+                                    // viewed strategy (Strategy A → Y0 only via _strategyYearCount; B/C → each year)
       },
       detailRows: [
         { id: 'daysRented',     label: 'Days rented (max 14)',                kind: 'num', placeholder: '14' },
-        { id: 'fmvPerDay',      label: 'FMV rental per day',                  kind: 'usd', placeholder: '1,500' },
-        { id: 'annualRecurring',label: 'Recurs each year (multi-year)?',      kind: 'yesno' }
+        { id: 'fmvPerDay',      label: 'FMV rental per day',                  kind: 'usd', placeholder: '1,500' }
+        // (No "Recurs each year?" toggle — Augusta always recurs over the
+        // viewed strategy's horizon; the calc forces it unconditionally.)
       ]
     },
     {
@@ -429,26 +433,25 @@
         '<span class="supp-details-arrow-label">' + (st.valueOpen ? 'Hide value' : 'See value') + '</span>' +
       '</button>';
 
-    // Quick-pick chips: shown inline when Interested AND the primary
-    // dollar input is still $0. Click a chip to set the field +
-    // mark user-touched + recompute. "Custom" opens Details.
-    var chipsBlock = '';
+    // Inline amount box: when Interested, show a single input for the
+    // strategy's primary dollar figure (investment / equipment cost /
+    // daily FMV). Replaces the prior quick-pick chips ($250K/$500K/Custom)
+    // per advisor — advisors type the exact number rather than picking a
+    // suggested amount. Bound to the same data-supx-input the Details
+    // panel uses, so the host 'input' listener updates state WITHOUT a
+    // re-render (caret stays put while typing). Stays visible while
+    // Interested (not just at $0) so the figure can be edited in place.
+    var amountBlock = '';
     var chipsCfg = CHIPS_CONFIG[spec.id];
     if (!isPlaceholder && chipsCfg && iState[spec.id] === true) {
       var primaryVal = Number(st[chipsCfg.primaryField]) || 0;
-      if (primaryVal === 0) {
-        var chipsHtml = chipsCfg.picks.map(function (p) {
-          return '<button type="button" class="supx-chip" data-supx-chip-target="' + spec.id + '" data-supx-chip-field="' + chipsCfg.primaryField + '" data-supx-chip-value="' + p.value + '">' + p.label + '</button>';
-        }).join('');
-        chipsBlock =
-          '<div class="supx-chips-row">' +
-            '<span class="supx-chips-prompt">' + chipsCfg.prompt + ':</span>' +
-            '<div class="supx-chips">' +
-              chipsHtml +
-              '<button type="button" class="supx-chip supx-chip-custom" data-supx-chip-custom="' + spec.id + '">Custom</button>' +
-            '</div>' +
-          '</div>';
-      }
+      amountBlock =
+        '<div class="supx-chips-row supx-amount-row">' +
+          '<span class="supx-chips-prompt">' + chipsCfg.prompt + ':</span>' +
+          '<div class="currency-input supx-amount-input-wrap">' +
+            '<input type="text" class="supx-amount-input" data-supx-input="' + spec.id + ':' + chipsCfg.primaryField + '" inputmode="numeric" autocomplete="off" value="' + (primaryVal > 0 ? _fmtUSD(primaryVal) : '') + '" placeholder="0">' +
+          '</div>' +
+        '</div>';
     }
 
     var hiddenCls = (root.__rettSuppHidden && root.__rettSuppHidden[spec.id]) ? ' is-supp-hidden' : '';
@@ -473,7 +476,7 @@
           '<button type="button" class="strategy-pick-btn supp-pick-btn' + _btnActiveClass(spec.id, 'interested') + '"' + disAttrInt + ' data-supx-pick-action="interested" data-supx-pick-target="' + spec.id + '">&#10003; Interested</button>' +
           '<button type="button" class="strategy-pick-btn supp-pick-btn' + _btnActiveClass(spec.id, 'not-interested') + '"' + disAttrInt + ' data-supx-pick-action="not-interested" data-supx-pick-target="' + spec.id + '">Not Interested</button>' +
         '</div>' +
-        chipsBlock +
+        amountBlock +
         detailsBlock +
         valueArrow +
         _renderResultRow(spec, st) +

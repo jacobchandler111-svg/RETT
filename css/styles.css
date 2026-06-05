@@ -4455,8 +4455,14 @@ body { font-size: 16px; }
    filled-bold treatment so the click "holds" visually, instead of
    reverting to the resting state. */
 .supp-pick-btn.is-active[data-supx-pick-action="interested"] {
-    background: var(--ink);
-    border-color: var(--ink);
+    /* Match the core Oil & Gas / Delphi "Interested" treatment
+       (.strategy-pick-btn.is-interested = var(--rett-amber), the light
+       blue #5BA9FF) so every supplemental card's Interested button reads
+       the same light blue when picked — the extra cards previously went
+       dark navy (var(--ink)), which looked inconsistent next to the core
+       cards. */
+    background: var(--rett-amber);
+    border-color: var(--rett-amber);
     color: var(--paper);
 }
 .supp-pick-btn.is-active[data-supx-pick-action="not-interested"] {
@@ -4508,6 +4514,16 @@ body { font-size: 16px; }
 .supx-chip-custom {
     border-style: dashed;
     color: var(--muted);
+}
+/* Inline amount box that replaced the quick-pick chips: a single typed
+   input for the strategy's primary dollar figure. Reuses .supx-chips-row's
+   framed container; the currency box fills the row width. */
+.supx-amount-row .supx-amount-input-wrap {
+    width: 100%;
+}
+.supx-amount-row .supx-amount-input {
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .strategy-pick-actions {
