@@ -1063,8 +1063,31 @@ function unifiedTaxComparison(cfg, opts) {
             }
             _parkedGain = Math.max(0, totalLT - _unparkedY1Gain);
             basisCash = Math.min(_availTotal, _basisAndRecap + _unparkedY1Gain);
+            // Reserve supps' Y0 cash from Brooklyn's tranche (parallel to
+            // the installment branch above). Without this, the C-deferred
+            // structured-sale path over-deploys Year-0: Brooklyn claims
+            // the whole pool and the supps invest on top of it. Auto-
+            // downgrade Brooklyn to closed if the remainder falls below
+            // the smallest tiering combo's minimum.
+            {
+                  var _suppY0ReserveC = Math.max(0, Number(cfg.suppY0Deployment) || 0);
+                  var _basisCashAfterSuppC = Math.max(0, basisCash - _suppY0ReserveC);
+                  basisCash = (_basisCashAfterSuppC >= _smallestComboMin)
+                        ? _basisCashAfterSuppC : 0;
+            }
       } else {
-            basisCash = _availTotal;
+            // Strategy A immediate sale: full proceeds are available Y0.
+            // Reserve supps' Y0 deployment from Brooklyn's tranche so the
+            // two combined never exceed the Y0 cash actually received.
+            // Without this, a $2.5M sale with $1.2M of supp investment
+            // (e.g. Oil & Gas $500K + Farm $700K) showed Brooklyn at the
+            // full $2.5M and the supps on top of it. Brooklyn auto-
+            // downgrades to closed if the remainder falls below the
+            // smallest tiering combo's minimum (parallel to installment).
+            var _suppY0ReserveA = Math.max(0, Number(cfg.suppY0Deployment) || 0);
+            var _basisCashAfterSuppA = Math.max(0, _availTotal - _suppY0ReserveA);
+            basisCash = (_basisCashAfterSuppA >= _smallestComboMin)
+                  ? _basisCashAfterSuppA : 0;
             _unparkedY1Gain = 0;
             _parkedGain = 0;
       }
