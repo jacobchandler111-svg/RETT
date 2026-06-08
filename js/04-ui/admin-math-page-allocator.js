@@ -158,9 +158,9 @@
           _row('Brookhaven fees',             _fmtUSD(a.brookhavenFees), null) +
           _row('Total fees',                  _fmtUSD(a.allFees),
                                               'Brooklyn (net of credit, if any) + Brookhaven') +
-          '<tr class="admin-math-total"><td><strong>NET BENEFIT (hero)</strong></td>' +
+          '<tr class="admin-math-total"><td><strong>Brooklyn-only net (primary)</strong></td>' +
             '<td class="admin-math-num"><strong>' + _fmtUSD(a.primaryNet) + '</strong></td>' +
-            '<td class="admin-math-note-cell">savings &minus; total fees (matches Page 5 hero)</td></tr>' +
+            '<td class="admin-math-note-cell">savings &minus; total fees. Supps added in the Combined section below (= Page 5 hero).</td></tr>' +
         '</tbody>' +
       '</table>' +
     '</div>';
@@ -176,9 +176,9 @@
         '<tbody>' +
           _row('Net benefit (numerator)', _fmtUSD(a.primaryNet), null) +
           _row('Total fees (denominator)', _fmtUSD(a.allFees), null) +
-          '<tr class="admin-math-total"><td><strong>ROP</strong></td>' +
+          '<tr class="admin-math-total"><td><strong>Brooklyn-only ROP</strong></td>' +
             '<td class="admin-math-num"><strong>' + _fmtPct(rop, 0) + '</strong></td>' +
-            '<td class="admin-math-note-cell">net / fees - shown on Page 5 as "every $1 of fees returns $N net"</td></tr>' +
+            '<td class="admin-math-note-cell">Brooklyn-only net / total fees. Page 5\'s ROP uses combined (primary + supps) net — see Combined section.</td></tr>' +
         '</tbody>' +
       '</table>' +
     '</div>';
