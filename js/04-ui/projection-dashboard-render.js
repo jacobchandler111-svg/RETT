@@ -1295,15 +1295,23 @@
     // Computed once — the supplemental deployment is independent of the
     // strategy / horizon / combo / down-payment being swept. Zero when no
     // capital-consuming supp is funded (then there's no floor, no change).
+    // Supp-blind gate (advisor 2026-06-08): the standalone Projection-tab
+    // path (runFullPipeline) passes _suppBlind so the auto-pick ignores the
+    // supplemental draw entirely — Brooklyn is sized as if no supp exists,
+    // so the headline net HOLDS when supps are toggled on Page-5. The
+    // combined Summary/Temp path (buildInterestedSummary) leaves _suppBlind
+    // unset, keeping the down-payment floor that funds the supps.
     var _suppY0Floor = 0;
-    try {
-      if (typeof root.runAllocator === 'function') {
-        var _aFloor = root.runAllocator(Math.max(0, Number(baseCfg.availableCapital) || 0));
-        if (_aFloor && Number.isFinite(_aFloor.allocatedToSupplementals)) {
-          _suppY0Floor = Math.max(0, Math.round(_aFloor.allocatedToSupplementals));
+    if (!(baseCfg && baseCfg._suppBlind)) {
+      try {
+        if (typeof root.runAllocator === 'function') {
+          var _aFloor = root.runAllocator(Math.max(0, Number(baseCfg.availableCapital) || 0));
+          if (_aFloor && Number.isFinite(_aFloor.allocatedToSupplementals)) {
+            _suppY0Floor = Math.max(0, Math.round(_aFloor.allocatedToSupplementals));
+          }
         }
-      }
-    } catch (e) { _suppY0Floor = 0; }
+      } catch (e) { _suppY0Floor = 0; }
+    }
     // Dial-back-aware combo selection (2026-05-29): the sweep scores every
     // candidate at FULL deployment, but a combo can over-deploy at full
     // (lower full net) yet dial back to a HIGHER net than the full-winner —
@@ -1492,8 +1500,12 @@
                 - Number(cfgSection.acceleratedDepreciation || 0));
           var _bAvail = Math.max(0, Number(cfgSection.availableCapital || 0));
           var _bDMax = Math.min(_bContractPrice, _bAvail);
+          // Floor needs to fund supps' Y0 deployment via the Y0 cash pool.
+          // Pool = D + recap; supps draw from pool. So D only needs to
+          // make up the gap after recap. Previously D >= suppY0Floor forced
+          // a $200K-too-large down payment whenever recap was present.
           // Y0 down payment must cover the supplemental Y0 deployment.
-          var _floorB = Math.min(Math.max(0, _suppY0Floor), _bDMax);
+          var _floorB = Math.min(Math.max(0, _suppY0Floor - _bRecap), _bDMax);
           var _bSmallestMin = 1000000;
           var _bRecap = Math.max(0, Number(cfgSection.acceleratedDepreciation) || 0);
           // Account opens with the first deposit. Y0 deposit pool =
@@ -1501,11 +1513,18 @@
           // account opens at Y0; otherwise the pool rolls into the Y1
           // installment and that combined deposit must clear $1M.
           function _firstDepositLegalB(weights, D) {
+            // Pool = D + recap, less supps' Y0 deployment (which the engine
+            // reserves from the pool before sizing Brooklyn's tranche).
+            // Previously this check used the raw pool, so the optimizer
+            // believed Brooklyn opened at pool >= $1M even when supps ate
+            // it down below the min — pushing D upward chasing a phantom
+            // Brooklyn benefit.
             var pool = D + _bRecap;
-            if (pool >= _bSmallestMin - 0.5) return true;   // Y0 opens
+            var poolAfterSupp = Math.max(0, pool - _suppY0Floor);
+            if (poolAfterSupp >= _bSmallestMin - 0.5) return true;   // Y0 opens
             var w0 = (weights && Number.isFinite(weights[0])) ? weights[0] : 0;
             var firstInstall = (_bContractPrice - D) * w0;
-            return (firstInstall + pool) >= _bSmallestMin - 0.5;
+            return (firstInstall + poolAfterSupp) >= _bSmallestMin - 0.5;
           }
 
           function _evalB(weights, D) {
