@@ -95,9 +95,13 @@
         - Math.max(0, snap.qualifiedDividend || 0));
       return {
         year: snap.year, status: snap.status, state: snap.state,
-        ordTotal: snap.ordTotal, recap: snap.recap,
+        ordTotal: snap.ordTotal,
+        recap: snap.recap,
+        recap1245: Number(snap.recap1245) || 0,
+        recap1250: Number(snap.recap1250) || 0,
         stGain: snap.stGain, ltGain: snap.ltGain,
         wages: snap.wages, seInc: snap.seInc,
+        qualifiedDividend: snap.qualifiedDividend || 0,
         rentalInvestmentIncome: rentalInv
       };
     }
@@ -145,20 +149,31 @@
                lossOrdOffsetApplied: 0, fedBeforeFTC: 0, ftc: 0 };
     }
     ovr = ovr || {};
-    var ord  = (ovr.ord  != null) ? ovr.ord  : (snap.ordTotal + snap.recap);
+    // Route recap through the engine's split path so §1250 caps at 25%
+    // and lands in NIIT, while §1245 stays full marginal. Prior version
+    // folded snap.recap into ord and excluded recap from niitBase — sizing
+    // Delphi against a fictitious marginal rate. Audit R2 finding #4.
+    var hasSplit = ((snap.recap1245 || 0) + (snap.recap1250 || 0)) > 0;
+    var r1245 = hasSplit ? (snap.recap1245 || 0) : 0;
+    var r1250 = hasSplit ? (snap.recap1250 || 0) : (snap.recap || 0);
+    var ord  = (ovr.ord  != null) ? ovr.ord  : snap.ordTotal;
     var lt   = (ovr.lt   != null) ? ovr.lt   : snap.ltGain;
     var st   = (ovr.st   != null) ? ovr.st   : snap.stGain;
     var qdiv = (ovr.qdiv != null) ? ovr.qdiv : 0;
     var ftc  = (ovr.ftc  != null) ? ovr.ftc  : 0;
 
-    // NIIT base = positive LT + positive ST + qdiv + (rental + ord-div).
+    // NIIT base = positive LT + positive ST + qdiv + §1250 recap +
+    // (rental + ord-div). §1245 excluded (active trade/business).
     // Negative LT/ST don't add to the base; they offset elsewhere.
     var niitBase = Math.max(0, lt) + Math.max(0, st) + Math.max(0, qdiv) +
-                   snap.rentalInvestmentIncome;
+                   r1250 + snap.rentalInvestmentIncome;
 
     var fedB = computeFederalTaxBreakdown(ord, snap.year, snap.status, {
       longTermGain:      lt,
       shortTermGain:     st,
+      depreciationRecapture:     r1245 + r1250,
+      depreciationRecapture1245: r1245,
+      depreciationRecapture1250: r1250,
       qualifiedDividend: qdiv,
       investmentIncome:  niitBase,
       wages:             snap.wages,
@@ -226,7 +241,12 @@
 
     var baseline  = _totalTaxAt(snap, {});
     var optimized = _totalTaxAt(snap, {
-      ord:  Math.max(0, snap.ordTotal + snap.recap - ordExpense),
+      // Delphi's ordinary expense deduction reduces ord only; recap is
+      // taxed separately at the §1250 25% cap (or §1245 full marginal)
+      // via the snap's recap1245/recap1250 fields inside _totalTaxAt.
+      // Pre-fix this folded snap.recap into ord, which broke the §1250
+      // cap in Delphi's sizing math (recap incurred ordinary rates).
+      ord:  Math.max(0, snap.ordTotal - ordExpense),
       lt:   snap.ltGain + ltGainAdd,
       st:   snap.stGain - stLossAmt,
       qdiv: qdivAdd,

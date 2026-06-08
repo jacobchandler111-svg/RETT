@@ -49,7 +49,10 @@
     if (snap) {
       return {
         year: snap.year, status: snap.status, state: snap.state,
-        ordTotal: snap.ordTotal, recap: snap.recap,
+        ordTotal: snap.ordTotal,
+        recap: snap.recap,
+        recap1245: Number(snap.recap1245) || 0,
+        recap1250: Number(snap.recap1250) || 0,
         stGain: snap.stGain, ltGain: snap.ltGain,
         wages: snap.wages, seInc: snap.seInc,
         qualifiedDividend: snap.qualifiedDividend,
@@ -96,12 +99,25 @@
         typeof computeStateTax !== 'function') {
       return { fed: 0, state: 0, niit: 0, addmed: 0, seTax: 0, total: 0 };
     }
-    var ord = (ordOverride == null) ? (snap.ordTotal + snap.recap) : ordOverride;
+    // Route recap through the engine's split path so §1250 caps at 25%
+    // and lands in the NIIT base, while §1245 stays full marginal and
+    // out of NIIT (matches the primary engine path in tax-comparison.js).
+    // Prior version folded snap.recap into the ordinary stack and omitted
+    // recap from niitBase entirely — sizing OG against a fictitious
+    // marginal-rate landscape. Audit R2 finding #4.
+    var hasSplit = (snap.recap1245 + snap.recap1250) > 0;
+    var r1245 = hasSplit ? snap.recap1245 : 0;
+    var r1250 = hasSplit ? snap.recap1250 : (snap.recap || 0);
+    var ord = (ordOverride == null) ? snap.ordTotal : ordOverride;
+    var niitBaseWithRecap = (snap.niitBase || 0) + r1250;
     var fedB = computeFederalTaxBreakdown(ord, snap.year, snap.status, {
       longTermGain:    snap.ltGain,
       shortTermGain:   snap.stGain,
+      depreciationRecapture:     r1245 + r1250,
+      depreciationRecapture1245: r1245,
+      depreciationRecapture1250: r1250,
       qualifiedDividend: snap.qualifiedDividend || 0,
-      investmentIncome: snap.niitBase,
+      investmentIncome: niitBaseWithRecap,
       wages:           snap.wages,
       seIncome:        snap.seInc
     }) || {};
