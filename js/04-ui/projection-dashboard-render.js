@@ -3289,6 +3289,10 @@
     // math + scenario metrics per candidate; ~50-100ms each. Total added
     // latency: ~500ms-1s for two supps × five candidates.
     (function _autoSizeInterestedSupps() {
+      // Test/verification escape hatch: when __rettSkipSuppAutoSize is true,
+      // skip the auto-sizing pass so callers can pin supp sizes to specific
+      // values for perturbation testing without the engine re-optimizing.
+      if (root.__rettSkipSuppAutoSize) return;
       if (typeof root.__rettRunAllSuppMath !== 'function') return;
       var interestMap = Object.assign({},
         root.__rettSupplementalInterest      || {},
@@ -3304,27 +3308,33 @@
         { id: 'oilGas', spec: (root.__rettSupplemental      || {}).oilGas, knob: 'maxInvestment', minInc: 50000 },
         { id: 'delphi', spec: (root.__rettSupplemental      || {}).delphi, knob: 'investment',    minInc: 100000 }
       ];
-      function _measureCombinedAt(cfg) {
+      function _measureCombinedAt(_cfgIgnored) {
+        // Measure the FULL post-pipeline combined net (after Brooklyn
+        // optimizer dial-back and drop-one verification) at the current
+        // supp sizes. Calls buildInterestedSummary recursively with the
+        // skip-auto-size escape hatch so the recursion terminates after
+        // one level. This matches what the user actually sees in the UI
+        // for any given (interest, sizing) state — earlier version used a
+        // hand-rolled _scenarioMetrics + runMasterSolver path that skipped
+        // runBrooklynOptimizer's dial-back, causing high-OG candidates to
+        // measure artificially low (their fees were at "full deployment"
+        // even when dial-back would have reduced them). Monte-Carlo M11
+        // caught this: engine picked OG=25% of ceiling, but $100% ceiling
+        // was $48K better in the actual rendered hero.
         try {
-          var picked2 = _autoPickSection(chosen, cfg);
-          var cfg2 = Object.assign({}, cfg, {
-            horizonYears: picked2.horizon,
-            leverage:     picked2.shortPct / 100,
-            leverageCap:  picked2.shortPct / 100,
-            comboId:      picked2.comboId
-          });
-          var dur = (chosen === 'C' && picked2.durationMonths) ? picked2.durationMonths : userDuration;
-          var pr  = (chosen === 'C' && Number.isFinite(picked2.parkRatio)) ? picked2.parkRatio : null;
-          var iw  = (chosen === 'B' && Array.isArray(picked2.installmentWeights)) ? picked2.installmentWeights : null;
-          var y0d = ((chosen === 'B' || chosen === 'C') && Number.isFinite(picked2.y0DownPayment)) ? picked2.y0DownPayment : null;
-          var fullCfg = _scenarioCfgFor(chosen, cfg2, picked2.bestRecC, dur, pr, iw, y0d);
-          var m = _scenarioMetrics(fullCfg);
-          var net = (m && Number.isFinite(m.net)) ? m.net : 0;
+          var prevSkip = root.__rettSkipSuppAutoSize;
+          root.__rettSkipSuppAutoSize = true;
+          var sum = buildInterestedSummary();
+          root.__rettSkipSuppAutoSize = prevSkip;
+          if (!sum || !sum.entries) return -Infinity;
+          var e = sum.entries.find(function (x) { return x.type === chosen; });
+          if (!e) return -Infinity;
+          var net = (e.metrics && Number.isFinite(e.metrics.net)) ? e.metrics.net : 0;
           var ms = (typeof root.runMasterSolver === 'function')
-            ? root.runMasterSolver(net, {})
+            ? root.runMasterSolver(net, { forceDisabledSupps: e.cfg && e.cfg._forceDisabledSupps })
             : { totalSupplementalBenefit: 0 };
           return net + (Number(ms.totalSupplementalBenefit) || 0);
-        } catch (e) { return -Infinity; }
+        } catch (e) { root.__rettSkipSuppAutoSize = false; return -Infinity; }
       }
       SIZABLE.forEach(function (s) {
         if (interestMap[s.id] !== true) return;
