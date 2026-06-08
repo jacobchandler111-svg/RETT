@@ -2235,13 +2235,29 @@ function bindControls() {
                  (parseUSD((document.getElementById('retirement-distributions') || {}).value) || 0);
     var wages  = (parseUSD((document.getElementById('w2-wages') || {}).value) || 0) +
                  (parseUSD((document.getElementById('se-income') || {}).value) || 0);
+    // Pull §1245/§1250 split from form, mirror the same fallback used by
+    // baseline-table.js: if either explicit field is > 0, trust the user's
+    // split; otherwise default the whole recap to §1250 (legacy behavior).
+    // Audit R2 finding #1: previously this caller passed investmentIncome
+    // omitting the §1250 portion, so NIIT was understated by 3.8% × recap
+    // on the Available-Capital tile (over-sizing every downstream strategy
+    // by ~$19K per $500K of recap).
+    var _recap1245Form = parseUSD((document.getElementById('accelerated-depreciation-1245') || {}).value) || 0;
+    var _recap1250Form = parseUSD((document.getElementById('accelerated-depreciation-1250') || {}).value) || 0;
+    var _hasRecapSplit = (_recap1245Form + _recap1250Form) > 0;
+    var recap1245 = _hasRecapSplit ? Math.max(0, _recap1245Form) : 0;
+    var recap1250 = _hasRecapSplit ? Math.max(0, _recap1250Form) : Math.max(0, deprVal);
     var fed = 0, st = 0;
     try {
       if (typeof computeFederalTax === 'function') {
         fed = computeFederalTax(ord + stGainForTax, year, status, {
           longTermGain: ltGain,
-          depreciationRecapture: deprVal,
-          investmentIncome: ltGain + stGainForTax,
+          depreciationRecapture:      deprVal,
+          depreciationRecapture1245:  recap1245,
+          depreciationRecapture1250:  recap1250,
+          // §1250 IS in the NIIT base (§1411); §1245 is NOT (active trade
+          // or business carve-out per the engine's documented design).
+          investmentIncome: ltGain + stGainForTax + recap1250,
           wages: wages
         }) || 0;
       }

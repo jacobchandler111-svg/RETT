@@ -769,13 +769,22 @@ function _estimateGainTaxRate(cfg) {
       const totalLT = Math.max(0,
             (cfg.salePrice || 0) - (cfg.costBasis || 0)
             - (cfg.acceleratedDepreciation || 0));
-      if (totalLT <= 0) return 0;
+      const recap   = Math.max(0, Number(cfg.acceleratedDepreciation) || 0);
+      // Probe BOTH gain and recapture together: a fully-depreciated
+      // building sold for less than basis+ad has totalLT=0 but the §1245
+      // recapture still produces a real Y0 ordinary tax bill that the
+      // cover-taxes carve must reserve cash for. Previously this function
+      // divided by totalLT only and returned 0 when totalLT<=0, silently
+      // disabling the entire cover-taxes carve in the recap-heavy regime.
+      // Audit R2 finding #3.
+      const totalBuckets = totalLT + recap;
+      if (totalBuckets <= 0) return 0;
       const yr = (cfg.year1 != null) ? Number(cfg.year1) : (new Date()).getFullYear();
-      const sWith    = _baseScenarioForYear(cfg, yr, totalLT);
-      const sWithout = _baseScenarioForYear(cfg, yr, 0);
+      const sWith    = _baseScenarioForYear(cfg, yr, totalLT, recap);
+      const sWithout = _baseScenarioForYear(cfg, yr, 0, 0);
       const taxWith    = _yearTaxes(sWith).total;
       const taxWithout = _yearTaxes(sWithout).total;
-      const rate = (taxWith - taxWithout) / totalLT;
+      const rate = (taxWith - taxWithout) / totalBuckets;
       return Math.max(0, Math.min(0.5, rate));
 }
 

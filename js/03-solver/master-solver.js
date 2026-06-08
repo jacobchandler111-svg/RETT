@@ -162,7 +162,19 @@
       demand = Number(py.deduction) || Number(py.absorbed) || 0;
       basis  = Number(py.absorbed) || demand;
     } else if (id === 'delphi') {
-      demand = Number(al.ordinaryExpense) || 0; basis = demand;
+      // When Delphi is multi-year, allocations.ordinaryExpense is the
+      // SUM across years but the Y0 ord-offset pool only cares about Y0.
+      // Read perYear[0].ordExpense when present (multi-year path); fall
+      // back to allocations.ordinaryExpense for single-year deployments.
+      // Audit R2 finding #2: prior version used the sum, which (a)
+      // understated Delphi's rate by ~yearCount× — sinking it in the
+      // rate-sorted order — and (b) inflated its demand, over-claiming
+      // the Y0 pool and starving other ord-offset supps.
+      var _delphiY0Ord = (Array.isArray(result.perYear) && result.perYear[0]
+        && result.perYear[0].ordExpense != null)
+        ? Number(result.perYear[0].ordExpense) || 0
+        : Number(al.ordinaryExpense) || 0;
+      demand = _delphiY0Ord; basis = _delphiY0Ord;
     } else if (id === 'ptet') {
       demand = Number(d.ordOffsetY0) || 0; basis = demand;
     } else if (id === 'slot07') {
