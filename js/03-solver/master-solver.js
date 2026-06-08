@@ -453,77 +453,25 @@
       });
     }
 
-    // -----------------------------------------------------------------
-    // DROP-ONE VERIFICATION PASS (audit handoff 2026-06-08, Bug A).
-    // The linear-rate objective above uses brooklynYieldRate computed at
-    // FULL availableCapital, where Brooklyn is over-deployed past the
-    // absorbable gain — diluting the marginal rate. The TRUE marginal
-    // rate at Brooklyn's dialed-back optimum is higher. Under-charging
-    // capital makes the objective over-diversify (every supp's marginal
-    // contribution looks positive at the diluted rate, even when it
-    // actually displaces a higher-yielding Brooklyn dollar).
-    //
-    // Measured: $20M sale / $5M basis / $100K recap / Strategy B. Engine
-    // picked oilGas+slot07+slot12 = $4,646,330. Optimal is oilGas+slot12
-    // alone = $4,674,259. Adding Equipment Leasing brings +$188K of its
-    // own benefit but costs $105K (Farm saturation) + $112K (Brooklyn
-    // displacement) = −$28K net.
-    //
-    // Fix: after subset selection, recompute the ACTUAL combined net for
-    // the chosen subset and each "drop one rival" alternative. If a drop
-    // strictly improves, take it; iterate. ≤k passes for k rivals.
-    // Sidesteps the linear-rate approximation entirely.
-    if (bestMask > 0 && typeof root.unifiedTaxComparison === 'function') {
-      // Helper: combined net for a given subset mask.
-      function _combinedNetForMask(mask) {
-        var sInv = 0;
-        var items = alwaysOnOrd.slice();
-        for (var i = 0; i < k; i++) {
-          if ((mask >> i) & 1) {
-            sInv += rivals[i].investment;
-            items.push({ id: rivals[i].id, netBenefit: rivals[i].netBenefit, ordInfo: rivals[i].ordInfo });
-          }
-        }
-        if (sInv > avail) return -Infinity;
-        var bcap = Math.max(0, avail - sInv);
-        var bCfg = Object.assign({}, cfg);
-        bCfg.availableCapital = bcap;
-        bCfg.investment = bcap;
-        bCfg.investedCapital = bcap;
-        if (typeof root.rettFlavorEngineCfg === 'function') bCfg = root.rettFlavorEngineCfg(bCfg);
-        var bRes = {};
-        try { bRes = root.unifiedTaxComparison(bCfg) || {}; } catch (e) { return -Infinity; }
-        var bSavings = Number(bRes.totalSavings) || 0;
-        var bFees = Number(bRes.totalAllFees);
-        if (!Number.isFinite(bFees)) {
-          bFees = (Number(bRes.totalFees) || 0) + (Number(bRes.totalBrookhavenFees) || 0);
-        }
-        var bNet = bSavings - bFees;
-        var sNet = _saturateOrdinary(items, ordPool).total;
-        return bNet + sNet;
+    // cfg._forceDisabledSupps: { id: true } — let upstream callers force
+    // specific rivals to funded=false (used by buildInterestedSummary's
+    // combined-net drop-one verification, where the FULL pipeline cost
+    // of recognizing Y0 gain to fund a supp is computed and compared).
+    // Mark forced-disabled supps with reason 'forced-disabled' so
+    // downstream consumers know it's an upstream override, not rivalry.
+    var _forceDisabled = (cfg && cfg._forceDisabledSupps) || {};
+    if (Object.keys(_forceDisabled).length > 0) {
+      var origMask = bestMask;
+      var maskOut = 0;
+      for (var fi = 0; fi < k; fi++) {
+        if (!((origMask >> fi) & 1)) continue;
+        if (_forceDisabled[rivals[fi].id]) continue;
+        maskOut |= (1 << fi);
       }
-      var bestCombined = _combinedNetForMask(bestMask);
-      var dropImproved = true;
-      var passGuard = 0;
-      while (dropImproved && passGuard < k) {
-        dropImproved = false;
-        passGuard++;
-        for (var di = 0; di < k; di++) {
-          if (!((bestMask >> di) & 1)) continue;
-          var candMask = bestMask & ~(1 << di);
-          var candNet = _combinedNetForMask(candMask);
-          if (candNet > bestCombined + 1) {  // dollar-significant only
-            bestMask = candMask;
-            bestCombined = candNet;
-            // Recompute bestInv for downstream
-            bestInv = 0;
-            for (var ri = 0; ri < k; ri++) {
-              if ((bestMask >> ri) & 1) bestInv += rivals[ri].investment;
-            }
-            dropImproved = true;
-            break;
-          }
-        }
+      bestMask = maskOut;
+      bestInv = 0;
+      for (var fri = 0; fri < k; fri++) {
+        if ((bestMask >> fri) & 1) bestInv += rivals[fri].investment;
       }
     }
 
@@ -532,6 +480,14 @@
       if ((bestMask >> i) & 1) {
         decisions[c.id] = { funded: true, reason: 'beats-brooklyn',
           granted: c.investment, rate: c.rate, brooklynRate: brooklynYieldRate,
+          netBenefit: c.netBenefit, requested: c.investment };
+      } else if (_forceDisabled[c.id]) {
+        // Upstream caller (buildInterestedSummary drop-one verification)
+        // determined this supp's marginal combined-net contribution was
+        // negative when the full B/C down-payment recognition cost is
+        // included. Distinct from 'capital-exhausted' (knapsack-bound).
+        decisions[c.id] = { funded: false, reason: 'drop-one-verified',
+          granted: 0, rate: c.rate, brooklynRate: brooklynYieldRate,
           netBenefit: c.netBenefit, requested: c.investment };
       } else {
         // Beat Brooklyn standalone but excluded from the optimum subset
@@ -567,13 +523,20 @@
   //     anyInterested:               bool,
   //     rivalry: { decisions, brooklynRate, capitalRemaining }
   //   }
-  function runMasterSolver(primaryNetBenefit) {
+  function runMasterSolver(primaryNetBenefit, opts) {
     var primary = Number(primaryNetBenefit) || 0;
     var list = listSupplementals();
 
     // Pull live cfg so the rivalry can compute Brooklyn's yield rate.
+    // opts.forceDisabledSupps lets buildInterestedSummary's drop-one
+    // verification pin specific rivals to funded=false for a counter-
+    // factual evaluation (audit handoff Bug A).
     var cfg = (typeof root.collectInputs === 'function') ? root.collectInputs() : null;
-    var rivalry = _computeRivalryDecisions(cfg || {});
+    cfg = cfg || {};
+    if (opts && opts.forceDisabledSupps) {
+      cfg = Object.assign({}, cfg, { _forceDisabledSupps: opts.forceDisabledSupps });
+    }
+    var rivalry = _computeRivalryDecisions(cfg);
 
     var supplementals = list
       .map(function (spec) {
@@ -694,15 +657,22 @@
   //   overAllocated         — true if supplementals exceed totalAvailable.
   //                           Surfaces in the Implementation panel so
   //                           the advisor can spot a broken rule.
-  function runAllocator(totalAvailable) {
+  function runAllocator(totalAvailable, opts) {
     var avail = Math.max(0, Number(totalAvailable) || 0);
 
     // Build a cfg snapshot that the rivalry optimizer can use to
     // compute Brooklyn's per-dollar yield. collectInputs is the same
     // reader buildInterestedSummary uses — lives on window.
+    // opts.forceDisabledSupps lets the combined-net drop-one verification
+    // pin specific rivals to funded=false so the allocator reports the
+    // reduced supp Y0 deployment for that counterfactual.
     var cfg = (typeof root.collectInputs === 'function') ? root.collectInputs() : null;
-    if (cfg) cfg.availableCapital = avail;
-    var rivalry = _computeRivalryDecisions(cfg || { availableCapital: avail });
+    cfg = cfg || { availableCapital: avail };
+    cfg.availableCapital = avail;
+    if (opts && opts.forceDisabledSupps) {
+      cfg = Object.assign({}, cfg, { _forceDisabledSupps: opts.forceDisabledSupps });
+    }
+    var rivalry = _computeRivalryDecisions(cfg);
 
     var list = listSupplementals();
     var supps = list

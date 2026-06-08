@@ -3712,6 +3712,119 @@
     entries.forEach(function (e, i) {
       if (e.metrics.net > maxNet) { maxNet = e.metrics.net; recIdx = i; }
     });
+
+    // -----------------------------------------------------------------
+    // COMBINED-NET DROP-ONE VERIFICATION (audit handoff 2026-06-08, Bug A)
+    // -----------------------------------------------------------------
+    // The master-solver's rivalry selector under-charges capital because
+    // brooklynYieldRate is computed at FULL availableCapital (where
+    // Brooklyn is over-deployed past absorbable gain, diluting the rate).
+    // That makes every supp's marginal contribution look positive at
+    // ~6.25% when the real marginal at Brooklyn's dialled-back optimum
+    // is ~22% — biasing toward over-diversification.
+    //
+    // Critically, the master-solver also CAN'T see the Strategy-B/C
+    // down-payment recognition cost: funding a supp forces D up (per
+    // the "recognize gain to fund" model), which costs Y0 LT recognition
+    // — invisible to runMasterSolver because that lives in the auto-
+    // picker. The right verification level is HERE, at combined-net,
+    // where the entry.metrics.net + supp benefit captures everything.
+    //
+    // Algorithm: for each entry, try disabling each funded rival one at
+    // a time. Recompute the full entry (auto-picker + master solver)
+    // with that supp forced off via cfg._forceDisabledSupps. If combined
+    // net strictly improves, adopt; iterate. ≤k passes per entry for
+    // k rivals. Updates entries[i] in place + recomputes recIdx.
+    if (typeof root.runMasterSolver === 'function') {
+      function _combinedNetForEntry(entry) {
+        var s = root.runMasterSolver(entry.metrics.net || 0);
+        return {
+          combined: (entry.metrics.net || 0) + (s.totalSupplementalBenefit || 0),
+          fundedRivals: (s.supplementals || []).filter(function (x) {
+            return x.rivalry && x.rivalry.funded && x.investment > 0
+              && x.rivalry.reason !== 'free-benefit';
+          })
+        };
+      }
+      // Helper: recompute one entry with a force-disabled set.
+      function _rebuildEntry(type, forceDisabled) {
+        var sFloor = root.runAllocator
+          ? root.runAllocator(Math.max(0, Number(currentCfg.availableCapital) || 0),
+                              { forceDisabledSupps: forceDisabled })
+          : null;
+        var altCfg = Object.assign({}, currentCfg, {
+          suppY0Deployment: sFloor ? Math.max(0, Math.round(sFloor.allocatedToSupplementals || 0)) : 0,
+          _forceDisabledSupps: forceDisabled
+        });
+        try {
+          var picked = _autoPickSection(type, altCfg);
+          var sectionCfg = Object.assign({}, altCfg, {
+            horizonYears: picked.horizon,
+            leverage:     picked.shortPct / 100,
+            leverageCap:  picked.shortPct / 100,
+            comboId:      picked.comboId
+          });
+          var dur = (type === 'C' && picked.durationMonths) ? picked.durationMonths : userDuration;
+          var pr  = (type === 'C' && Number.isFinite(picked.parkRatio)) ? picked.parkRatio : null;
+          var iw  = (type === 'B' && Array.isArray(picked.installmentWeights)) ? picked.installmentWeights : null;
+          var y0d = ((type === 'B' || type === 'C') && Number.isFinite(picked.y0DownPayment)) ? picked.y0DownPayment : null;
+          var cfg2 = _scenarioCfgFor(type, sectionCfg, picked.bestRecC, dur, pr, iw, y0d);
+          var m = _scenarioMetrics(cfg2);
+          if (!m) return null;
+          return { cfg: cfg2, metrics: m, picked: picked };
+        } catch (e) { return null; }
+      }
+
+      entries.forEach(function (entry, idx) {
+        // Only verify entries that have at least 2 funded rivals — single-
+        // rival cases can't over-fund.
+        var snap = _combinedNetForEntry(entry);
+        if (snap.fundedRivals.length < 2) return;
+        var disabled = {};
+        var bestNet = snap.combined;
+        var passGuard = 0;
+        var maxPasses = snap.fundedRivals.length;
+        while (passGuard < maxPasses) {
+          passGuard++;
+          var winner = null;
+          for (var ri = 0; ri < snap.fundedRivals.length; ri++) {
+            var dropId = snap.fundedRivals[ri].id;
+            if (disabled[dropId]) continue;
+            var candDisabled = Object.assign({}, disabled);
+            candDisabled[dropId] = true;
+            var rebuilt = _rebuildEntry(entry.type, candDisabled);
+            if (!rebuilt) continue;
+            // Compute combined net for the rebuilt entry (rivalry now
+            // honors candDisabled via runMasterSolver's threading).
+            var ms = root.runMasterSolver(rebuilt.metrics.net || 0, { forceDisabledSupps: candDisabled });
+            var combinedAlt = (rebuilt.metrics.net || 0) + (ms.totalSupplementalBenefit || 0);
+            if (combinedAlt > bestNet + 1 && (!winner || combinedAlt > winner.combined)) {
+              winner = { dropId: dropId, combined: combinedAlt, rebuilt: rebuilt };
+            }
+          }
+          if (!winner) break;
+          disabled[winner.dropId] = true;
+          entry.cfg = winner.rebuilt.cfg;
+          entry.metrics = winner.rebuilt.metrics;
+          bestNet = winner.combined;
+          // Refresh funded-rival list for the next pass.
+          snap = _combinedNetForEntry(entry);
+        }
+        // Persist the force-disabled set on the entry cfg so downstream
+        // master-solver calls (Tab 6 hero / Tab 7 / admin) see the same
+        // verified funded set.
+        if (Object.keys(disabled).length > 0) {
+          entry.cfg = Object.assign({}, entry.cfg, { _forceDisabledSupps: disabled });
+        }
+      });
+
+      // Recompute recIdx in case drop-one shuffled the leader.
+      maxNet = -Infinity; recIdx = -1;
+      entries.forEach(function (e, i) {
+        if (e.metrics.net > maxNet) { maxNet = e.metrics.net; recIdx = i; }
+      });
+    }
+
     return {
       currentCfg: currentCfg,
       userDuration: userDuration,
