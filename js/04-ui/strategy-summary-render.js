@@ -629,7 +629,16 @@
         '<div class="print-section-head">Supplemental Strategies</div>' +
         '<table class="print-table"><tbody>';
       d.supplements.forEach(function (s) {
-        h += '<tr><td>' + s.name + '</td><td class="print-num print-green">+' + _fmt(s.netBenefit) + '</td></tr>';
+        // Use saturation-adjusted realized net (matches the screen path's
+        // _realized helper at line ~957 and the hero's combined-net total).
+        // Pre-fix this used s.netBenefit (raw, pre-saturation) so printed
+        // per-supp rows could sum to more than the printed hero on heavy
+        // ord-offset stacks. Audit 2026-06-08 finding #7.
+        var printNet = Number.isFinite(Number(s.realizedNetBenefit))
+          ? Number(s.realizedNetBenefit)
+          : (Number(s.netBenefit) || 0);
+        if (printNet <= 0) return;  // skip crowded-out supps
+        h += '<tr><td>' + s.name + '</td><td class="print-num print-green">+' + _fmt(printNet) + '</td></tr>';
       });
       h += '</tbody></table></div>';
     }
