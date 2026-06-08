@@ -3225,32 +3225,28 @@
     try { currentCfg = collectInputs(); } catch (e) { currentCfg = null; }
     if (!currentCfg) return null;
     // Dollar rivalry: every dollar committed to an Interested supplemental
-    // (Oil & Gas, Delphi, ...) is unavailable to Brooklyn. Subtract the
-    // allocator's supplemental total from availableCapital so the engine
-    // computes A/B/C with the correct Brooklyn deployment, and the
-    // optimizer's cap math (recommendedInvestment, slider scale) is keyed
-    // off the same reduced base. The implementation panel still shows the
-    // breakdown for advisor audit.
+    // is unavailable to Brooklyn. Single source of truth is now
+    // cfg.suppY0Deployment — the engine (tax-comparison.js) subtracts it
+    // from basisCash in ALL three strategy branches (A immediate at
+    // line 1087, B installment at line 1028, C-deferred at line 1075).
+    //
+    // Earlier this block ALSO reduced availableCapital/investedCapital/
+    // investment by the same amount, which caused a silent double-
+    // subtraction in A and C-deferred (_availTotal was already net of
+    // supps, then the engine subtracted suppY0Deployment again — Brooklyn
+    // under-deployed by exactly the supp amount on every UI-driven run
+    // with a funded supp). B was unaffected because its pool is
+    // D + recap, not _availTotal-derived. Audit 2026-06-08 caught this.
+    //
+    // Fix: thread cfg.suppY0Deployment only; leave availableCapital at
+    // the raw value. The engine performs the single, authoritative
+    // subtraction inside each strategy's basisCash calc, matching the
+    // behavior direct engine callers already see.
     if (typeof root.runAllocator === 'function') {
       var rawCap = Math.max(0, Number(currentCfg.availableCapital) || 0);
       var alloc = root.runAllocator(rawCap);
-      var brooklynCap = Math.max(0, alloc.brooklynRemaining || 0);
-      // Supplementals' Year-0 cash draw. Threaded onto the cfg so the
-      // installment engine (tax-comparison.js) reserves their share of the
-      // Year-0 pool (down payment + recapture) before sizing Brooklyn's Y0
-      // tranche — otherwise Brooklyn claims the whole pool and the supps
-      // deploy on top of it, exceeding the cash actually paid in Y0. Flows
-      // to every A/B/C entry cfg and into _autoPickSection's down-payment
-      // optimization (both spread currentCfg). 0 when no supp is funded.
       var _suppY0Deploy = Math.max(0, Math.round(alloc.allocatedToSupplementals || 0));
       currentCfg = Object.assign({}, currentCfg, { suppY0Deployment: _suppY0Deploy });
-      if (brooklynCap !== rawCap) {
-        currentCfg = Object.assign({}, currentCfg, {
-          availableCapital: brooklynCap,
-          investedCapital:  brooklynCap,
-          investment:       brooklynCap
-        });
-      }
     }
     var userDuration = currentCfg.structuredSaleDurationMonths || 36;
 
