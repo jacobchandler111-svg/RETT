@@ -3275,6 +3275,105 @@
     }
     var userDuration = currentCfg.structuredSaleDurationMonths || 36;
 
+    // Auto-size every Interested supplemental within its user-typed ceiling
+    // (advisor 2026-06-08). User's typed value becomes a MAX cap; engine
+    // sweeps [0..ceiling] and picks the size that maximizes combined net
+    // (primary + supps) for the chosen strategy. Catches the case where a
+    // user marks OG Interested + maxInvestment=$500K but $250K is the
+    // combined-net peak ($132K left on the table at $500K). When the
+    // optimal size is $0, the supp is sized to $0 here and naturally
+    // drops off the funded list — Tab 6 just won't show it, no warning.
+    //
+    // Greedy independent sweep (one supp at a time, others held fixed):
+    // O(supps × candidates) instead of O(candidates^supps). Re-runs supp
+    // math + scenario metrics per candidate; ~50-100ms each. Total added
+    // latency: ~500ms-1s for two supps × five candidates.
+    (function _autoSizeInterestedSupps() {
+      if (typeof root.__rettRunAllSuppMath !== 'function') return;
+      var interestMap = Object.assign({},
+        root.__rettSupplementalInterest      || {},
+        root.__rettSupplementalExtraInterest || {});
+      var chosen = root.__rettChosenStrategy || 'A';
+      // Supps with a clear scalar sizing knob we can sweep without
+      // affecting other internal state. Each entry:
+      //   id     — supp identifier
+      //   store  — global store object name
+      //   knob   — field on spec that controls the dollar size
+      //   minInc — minimum increment (skip sweeps below this)
+      var SIZABLE = [
+        { id: 'oilGas', spec: (root.__rettSupplemental      || {}).oilGas, knob: 'maxInvestment', minInc: 50000 },
+        { id: 'delphi', spec: (root.__rettSupplemental      || {}).delphi, knob: 'investment',    minInc: 100000 }
+      ];
+      function _measureCombinedAt(cfg) {
+        try {
+          var picked2 = _autoPickSection(chosen, cfg);
+          var cfg2 = Object.assign({}, cfg, {
+            horizonYears: picked2.horizon,
+            leverage:     picked2.shortPct / 100,
+            leverageCap:  picked2.shortPct / 100,
+            comboId:      picked2.comboId
+          });
+          var dur = (chosen === 'C' && picked2.durationMonths) ? picked2.durationMonths : userDuration;
+          var pr  = (chosen === 'C' && Number.isFinite(picked2.parkRatio)) ? picked2.parkRatio : null;
+          var iw  = (chosen === 'B' && Array.isArray(picked2.installmentWeights)) ? picked2.installmentWeights : null;
+          var y0d = ((chosen === 'B' || chosen === 'C') && Number.isFinite(picked2.y0DownPayment)) ? picked2.y0DownPayment : null;
+          var fullCfg = _scenarioCfgFor(chosen, cfg2, picked2.bestRecC, dur, pr, iw, y0d);
+          var m = _scenarioMetrics(fullCfg);
+          var net = (m && Number.isFinite(m.net)) ? m.net : 0;
+          var ms = (typeof root.runMasterSolver === 'function')
+            ? root.runMasterSolver(net, {})
+            : { totalSupplementalBenefit: 0 };
+          return net + (Number(ms.totalSupplementalBenefit) || 0);
+        } catch (e) { return -Infinity; }
+      }
+      SIZABLE.forEach(function (s) {
+        if (interestMap[s.id] !== true) return;
+        if (!s.spec) return;
+        var ceiling = Math.max(0, Number(s.spec[s.knob]) || 0);
+        if (ceiling < s.minInc) return;
+        // Candidate sizes: 0, 25%, 50%, 75%, 100% of ceiling. Always
+        // include both endpoints so the optimizer can drop to zero or
+        // keep user's full ceiling.
+        var candidates = [0, ceiling * 0.25, ceiling * 0.5, ceiling * 0.75, ceiling];
+        var origValue = s.spec[s.knob];
+        var bestSize = ceiling;
+        var bestNet  = -Infinity;
+        for (var i = 0; i < candidates.length; i++) {
+          s.spec[s.knob] = candidates[i];
+          // Mark _userTouched so downstream defaults don't override.
+          s.spec._userTouched = s.spec._userTouched || {};
+          s.spec._userTouched[s.knob] = true;
+          try { root.__rettRunAllSuppMath(); } catch (e) { /* swallow */ }
+          // Recollect cfg so the freshly-set supp Y0 deployment flows
+          // into the measurement.
+          var refreshedCfg = currentCfg;
+          if (typeof root.runAllocator === 'function') {
+            var _ra = root.runAllocator(rawCap);
+            refreshedCfg = Object.assign({}, currentCfg, {
+              suppY0Deployment: Math.max(0, Math.round(_ra.allocatedToSupplementals || 0))
+            });
+          }
+          var combined = _measureCombinedAt(refreshedCfg);
+          if (combined > bestNet) {
+            bestNet  = combined;
+            bestSize = candidates[i];
+          }
+        }
+        // Apply the engine's pick.
+        s.spec[s.knob] = bestSize;
+      });
+      // Single final supp-math pass to settle all engine picks together.
+      try { root.__rettRunAllSuppMath(); } catch (e) { /* */ }
+      // Re-collect suppY0Deployment under the engine-optimized supp sizes
+      // so the entries built below see the right Brooklyn capacity.
+      if (typeof root.runAllocator === 'function') {
+        var _ra2 = root.runAllocator(rawCap);
+        currentCfg = Object.assign({}, currentCfg, {
+          suppY0Deployment: Math.max(0, Math.round(_ra2.allocatedToSupplementals || 0))
+        });
+      }
+    })();
+
     function _bestPickedCfgLocal(type) {
       var picked = _autoPickSection(type, currentCfg);
       var sectionCfg = Object.assign({}, currentCfg, {
