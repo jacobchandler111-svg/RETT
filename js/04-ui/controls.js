@@ -1076,7 +1076,11 @@ function runFullPipeline() {
           ? (window.__rettAutoPickEnabled !== false) : true;
         if (chosenStrat && autoPickAllowed && typeof window._autoPickSection === 'function') {
           try {
-            var apk = window._autoPickSection(chosenStrat, cfg);
+            // Standalone Projection-tab view: auto-pick must ignore the
+            // supplemental draw so the headline net HOLDS when supps are
+            // toggled (advisor 2026-06-08). _suppBlind gates the
+            // _suppY0Floor inside _autoPickSection.
+            var apk = window._autoPickSection(chosenStrat, Object.assign({}, cfg, { _suppBlind: true }));
             if (apk && Number.isFinite(apk.shortPct) && Number.isFinite(apk.horizon)) {
               // Patch leverage / horizon / comboId / recognition / duration
               // from the auto-picked combo. cfg.investment + cfg.availableCapital
@@ -1112,28 +1116,25 @@ function runFullPipeline() {
           } catch (apErr) { /* leave cfg unchanged on auto-pick failure */ }
         }
 
-        // Dollar conservation (advisor 2026-05-06): a single dollar
-        // can't simultaneously fund Brooklyn AND a supplemental — the
-        // pool is finite. Ask the rivalry allocator how much of
-        // availableCapital was claimed by funded supps and reduce
-        // Brooklyn's effective investment by that amount BEFORE
-        // running the engine. Without this, the page would show
-        // Brooklyn deployed at full availCap plus supps deploying
-        // their own slice, double-counting the same dollars.
-        var fundedSuppTotal = 0;
-        if (typeof window.runAllocator === 'function') {
-          try {
-            var alloc = window.runAllocator(cfg.availableCapital);
-            if (alloc && Number.isFinite(alloc.allocatedToSupplementals)) {
-              fundedSuppTotal = alloc.allocatedToSupplementals;
-            }
-          } catch (allocErr) { /* leave fundedSuppTotal = 0 */ }
-        }
-        var brooklynPool = Math.max(0,
-          (Number(cfg.availableCapital) || 0) - fundedSuppTotal);
-        if (brooklynPool < (Number(cfg.investment) || 0)) {
-          cfg = Object.assign({}, cfg, { investment: brooklynPool });
-        }
+        // Projection-tab semantics (advisor 2026-06-08): the Projection
+        // tab is the STANDALONE Brooklyn strategy view. Its headline net
+        // benefit must HOLD when the advisor toggles supplementals on
+        // Page-5 and navigates back — otherwise the number drops (supps
+        // pull capital out of Brooklyn) and reads as "wait, I thought it
+        // was higher." So __lastResult (which feeds the dashboard hero,
+        // savings ribbon, narrative, and cash-flow schedule — all on this
+        // tab) is computed at the FULL availableCapital, ignoring the
+        // supplemental rivalry draw.
+        //
+        // The dollar-conservation combined view (Brooklyn reduced by the
+        // funded supps, supps deploying their own slice) still lives
+        // downstream on Strategy Summary / Temp / Admin, which build from
+        // buildInterestedSummary() — that path runs its OWN allocator
+        // reduction (projection-dashboard-render.js ~3218). So the two
+        // views are intentionally distinct: Projection = standalone,
+        // Summary/Temp = combined-with-supps. Supersedes the earlier
+        // 2026-05-06 reduction that applied the draw here too.
+        var brooklynPool = Math.max(0, Number(cfg.availableCapital) || 0);
 
         // Two-pass optimizer wiring: run the engine once at the user's
         // requested investment to learn cumulative Brooklyn loss, then
