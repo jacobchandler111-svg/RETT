@@ -1501,18 +1501,22 @@
           var _bAvail = Math.max(0, Number(cfgSection.availableCapital || 0));
           var _bDMax = Math.min(_bContractPrice, _bAvail);
           var _bRecap = Math.max(0, Number(cfgSection.acceleratedDepreciation) || 0);
-          // Floor needs to fund supps' Y0 deployment via the Y0 cash pool.
-          // Pool = D + recap; supps draw from pool. So D only needs to
-          // make up the gap after recap. Previously D >= suppY0Floor forced
-          // a $200K-too-large down payment whenever recap was present.
-          // Y0 down payment must cover the supplemental Y0 deployment.
-          // NOTE: _bRecap MUST be declared above this line — it was
-          // previously declared two lines BELOW, so var-hoisting left it
-          // `undefined` here and _floorB evaluated to NaN, silently
-          // disabling the B supp-floor (Y0 cash could fall below the supp's
-          // Y0 draw — e.g. $200K recap-only Y0 cash vs a $500K Oil & Gas
-          // deployment). Fixed 2026-06-08.
-          var _floorB = Math.min(Math.max(0, _suppY0Floor - _bRecap), _bDMax);
+          // No artificial floor on D (advisor 2026-06-08). Earlier
+          // iterations gated D >= suppY0Floor (and later max(0, supp -
+          // recap)) to enforce "supps deploy from Y0 sale cash only" —
+          // but in practice supps can draw from side capital, and the
+          // engine handles a Y0 shortfall correctly (Brooklyn auto-
+          // downgrades to closed if pool − supp < min). With the floor
+          // present, the optimizer was forced to recognize extra Y0 LT
+          // gain when Brooklyn couldn't open profitably, bleeding
+          // ~$24K of net per $300K of forced down payment.
+          //
+          // Probed at $7M sale / $200K recap / $500K Oil & Gas: primary
+          // net at D=$0 is $551,143 vs $527,548 at D=$300K. With no
+          // floor, the optimizer is free to pick D=$0 (pure deferral)
+          // when Brooklyn can't open, or push D up to ≥$1M-recap-supp
+          // when Brooklyn opens profitably.
+          var _floorB = 0;
           var _bSmallestMin = 1000000;
           // Account opens with the first deposit. Y0 deposit pool =
           // down-payment + recapture cash. If the pool clears $1M the
