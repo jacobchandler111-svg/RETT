@@ -682,9 +682,11 @@
     var lbb = (displayedI === 0 && Number.isFinite(Number(lowerBracketBenefit)))
       ? Math.round(Number(lowerBracketBenefit))
       : 0;
-    // Supp savings for the year — already NET of per-year supp mgmt fee
-    // (see _computeSuppSavingsForYear's perYear branch). The mgmt fee
-    // line above is informational, surfacing what was deducted.
+    // Supp savings for the year — TRUE gross (no fees subtracted).
+    // The supp mgmt fee is displayed as its own "Less:" row below and
+    // subtracted once in netForYear. (Pre-fix this was pre-netted at
+    // line 866 AND subtracted again at the netForYear render — caught
+    // by the audit 2026-06-08 as ~$87K/yr Delphi double-sub.)
     var suppSavings = _computeSuppSavingsForYear(displayedI, fundedSupps);
     var grossBenefit = brooklynSavings + lbb + suppSavings;
 
@@ -704,7 +706,7 @@
     var bhScale = (feeScale && Number.isFinite(feeScale.bh)) ? feeScale.bh : 1;
     var amFeeYear = Math.round((Number(row && row.fee) || 0) * amScale);
     var bhFeeYear = Math.round((Number(row && row.brookhavenFee) || 0) * bhScale);
-    var netForYear = grossBenefit - amFeeYear - bhFeeYear;
+    var netForYear = grossBenefit - suppMgmtFee - amFeeYear - bhFeeYear;
 
     // Surface what Brooklyn losses were APPLIED against this year as
     // SEPARATE rows per bucket — the engine now exposes the per-bucket
@@ -785,7 +787,7 @@
       feeRows += '<tr class="temp-feeline-row"><td>Less: Brookhaven fee</td><td class="temp-amt">&minus;' + _fmt(bhFeeYear) + '</td></tr>';
     }
     var netForYearRow = (suppMgmtFee > 0 || amFeeYear > 0 || bhFeeYear > 0)
-      ? '<tr class="temp-netyear-row"><td><strong>Net benefit this year</strong></td><td class="temp-amt"><strong>' + _fmt(netForYear - suppMgmtFee) + '</strong></td></tr>'
+      ? '<tr class="temp-netyear-row"><td><strong>Net benefit this year</strong></td><td class="temp-amt"><strong>' + _fmt(netForYear) + '</strong></td></tr>'
       : '';
 
     return '<table class="temp-activity-table"><tbody>' +
@@ -862,8 +864,12 @@
       if (perYear && perYear[displayedI] != null) {
         var py = perYear[displayedI];
         var pyGross = Number(py.totalSaved || 0) || 0;
-        var pyFee   = Number(py.mgmtFeeDollars || 0) || 0;
-        sum += Math.max(0, pyGross - pyFee) * satScale;
+        // Return TRUE gross (no fee subtraction here). The mgmt fee is
+        // displayed as its own "Less: Supplemental management fee" row
+        // and subtracted once in netForYear below. Prior version netted
+        // pyFee out HERE and again at the netForYear render — double-
+        // subtracting Delphi's ~$87K/yr fee per year card (audit 2026-06-08).
+        sum += Math.max(0, pyGross) * satScale;
         return;
       }
       // Unified multi-year shape (post-rename 2026-05-09): every
