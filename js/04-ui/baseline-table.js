@@ -379,7 +379,18 @@
           // income — it persists whether or not THIS property exists, so
           // add it to the LT bucket in the "without property N" scenario.
           var ltGainX = Math.max(0, saleX - basisX - deprX - stPropX) + ltGainIncome;
-          var niitBaseX = ltGainX + stGainX + deprX + qualDiv
+          // Apply the user's §1245/§1250 split ratio (read from the main
+          // path's recap1245/recap1250) proportionally to deprX. Routing
+          // recap through the engine's split path so per-property "without
+          // property N" totals reconcile to the headline that uses the
+          // split. Pre-fix this used lumped deprX in niitBase + ord stack,
+          // so per-property contributions wouldn't sum to total when the
+          // user typed a §1245 split. Audit R2 finding #8.
+          var _r1245Ratio = (recap > 0) ? (recap1245 / recap) : 0;
+          var _r1250Ratio = (recap > 0) ? (recap1250 / recap) : 1;
+          var recap1245X  = Math.max(0, deprX * _r1245Ratio);
+          var recap1250X  = Math.max(0, deprX * _r1250Ratio);
+          var niitBaseX = ltGainX + stGainX + recap1250X + qualDiv
                         + Math.max(0, _num('rental-income'))
                         + Math.max(0, _num('dividend-income'))
                         + Math.max(0, _num('interest-income'));
@@ -387,7 +398,9 @@
             ? computeFederalTaxBreakdown(ord, year, status, {
                 longTermGain: ltGainX,
                 shortTermGain: stGainX,
-                depreciationRecapture: deprX,
+                depreciationRecapture:     deprX,
+                depreciationRecapture1245: recap1245X,
+                depreciationRecapture1250: recap1250X,
                 qualifiedDividend: qualDiv,
                 investmentIncome: niitBaseX,
                 wages: wages,

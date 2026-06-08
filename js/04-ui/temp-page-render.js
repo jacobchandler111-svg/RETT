@@ -845,39 +845,35 @@
       var last      = (extraSpec && extraSpec.lastResult)
                    || (coreSpec  && coreSpec.lastResult) || null;
       if (!last) return;
-      // Shared ordinary-pool saturation scale from the master solver: when
-      // multiple ord-offset supps stacked and the Y0 ordinary income ran
-      // out, the crowded-out supp's realized benefit is scaled down (often
-      // to 0). Apply it here so the per-year cards sum to the bottom panel
-      // (which already uses the saturated solverOut.totalSupplementalBenefit).
-      var satScale = Number(s.saturationScale);
-      if (!Number.isFinite(satScale)) satScale = 1;
+      // Per-year saturation scale (audit R2 #5): Y0 may be clipped by the
+      // shared ord pool; Y1+ passes through unchanged because each future
+      // year has its own pool. Master-solver now exposes y0SaturationScale
+      // + y1PlusSaturationScale separately. Fall back to legacy single
+      // saturationScale when the new fields aren't present.
+      var _y0Scale  = Number.isFinite(Number(s.y0SaturationScale))
+        ? Number(s.y0SaturationScale)
+        : Number.isFinite(Number(s.saturationScale)) ? Number(s.saturationScale) : 1;
+      var _y1Scale  = Number.isFinite(Number(s.y1PlusSaturationScale))
+        ? Number(s.y1PlusSaturationScale)
+        : 1;
+      var satScale = (displayedI === 0) ? _y0Scale : _y1Scale;
       var detail = last.detail || {};
       var perYear = Array.isArray(last.perYear) ? last.perYear : null;
       // Multi-year (Oil & Gas style): perYear[i].totalSaved already
-      // includes federal + state + NIIT delta for that year. Subtract
-      // perYear[i].mgmtFeeDollars when the supp carries a per-year
-      // management fee (Delphi). O&G's perYear has no mgmtFeeDollars
-      // field, so the subtraction is a no-op there. This makes the
-      // per-year sum reconcile to the master-solver's funded-supps net
-      // total (the same source the Strategy Summary hero uses).
+      // includes federal + state + NIIT delta for that year. Pre-fix
+      // also subtracted perYear[i].mgmtFeeDollars (double-sub with the
+      // netForYear render — fixed earlier). Return TRUE gross; the mgmt
+      // fee is displayed as its own "Less:" row and subtracted once in
+      // netForYear.
       if (perYear && perYear[displayedI] != null) {
         var py = perYear[displayedI];
         var pyGross = Number(py.totalSaved || 0) || 0;
-        // Return TRUE gross (no fee subtraction here). The mgmt fee is
-        // displayed as its own "Less: Supplemental management fee" row
-        // and subtracted once in netForYear below. Prior version netted
-        // pyFee out HERE and again at the netForYear render — double-
-        // subtracting Delphi's ~$87K/yr fee per year card (audit 2026-06-08).
         sum += Math.max(0, pyGross) * satScale;
         return;
       }
       // Unified multi-year shape (post-rename 2026-05-09): every
       // annual-recurring supp ships taxSavingsY0 + taxSavingsRestPerYear
       // already in tax dollars. Charitable, PTET, Augusta, 401(k).
-      // Earlier code multiplied charitable's deductionY0 (which was
-      // actually tax-savings, badly named) by marginal — under-counting
-      // by a factor of marginal. The rename + this read fixes it.
       if (detail.taxSavingsY0 != null || detail.taxSavingsRestPerYear != null) {
         var yc = Number(detail.yearCount || 1);
         if (displayedI < yc) {

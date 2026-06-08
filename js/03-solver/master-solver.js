@@ -229,10 +229,19 @@
   // 2026-06-08 finding #5.
   function _saturateOrdinary(items, pool) {
     var realized = {};
+    // Track Y0 vs rest separately so per-year displays can scale only Y0
+    // (Y1+ passes through unscaled — audit R2 #5). realizedDetail[id] =
+    // { y0, rest, y0Demand, rate }. Consumers downstream (temp-page-
+    // render) can read y0SaturationScale = y0/(y0Demand*rate) to scale
+    // Y0 specifically, leaving Y1+ at full value.
+    var realizedDetail = {};
     var ordList = [];
     items.forEach(function (s) {
       if (s.ordInfo) ordList.push(s);
-      else realized[s.id] = Math.round(Number(s.netBenefit) || 0);
+      else {
+        realized[s.id] = Math.round(Number(s.netBenefit) || 0);
+        realizedDetail[s.id] = { y0: realized[s.id], rest: 0, y0Demand: 0, rate: 0 };
+      }
     });
     // Sort by Y0 rate descending; on a rate tie, prefer the supp with
     // SMALLER restNet (single-year supps get first dibs on the pool —
@@ -250,11 +259,17 @@
       var realized_y0 = take * s.ordInfo.rate;
       var rest        = s.ordInfo.restNet || 0;
       realized[s.id] = Math.round(realized_y0 + rest);
+      realizedDetail[s.id] = {
+        y0:        realized_y0,
+        rest:      rest,
+        y0Demand:  s.ordInfo.demand,
+        rate:      s.ordInfo.rate
+      };
       remaining -= take;
     });
     var total = 0;
     Object.keys(realized).forEach(function (k) { total += realized[k]; });
-    return { total: Math.round(total), realized: realized };
+    return { total: Math.round(total), realized: realized, detail: realizedDetail };
   }
 
   // Rivalry optimizer — for each Interested supplemental, compare its
@@ -534,11 +549,24 @@
       s.realizedNetBenefit = Object.prototype.hasOwnProperty.call(sat.realized, s.id)
         ? sat.realized[s.id]
         : 0;
-      // Scale factor consumers can apply to per-year / per-bucket figures
-      // (1 when unsaturated; <1 when the shared pool clipped this supp).
+      // Legacy single-scalar scale (kept for back-compat consumers).
       s.saturationScale = (Number(s.netBenefit) > 0)
         ? (s.realizedNetBenefit / s.netBenefit)
         : (s.realizedNetBenefit > 0 ? 1 : 0);
+      // Per-year split: Y0 may be saturated (scaled down) but Y1+
+      // passes through unchanged. Consumers (temp-page-render) should
+      // apply y0SaturationScale ONLY to perYear[0] and y1PlusSaturation
+      // Scale (=1) to perYear[1..]. Audit R2 #5: prior single-scalar
+      // application mis-attributed dollars across years on clipped
+      // supps (Y0 over-displayed, Y1+ under-displayed).
+      var det = sat.detail && sat.detail[s.id];
+      if (det && det.y0Demand > 0 && det.rate > 0) {
+        var y0FullNet = det.y0Demand * det.rate;
+        s.y0SaturationScale = y0FullNet > 0 ? (det.y0 / y0FullNet) : 1;
+      } else {
+        s.y0SaturationScale = 1;
+      }
+      s.y1PlusSaturationScale = 1;  // Y1+ never saturated by Y0 pool
     });
     var totalSupp = sat.total;
 
