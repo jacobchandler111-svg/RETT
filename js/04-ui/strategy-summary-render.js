@@ -1101,7 +1101,7 @@
       '<div class="growth-head">' +
         '<h2>Grow Your Net Benefit</h2>' +
         '<div class="growth-savings-hero">' +
-          '<span class="growth-savings-label">Tax Savings</span>' +
+          '<span class="growth-savings-label">Net Benefit (to invest)</span>' +
           '<span class="growth-savings-amt">' + _fmt(principal) + '</span>' +
         '</div>' +
         '<p class="growth-desc">The growth phase starts when planning wraps and capital is freed; pick the date the client wants the money out and an assumed annual return.</p>' +
@@ -1163,7 +1163,7 @@
       finalHost.innerHTML = '';
       chartHost.setAttribute('aria-hidden', 'true');
       if (heroAmt)   heroAmt.textContent = _fmt(principal);
-      if (heroLabel) heroLabel.textContent = 'Tax Savings';
+      if (heroLabel) heroLabel.textContent = 'Net Benefit (to invest)';
       return;
     }
     chartHost.setAttribute('aria-hidden', 'false');
