@@ -162,8 +162,34 @@
     var absorbed = Math.min(deduction, Math.max(0, ordBaseline));
     var nolGenerated = Math.max(0, deduction - Math.max(0, ordBaseline));
     var newOrd = Math.max(0, ordBaseline - deduction);
+    // Apply the deduction to ord FIRST, then to recap. Keep §1245/§1250
+    // ratio when reducing recap. Then build a snap-override with reduced
+    // ord + reduced recap fields. Audit follow-up 2026-06-08: prior
+    // version passed newOrd = ord+recap-deduction as ordOverride but
+    // ALSO let _totalTaxAt re-add recap via fields — double-counting
+    // recap in the optimized scenario. Result: OG's marginal estimate
+    // was wrong, and the chunked-greedy optimizer was placing Y0 chunks
+    // in years where the recap-absorbing benefit should have dominated.
+    var absorbedFromOrd   = Math.min(deduction, Math.max(0, snap.ordTotal));
+    var leftAfterOrd      = Math.max(0, deduction - absorbedFromOrd);
+    var absorbedFromRecap = Math.min(leftAfterOrd, Math.max(0, snap.recap));
+    var newOrdOnly        = Math.max(0, snap.ordTotal - absorbedFromOrd);
+    var _r1245 = Number(snap.recap1245) || 0;
+    var _r1250 = Number(snap.recap1250) || 0;
+    var _rTotal = _r1245 + _r1250;
+    var _r1245Ratio = _rTotal > 0 ? (_r1245 / _rTotal) : 0;
+    var _r1250Ratio = _rTotal > 0 ? (_r1250 / _rTotal) : ((snap.recap || 0) > 0 ? 1 : 0);
+    var newRecap1245 = Math.max(0, _r1245 - absorbedFromRecap * _r1245Ratio);
+    var newRecap1250 = Math.max(0, _r1250 - absorbedFromRecap * _r1250Ratio);
+    var newRecapTotal = Math.max(0, (snap.recap || 0) - absorbedFromRecap);
+    var optimizedSnap = Object.assign({}, snap, {
+      ordTotal:  newOrdOnly,
+      recap:     newRecapTotal,
+      recap1245: newRecap1245,
+      recap1250: newRecap1250
+    });
     var baseline  = _totalTaxAt(snap, null);
-    var optimized = _totalTaxAt(snap, newOrd);
+    var optimized = _totalTaxAt(optimizedSnap, null);
     return {
       investment:     investment,
       idcPct:         idcPct,
