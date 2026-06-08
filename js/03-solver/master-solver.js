@@ -234,7 +234,16 @@
       if (s.ordInfo) ordList.push(s);
       else realized[s.id] = Math.round(Number(s.netBenefit) || 0);
     });
-    ordList.sort(function (a, b) { return b.ordInfo.rate - a.ordInfo.rate; });
+    // Sort by Y0 rate descending; on a rate tie, prefer the supp with
+    // SMALLER restNet (single-year supps get first dibs on the pool —
+    // a multi-year supp with restNet > 0 can still realize its Y1+
+    // benefit even if Y0 is fully crowded out, while a single-year
+    // supp with restNet=0 loses everything). Audit R2 finding #10.
+    ordList.sort(function (a, b) {
+      var d = b.ordInfo.rate - a.ordInfo.rate;
+      if (d !== 0) return d;
+      return (a.ordInfo.restNet || 0) - (b.ordInfo.restNet || 0);
+    });
     var remaining = Math.max(0, Number(pool) || 0);
     ordList.forEach(function (s) {
       var take = Math.min(s.ordInfo.demand, remaining);

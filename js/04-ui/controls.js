@@ -343,10 +343,33 @@ function resetAllInputs(skipConfirm, stayOnCurrentPage) {
     // interest + dividends in the NIIT base, SS through the §86
     // worksheet, business income into the ordinary stack (+ SE tax).
     'interest-income', 'qualified-dividends', 'social-security',
-    'business-income-amount',
-    // Page 1: Appreciated Assets
+    'business-income-amount', 'business-income-type',
+    // Page 1: Appreciated Assets (property 1) + §1245/§1250 recap split
     'sale-price', 'cost-basis', 'accelerated-depreciation',
+    'accelerated-depreciation-1245', 'accelerated-depreciation-1250',
     'computed-gain', 'short-term-gain', 'long-term-gain',
+    // Personal-use + amount-owed reducers on property 1
+    'personal-use-amount-1', 'amount-owed-amount-1',
+    'personal-use-yesno-1', 'amount-owed-yesno-1',
+    'holding-period-1',
+    // Properties 2-5 (multi-property): sale price, basis, recap split,
+    // personal-use, amount-owed, holding-period. Audit R2 #9 — these
+    // were stale-state risks before being added to the allowlist.
+    'sale-price-2', 'cost-basis-2', 'accelerated-depreciation-2',
+    'accelerated-depreciation-1245-2', 'accelerated-depreciation-1250-2',
+    'personal-use-amount-2', 'amount-owed-amount-2', 'holding-period-2',
+    'sale-price-3', 'cost-basis-3', 'accelerated-depreciation-3',
+    'accelerated-depreciation-1245-3', 'accelerated-depreciation-1250-3',
+    'personal-use-amount-3', 'amount-owed-amount-3', 'holding-period-3',
+    'sale-price-4', 'cost-basis-4', 'accelerated-depreciation-4',
+    'accelerated-depreciation-1245-4', 'accelerated-depreciation-1250-4',
+    'personal-use-amount-4', 'amount-owed-amount-4', 'holding-period-4',
+    'sale-price-5', 'cost-basis-5', 'accelerated-depreciation-5',
+    'accelerated-depreciation-1245-5', 'accelerated-depreciation-1250-5',
+    'personal-use-amount-5', 'amount-owed-amount-5', 'holding-period-5',
+    // Future-sale + cover-taxes + supplemental-related toggles
+    'future-estimated-gain', 'cover-taxes-yes-no',
+    'additional-funds-toggle', 'structured-sale-duration-months',
     // Page 1: Withholding from sale
     'withhold-yes-no', 'withhold-amount',
     // Page 1: Implementation timing
@@ -355,9 +378,6 @@ function resetAllInputs(skipConfirm, stayOnCurrentPage) {
     'custodian-select', 'leverage-cap-select',
     // Page 2: Brooklyn config
     'available-capital', 'invested-capital', 'strategy-select'
-    // Note: legacy IDs that don't exist in the current HTML
-    // ('beta1', 'computed-total-taxable') were removed from this list
-    // — forEach silently skipped them but they were drift indicators.
   ];
   resetIds.forEach(function (id) {
     const el = document.getElementById(id);
