@@ -149,6 +149,25 @@
     } else if (id === 'slot12') {
       demand = Number(d.totalUncapped) || Number(d.total) || 0;
       basis  = Number(d.total) || demand;
+    } else if (id === 'charitableGifts') {
+      // Charitable gift cash + appreciated-asset ord deduction.
+      // Engine writes detail.deductibleAmount (capped at AGI %) and
+      // detail.ordOffsetY0 (the Y0 deductible slice). Audit 2026-06-08:
+      // previously fell through to else→null, bypassing saturation.
+      demand = Number(d.deductibleAmount) || Number(d.ordOffsetY0) || 0;
+      basis  = Number(d.ordOffsetY0)     || demand;
+    } else if (id === 'slot09') {
+      // 401(k) + profit-sharing reduces W-2/SE income by total contribution.
+      demand = Number(d.ordOffsetY0) || Number(d.totalContribution) || 0;
+      basis  = Number(d.ordOffsetY0) || demand;
+    } else if (id === 'slot10') {
+      // Aircraft §168 bonus / ADS depreciation on bizUse-qualified cost.
+      demand = Number(d.yr1DeductionUncapped) || Number(d.yr1Deduction) || 0;
+      basis  = Number(d.yr1Deduction)         || demand;
+    } else if (id === 'slot11') {
+      // STR loophole — non-passive year-1 cost-seg deduction.
+      demand = Number(d.year1DeductionUncapped) || Number(d.year1Deduction) || 0;
+      basis  = Number(d.year1Deduction)         || demand;
     } else {
       return null;
     }
