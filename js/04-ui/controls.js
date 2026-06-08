@@ -214,7 +214,17 @@ function _bindCaseControls() {
       if (raw == null) return '';
       var s = String(raw);
       try { s = s.normalize('NFKC'); } catch (e) { /* */ }
-      s = s.replace(/[^A-Za-z0-9 ,.'\-]/g, '');
+      // Use Unicode property classes so non-Latin characters survive
+      // (José Núñez, 北京, etc.). Audit R2 #13: prior /[^A-Za-z0-9 ...]/
+      // stripped non-ASCII letters silently, e.g. 'José Núñez' →
+      // 'Jos Nez'. \p{L} = any letter, \p{M} = combining mark,
+      // \p{N} = number. The 'u' flag enables Unicode mode.
+      try {
+        s = s.replace(/[^\p{L}\p{M}\p{N} ,.'\-]/gu, '');
+      } catch (e) {
+        // Fallback for very old engines without /u support.
+        s = s.replace(/[^A-Za-z0-9 ,.'\-]/g, '');
+      }
       // Collapse runs of spaces and trim — names like "  John   Smith  "
       // normalize cleanly.
       s = s.replace(/\s+/g, ' ').trim();

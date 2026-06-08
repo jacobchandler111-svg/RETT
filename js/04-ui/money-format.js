@@ -104,18 +104,66 @@
     return '$' + Math.round(n).toLocaleString('en-US');
   }
 
+  // Prefer the field's associated <label> for human-readable banner text;
+  // fall back to the kebab-cased id if no label is wired. Audit R2 #14.
+  function _labelFor(el) {
+    if (!el) return '';
+    if (el.id) {
+      var lbl = document.querySelector('label[for="' + el.id + '"]');
+      if (lbl && lbl.textContent) {
+        return lbl.textContent.replace(/\s+/g, ' ').trim();
+      }
+      // Inputs inside a parent .field with a <div class="label"> sibling.
+      var field = el.closest && el.closest('.field, .input-row');
+      if (field) {
+        var dl = field.querySelector('.label');
+        if (dl && dl.textContent) return dl.textContent.replace(/\s+/g, ' ').trim();
+      }
+      return el.id.replace(/-/g, ' ');
+    }
+    return '(field)';
+  }
+
   function _format(el) {
     if (!el) return;
     var raw = el.value;
     if (raw === '' || raw == null) return;
+    // Detect a paste of pure non-numeric characters (e.g. "abc") so we
+    // can surface that the field was discarded instead of silently
+    // showing $0. parseUSD strips to '' → 0; the flag captures intent.
+    // Audit R2 #12.
+    var rawStr = String(raw);
+    var strippedDigits = rawStr.replace(/[^0-9.\-]/g, '');
+    var letterOnly = (rawStr.length > 0 && strippedDigits.length === 0);
     var n = _toNum(raw);
     if (!isFinite(n)) return;
     if (n < 0 && el.id && NON_NEGATIVE_IDS[el.id]) {
       n = 0;
       if (typeof window.showBanner === 'function') {
-        try { window.showBanner('warning', 'Negative value not allowed for ' + el.id.replace(/-/g, ' ') + ' — set to $0.'); } catch (e) { /* */ }
+        try { window.showBanner('warning', 'Negative value not allowed for ' + _labelFor(el) + ' — set to $0.'); } catch (e) { /* */ }
         setTimeout(function () { if (typeof window.hideBanner === 'function') window.hideBanner(); }, 2500);
       }
+    }
+    // Detect parseUSD's silent $1B clamp (audit R2 #11). The raw value
+    // had a parseable number > $1B; parseUSD returned exactly the cap.
+    // Tell the user instead of accepting a typo silently.
+    var RAW_CAP = 1e9;
+    var rawAsNum = parseFloat(strippedDigits);
+    var hitCap = isFinite(rawAsNum) && Math.abs(rawAsNum) > RAW_CAP && Math.abs(n) === RAW_CAP;
+    if (hitCap) {
+      el.classList.add('input-error');
+      if (typeof window.showBanner === 'function') {
+        try { window.showBanner('warning', _labelFor(el) + ' clamped to $1B max — please verify the entered amount.'); } catch (e) { /* */ }
+        setTimeout(function () { if (typeof window.hideBanner === 'function') window.hideBanner(); }, 3500);
+      }
+    } else if (letterOnly) {
+      el.classList.add('input-error');
+      if (typeof window.showBanner === 'function') {
+        try { window.showBanner('warning', _labelFor(el) + ' contained no number — value set to $0.'); } catch (e) { /* */ }
+        setTimeout(function () { if (typeof window.hideBanner === 'function') window.hideBanner(); }, 3500);
+      }
+    } else {
+      el.classList.remove('input-error');
     }
     el.value = _formatNum(n);
   }

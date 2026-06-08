@@ -296,7 +296,16 @@ function _baseScenarioForYear(cfg, yr, gainTakenThisYear, recaptureThisYear) {
             // Falls back to ordOverride for backward-compat with cfg
             // objects that predate the wages split.
             wages: (cfg.wages != null ? _scaledBaseWages : ordOverride),
-            itemized: cfg.itemized || 0
+            itemized: cfg.itemized || 0,
+            // Pre-existing capital-loss carryforward (Sch D) the client
+            // is bringing INTO the projection from a prior year. Surfaces
+            // as opts.carriedLossPriorYear in tax-calc-federal, which
+            // applies the §1211(b) $3K ordinary offset (or $1.5K MFS).
+            // Currently only Y0 receives it; Y2+ baseline threading
+            // (capture each year's lossCarryforward → feed to next) is
+            // a follow-up that requires changes at the baseline loop
+            // call sites, not here. Audit R2 #7.
+            carriedLossPriorYear: (idx === 0) ? Math.max(0, Number(cfg.priorCapitalLossCF) || 0) : 0
       };
 }
 
