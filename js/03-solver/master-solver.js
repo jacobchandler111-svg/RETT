@@ -123,11 +123,35 @@
       (Number(cfg.baseOrdinaryIncome) || 0) +
       (Number(cfg.acceleratedDepreciation) || 0));
   }
+  // Extract the Y0-only tax savings from a supp's result. Multi-year
+  // recurring supps (PTET/Augusta/charitable/401k) report netBenefit =
+  // benY0 + benRest×(yearCount-1), but the saturation pool is Y0-only —
+  // so the rate calc must use the Y0 slice, not the multi-year sum.
+  // Without this split, PTET/Augusta crowded out single-year supps with
+  // higher TRUE Y0 yields (rate was inflated by ~yearCount×).
+  // Audit 2026-06-08 findings #2 + #5.
+  function _y0NetOf(result) {
+    if (!result) return 0;
+    var d  = result.detail || {};
+    var py = result.perYear;
+    // perYear shape (Oil & Gas, sometimes Delphi): first-year totalSaved.
+    if (Array.isArray(py) && py[0] && py[0].totalSaved != null) {
+      return Math.max(0, Number(py[0].totalSaved) || 0);
+    }
+    // Multi-year recurring (PTET/Augusta/charitable/401k): explicit Y0 field.
+    if (d.taxSavingsY0 != null) {
+      return Math.max(0, Number(d.taxSavingsY0) || 0);
+    }
+    // Single-year fallback: full netBenefit is Y0.
+    return Math.max(0, Number(result.netBenefit) || 0);
+  }
+
   // Per-supp ordinary-deduction demand + realized per-dollar rate.
   // `demand` is the supp's UNCAPPED desired ordinary offset; `rate` is the
-  // $ saved per $ of deduction it actually realized (net / basis, where
-  // basis is the deduction that produced its reported net). Returns null
-  // for supps that don't offset ordinary income (they keep full net).
+  // $ saved per $ of deduction it actually realized AT Y0 ONLY. `restNet`
+  // is the supp's Y1+ tax savings, which pass through saturation untouched
+  // (each future year has its own pool, independent of Y0's). Returns
+  // null for supps that don't offset ordinary income (they keep full net).
   function _ordInfoOf(id, result, net) {
     if (!result) return null;
     var d = result.detail || {};
@@ -172,12 +196,25 @@
       return null;
     }
     if (demand <= 0 || basis <= 0) return null;
-    return { demand: demand, rate: (Number(net) || 0) / basis };
+    var y0Net   = _y0NetOf(result);
+    var fullNet = Math.max(0, Number(net) || 0);
+    var restNet = Math.max(0, fullNet - y0Net);  // Y1+ pass-through
+    return {
+      demand:  demand,
+      rate:    y0Net / basis,   // Y0-only rate (not multi-year inflated)
+      restNet: restNet           // never saturated — each future year has its own pool
+    };
   }
   // Allocate the shared Y0 ordinary pool across funded supps best-first.
   // Input items: [{ id, netBenefit, ordInfo }]. Returns
   //   { total, realized: { id -> realizedNet } }.
   // Supps with no ordInfo keep their full net (they don't touch the pool).
+  //
+  // Multi-year supps: only their Y0 component is rationed against the Y0
+  // ord pool; their Y1+ benefit (restNet) is added back unchanged because
+  // each future year has its own independent ordinary income pool. Prior
+  // behavior wiped Y1+ proportionally to Y0 crowding — caught in audit
+  // 2026-06-08 finding #5.
   function _saturateOrdinary(items, pool) {
     var realized = {};
     var ordList = [];
@@ -189,7 +226,9 @@
     var remaining = Math.max(0, Number(pool) || 0);
     ordList.forEach(function (s) {
       var take = Math.min(s.ordInfo.demand, remaining);
-      realized[s.id] = Math.round(take * s.ordInfo.rate);
+      var realized_y0 = take * s.ordInfo.rate;
+      var rest        = s.ordInfo.restNet || 0;
+      realized[s.id] = Math.round(realized_y0 + rest);
       remaining -= take;
     });
     var total = 0;
