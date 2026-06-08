@@ -142,6 +142,16 @@
     var primaryNet = (typeof m.net === 'number')
       ? m.net
       : (primarySavings - fees);
+    // Force-recompute supp math before solving. Oil & Gas / Delphi
+    // calcs are strategy-dependent (year-count comes from
+    // _resolvedSaleStrategyKey()) but only re-fire on supp-input events,
+    // NOT on __rettChosenStrategy changes. Without this prefix call,
+    // switching A→B→C left lastResult frozen at the prior strategy's
+    // year-count, causing the hero, admin, and Tab 7 to display
+    // different OG values for the same scenario.
+    if (typeof root.__rettRunAllSuppMath === 'function') {
+      try { root.__rettRunAllSuppMath(); } catch (e) { /* */ }
+    }
     // Pull supplementals through the master solver. The rivalry has
     // already decided which Interested supps actually get funded —
     // anything rejected (brooklyn-beats, capital-exhausted, negative-net)

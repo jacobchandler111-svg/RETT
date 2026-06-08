@@ -747,4 +747,13 @@
   root.getOilGasConfiguredYears = getOilGasConfiguredYears;
   root.getDelphiConfiguration   = getDelphiConfiguration;
   root.resetSupplementalCore    = _resetState;
+  // Exposed so other surfaces (strategy-summary-render, admin panel) can
+  // force-recompute the supp math when the chosen strategy changes.
+  // _runAllMath internally re-derives oilGas + delphi lastResult using
+  // _resolvedSaleStrategyKey(), so calling it here picks up the new
+  // year-count and per-year split. Without this, supp values stay frozen
+  // at whatever strategy was active when the user last touched a supp
+  // input field — the issue surfaced when Strategy A/B/C switches left
+  // OG's perYearCount stuck at 1.
+  root.__rettRunAllSuppMath     = _runAllMath;
 })(window);
