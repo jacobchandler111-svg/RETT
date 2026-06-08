@@ -2386,6 +2386,19 @@ function bindControls() {
         window.__rettSupplementalInterest[k] = null;
       });
     }
+    // Extra (slot-based) supplementals — ptet, slot05–12, charitable, etc.
+    // (advisor 2026-06-08). Previously this reset cleared ONLY the core
+    // supps (oilGas / delphi), leaving every slot supp's Interested mark
+    // stale after a fundamentals change — a confusing half-reset where
+    // Tab 5 showed some picks cleared and others retained. Clear the slot
+    // supps' interest marks too. Keep their entered amounts/config intact
+    // (don't call resetSupplementalExtra — that wipes amounts); only the
+    // interest marks reset, matching the core behavior above.
+    if (window.__rettSupplementalExtraInterest) {
+      Object.keys(window.__rettSupplementalExtraInterest).forEach(function (k) {
+        window.__rettSupplementalExtraInterest[k] = null;
+      });
+    }
     // Reset default-risk toggle to "no" — both the hidden select and
     // its visible button widget. Without this the toggle would stay
     // blue/Yes after an inputs change while Cards 2+3 visibility re-
@@ -2421,6 +2434,12 @@ function bindControls() {
       try { window.renderSupplementalPage(); } catch (e) { /* */ }
     } else if (typeof window.refreshSupplementalCards === 'function') {
       try { window.refreshSupplementalCards(); } catch (e) { /* */ }
+    }
+    // Extra (slot-based) supp cards render through their own host — force
+    // a re-render so the cleared Interested marks show on Tab 5 (the core
+    // renderSupplementalPage above doesn't own the slot cards).
+    if (typeof window.renderSupplementalExtra === 'function') {
+      try { window.renderSupplementalExtra(); } catch (e) { /* */ }
     }
   }
 
