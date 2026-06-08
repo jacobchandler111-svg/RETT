@@ -424,8 +424,20 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       const shortTermGain     = Math.max(0, _st || 0);
       const qualifiedDividend = Math.max(0, _qd || 0);
       const seIncomeRaw       = Math.max(0, Number(_se) || 0);
+      // Default NIIT base must include §1250 unrecaptured gain (§1411
+       // treats it as net investment income). Callers that pass
+       // opts.investmentIncome explicitly win as before. Audit 2026-06-08
+       // caught secondary callers (controls.js, strategy-summary preview,
+       // engine-self-test) under-stating NIIT by 3.8% × §1250 because
+       // the prior default omitted recap. §1245 stays excluded (active
+       // trade/business — not NII per the engine's documented design).
+      var _dr1250Default = (opts.depreciationRecapture1250 != null)
+        ? Math.max(0, Number(opts.depreciationRecapture1250) || 0)
+        : ((opts.depreciationRecapture1245 != null || opts.depreciationRecapture1250 != null)
+            ? 0  // explicit split provided; §1245 only — no §1250 to add
+            : Math.max(0, Number(opts.depreciationRecapture) || 0));  // legacy: lump = §1250
       const investmentIncome  = Math.max(0, _inv != null
-                                          ? _inv : (longTermGain + qualifiedDividend + shortTermGain));
+                                          ? _inv : (longTermGain + qualifiedDividend + shortTermGain + _dr1250Default));
       // Wage base for Additional Medicare per Form 8959. W-2 wages are
       // counted dollar-for-dollar; SE income is multiplied by 0.9235
       // (the SE-earnings adjustment that excludes the half-of-SE-tax
