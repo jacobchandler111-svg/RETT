@@ -190,11 +190,23 @@
     });
     var baseline  = _totalTaxAt(snap, null);
     var optimized = _totalTaxAt(optimizedSnap, null);
+    // Split detail — Tab 7 display needs to know how much of the IDC
+    // deduction landed on each income bucket (ord vs §1245 recap vs §1250
+    // recap) so the right-column income/tax lines can show the post-supp
+    // reduction on each bucket individually (audit 2026-06-08). Without
+    // this split the display had to use `absorbed` as a single ord-only
+    // number, but the deduction actually waterfalls ord → §1245 → §1250
+    // proportionally to the user's recap split.
+    var absorbed1245 = absorbedFromRecap * _r1245Ratio;
+    var absorbed1250 = absorbedFromRecap * _r1250Ratio;
     return {
       investment:     investment,
       idcPct:         idcPct,
       deduction:      deduction,
       absorbed:       absorbed,
+      absorbedOrd:    absorbedFromOrd,
+      absorbed1245:   absorbed1245,
+      absorbed1250:   absorbed1250,
       nolGenerated:   nolGenerated,
       ordBaseline:    ordBaseline,
       ordOptimized:   newOrd,

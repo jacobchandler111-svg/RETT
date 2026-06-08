@@ -385,66 +385,106 @@
   // "Tax saved vs baseline" line comparing to the baseline total so the
   // CPA sees the year's net tax movement. withStrategy carries the same
   // keys baseline does (verified) so _renderTaxRows works directly.
-  function _renderResultsCell(withStrategy, baseline, suppTaxSaved, suppOrdOffset) {
+  function _renderResultsCell(withStrategy, baseline, suppTaxSaved, suppOffsetSplit) {
     if (!withStrategy) return '<div class="temp-baseline-empty">No result data.</div>';
-    var _suppTaxSaved  = Math.max(0, Math.round(Number(suppTaxSaved)  || 0));
-    var _suppOrdOffset = Math.max(0, Math.round(Number(suppOrdOffset) || 0));
-    // Income RECOGNIZED under the strategy this year — same recognition
-    // event as the baseline column (LT gain recognized + §1250 recap),
-    // so the CPA sees that the $200K recapture and the LT gain are still
-    // recognized even though the strategy's Brooklyn losses drive the
-    // TAX on them down. Pulled from baseline._incomes (set by
-    // _deriveIncomesForEngineRow in the render loop).
-    //
-    // When supplemental strategies generated ordinary deductions this
-    // year (Oil & Gas IDC, Delphi ordinary expense, charitable, 401(k),
-    // etc.), reduce the displayed ordinary income by that amount so the
-    // CPA sees the post-supp ordinary income recognized. Audit 2026-06-08:
-    // previously the right column showed pre-supp ordinary income (and
-    // pre-supp ordinary tax), making the right side look identical to
-    // baseline on the ordinary line even when the activity column showed
-    // "$540K — ordinary income offset". The supp's tax-saved is reflected
-    // as a "Less:" row below the tax breakdown and rolled into the
-    // "Tax saved vs baseline" total.
+    var _suppTaxSaved = Math.max(0, Math.round(Number(suppTaxSaved) || 0));
+    // suppOffsetSplit shape: { ord, r1245, r1250, total } (post-2026-06-08).
+    // Legacy numeric fallback supported (treat as all-ord) so older callers
+    // still render correctly.
+    var _split = suppOffsetSplit;
+    if (typeof _split === 'number') _split = { ord: _split, r1245: 0, r1250: 0, total: _split };
+    if (!_split) _split = { ord: 0, r1245: 0, r1250: 0, total: 0 };
+    var _offOrd   = Math.max(0, Math.round(Number(_split.ord)   || 0));
+    var _off1245  = Math.max(0, Math.round(Number(_split.r1245) || 0));
+    var _off1250  = Math.max(0, Math.round(Number(_split.r1250) || 0));
+    var _offTotal = _offOrd + _off1245 + _off1250;
+    // Income RECOGNIZED under the strategy this year — LT gain & recap
+    // are still recognized; the strategy's Brooklyn losses reduce the
+    // TAX on them. Audit 2026-06-08: when a supp ordinary deduction
+    // (Oil & Gas IDC, Delphi ord expense) waterfalls past ordinary into
+    // §1245/§1250 recap, those buckets need to drop too — they're
+    // ordinary-flavored for §1245 and 25%-capped for §1250, both
+    // reducible by §162-style ordinary deductions.
     var incomeRows = '';
     if (baseline && baseline._incomes) {
       var _incomes = baseline._incomes;
-      if (_suppOrdOffset > 0 && Number(_incomes.ordinary) > 0) {
+      if (_offTotal > 0) {
         _incomes = Object.assign({}, _incomes, {
-          ordinary: Math.max(0, Number(_incomes.ordinary) - _suppOrdOffset)
+          ordinary:       Math.max(0, Number(_incomes.ordinary       || 0) - _offOrd),
+          recapture1245:  Math.max(0, Number(_incomes.recapture1245  || 0) - _off1245),
+          recapture1250:  Math.max(0, Number(_incomes.recapture1250  || 0) - _off1250),
+          recapture:      Math.max(0, Number(_incomes.recapture      || 0) - _off1245 - _off1250)
         });
       }
       incomeRows = _renderIncomeRows(_incomes, 0);
+    }
+    // Tax-side proportional reduction. The engine row's withStrategy has
+    // the PRE-supp tax — we synthesize a post-supp display by allocating
+    // _suppTaxSaved across the three reducible buckets (ord / §1245 / §1250)
+    // by absorbed-dollar share, then clamping each at the bucket's existing
+    // tax. Any residual (supp savings the engine attributed to NIIT or
+    // state — happens when the supp shifted the entire ordinary+recap pool)
+    // surfaces as a separate "Other supplemental tax savings" row so the
+    // total still ties to the activity column's gross benefit.
+    var _wsDisplay = Object.assign({}, withStrategy);
+    var _saveOrd = 0, _save1245 = 0, _save1250 = 0, _residualSave = 0;
+    if (_offTotal > 0 && _suppTaxSaved > 0) {
+      var _ordTax    = Number(withStrategy.ordinaryTax)  || 0;
+      var _r1245Tax  = Number(withStrategy.recapTax1245) || 0;
+      var _r1250Tax  = Number(withStrategy.recapTax1250) || 0;
+      var _ordShare   = _offOrd   / _offTotal;
+      var _r1245Share = _off1245  / _offTotal;
+      var _r1250Share = _off1250  / _offTotal;
+      _saveOrd  = Math.min(_ordTax,   _suppTaxSaved * _ordShare);
+      _save1245 = Math.min(_r1245Tax, _suppTaxSaved * _r1245Share);
+      _save1250 = Math.min(_r1250Tax, _suppTaxSaved * _r1250Share);
+      _wsDisplay.ordinaryTax  = Math.max(0, _ordTax   - _saveOrd);
+      _wsDisplay.recapTax1245 = Math.max(0, _r1245Tax - _save1245);
+      _wsDisplay.recapTax1250 = Math.max(0, _r1250Tax - _save1250);
+      _wsDisplay.recapTax = Math.max(0, (Number(withStrategy.recapTax) || 0) - _save1245 - _save1250);
+      // Residual = any supp tax savings we couldn't fit into ord/recap
+      // buckets (e.g. NIIT delta on reduced ord, state-tax follow-on).
+      // Surfaces below as a separate row so the total reconciles.
+      _residualSave = Math.max(0, _suppTaxSaved - _saveOrd - _save1245 - _save1250);
+      // Reduce the displayed total by the FULL supp savings — the line
+      // items will sum to something slightly above `total` when there's
+      // a residual; the residual line below makes the math obvious.
+      _wsDisplay.total = Math.max(0,
+        (Number(withStrategy.total) || 0) - _saveOrd - _save1245 - _save1250 - _residualSave
+      );
+    } else if (_suppTaxSaved > 0) {
+      // Supp absorbed nothing reducible but still saved tax (rare — PTET
+      // state→fed shift, charitable surplus). Knock down total directly
+      // and surface as residual.
+      _residualSave = _suppTaxSaved;
+      _wsDisplay.total = Math.max(0, (Number(withStrategy.total) || 0) - _suppTaxSaved);
     }
     // Force the recap line to show when the baseline had recapture tax,
     // so the CPA sees it drop to $0 (or whatever residual) under the
     // strategy rather than the row silently disappearing.
     var baselineHadRecap = baseline && Number(baseline.recapTax) > 0;
-    var taxRows = _renderTaxRows(withStrategy, { forceRecap: baselineHadRecap });
-    // Supplemental tax-savings "Less:" row. Activity column shows the
-    // ord/LT offsets the supp generated; this row shows the dollar tax
-    // saved that those offsets produced. Together they tell the CPA
-    // (a) what the supp deduction was and (b) what tax it actually saved.
+    var taxRows = _renderTaxRows(_wsDisplay, { forceRecap: baselineHadRecap });
+    // Residual supplemental savings row — covers NIIT/state/AMT delta
+    // that the supp produced but couldn't be allocated to ord/recap line
+    // items. Surfaces explicitly so the total reconciles to the activity
+    // column's "Gross benefit (tax saved)".
     var suppSavedRow = '';
-    if (_suppTaxSaved > 0) {
-      suppSavedRow = '<tr class="temp-feeline-row"><td>Less: Supplemental strategy tax savings</td>' +
-        '<td class="temp-amt">&minus;' + _fmt(_suppTaxSaved) + '</td></tr>';
+    if (_residualSave > 0.5) {
+      suppSavedRow = '<tr class="temp-feeline-row"><td>Less: Supplemental tax savings (NIIT / state)</td>' +
+        '<td class="temp-amt">&minus;' + _fmt(_residualSave) + '</td></tr>';
     }
-    // Net tax after BOTH primary and supplemental — this is what the
-    // client actually pays this year. Display only when supps moved
-    // the needle (otherwise the existing "Total tax" line is honest).
+    // No "Net tax after supplementals" row needed — the synthesized
+    // _wsDisplay.total in the Total row above already reflects post-supp
+    // tax (per-line reductions handled the bulk; residual row above
+    // explains any remainder).
     var netTaxRow = '';
-    if (_suppTaxSaved > 0 && withStrategy.total != null) {
-      var _netTax = Math.max(0, Number(withStrategy.total) - _suppTaxSaved);
-      netTaxRow = '<tr class="temp-total-row"><td><strong>Net tax after supplementals</strong></td>' +
-        '<td class="temp-amt"><strong>' + _fmt(_netTax) + '</strong></td></tr>';
-    }
     var savedRow = '';
     if (baseline && baseline.total != null && withStrategy.total != null) {
-      // Saved includes BOTH Brooklyn (baseline.total − withStrategy.total)
-      // AND supplemental tax savings for the year. Pre-fix this only
-      // showed Brooklyn's piece, leaving the CPA with no on-page evidence
-      // that the activity column's "ord offset $X" actually saved any tax.
+      // Saved = baseline total - (engine withStrategy.total - supp savings).
+      // Engine withStrategy.total reflects only Brooklyn; supp savings is
+      // additive. With the synthesized _wsDisplay.total already reflecting
+      // both, this saved value matches the activity column's "Gross
+      // benefit (tax saved)" line.
       var saved = Number(baseline.total) - Number(withStrategy.total) + _suppTaxSaved;
       if (Math.abs(saved) > 0.5) {
         var cls = saved >= 0 ? 'temp-result-saved-row' : 'temp-result-saved-row temp-result-saved-neg';
@@ -1081,14 +1121,21 @@
       '</div>';
   }
 
-  // Total ordinary income deduction generated by supps for this year.
-  // Mirrors the multi-shape detection in _renderActivityCell (perYear[i].absorbed,
-  // detail.ordOffsetY0/RestPerYear, legacy single-year keys). Display-only —
-  // feeds the results column so the ordinary income line shows post-supp
-  // income reduction.
+  // Total supp deduction this year, split by what bucket it absorbed
+  // against: ordinary income / §1245 recapture / §1250 unrecap. Display-
+  // only — feeds the results column so each income line AND the matching
+  // tax line shows post-supp reduction. Audit 2026-06-08: a §162-style
+  // ordinary deduction (Oil & Gas IDC, Delphi ord expense, equipment
+  // leasing PAL) waterfalls ord → §1245 (ordinary-flavored) → §1250
+  // (unrecap, 25% capped). OG's calc-oil-gas now ships absorbedOrd /
+  // absorbed1245 / absorbed1250 per year so we can mirror the split here.
+  // Supps that only generate standard / itemized deductions (charitable,
+  // 401k unified shape, augusta, PTET) only absorb against ordinary
+  // income — they don't reach recap. We default those to ord-only.
   function _computeSuppOrdOffsetForYear(displayedI, fundedSupps) {
-    if (!Array.isArray(fundedSupps)) return 0;
-    var sum = 0;
+    var ZERO = { ord: 0, r1245: 0, r1250: 0, total: 0 };
+    if (!Array.isArray(fundedSupps)) return ZERO;
+    var acc = { ord: 0, r1245: 0, r1250: 0 };
     fundedSupps.forEach(function (s) {
       var extraSpec = (root.__rettSupplementalExtra && root.__rettSupplementalExtra[s.id]) || null;
       var coreSpec  = (root.__rettSupplemental      && root.__rettSupplemental[s.id])      || null;
@@ -1098,15 +1145,25 @@
       var perYear = Array.isArray(last.perYear) ? last.perYear : null;
       if (perYear && perYear[displayedI]) {
         var py = perYear[displayedI];
-        var c = (py.absorbed != null) ? Number(py.absorbed) : Number(py.deduction || 0);
-        if (c > 0) sum += c;
+        // OG ships absorbedOrd / absorbed1245 / absorbed1250 (post-fix).
+        // Other multi-year supps may only ship `absorbed` (single number);
+        // attribute that fully to ordinary (they don't reach recap today).
+        var hasSplit = (py.absorbedOrd != null) || (py.absorbed1245 != null) || (py.absorbed1250 != null);
+        if (hasSplit) {
+          acc.ord   += Math.max(0, Number(py.absorbedOrd)   || 0);
+          acc.r1245 += Math.max(0, Number(py.absorbed1245)  || 0);
+          acc.r1250 += Math.max(0, Number(py.absorbed1250)  || 0);
+        } else {
+          var c = (py.absorbed != null) ? Number(py.absorbed) : Number(py.deduction || 0);
+          if (c > 0) acc.ord += c;
+        }
         return;
       }
       var detail = last.detail || {};
       if (detail.ordOffsetY0 != null || detail.ordOffsetRestPerYear != null) {
         var yc = Number(detail.yearCount || 1);
         if (displayedI < yc) {
-          sum += (displayedI === 0)
+          acc.ord += (displayedI === 0)
             ? Math.max(0, Number(detail.ordOffsetY0 || 0))
             : Math.max(0, Number(detail.ordOffsetRestPerYear || 0));
         }
@@ -1127,9 +1184,10 @@
         || detail.expense
         || 0
       ) || 0;
-      if (ordKey > 0) sum += ordKey;
+      if (ordKey > 0) acc.ord += ordKey;
     });
-    return sum;
+    acc.total = acc.ord + acc.r1245 + acc.r1250;
+    return acc;
   }
 
   function _renderYearCard(row, i, chosen, cfg, fundedSupps, stateCode, carryIn, carryOut, feeScale, lowerBracketBenefit) {
