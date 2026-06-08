@@ -1508,7 +1508,15 @@
           var _bContractPrice = Math.max(0, Number(cfgSection.salePrice || 0)
                 - Number(cfgSection.acceleratedDepreciation || 0));
           var _bAvail = Math.max(0, Number(cfgSection.availableCapital || 0));
-          var _bDMax = Math.min(_bContractPrice, _bAvail);
+          // D ceiling is the contract price (sale − recap), not the
+          // supp-reduced availableCapital. The down payment is buyer cash
+          // — it has nothing to do with how much capital Brooklyn has to
+          // deploy. Bug B (audit handoff 2026-06-08): pre-fix, when supps
+          // drained the reduced cap below Brooklyn's $1M min, _bDMax also
+          // capped at that small remainder, preventing D from rising to
+          // fund the supps. Result: D=$0 picked, supps "deployed" with
+          // phantom $1.4M that the Y0 cash pool can't actually cover.
+          var _bDMax = _bContractPrice;
           var _bRecap = Math.max(0, Number(cfgSection.acceleratedDepreciation) || 0);
           // Supp-funding down-payment floor (advisor 2026-06-08, model:
           // "recognize gain to fund"). When the master solver has funded a

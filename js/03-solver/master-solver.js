@@ -453,6 +453,80 @@
       });
     }
 
+    // -----------------------------------------------------------------
+    // DROP-ONE VERIFICATION PASS (audit handoff 2026-06-08, Bug A).
+    // The linear-rate objective above uses brooklynYieldRate computed at
+    // FULL availableCapital, where Brooklyn is over-deployed past the
+    // absorbable gain — diluting the marginal rate. The TRUE marginal
+    // rate at Brooklyn's dialed-back optimum is higher. Under-charging
+    // capital makes the objective over-diversify (every supp's marginal
+    // contribution looks positive at the diluted rate, even when it
+    // actually displaces a higher-yielding Brooklyn dollar).
+    //
+    // Measured: $20M sale / $5M basis / $100K recap / Strategy B. Engine
+    // picked oilGas+slot07+slot12 = $4,646,330. Optimal is oilGas+slot12
+    // alone = $4,674,259. Adding Equipment Leasing brings +$188K of its
+    // own benefit but costs $105K (Farm saturation) + $112K (Brooklyn
+    // displacement) = −$28K net.
+    //
+    // Fix: after subset selection, recompute the ACTUAL combined net for
+    // the chosen subset and each "drop one rival" alternative. If a drop
+    // strictly improves, take it; iterate. ≤k passes for k rivals.
+    // Sidesteps the linear-rate approximation entirely.
+    if (bestMask > 0 && typeof root.unifiedTaxComparison === 'function') {
+      // Helper: combined net for a given subset mask.
+      function _combinedNetForMask(mask) {
+        var sInv = 0;
+        var items = alwaysOnOrd.slice();
+        for (var i = 0; i < k; i++) {
+          if ((mask >> i) & 1) {
+            sInv += rivals[i].investment;
+            items.push({ id: rivals[i].id, netBenefit: rivals[i].netBenefit, ordInfo: rivals[i].ordInfo });
+          }
+        }
+        if (sInv > avail) return -Infinity;
+        var bcap = Math.max(0, avail - sInv);
+        var bCfg = Object.assign({}, cfg);
+        bCfg.availableCapital = bcap;
+        bCfg.investment = bcap;
+        bCfg.investedCapital = bcap;
+        if (typeof root.rettFlavorEngineCfg === 'function') bCfg = root.rettFlavorEngineCfg(bCfg);
+        var bRes = {};
+        try { bRes = root.unifiedTaxComparison(bCfg) || {}; } catch (e) { return -Infinity; }
+        var bSavings = Number(bRes.totalSavings) || 0;
+        var bFees = Number(bRes.totalAllFees);
+        if (!Number.isFinite(bFees)) {
+          bFees = (Number(bRes.totalFees) || 0) + (Number(bRes.totalBrookhavenFees) || 0);
+        }
+        var bNet = bSavings - bFees;
+        var sNet = _saturateOrdinary(items, ordPool).total;
+        return bNet + sNet;
+      }
+      var bestCombined = _combinedNetForMask(bestMask);
+      var dropImproved = true;
+      var passGuard = 0;
+      while (dropImproved && passGuard < k) {
+        dropImproved = false;
+        passGuard++;
+        for (var di = 0; di < k; di++) {
+          if (!((bestMask >> di) & 1)) continue;
+          var candMask = bestMask & ~(1 << di);
+          var candNet = _combinedNetForMask(candMask);
+          if (candNet > bestCombined + 1) {  // dollar-significant only
+            bestMask = candMask;
+            bestCombined = candNet;
+            // Recompute bestInv for downstream
+            bestInv = 0;
+            for (var ri = 0; ri < k; ri++) {
+              if ((bestMask >> ri) & 1) bestInv += rivals[ri].investment;
+            }
+            dropImproved = true;
+            break;
+          }
+        }
+      }
+    }
+
     // Assign decisions to rivals based on the selected subset.
     rivals.forEach(function (c, i) {
       if ((bestMask >> i) & 1) {
