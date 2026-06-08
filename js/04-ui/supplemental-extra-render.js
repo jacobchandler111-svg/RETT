@@ -161,7 +161,7 @@
       name: 'Equipment Leasing Fund',
       shortName: 'Equip Leasing',
       keyaspect: 'Bonus Pass-Through',
-      descriptor: 'Through active participation, an investment offsets ordinary income or generates income deductions.',
+      descriptor: 'Through active participation, an investment offsets ordinary income.',
       audience: 'Active investor',
       bucket: 'capital',
       investmentField: 'investmentAmount',
@@ -188,7 +188,7 @@
       name: 'Augusta Rule &mdash; §280A(g)',
       shortName: 'Augusta Rule',
       keyaspect: 'Tax-Free Home Rental',
-      descriptor: 'Each rental day shifts up to $2,500 from the business to you tax-free &mdash; capped at 14 days/year under §280A(g).',
+      descriptor: 'Reporting property as rented to business produces tax benefits.',
       audience: 'S-corp / partnership owner',
       bucket: 'ordinary',
       defaults: {
@@ -210,7 +210,7 @@
       name: 'Farm / Business Equipment',
       shortName: 'Equipment',
       keyaspect: 'Equipment Expensing',
-      descriptor: 'Each dollar of equipment cost fully deducts in year one through &sect;179 plus 100% bonus depreciation.',
+      descriptor: 'Each dollar of equipment fully offsets income in year one.',
       audience: 'Farm / business operator',
       bucket: 'asset',
       // No investmentField — equipment is a physical-asset purchase the
