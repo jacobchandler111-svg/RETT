@@ -1422,14 +1422,13 @@
           // SPIKES at the Schwab combo minimums ($1M for 145/45, $3M for
           // 200/100). At D = combo_min, the Y0 deposit opens that combo
           // exactly at the floor, generating the maximum age-0 loss
-          // density. Between spikes net drops by ~$15K because the Y0
-          // tranche either over-shoots the floor (wasted capacity vs
-          // restarting fresh at the next tier) or under-shoots (cash
-          // rolls into Y1 with no Y0 absorption). The 10% coarse grid
-          // can step OVER these spikes (e.g. with $4.9M D_max it samples
-          // $0, $490K, $980K, $1.47M — missing $1M and $3M). Explicitly
-          // probe the combo-min boundaries so the optimum lands on the
-          // spike when it dominates.
+          // density. Collect ALL near-winning candidates (within 5% of
+          // the coarse leader) so the fine refinement runs around each —
+          // not just the single coarse leader. Audit R2 #6 caught the
+          // pre-fix gap: a combo-min D that was the SECOND-best coarse
+          // candidate never got refined, missing peaks just above the
+          // tranche floor.
+          var refineSeeds = coarseBest ? [coarseBest] : [];
           if (typeof root.listSchwabCombosForStrategy === 'function') {
             try {
               var _stratKeyC = (cfgSection.tierKey || cfgSection.strategyKey || 'beta1');
@@ -1443,18 +1442,28 @@
                 if (Dbound > _dMax) return;
                 if (!_firstDepositLegalC(Dbound)) return;
                 var mb = _evalD(Dbound);
-                if (mb && (!coarseBest || mb.net > coarseBest.net)) {
+                if (!mb) return;
+                if (!coarseBest || mb.net > coarseBest.net) {
                   coarseBest = { D: Dbound, net: mb.net };
                 }
+                // Collect this boundary as a refine seed if it's within
+                // 5% of the (running) best net — protects against the
+                // case where the optimum sits just above a tranche floor
+                // that wasn't itself the absolute coarse winner.
+                refineSeeds.push({ D: Dbound, net: mb.net });
               });
             } catch (e) { /* keep coarse winner */ }
           }
-          // Fine pass ±10% of D_max in 2% steps around coarse peak.
+          // Refine around each seed within 5% of the current best net.
+          // Fine pass ±10% of D_max in 2% steps; ultra ±2% in 0.5% steps.
           var fineBest = coarseBest;
-          if (coarseBest) {
+          var bestNetSoFar = coarseBest ? coarseBest.net : -Infinity;
+          var threshold = bestNetSoFar * 0.95;
+          refineSeeds.forEach(function (seed) {
+            if (!seed || seed.net < threshold) return;
             for (var fstep = 1; fstep <= 5; fstep++) {
               [-1, 1].forEach(function (sign) {
-                var D = Math.round(coarseBest.D + sign * fstep * 0.02 * _dMax);
+                var D = Math.round(seed.D + sign * fstep * 0.02 * _dMax);
                 if (D < 0 || D > _dMax) return;
                 if (!_firstDepositLegalC(D)) return;
                 var mf = _evalD(D);
@@ -1463,8 +1472,8 @@
                 }
               });
             }
-          }
-          // Ultra-fine ±2% in 0.5% steps.
+          });
+          // Ultra-fine ±2% in 0.5% steps around the fine leader.
           if (fineBest) {
             for (var ustep = 1; ustep <= 4; ustep++) {
               [-1, 1].forEach(function (sign) {
@@ -1501,22 +1510,30 @@
           var _bAvail = Math.max(0, Number(cfgSection.availableCapital || 0));
           var _bDMax = Math.min(_bContractPrice, _bAvail);
           var _bRecap = Math.max(0, Number(cfgSection.acceleratedDepreciation) || 0);
-          // No artificial floor on D (advisor 2026-06-08). Earlier
-          // iterations gated D >= suppY0Floor (and later max(0, supp -
-          // recap)) to enforce "supps deploy from Y0 sale cash only" —
-          // but in practice supps can draw from side capital, and the
-          // engine handles a Y0 shortfall correctly (Brooklyn auto-
-          // downgrades to closed if pool − supp < min). With the floor
-          // present, the optimizer was forced to recognize extra Y0 LT
-          // gain when Brooklyn couldn't open profitably, bleeding
-          // ~$24K of net per $300K of forced down payment.
+          // Supp-funding down-payment floor (advisor 2026-06-08, model:
+          // "recognize gain to fund"). When the master solver has funded a
+          // capital-drawing supplemental, the seller needs Year-0 cash to
+          // pay for it — and that cash comes from the sale proceeds, i.e.
+          // by recognizing some gain up front (raising the down payment).
+          // The Year-0 cash pool is D + recap, so D only needs to cover
+          // the supp deployment beyond what recapture cash already
+          // provides: D >= suppY0Floor - recap.
           //
-          // Probed at $7M sale / $200K recap / $500K Oil & Gas: primary
-          // net at D=$0 is $551,143 vs $527,548 at D=$300K. With no
-          // floor, the optimizer is free to pick D=$0 (pure deferral)
-          // when Brooklyn can't open, or push D up to ≥$1M-recap-supp
-          // when Brooklyn opens profitably.
-          var _floorB = 0;
+          // This was briefly zeroed (the "supps draw from side capital"
+          // experiment) on a BROOKLYN-ONLY read: at $7M/$200K-recap/$500K
+          // O&G, raising D to $300K cost ~$24K of Brooklyn net, so D=$0
+          // looked better. But that ignored the supplemental: at D=$0 the
+          // $200K recap cash funds only ~$200K of O&G (~$76K benefit); at
+          // D=$300K the full $500K funds (~$190K benefit). JOINT net is
+          // ~$90K HIGHER with the floor. The master solver only funds a
+          // supp when it beats Brooklyn per dollar, and the deferral cost
+          // of recognizing D*GP gain a year early is small relative to a
+          // funded supp's ordinary-offset benefit — so when a supp is
+          // funded, raising D to cash it is virtually always net-positive.
+          // The floor is gated by _suppBlind above (standalone projection
+          // keeps _suppY0Floor = 0, so this is 0 there and the headline
+          // net still holds).
+          var _floorB = Math.min(Math.max(0, _suppY0Floor - _bRecap), _bDMax);
           var _bSmallestMin = 1000000;
           // Account opens with the first deposit. Y0 deposit pool =
           // down-payment + recapture cash. If the pool clears $1M the
