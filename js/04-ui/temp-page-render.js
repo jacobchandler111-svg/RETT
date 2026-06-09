@@ -471,21 +471,18 @@
         });
       }
       incomeRows = _renderIncomeRows(_incomes, 0);
-      // When a supp's IDC offset reduces TAXABLE ordinary income below
-      // the Medicare-wage figure, the Add'l Medicare tax line below can
-      // look orphaned (e.g., "Ord income $110K → Add'l Medicare $2,250
-      // on $250K excess?"). Add'l Medicare base is W-2 box 5 wages — a
-      // SEPARATE figure that §162 / IDC deductions can't reduce. Show
-      // the underlying W-2 amount inline so the $2,250 has a visible
-      // anchor. Audit 2026-06-09 — user flagged the disconnect.
-      var _w2Visible = Math.max(0, Number(_readVal && _readVal('w2-wages', '0').replace(/[^0-9.-]/g, '')) || 0);
-      var _addmedRow = Number(withStrategy && withStrategy.addlMedicare) || 0;
-      if (_offOrd > 0 && _addmedRow > 0 && _w2Visible > 0 && _w2Visible !== Number(_incomes.ordinary || 0)) {
-        incomeRows += '<tr class="temp-incomenote-row">' +
-          '<td><em>Medicare wages (W-2 box 5)</em></td>' +
-          '<td class="temp-amt"><em>' + _fmt(_w2Visible) + '</em></td></tr>';
-      }
     }
+    // Post-offset ordinary income — used below to recompute Add'l Medicare
+    // on the with-strategy basis. User model 2026-06-09: after every
+    // activity item (Brooklyn ST loss, supp IDC, §1211(b) cap) has
+    // reduced ordinary income, every tax line on the right column —
+    // INCLUDING Add'l Medicare — should be computed on what's LEFT.
+    // The IRS-literal view (Add'l Medicare on full W-2 box 5 wages
+    // regardless of deductions) is technically how the IRS measures it,
+    // but the engine displays the post-strategy taxpayer-facing view.
+    var _postOffsetOrd = (baseline && baseline._incomes)
+      ? Math.max(0, Number(baseline._incomes.ordinary || 0) - _offOrd - _btOrd)
+      : null;
     // Tax-side reduction. Engine row's withStrategy holds the PRE-supp
     // tax breakdown. To synthesize post-supp display, use the supp's
     // ACTUAL per-line savings (fedOrdSaved / fed1245Saved / fed1250Saved /
@@ -544,6 +541,28 @@
     } else if (_suppTaxSaved > 0) {
       _residualSave = _suppTaxSaved;
       _wsDisplay.total = Math.max(0, (Number(withStrategy.total) || 0) - _suppTaxSaved);
+    }
+    // Override Add'l Medicare on the post-strategy basis. After Brooklyn
+    // §1211(b) and supp IDC offsets have reduced ordinary income, the
+    // remaining ordinary income is what the right column shows above —
+    // every tax line below should reflect THAT remaining base. The IRS-
+    // literal Form-8959 rule (Add'l Medicare on full W-2 box 5 regardless
+    // of below-the-line deductions) is technically right but contradicts
+    // the user-facing model where all activity items reduce the taxable
+    // base uniformly. User feedback 2026-06-09: re-compute on what's left.
+    if (_postOffsetOrd != null && (_offOrd > 0 || _btOrd > 0)) {
+      var _fs = (typeof _readVal === 'function')
+        ? _readVal('filing-status', 'mfj') : 'mfj';
+      var _addmedThreshold = (_fs === 'married_separate') ? 125000
+                           : (_fs === 'married_joint')    ? 250000
+                           : 200000;
+      var _newAddmed = Math.max(0, _postOffsetOrd - _addmedThreshold) * 0.009;
+      var _origAddmed = Number(withStrategy && withStrategy.addlMedicare) || 0;
+      var _addmedSavings = Math.max(0, _origAddmed - _newAddmed);
+      _wsDisplay.addlMedicare = _newAddmed;
+      // Drop the additional savings out of total tax so the bottom-line
+      // matches what every visible line item adds up to.
+      _wsDisplay.total = Math.max(0, (Number(_wsDisplay.total) || 0) - _addmedSavings);
     }
     // Force the recap line to show when the baseline had recapture tax,
     // so the CPA sees it drop to $0 (or whatever residual) under the
