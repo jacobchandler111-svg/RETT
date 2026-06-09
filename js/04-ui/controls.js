@@ -380,6 +380,13 @@ function resetAllInputs(skipConfirm, stayOnCurrentPage) {
     // Future-sale + cover-taxes + supplemental-related toggles
     'future-estimated-gain', 'cover-taxes-yes-no',
     'additional-funds-toggle', 'structured-sale-duration-months',
+    // Additional-funds amount inputs + the Tab-1 yes/no select. Audit
+    // 2026-06-09: clearing only the `additional-funds-toggle` checkbox
+    // left a stale $X dollar amount + yes/no select on the form when
+    // the user started a new client. Now all fields under the Additional
+    // Funds group reset together.
+    'additional-funds-yes-no', 'additional-funds',
+    'additional-account-value', 'additional-lt-gain', 'additional-st-gain',
     // Page 1: Withholding from sale
     'withhold-yes-no', 'withhold-amount',
     // Page 1: Implementation timing
@@ -412,10 +419,21 @@ function resetAllInputs(skipConfirm, stayOnCurrentPage) {
   });
 
   // Cleared computed-gain/computed-total-taxable above; trigger re-derivation
-  // by dispatching input events on the source fields.
-  ['sale-price', 'cost-basis', 'accelerated-depreciation'].forEach(function (id) {
+  // by dispatching input events on the source fields. Audit 2026-06-09:
+  // also dispatch change on the yes/no selects that gate visible field-groups
+  // (additional-funds, future-sale, cover-taxes, withhold, personal-use,
+  // amount-owed) so the hidden/visible state matches the freshly-reset
+  // default. Without these dispatches a "Yes" group stayed visible on the
+  // page after reset even though the underlying value defaulted back to "no".
+  ['sale-price', 'cost-basis', 'accelerated-depreciation',
+   'additional-funds-yes-no', 'future-sale-yes-no', 'cover-taxes-yes-no',
+   'withhold-yes-no',
+   'personal-use-yesno-1', 'amount-owed-yesno-1'].forEach(function (id) {
     const el = document.getElementById(id);
-    if (el) el.dispatchEvent(new Event('input', { bubbles: true }));
+    if (el) {
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      el.dispatchEvent(new Event('input',  { bubbles: true }));
+    }
   });
 
   // Repopulate custodian-driven UI (leverage caps, strategy availability).
