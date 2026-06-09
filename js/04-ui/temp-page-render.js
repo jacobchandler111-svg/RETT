@@ -550,12 +550,15 @@
     // strategy rather than the row silently disappearing.
     var baselineHadRecap = baseline && Number(baseline.recapTax) > 0;
     var taxRows = _renderTaxRows(_wsDisplay, { forceRecap: baselineHadRecap });
-    // Residual supplemental savings row — covers NIIT/state/AMT delta
-    // that the supp produced but couldn't be allocated to ord/recap line
-    // items. Surfaces explicitly so the total reconciles to the activity
-    // column's "Gross benefit (tax saved)".
+    // Residual supplemental savings row — covers NIIT / state / AMT
+    // delta that didn't fit into the ord/recap line-item allocation.
+    // Hide when the displayed total tax is already $0 (residual carries
+    // no additional info; activity column's "Gross benefit (tax saved)"
+    // already accounts for it). User feedback 2026-06-09: "Total tax 0
+    // then Less: $X" looks wonky and isn't actionable.
     var suppSavedRow = '';
-    if (_residualSave > 0.5) {
+    var _displayedTotal = Number(_wsDisplay.total) || 0;
+    if (_residualSave > 0.5 && _displayedTotal > 0.5) {
       suppSavedRow = '<tr class="temp-feeline-row"><td>Less: Supplemental tax savings (NIIT / state)</td>' +
         '<td class="temp-amt">&minus;' + _fmt(_residualSave) + '</td></tr>';
     }
