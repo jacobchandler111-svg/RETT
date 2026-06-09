@@ -3846,7 +3846,14 @@
     // k rivals. Updates entries[i] in place + recomputes recIdx.
     if (typeof root.runMasterSolver === 'function') {
       function _combinedNetForEntry(entry) {
-        var s = root.runMasterSolver(entry.metrics.net || 0);
+        // Use the SAME post-primary residual cap the hero/Temp/admin apply,
+        // so the drop-one optimizes the achievable (capped) combined net —
+        // not the uncapped figure that would over-value a supp overlapping
+        // Brooklyn's absorbed tax (advisor 2026-06-09).
+        var _c = (typeof root.__rettResidualCapForEntry === 'function')
+          ? root.__rettResidualCapForEntry(entry) : null;
+        var s = root.runMasterSolver(entry.metrics.net || 0,
+          (_c != null ? { postPrimaryTaxRemaining: _c } : undefined));
         return {
           combined: (entry.metrics.net || 0) + (s.totalSupplementalBenefit || 0),
           fundedRivals: (s.supplementals || []).filter(function (x) {
@@ -3904,8 +3911,13 @@
             var rebuilt = _rebuildEntry(entry.type, candDisabled);
             if (!rebuilt) continue;
             // Compute combined net for the rebuilt entry (rivalry now
-            // honors candDisabled via runMasterSolver's threading).
-            var ms = root.runMasterSolver(rebuilt.metrics.net || 0, { forceDisabledSupps: candDisabled });
+            // honors candDisabled via runMasterSolver's threading). Apply the
+            // rebuilt entry's own post-primary residual cap so this candidate
+            // is scored on the same achievable (capped) net as the incumbent.
+            var _cAlt = (typeof root.__rettResidualCapForEntry === 'function')
+              ? root.__rettResidualCapForEntry(rebuilt) : null;
+            var ms = root.runMasterSolver(rebuilt.metrics.net || 0,
+              { forceDisabledSupps: candDisabled, postPrimaryTaxRemaining: (_cAlt != null ? _cAlt : undefined) });
             var combinedAlt = (rebuilt.metrics.net || 0) + (ms.totalSupplementalBenefit || 0);
             if (combinedAlt > bestNet + 1 && (!winner || combinedAlt > winner.combined)) {
               winner = { dropId: dropId, combined: combinedAlt, rebuilt: rebuilt };

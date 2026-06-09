@@ -621,11 +621,11 @@
     // scale each funded supp's realized benefit proportionally so per-supp
     // figures + saturationScale stay consistent. _saturateOrdinary already
     // handles supp-vs-supp ordinary-pool crowding; THIS is the orthogonal
-    // supp-vs-primary cap. Omitted (no cap) when the caller can't supply it,
-    // and skipped during drop-one counterfactuals (forceDisabledSupps) to
-    // avoid re-entrancy — preserves prior behavior in both cases.
-    var _ppCap = (opts && !opts.forceDisabledSupps &&
-                  Number.isFinite(Number(opts.postPrimaryTaxRemaining)))
+    // supp-vs-primary cap. Omitted (no cap) when the caller can't supply it.
+    // Applies even alongside forceDisabledSupps so buildInterestedSummary's
+    // drop-one verification optimizes the SAME capped combined net the
+    // hero/Temp/admin display (the cap is caller-supplied — no re-entrancy).
+    var _ppCap = (opts && Number.isFinite(Number(opts.postPrimaryTaxRemaining)))
       ? Math.max(0, Number(opts.postPrimaryTaxRemaining)) : null;
     if (_ppCap != null && totalSupp > _ppCap + 0.5) {
       var _ppScale = totalSupp > 0 ? (_ppCap / totalSupp) : 0;
