@@ -879,7 +879,22 @@
     // line 866 AND subtracted again at the netForYear render — caught
     // by the audit 2026-06-08 as ~$87K/yr Delphi double-sub.)
     var suppSavings = _computeSuppSavingsForYear(displayedI, fundedSupps);
-    var grossBenefit = brooklynSavings + lbb + suppSavings;
+    // Invariant: gross benefit (Brooklyn + supp savings, BEFORE the LBB
+    // timing benefit) cannot exceed baseline.total — you can't save more
+    // tax than was owed. The supp's lastResult.totalSaved is computed
+    // against the supp's OWN baseline (pre-Brooklyn), so when Brooklyn
+    // already absorbed most of the year's tax, the supp's marginal
+    // contribution is smaller than its lastResult claims. Cap the supp
+    // share at (baseline.total − brooklynSavings) so the displayed gross
+    // matches what's actually attainable. LBB (deferral-timing benefit)
+    // is a SEPARATE concept — it represents savings shifted to Y0 from
+    // do-nothing-Y0-lump vs matched-timing — and is allowed to push
+    // gross above this year's matched-timing baseline.
+    // User feedback 2026-06-09: gross $481K > baseline $442K is impossible.
+    var _baseTotal = Number(row && row.baseline && row.baseline.total) || 0;
+    var _maxSuppMarginal = Math.max(0, _baseTotal - brooklynSavings);
+    var _suppDisplayCapped = Math.min(suppSavings, _maxSuppMarginal);
+    var grossBenefit = brooklynSavings + lbb + _suppDisplayCapped;
 
     if (stLoss === 0 && ordOffset === 0 && ltGainAdded === 0 && other === 0 && grossBenefit === 0 && suppMgmtFee === 0 && lbb === 0) {
       return '<div class="temp-activity-empty">No strategy activity this year.</div>';
@@ -1305,6 +1320,17 @@
     // If lower-bracket benefit lands on Y0, the year is relevant even if
     // there's no other Brooklyn/supp activity that year.
     if (i === 0 && lowerBracketBenefit && Math.abs(lowerBracketBenefit) > 5) rel = true;
+    // Cap supp tax saved so it can't exceed (baseline.total − Brooklyn
+    // savings). Same invariant the activity column enforces — keeps the
+    // right-column "Tax saved vs baseline" line consistent with the
+    // activity column's "Gross benefit (tax saved)" and the underlying
+    // mathematical bound (savings ≤ tax owed). Audit 2026-06-09.
+    var _rawSuppSaved = _computeSuppSavingsForYear(i, fundedSupps);
+    var _ycBaseTotal = Number(row && row.baseline && row.baseline.total) || 0;
+    var _ycBrooklynSavings = (row && row.withStrategy)
+      ? Math.max(0, _ycBaseTotal - (Number(row.withStrategy.total) || 0))
+      : 0;
+    var _suppSavedCapped = Math.min(_rawSuppSaved, Math.max(0, _ycBaseTotal - _ycBrooklynSavings));
     var relClass = rel ? 'temp-rel-yes' : 'temp-rel-no';
     var relText  = rel ? 'Relevant' : 'Not relevant';
     var stateTag = stateCode ? ' &mdash; <span class="temp-state-tag">' + stateCode + '</span>' : '';
@@ -1327,7 +1353,7 @@
           _renderResultsCell(
             row.withStrategy || row.baseline,
             row.baseline,
-            _computeSuppSavingsForYear(i, fundedSupps),
+            _suppSavedCapped,
             _computeSuppOrdOffsetForYear(i, fundedSupps),
             _computeSuppLineSavings(i, fundedSupps),
             row
