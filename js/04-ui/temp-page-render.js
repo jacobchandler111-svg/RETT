@@ -367,7 +367,14 @@
     }
     rows.push(['AMT top-up',              amt,    false]);
     rows.push(['NIIT (3.8%)',             niit,   false]);
-    rows.push(['Additional Medicare',     addmed, false]);
+    // Additional Medicare = 0.9% × (W-2 wages − threshold). Threshold is
+    // $250K MFJ / $200K single / $125K MFS / $200K HoH (fixed by statute,
+    // not indexed). Label spells out the trigger so a CPA reading the
+    // line immediately sees why it appears + why it doesn't move under
+    // strategy (Brooklyn / supps can't reduce employer-reported Medicare
+    // wages). Audit 2026-06-09: user flagged confusion that this stayed
+    // identical on baseline vs with-strategy.
+    rows.push(["Add'l Medicare (0.9% on W-2 above $250K MFJ)", addmed, false]);
     rows.push(['SE / FICA tax',           setax,  false]);
     rows.push(['State income tax',        state,  true]);
     return rows.map(function (r) {
