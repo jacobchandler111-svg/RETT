@@ -123,11 +123,14 @@
     }) || {};
     var fedOrd = Number(fedB.ordinaryTax) || 0;
     var fedLt  = Number(fedB.ltTax)       || 0;
+    var fedRcp1245 = Number(fedB.recapTax1245) || 0;
+    var fedRcp1250 = Number(fedB.recapTax1250) || 0;
+    var fedRcp = Number(fedB.recapTax)    || (fedRcp1245 + fedRcp1250);
     var amt    = Number(fedB.amtTopUp)    || 0;
     var niit   = Number(fedB.niit)        || 0;
     var addmed = Number(fedB.addlMedicare)|| 0;
     var seTax  = Number(fedB.seTax)       || 0;
-    var fedTotal = fedOrd + fedLt + amt;
+    var fedTotal = fedOrd + fedLt + fedRcp + amt;
     var stateTax = computeStateTax(
       ord + Math.max(0, snap.ltGain) + snap.stGain,
       snap.year, snap.state, snap.status,
@@ -136,6 +139,19 @@
     return {
       fed: fedTotal, state: stateTax,
       niit: niit, addmed: addmed, seTax: seTax,
+      // Per-line breakdown — display layer (Tab 7 right column) uses
+      // these to show post-supp tax per bucket instead of an approximate
+      // proportional allocation. Audit 2026-06-09: prior allocation
+      // could zero out ordinary tax when supp savings exceeded engine's
+      // pre-supp ord tax line, even when meaningful ord income remained
+      // after the supp offset (W2 $500K - OG $380K = $120K still owes
+      // ~$15K tax, not $0).
+      fedOrd: fedOrd,
+      fedLt:  fedLt,
+      fedRcp: fedRcp,
+      fedRcp1245: fedRcp1245,
+      fedRcp1250: fedRcp1250,
+      amt: amt,
       total: fedTotal + niit + addmed + seTax + stateTax
     };
   }
@@ -216,7 +232,17 @@
       fedSaved:       baseline.fed   - optimized.fed,
       stateSaved:     baseline.state - optimized.state,
       niitDelta:      baseline.niit  - optimized.niit,
-      addmedDelta:    baseline.addmed - optimized.addmed
+      addmedDelta:    baseline.addmed - optimized.addmed,
+      // Per-line tax-savings deltas — Tab 7 right column uses these to
+      // compute the true post-supp tax on each bucket (ord/§1250/etc.)
+      // instead of allocating supp savings proportionally by absorbed-$.
+      // Prior allocation could zero out ordinary tax when supp savings
+      // happened to exceed engine pre-supp ord tax — even if meaningful
+      // ordinary income remained post-offset.
+      fedOrdSaved:   (baseline.fedOrd  || 0) - (optimized.fedOrd  || 0),
+      fed1245Saved:  (baseline.fedRcp1245 || 0) - (optimized.fedRcp1245 || 0),
+      fed1250Saved:  (baseline.fedRcp1250 || 0) - (optimized.fedRcp1250 || 0),
+      amtDelta:      (baseline.amt    || 0) - (optimized.amt    || 0)
     };
   }
 

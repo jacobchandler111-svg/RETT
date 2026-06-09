@@ -385,7 +385,36 @@
   // "Tax saved vs baseline" line comparing to the baseline total so the
   // CPA sees the year's net tax movement. withStrategy carries the same
   // keys baseline does (verified) so _renderTaxRows works directly.
-  function _renderResultsCell(withStrategy, baseline, suppTaxSaved, suppOffsetSplit) {
+  // Pull per-line tax-savings deltas from each funded supp's perYear slice
+  // (OG ships fedOrdSaved / fed1245Saved / fed1250Saved / niitDelta / stateSaved
+  // / amtDelta). Tab 7 right column uses these to compute the TRUE post-supp
+  // tax on each bucket — replaces the prior proportional-by-absorbed-$
+  // allocation, which over-attributed savings to ordinary tax when supp
+  // total exceeded the engine's pre-supp ord tax line (zeroing it out
+  // even when meaningful ordinary income remained).
+  function _computeSuppLineSavings(displayedI, fundedSupps) {
+    var acc = { fedOrd: 0, fed1245: 0, fed1250: 0, fedLt: 0, amt: 0, niit: 0, addmed: 0, state: 0 };
+    if (!Array.isArray(fundedSupps)) return acc;
+    fundedSupps.forEach(function (s) {
+      var coreSpec  = (root.__rettSupplemental      && root.__rettSupplemental[s.id])      || null;
+      var extraSpec = (root.__rettSupplementalExtra && root.__rettSupplementalExtra[s.id]) || null;
+      var last = (coreSpec && coreSpec.lastResult) || (extraSpec && extraSpec.lastResult) || null;
+      if (!last) return;
+      var perYear = Array.isArray(last.perYear) ? last.perYear : null;
+      var py = (perYear && perYear[displayedI]) ? perYear[displayedI] : null;
+      if (!py) return;
+      acc.fedOrd  += Math.max(0, Number(py.fedOrdSaved)  || 0);
+      acc.fed1245 += Math.max(0, Number(py.fed1245Saved) || 0);
+      acc.fed1250 += Math.max(0, Number(py.fed1250Saved) || 0);
+      acc.niit    += Math.max(0, Number(py.niitDelta)    || 0);
+      acc.addmed  += Math.max(0, Number(py.addmedDelta)  || 0);
+      acc.state   += Math.max(0, Number(py.stateSaved)   || 0);
+      acc.amt     += Math.max(0, Number(py.amtDelta)     || 0);
+    });
+    return acc;
+  }
+
+  function _renderResultsCell(withStrategy, baseline, suppTaxSaved, suppOffsetSplit, suppLineSavings) {
     if (!withStrategy) return '<div class="temp-baseline-empty">No result data.</div>';
     var _suppTaxSaved = Math.max(0, Math.round(Number(suppTaxSaved) || 0));
     // suppOffsetSplit shape: { ord, r1245, r1250, total } (post-2026-06-08).
@@ -418,44 +447,62 @@
       }
       incomeRows = _renderIncomeRows(_incomes, 0);
     }
-    // Tax-side proportional reduction. The engine row's withStrategy has
-    // the PRE-supp tax — we synthesize a post-supp display by allocating
-    // _suppTaxSaved across the three reducible buckets (ord / §1245 / §1250)
-    // by absorbed-dollar share, then clamping each at the bucket's existing
-    // tax. Any residual (supp savings the engine attributed to NIIT or
-    // state — happens when the supp shifted the entire ordinary+recap pool)
-    // surfaces as a separate "Other supplemental tax savings" row so the
-    // total still ties to the activity column's gross benefit.
+    // Tax-side reduction. Engine row's withStrategy holds the PRE-supp
+    // tax breakdown. To synthesize post-supp display, use the supp's
+    // ACTUAL per-line savings (fedOrdSaved / fed1245Saved / fed1250Saved /
+    // niitDelta / stateSaved / amtDelta) shipped from calc-oil-gas — these
+    // come from baseline_tax minus optimized_tax computed by the engine
+    // against a snap with reduced ord (and recap) income. So they reflect
+    // the REAL post-supp tax on each bucket, including bracket effects.
+    //
+    // Falls back to the older proportional-by-absorbed-$ allocation when
+    // line-savings aren't available (other supps, legacy shapes). The
+    // proportional path can over-attribute to ord when supp total exceeds
+    // engine's pre-supp ord tax — caught by the W2 $500K + OG $380K case
+    // (audit 2026-06-09): ord income $120K remained, expected ~$15K ord
+    // tax, prior code showed $0.
     var _wsDisplay = Object.assign({}, withStrategy);
     var _saveOrd = 0, _save1245 = 0, _save1250 = 0, _residualSave = 0;
-    if (_offTotal > 0 && _suppTaxSaved > 0) {
+    var _ls = suppLineSavings;
+    var hasLineSavings = _ls && (_ls.fedOrd > 0 || _ls.fed1245 > 0 || _ls.fed1250 > 0 || _ls.niit > 0 || _ls.state > 0 || _ls.amt > 0);
+    if (hasLineSavings) {
       var _ordTax    = Number(withStrategy.ordinaryTax)  || 0;
       var _r1245Tax  = Number(withStrategy.recapTax1245) || 0;
       var _r1250Tax  = Number(withStrategy.recapTax1250) || 0;
-      var _ordShare   = _offOrd   / _offTotal;
-      var _r1245Share = _off1245  / _offTotal;
-      var _r1250Share = _off1250  / _offTotal;
-      _saveOrd  = Math.min(_ordTax,   _suppTaxSaved * _ordShare);
-      _save1245 = Math.min(_r1245Tax, _suppTaxSaved * _r1245Share);
-      _save1250 = Math.min(_r1250Tax, _suppTaxSaved * _r1250Share);
+      _saveOrd  = Math.min(_ordTax,   _ls.fedOrd);
+      _save1245 = Math.min(_r1245Tax, _ls.fed1245);
+      _save1250 = Math.min(_r1250Tax, _ls.fed1250);
       _wsDisplay.ordinaryTax  = Math.max(0, _ordTax   - _saveOrd);
       _wsDisplay.recapTax1245 = Math.max(0, _r1245Tax - _save1245);
       _wsDisplay.recapTax1250 = Math.max(0, _r1250Tax - _save1250);
       _wsDisplay.recapTax = Math.max(0, (Number(withStrategy.recapTax) || 0) - _save1245 - _save1250);
-      // Residual = any supp tax savings we couldn't fit into ord/recap
-      // buckets (e.g. NIIT delta on reduced ord, state-tax follow-on).
-      // Surfaces below as a separate row so the total reconciles.
+      _wsDisplay.niit  = Math.max(0, (Number(withStrategy.niit)  || 0) - _ls.niit);
+      _wsDisplay.state = Math.max(0, (Number(withStrategy.state) || 0) - _ls.state);
+      _wsDisplay.amt   = Math.max(0, (Number(withStrategy.amt)   || 0) - _ls.amt);
+      // Residual = supp savings not captured by the per-line buckets
+      // above (numerical drift, rounding, addmed). Surfaces as a single
+      // residual row so the total still reconciles to the activity-column
+      // gross benefit.
+      var _accountedFor = _saveOrd + _save1245 + _save1250 + _ls.niit + _ls.state + _ls.amt + _ls.addmed;
+      _residualSave = Math.max(0, _suppTaxSaved - _accountedFor);
+      _wsDisplay.total = Math.max(0, (Number(withStrategy.total) || 0) - _suppTaxSaved);
+    } else if (_offTotal > 0 && _suppTaxSaved > 0) {
+      // Fallback: proportional by absorbed-$ share. Used when the supp
+      // doesn't ship per-line savings (e.g. Delphi, slot07 — not yet
+      // extended). Same as pre-2026-06-09 behavior.
+      var _ordTaxP   = Number(withStrategy.ordinaryTax)  || 0;
+      var _r1245TaxP = Number(withStrategy.recapTax1245) || 0;
+      var _r1250TaxP = Number(withStrategy.recapTax1250) || 0;
+      _saveOrd  = Math.min(_ordTaxP,   _suppTaxSaved * (_offOrd   / _offTotal));
+      _save1245 = Math.min(_r1245TaxP, _suppTaxSaved * (_off1245  / _offTotal));
+      _save1250 = Math.min(_r1250TaxP, _suppTaxSaved * (_off1250  / _offTotal));
+      _wsDisplay.ordinaryTax  = Math.max(0, _ordTaxP   - _saveOrd);
+      _wsDisplay.recapTax1245 = Math.max(0, _r1245TaxP - _save1245);
+      _wsDisplay.recapTax1250 = Math.max(0, _r1250TaxP - _save1250);
+      _wsDisplay.recapTax = Math.max(0, (Number(withStrategy.recapTax) || 0) - _save1245 - _save1250);
       _residualSave = Math.max(0, _suppTaxSaved - _saveOrd - _save1245 - _save1250);
-      // Reduce the displayed total by the FULL supp savings — the line
-      // items will sum to something slightly above `total` when there's
-      // a residual; the residual line below makes the math obvious.
-      _wsDisplay.total = Math.max(0,
-        (Number(withStrategy.total) || 0) - _saveOrd - _save1245 - _save1250 - _residualSave
-      );
+      _wsDisplay.total = Math.max(0, (Number(withStrategy.total) || 0) - _suppTaxSaved);
     } else if (_suppTaxSaved > 0) {
-      // Supp absorbed nothing reducible but still saved tax (rare — PTET
-      // state→fed shift, charitable surplus). Knock down total directly
-      // and surface as residual.
       _residualSave = _suppTaxSaved;
       _wsDisplay.total = Math.max(0, (Number(withStrategy.total) || 0) - _suppTaxSaved);
     }
@@ -1220,7 +1267,8 @@
             row.withStrategy || row.baseline,
             row.baseline,
             _computeSuppSavingsForYear(i, fundedSupps),
-            _computeSuppOrdOffsetForYear(i, fundedSupps)
+            _computeSuppOrdOffsetForYear(i, fundedSupps),
+            _computeSuppLineSavings(i, fundedSupps)
           ) +
         '</div>' +
         _renderWithdrawalCell(row, year, cfg) +
