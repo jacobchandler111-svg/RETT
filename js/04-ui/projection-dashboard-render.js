@@ -3244,8 +3244,14 @@
     return Math.max(0, Math.round(t0 - t1));
   }
 
-  function buildInterestedSummary() {
+  function buildInterestedSummary(opts) {
     if (typeof collectInputs !== 'function') return null;
+    // Supp-blind mode (Tab 4 Projection cards): compute each strategy's
+    // STANDALONE net as if no supplemental draws capital, so the headline
+    // net HOLDS when supps are toggled on Page 5. Strategy Summary / Temp /
+    // Admin call this with no opts → combined (supp-competed) view. See the
+    // guarded blocks below (advisor 2026-06-09, browser-test Test 3).
+    var _suppBlind = !!(opts && opts.suppBlind);
     var currentCfg;
     try { currentCfg = collectInputs(); } catch (e) { currentCfg = null; }
     if (!currentCfg) return null;
@@ -3267,12 +3273,17 @@
     // the raw value. The engine performs the single, authoritative
     // subtraction inside each strategy's basisCash calc, matching the
     // behavior direct engine callers already see.
-    if (typeof root.runAllocator === 'function') {
-      var rawCap = Math.max(0, Number(currentCfg.availableCapital) || 0);
+    var rawCap = Math.max(0, Number(currentCfg.availableCapital) || 0);
+    if (!_suppBlind && typeof root.runAllocator === 'function') {
       var alloc = root.runAllocator(rawCap);
       var _suppY0Deploy = Math.max(0, Math.round(alloc.allocatedToSupplementals || 0));
       currentCfg = Object.assign({}, currentCfg, { suppY0Deployment: _suppY0Deploy });
     }
+    // Supp-blind: thread the flag so _autoPickSection zeroes the supp Y0
+    // down-payment floor (B/C) and the engine sees no suppY0Deployment (A) —
+    // together these make the standalone per-strategy net hold regardless of
+    // supp toggling.
+    if (_suppBlind) currentCfg = Object.assign({}, currentCfg, { _suppBlind: true });
     var userDuration = currentCfg.structuredSaleDurationMonths || 36;
 
     // Auto-size every Interested supplemental within its user-typed ceiling
@@ -3289,6 +3300,10 @@
     // math + scenario metrics per candidate; ~50-100ms each. Total added
     // latency: ~500ms-1s for two supps × five candidates.
     (function _autoSizeInterestedSupps() {
+      // Supp-blind mode (Tab 4 cards): never size or mutate supp specs — the
+      // standalone net ignores supps entirely, and running this sweep would
+      // mutate global supp state (s.spec[knob]) and leak into Summary/Temp.
+      if (_suppBlind) return;
       // Test/verification escape hatch: when __rettSkipSuppAutoSize is true,
       // skip the auto-sizing pass so callers can pin supp sizes to specific
       // values for perturbation testing without the engine re-optimizing.
@@ -3844,7 +3859,9 @@
     // with that supp forced off via cfg._forceDisabledSupps. If combined
     // net strictly improves, adopt; iterate. ≤k passes per entry for
     // k rivals. Updates entries[i] in place + recomputes recIdx.
-    if (typeof root.runMasterSolver === 'function') {
+    // Supp-blind mode (Tab 4 cards): skip — this is combined-rivalry logic;
+    // recIdx was already set above, so the standalone view is unaffected.
+    if (!_suppBlind && typeof root.runMasterSolver === 'function') {
       function _combinedNetForEntry(entry) {
         // Use the SAME post-primary residual cap the hero/Temp/admin apply,
         // so the drop-one optimizes the achievable (capped) combined net —
@@ -4015,7 +4032,10 @@
   function renderInterestedSnapshot() {
     var host = document.getElementById('interested-cards-host');
     if (!host) return;
-    var summary = buildInterestedSummary();
+    // Supp-blind: Tab 4 shows each strategy's STANDALONE net so the headline
+    // holds when supps toggle. The combined (supp-competed) view lives on
+    // Strategy Summary / Temp, which call buildInterestedSummary() with no opts.
+    var summary = buildInterestedSummary({ suppBlind: true });
     if (!summary) {
       host.innerHTML = '<div class="muted" style="padding:18px 0;">Fill in the client inputs on Page 1 to see projections.</div>';
       return;
