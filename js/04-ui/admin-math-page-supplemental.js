@@ -83,8 +83,19 @@
         }
       } catch (e) { /* leave primary at its prior value */ }
     }
+    // Post-primary residual cap so admin matches the hero — supps can't
+    // save more than the tax remaining after Brooklyn (advisor 2026-06-09).
+    var _ppCapAdmS = null;
+    try {
+      var _sumS = (typeof root.buildInterestedSummary === 'function') ? root.buildInterestedSummary() : null;
+      var _chS = root.__rettChosenStrategy || 'A';
+      var _entS = (_sumS && _sumS.entries || []).filter(function (e) { return e.type === _chS; })[0];
+      if (_entS && typeof root.__rettResidualCapForEntry === 'function') {
+        _ppCapAdmS = root.__rettResidualCapForEntry(_entS);
+      }
+    } catch (e) { _ppCapAdmS = null; }
     var solver;
-    try { solver = root.runMasterSolver(primary); } catch (e) {
+    try { solver = root.runMasterSolver(primary, (_ppCapAdmS != null ? { postPrimaryTaxRemaining: _ppCapAdmS } : undefined)); } catch (e) {
       return '<p class="admin-math-error">runMasterSolver threw: ' + _esc(e.message || e) + '</p>';
     }
     var supps = (solver && solver.supplementals) || [];

@@ -607,6 +607,39 @@
     });
     var totalSupp = sat.total;
 
+    // Cross-strategy residual cap (advisor 2026-06-09). Each funded supp's
+    // netBenefit is computed against its OWN pre-primary baseline, so when
+    // the primary strategy (Brooklyn) already eliminated part of the year's
+    // tax, the supps would double-claim that overlap — making combined
+    // "tax saved" exceed the tax that was EVER owed (measured case:
+    // Brooklyn $152K + Oil&Gas standalone $178K = $330K "saved" on a $324K
+    // bill → $6K phantom in the Tab-6 hero). Supps can only offset the tax
+    // that REMAINS after the primary strategy. The caller — which knows the
+    // chosen strategy's dialed-back deployment — supplies that residual
+    // (Σ withStrategy.total across the chosen comp rows) via
+    // opts.postPrimaryTaxRemaining. We cap the funded-supp total there and
+    // scale each funded supp's realized benefit proportionally so per-supp
+    // figures + saturationScale stay consistent. _saturateOrdinary already
+    // handles supp-vs-supp ordinary-pool crowding; THIS is the orthogonal
+    // supp-vs-primary cap. Omitted (no cap) when the caller can't supply it,
+    // and skipped during drop-one counterfactuals (forceDisabledSupps) to
+    // avoid re-entrancy — preserves prior behavior in both cases.
+    var _ppCap = (opts && !opts.forceDisabledSupps &&
+                  Number.isFinite(Number(opts.postPrimaryTaxRemaining)))
+      ? Math.max(0, Number(opts.postPrimaryTaxRemaining)) : null;
+    if (_ppCap != null && totalSupp > _ppCap + 0.5) {
+      var _ppScale = totalSupp > 0 ? (_ppCap / totalSupp) : 0;
+      supplementals.forEach(function (s) {
+        if (s && s.rivalry && s.rivalry.funded) {
+          s.realizedNetBenefit = Math.round((Number(s.realizedNetBenefit) || 0) * _ppScale);
+          s.saturationScale = (Number(s.netBenefit) > 0)
+            ? (s.realizedNetBenefit / s.netBenefit)
+            : (s.realizedNetBenefit > 0 ? 1 : 0);
+        }
+      });
+      totalSupp = Math.round(_ppCap);
+    }
+
     return {
       primaryNetBenefit:        primary,
       supplementals:            supplementals,
@@ -943,4 +976,34 @@
   root.runMasterSolver              = runMasterSolver;
   root.runAllocator                 = runAllocator;
   root.runBrooklynOptimizer         = runBrooklynOptimizer;
+
+  // Post-primary residual tax for a chosen-strategy entry = Σ withStrategy
+  // .total across the engine rows = the tax that REMAINS after the primary
+  // (Brooklyn) strategy, before any supplemental. Funded supps can only
+  // offset this residual; pass it as runMasterSolver's
+  // opts.postPrimaryTaxRemaining so the combined hero/temp/admin net can't
+  // claim more tax saved than was ever owed (advisor 2026-06-09). Takes a
+  // buildInterestedSummary entry (has .cfg + ._partialDeploy dial-back).
+  // Returns null when it can't compute (caller then passes no cap → prior
+  // behavior). Cheap: one unifiedTaxComparison, no buildInterestedSummary,
+  // so it's safe to call from runMasterSolver's consumers without re-entrancy.
+  root.__rettResidualCapForEntry = function (entry) {
+    if (!entry || !entry.cfg || typeof root.unifiedTaxComparison !== 'function') return null;
+    var ecfg = entry.cfg;
+    var pd = entry._partialDeploy;
+    if (pd && Number.isFinite(Number(pd.deployed)) &&
+        Math.round(Number(pd.deployed)) !== Math.round(Number(ecfg.availableCapital) || 0)) {
+      var d = Math.max(0, Math.round(Number(pd.deployed)));
+      ecfg = Object.assign({}, ecfg, { availableCapital: d, investment: d, investedCapital: d });
+    }
+    if (typeof root.rettFlavorEngineCfg === 'function') {
+      try { ecfg = root.rettFlavorEngineCfg(ecfg); } catch (e) { /* */ }
+    }
+    var comp;
+    try { comp = root.unifiedTaxComparison(ecfg); } catch (e) { return null; }
+    if (!comp || !Array.isArray(comp.rows)) return null;
+    return comp.rows.reduce(function (a, r) {
+      return a + ((r.withStrategy && Number(r.withStrategy.total)) || 0);
+    }, 0);
+  };
 })(window);

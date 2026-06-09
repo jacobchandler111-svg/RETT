@@ -215,7 +215,19 @@
     var primary = a.primaryNet;
     var solver = null;
     if (typeof root.runMasterSolver === 'function') {
-      try { solver = root.runMasterSolver(primary); } catch (e) { solver = null; }
+      // Post-primary residual cap so admin matches the hero (supps can't
+      // save more than the tax remaining after Brooklyn — advisor 2026-06-09).
+      var _ppCapAdmin = null;
+      try {
+        var _sumA = (typeof root.buildInterestedSummary === 'function') ? root.buildInterestedSummary() : null;
+        var _chA = root.__rettChosenStrategy;
+        var _entA = (_sumA && _sumA.entries && _chA)
+          ? _sumA.entries.filter(function (e) { return e.type === _chA; })[0] : null;
+        if (_entA && typeof root.__rettResidualCapForEntry === 'function') {
+          _ppCapAdmin = root.__rettResidualCapForEntry(_entA);
+        }
+      } catch (e) { _ppCapAdmin = null; }
+      try { solver = root.runMasterSolver(primary, (_ppCapAdmin != null ? { postPrimaryTaxRemaining: _ppCapAdmin } : undefined)); } catch (e) { solver = null; }
     }
     if (!solver) return '';
     var totalSupp = _num(solver.totalSupplementalBenefit);

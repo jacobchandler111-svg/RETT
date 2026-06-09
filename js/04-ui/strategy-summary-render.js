@@ -161,8 +161,13 @@
     // stay consistent with the Implementation panel and the per-supp
     // rows below: a rejected supp shows $0 everywhere and is excluded
     // from totals everywhere.
+    // Cap funded-supp benefit at the tax remaining after the chosen
+    // (primary) strategy — supps can't save tax Brooklyn already
+    // eliminated (advisor 2026-06-09). Without this the hero over-claims.
+    var _ppCap = (typeof root.__rettResidualCapForEntry === 'function')
+      ? root.__rettResidualCapForEntry(entry) : null;
     var solverOut = (typeof root.runMasterSolver === 'function')
-      ? root.runMasterSolver(primaryNet) : null;
+      ? root.runMasterSolver(primaryNet, (_ppCap != null ? { postPrimaryTaxRemaining: _ppCap } : undefined)) : null;
     var supplementalBenefit = (solverOut && Number.isFinite(solverOut.totalSupplementalBenefit))
       ? solverOut.totalSupplementalBenefit
       : 0;

@@ -236,17 +236,24 @@
     // upstream calc modules that would inflate the per-year sum without
     // a corresponding increase in the aggregate, creating phantom gaps.
     var fundedSupps = [];
+    var solverOut = null;
     if (typeof root.runMasterSolver === 'function') {
       var primaryNet = (entry.metrics && Number.isFinite(entry.metrics.net)) ? entry.metrics.net : 0;
-      var solverOut = null;
-      try { solverOut = root.runMasterSolver(primaryNet); } catch (e) { /* */ }
+      // Post-primary residual cap = Σ withStrategy.total across THIS comp's
+      // rows (tax remaining after Brooklyn). Funded supps can't save more
+      // than that; passing it keeps the bottom-panel/hero supp total from
+      // over-claiming the Brooklyn overlap (advisor 2026-06-09).
+      var _ppCap = (comp && Array.isArray(comp.rows))
+        ? comp.rows.reduce(function (a, r) { return a + ((r.withStrategy && Number(r.withStrategy.total)) || 0); }, 0)
+        : null;
+      try { solverOut = root.runMasterSolver(primaryNet, (_ppCap != null ? { postPrimaryTaxRemaining: _ppCap } : undefined)); } catch (e) { /* */ }
       if (solverOut && Array.isArray(solverOut.supplementals)) {
         fundedSupps = solverOut.supplementals.filter(function (s) {
           return s && s.enabled && s.available && s.rivalry && s.rivalry.funded;
         });
       }
     }
-    return { entry: entry, comp: comp, chosen: chosen, fundedSupps: fundedSupps };
+    return { entry: entry, comp: comp, chosen: chosen, fundedSupps: fundedSupps, solverOut: solverOut };
   }
 
   function _isRelevant(row, i, chosen, cfg) {
@@ -1176,7 +1183,13 @@
     var suppBenefit = 0;
     if (typeof root.runMasterSolver === 'function') {
       try {
-        var sOut = root.runMasterSolver(Number(m.net) || 0);
+        // Same post-primary residual cap as _resolveChosen / the hero —
+        // supps can't save more than the tax remaining after Brooklyn
+        // (advisor 2026-06-09), so the bottom panel matches Strategy Summary.
+        var _ppCapFP = (comp && Array.isArray(comp.rows))
+          ? comp.rows.reduce(function (a, r) { return a + ((r.withStrategy && Number(r.withStrategy.total)) || 0); }, 0)
+          : null;
+        var sOut = root.runMasterSolver(Number(m.net) || 0, (_ppCapFP != null ? { postPrimaryTaxRemaining: _ppCapFP } : undefined));
         if (sOut && Number.isFinite(Number(sOut.totalSupplementalBenefit))) {
           suppBenefit = Math.round(Number(sOut.totalSupplementalBenefit));
         }
