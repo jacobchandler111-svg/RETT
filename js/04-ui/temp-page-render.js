@@ -414,7 +414,7 @@
     return acc;
   }
 
-  function _renderResultsCell(withStrategy, baseline, suppTaxSaved, suppOffsetSplit, suppLineSavings) {
+  function _renderResultsCell(withStrategy, baseline, suppTaxSaved, suppOffsetSplit, suppLineSavings, row) {
     if (!withStrategy) return '<div class="temp-baseline-empty">No result data.</div>';
     var _suppTaxSaved = Math.max(0, Math.round(Number(suppTaxSaved) || 0));
     // suppOffsetSplit shape: { ord, r1245, r1250, total } (post-2026-06-08).
@@ -427,22 +427,40 @@
     var _off1245  = Math.max(0, Math.round(Number(_split.r1245) || 0));
     var _off1250  = Math.max(0, Math.round(Number(_split.r1250) || 0));
     var _offTotal = _offOrd + _off1245 + _off1250;
-    // Income RECOGNIZED under the strategy this year — LT gain & recap
-    // are still recognized; the strategy's Brooklyn losses reduce the
-    // TAX on them. Audit 2026-06-08: when a supp ordinary deduction
-    // (Oil & Gas IDC, Delphi ord expense) waterfalls past ordinary into
-    // §1245/§1250 recap, those buckets need to drop too — they're
-    // ordinary-flavored for §1245 and 25%-capped for §1250, both
-    // reducible by §162-style ordinary deductions.
+    // Income RECOGNIZED under the strategy this year — show the income
+    // that ACTUALLY hits the tax engine after EVERY activity item this
+    // year has been applied. Two sources of reduction stack:
+    //
+    //   1. Supplemental ord/§1245/§1250 absorption (OG IDC, Delphi ord
+    //      expense, etc.). Tracked in suppOffsetSplit{ ord, r1245, r1250 }.
+    //
+    //   2. Brooklyn ST-loss application — split across buckets:
+    //        row.ltOffsetApplied         → reduces LT capital gain
+    //        row.ordOffsetApplied        → reduces ordinary income
+    //                                      (§1211(b) cap, typically $3K MFJ)
+    //        row.recap1250OffsetApplied  → reduces §1250 unrecap gain
+    //        row.shortOffsetApplied      → reduces short-term gain
+    //
+    // Without subtracting #2, the income lines showed the full pre-Brooklyn
+    // gain even though the tax lines below reflected Brooklyn's full
+    // absorption — internally inconsistent (e.g., "LT gain $7.6M / LT
+    // tax $0" reads as "$0 tax on $7.6M of gain"). User feedback
+    // 2026-06-09: shown income = what's being taxed. Apply both stacks.
+    var _btLt   = Math.max(0, Number(row && row.ltOffsetApplied)        || 0);
+    var _btOrd  = Math.max(0, Number(row && row.ordOffsetApplied)       || 0);
+    var _bt1250 = Math.max(0, Number(row && row.recap1250OffsetApplied) || 0);
+    var _btSt   = Math.max(0, Number(row && row.shortOffsetApplied)     || 0);
     var incomeRows = '';
     if (baseline && baseline._incomes) {
       var _incomes = baseline._incomes;
-      if (_offTotal > 0) {
+      if (_offTotal > 0 || _btLt > 0 || _btOrd > 0 || _bt1250 > 0 || _btSt > 0) {
         _incomes = Object.assign({}, _incomes, {
-          ordinary:       Math.max(0, Number(_incomes.ordinary       || 0) - _offOrd),
+          ordinary:       Math.max(0, Number(_incomes.ordinary       || 0) - _offOrd  - _btOrd),
+          longTermGain:   Math.max(0, Number(_incomes.longTermGain   || 0) - _btLt),
+          shortTermGain:  Math.max(0, Number(_incomes.shortTermGain  || 0) - _btSt),
           recapture1245:  Math.max(0, Number(_incomes.recapture1245  || 0) - _off1245),
-          recapture1250:  Math.max(0, Number(_incomes.recapture1250  || 0) - _off1250),
-          recapture:      Math.max(0, Number(_incomes.recapture      || 0) - _off1245 - _off1250)
+          recapture1250:  Math.max(0, Number(_incomes.recapture1250  || 0) - _off1250 - _bt1250),
+          recapture:      Math.max(0, Number(_incomes.recapture      || 0) - _off1245 - _off1250 - _bt1250)
         });
       }
       incomeRows = _renderIncomeRows(_incomes, 0);
@@ -1268,7 +1286,8 @@
             row.baseline,
             _computeSuppSavingsForYear(i, fundedSupps),
             _computeSuppOrdOffsetForYear(i, fundedSupps),
-            _computeSuppLineSavings(i, fundedSupps)
+            _computeSuppLineSavings(i, fundedSupps),
+            row
           ) +
         '</div>' +
         _renderWithdrawalCell(row, year, cfg) +
