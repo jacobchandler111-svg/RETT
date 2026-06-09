@@ -242,7 +242,13 @@
         '</p>' +
       '</div>';
 
+    // Render all three strategies side-by-side so the admin can compare
+    // what each path would have generated. Strategy A is a single-tranche
+    // immediate sale (one column in the matrix) — still useful for the
+    // CPA to see baseline loss generation vs. the deferred-recognition
+    // alternatives (B/C). User request 2026-06-09.
     return intro +
+      _strategyBlock('A', 'Traditional Sale (sell now)', summary) +
       _strategyBlock('B', 'Installment Sale (§453)', summary) +
       _strategyBlock('C', 'Structured Installment Sale', summary);
   }
