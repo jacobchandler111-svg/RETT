@@ -471,6 +471,20 @@
         });
       }
       incomeRows = _renderIncomeRows(_incomes, 0);
+      // When a supp's IDC offset reduces TAXABLE ordinary income below
+      // the Medicare-wage figure, the Add'l Medicare tax line below can
+      // look orphaned (e.g., "Ord income $110K → Add'l Medicare $2,250
+      // on $250K excess?"). Add'l Medicare base is W-2 box 5 wages — a
+      // SEPARATE figure that §162 / IDC deductions can't reduce. Show
+      // the underlying W-2 amount inline so the $2,250 has a visible
+      // anchor. Audit 2026-06-09 — user flagged the disconnect.
+      var _w2Visible = Math.max(0, Number(_readVal && _readVal('w2-wages', '0').replace(/[^0-9.-]/g, '')) || 0);
+      var _addmedRow = Number(withStrategy && withStrategy.addlMedicare) || 0;
+      if (_offOrd > 0 && _addmedRow > 0 && _w2Visible > 0 && _w2Visible !== Number(_incomes.ordinary || 0)) {
+        incomeRows += '<tr class="temp-incomenote-row">' +
+          '<td><em>Medicare wages (W-2 box 5)</em></td>' +
+          '<td class="temp-amt"><em>' + _fmt(_w2Visible) + '</em></td></tr>';
+      }
     }
     // Tax-side reduction. Engine row's withStrategy holds the PRE-supp
     // tax breakdown. To synthesize post-supp display, use the supp's
