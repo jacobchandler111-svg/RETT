@@ -322,7 +322,67 @@
     }
     html += '</tbody></table>' +
       '</div>';
+    html += _supplementalCapitalTable(cmp);
     return html;
+  }
+
+  // Per-year capital deployed to each CAPITAL supplemental strategy (Oil &
+  // Gas, Delphi, Equipment Leasing, Farm). PTET and Augusta deploy no capital
+  // — they're set-and-forget — so they're excluded. Mirrors the Brooklyn
+  // per-year investment column above (advisor 2026-06-10). Oil & Gas spreads
+  // its deployment over years (lastResult.perYear[i].investment); the others
+  // are a one-time Year-0 purchase.
+  function _supplementalCapitalTable(cmp) {
+    var rows = (cmp && cmp.rows) || [];
+    if (!rows.length) return '';
+    var root = window;
+    var core = root.__rettSupplemental || {};
+    var ex   = root.__rettSupplementalExtra || {};
+    var funded = {};
+    if (typeof root.runMasterSolver === 'function') {
+      try {
+        var so = root.runMasterSolver(0);
+        (so.supplementals || []).forEach(function (s) {
+          if (s && s.rivalry && s.rivalry.funded) funded[s.id] = true;
+        });
+      } catch (e) { /* */ }
+    }
+    var DEFS = [
+      { id: 'oilGas', name: 'Oil &amp; Gas',          spec: core.oilGas, totalKey: 'maxInvestment' },
+      { id: 'delphi', name: 'Delphi',                 spec: core.delphi, totalKey: 'investment' },
+      { id: 'slot07', name: 'Equipment Leasing',      spec: ex.slot07,   totalKey: 'investmentAmount' },
+      { id: 'slot12', name: 'Farm / Business Equip.', spec: ex.slot12,   totalKey: 'equipmentCost' }
+    ];
+    var years = rows.map(function (r) { return Number(r.year); });
+    var body = '';
+    DEFS.forEach(function (d) {
+      if (!d.spec || !funded[d.id]) return;
+      var total = Math.round(Number(d.spec[d.totalKey]) || 0);
+      if (total <= 0) return;
+      var perY = null;
+      var lr = d.spec.lastResult;
+      if (lr && Array.isArray(lr.perYear) &&
+          lr.perYear.some(function (p) { return Number(p && p.investment) > 0; })) {
+        perY = lr.perYear.map(function (p) { return Math.round(Number(p && p.investment) || 0); });
+      }
+      var cells = years.map(function (yr, i) {
+        var amt = perY ? (perY[i] || 0) : (i === 0 ? total : 0);
+        return '<td class="admin-math-num">' + (amt > 0 ? _fmtUSD(amt) : '&mdash;') + '</td>';
+      }).join('');
+      body += '<tr><td>' + d.name + '</td>' + cells +
+        '<td class="admin-math-num"><strong>' + _fmtUSD(total) + '</strong></td></tr>';
+    });
+    if (!body) return '';
+    var heads = years.map(function (yr) { return '<th class="admin-math-num">' + yr + '</th>'; }).join('');
+    return '' +
+      '<div class="admin-math-scroll" style="margin-top:1.25rem;">' +
+        '<div style="font-weight:600;margin:0 0 .35rem;">Supplemental capital deployed by year</div>' +
+        '<table class="admin-math-table admin-math-table-wide">' +
+          '<thead><tr><th>Strategy</th>' + heads + '<th class="admin-math-num">Total</th></tr></thead>' +
+          '<tbody>' + body + '</tbody>' +
+        '</table>' +
+        '<p class="admin-math-empty" style="margin-top:.4rem;">Capital strategies only &mdash; PTET and Augusta deploy no capital (set-and-forget) and are excluded.</p>' +
+      '</div>';
   }
 
   // Per-tranche breakdown: for each tranche (Y0 basis, [Y0 tax-reserve if
