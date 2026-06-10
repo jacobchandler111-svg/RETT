@@ -3278,6 +3278,14 @@
 
   function buildInterestedSummary(opts) {
     if (typeof collectInputs !== 'function') return null;
+    // Per-render tax-engine cache: clear it once at the TOP level only — NOT
+    // during the auto-sizer's recursive measurement passes (which set
+    // __rettSkipSuppAutoSize and rely on the warm cache for the 96%-duplicate
+    // engine calls). Clearing here bounds the cache to a single render so a
+    // memoized result can never outlive an input change (perf, 2026-06-10).
+    if (!root.__rettSkipSuppAutoSize && typeof root.__rettClearTaxCache === 'function') {
+      try { root.__rettClearTaxCache(); } catch (e) { /* */ }
+    }
     // Supp-blind mode (Tab 4 Projection cards): compute each strategy's
     // STANDALONE net as if no supplemental draws capital, so the headline
     // net HOLDS when supps are toggled on Page 5. Strategy Summary / Temp /

@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Supplemental Strategies — Reference Cards</title>
+<style>
+  :root{
+    --bg:#0f1420; --card:#1a2231; --ink:#e8edf5; --muted:#9aa7bd;
+    --line:#2a3650; --accent:#5b9dff; --ord:#f0a93b; --cap:#4fd1a1;
+    --char:#c08bff; --skip:#ff7a7a; --apply:#4fd1a1;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    padding:32px 24px 64px;
+  }
+  .wrap{max-width:760px;margin:0 auto}
+  h1{font-size:26px;margin:0 0 6px;letter-spacing:-.3px}
+  .sub{color:var(--muted);margin:0 0 22px;font-size:14px}
+  .note{
+    background:#1d2740;border:1px solid var(--line);border-left:3px solid var(--accent);
+    border-radius:10px;padding:14px 16px;margin:0 0 28px;color:#cdd8ec;font-size:14px;
+  }
+  .note b{color:#fff}
+  .legend{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 26px;font-size:12.5px}
+  .legend span{display:inline-flex;align-items:center;gap:6px;color:var(--muted)}
+  .dot{width:10px;height:10px;border-radius:50%}
+  .grid{display:flex;flex-direction:column;gap:22px}
+  .card{
+    background:var(--card);border:2px solid var(--line);border-radius:14px;
+    padding:20px 22px 18px;display:flex;flex-direction:column;gap:12px;
+    box-shadow:0 4px 18px rgba(0,0,0,.35);
+  }
+  .chead{display:flex;align-items:flex-start;gap:12px}
+  .num{
+    flex:none;width:30px;height:30px;border-radius:8px;background:#22304a;
+    display:flex;align-items:center;justify-content:center;font-weight:700;
+    font-size:14px;color:var(--accent);border:1px solid var(--line);
+  }
+  .name{font-size:17px;font-weight:700;line-height:1.25;margin:2px 0 0}
+  .badge{
+    display:inline-block;font-size:11px;font-weight:700;letter-spacing:.3px;
+    padding:3px 9px;border-radius:999px;text-transform:uppercase;
+  }
+  .b-ord{background:rgba(240,169,59,.15);color:var(--ord);border:1px solid rgba(240,169,59,.35)}
+  .b-cap{background:rgba(79,209,161,.15);color:var(--cap);border:1px solid rgba(79,209,161,.35)}
+  .b-char{background:rgba(192,139,255,.15);color:var(--char);border:1px solid rgba(192,139,255,.4)}
+  .row{font-size:13.5px}
+  .lab{color:var(--muted);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:2px}
+  .auth a{color:var(--accent);text-decoration:none}
+  .auth a:hover{text-decoration:underline}
+  .perdollar{
+    background:#14213a;border:1px solid var(--line);border-radius:9px;
+    padding:9px 11px;font-size:13.5px;
+  }
+  .perdollar b{color:#fff}
+  .gate{display:grid;grid-template-columns:1fr;gap:7px;margin-top:2px}
+  .gate div{font-size:13px;padding-left:16px;position:relative}
+  .gate .apply::before{content:"▸";position:absolute;left:0;color:var(--apply)}
+  .gate .skip::before{content:"▾";position:absolute;left:0;color:var(--skip)}
+  .gate .apply b{color:var(--apply)}
+  .gate .skip b{color:var(--skip)}
+  .keep{margin-left:auto;font-size:10.5px;font-weight:700;color:#0f1420;background:var(--accent);padding:3px 8px;border-radius:6px;letter-spacing:.3px}
+  footer{color:var(--muted);font-size:13px;margin-top:30px;border-top:1px solid var(--line);padding-top:18px}
+  @media print{
+    body{background:#fff;color:#111;padding:0}
+    .card{break-inside:avoid;border:1px solid #ccc;box-shadow:none;background:#fff}
+    .note,.perdollar{background:#f4f6fa}
+    .num{background:#eef2f8}
+    .auth a{color:#1a5fd0}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Supplemental Tax Strategies — Reference</h1>
+  <p class="sub">Per-dollar figures are what the RETT engine actually computes. "Offset / $1" = deduction produced per dollar deployed; "Saved / $1" assumes a ~40.5% top ordinary rate (37% fed + 3.5% KY) and ~23.8% long-term.</p>
+
+  <div class="note">
+    <b>Read this first:</b> of the twelve, only <b>Delphi</b> and <b>appreciated-asset Charitable gifts</b> reach the capital gain from the sale. The other ten reduce <b>ordinary income</b> (W-2, rental, §1250 recapture) — they run alongside the gain, they don't shrink the LTCG. The three physical-asset plays (Heavy Vehicle, Aircraft, Equipment) only make sense when the client wanted the asset anyway: saving ~40¢ on the dollar still costs ~60¢ net.
+  </div>
+
+  <div class="legend">
+    <span><span class="dot" style="background:var(--ord)"></span>Offsets ordinary income</span>
+    <span><span class="dot" style="background:var(--cap)"></span>Reaches the capital gain</span>
+    <span><span class="dot" style="background:var(--char)"></span>Character conversion</span>
+  </div>
+
+  <div class="grid">
+
+    <!-- 1 -->
+    <div class="card">
+      <div class="chead">
+        <div class="num">1</div>
+        <div><h2 class="name">Oil &amp; Gas Working Interest</h2></div>
+        <span class="keep">KEEP</span>
+      </div>
+      <span class="badge b-ord">Ordinary</span>
+      <div class="row auth"><span class="lab">Authority</span>IRC <a href="https://www.law.cornell.edu/uscode/text/26/263" target="_blank">§263(c)</a> + Reg. §1.612-4 (expense IDC now); <a href="https://www.law.cornell.edu/uscode/text/26/469" target="_blank">§469(c)(3)</a> (working interest is active, not passive); <a href="https://www.law.cornell.edu/uscode/text/26/613A" target="_blank">§613A</a> depletion later.</div>
+      <div class="row"><span class="lab">Method</span>Year-1 Intangible Drilling Cost deduction = a fraction of capital invested, expensed in year 0/1.</div>
+      <div class="perdollar"><span class="lab">Per dollar</span><b>75¢–95¢</b> offset (engine default 95%) → <b>~30–38¢</b> tax saved.</div>
+      <div class="gate">
+        <div class="apply"><b>Applies:</b> client has ordinary income to shelter + tolerance for illiquid, real-risk direct investment.</div>
+        <div class="skip"><b>Skip:</b> no ordinary income (becomes NOL) or AMT-bound — excess IDC is an AMT preference; engine warns the Y1 figure overstates.</div>
+      </div>
+    </div>
+
+    <!-- 2 -->
+    <div class="card">
+      <div class="chead">
+        <div class="num">2</div>
+        <div><h2 class="name">Delphi Fund</h2></div>
+        <span class="keep">KEEP</span>
+      </div>
+      <span class="badge b-char">Ordinary → Capital</span>
+      <div class="row auth"><span class="lab">Authority</span>Thinnest of the set — partnership character pass-through <a href="https://www.law.cornell.edu/uscode/text/26/702" target="_blank">§702(b)</a>/<a href="https://www.law.cornell.edu/uscode/text/26/704" target="_blank">§704(b)</a>, §1211/§1212, §901 FTC. No single section blesses it.</div>
+      <div class="row"><span class="lab">Method</span>Per $1 net invested, the K-1 throws −30% ordinary expense, +25% LT gain, +6% qual div, −5% ST loss, −1% FTC.</div>
+      <div class="perdollar"><span class="lab">Per dollar</span>~30¢ gross ordinary offset, but <b>net ~8¢</b> after LT tax on the gain handed back.</div>
+      <div class="gate">
+        <div class="apply"><b>Applies:</b> big ordinary income AND big LT gain to absorb the +25%; meets min ($1M Class B / $5M Class A) and accepts lockup.</div>
+        <div class="skip"><b>Skip:</b> small account, no ordinary income, or low appetite for an aggressive structured fund.</div>
+      </div>
+    </div>
+
+    <!-- 3 -->
+    <div class="card">
+      <div class="chead">
+        <div class="num">3</div>
+        <div><h2 class="name">PTET — Pass-Through Entity Tax</h2></div>
+      </div>
+      <span class="badge b-ord">Ordinary</span>
+      <div class="row auth"><span class="lab">Authority</span>IRS <a href="https://www.irs.gov/pub/irs-drop/n-20-75.pdf" target="_blank">Notice 2020-75</a> + state PTET statutes; sidesteps the <a href="https://www.law.cornell.edu/uscode/text/26/164" target="_blank">§164</a> $10K SALT cap.</div>
+      <div class="row"><span class="lab">Method</span>Entity pays your state income tax and deducts it federally; you take a state credit.</div>
+      <div class="perdollar"><span class="lab">Per dollar of PTET paid</span>~<b>$1</b> federal deduction → <b>~30¢</b> saved (20% QBI haircut applied).</div>
+      <div class="gate">
+        <div class="apply"><b>Applies:</b> client owns a pass-through in a state with a PTET regime (KY = 4.0%, in the engine's map).</div>
+        <div class="skip"><b>Skip:</b> no pass-through income, or a no-income-tax state (TX, FL, WY, NV, WA, etc.).</div>
+      </div>
+    </div>
+
+    <!-- 4 -->
+    <div class="card">
+      <div class="chead">
+        <div class="num">4</div>
+        <div><h2 class="name">Charitable Gifts</h2></div>
+      </div>
+      <span class="badge b-ord">Ordinary</span> <span class="badge b-cap">+ Capital</span>
+      <div class="row auth"><span class="lab">Authority</span>IRC <a href="https://www.law.cornell.edu/uscode/text/26/170" target="_blank">§170</a> (60% AGI cash / 30% appreciated; deduct at fair market value).</div>
+      <div class="row"><span class="lab">Method</span>Gift cash or appreciated stock; deduct FMV and avoid the capital-gains tax on the built-in gain.</div>
+      <div class="perdollar"><span class="lab">Per dollar gifted</span>Cash → ~40¢ saved (dollar is gone). Appreciated → <b>~40¢ deduction + ~24¢</b> avoided LT tax.</div>
+      <div class="gate">
+        <div class="apply"><b>Applies:</b> client is genuinely charitable — best with low-basis appreciated stock.</div>
+        <div class="skip"><b>Skip:</b> not charitable (never a net profit), or already over AGI caps (excess carries 5 years).</div>
+      </div>
+    </div>
+
+    <!-- 5 -->
+    <div class="card">
+      <div class="chead">
+        <div class="num">5</div>
+        <div><h2 class="name">Cost Segregation</h2></div>
+      </div>
+      <span class="badge b-ord">Ordinary</span>
+      <div class="row auth"><span class="lab">Authority</span>IRC <a href="https://www.law.cornell.edu/uscode/text/26/168" target="_blank">§168(k)</a> bonus + §167; <i>Hospital Corp. of America v. Comm'r</i>, 109 T.C. 21.</div>
+      <div class="row"><span class="lab">Method</span>Reclassify 20–35% of building basis into 5/7/15-yr property; take it as year-1 bonus depreciation.</div>
+      <div class="perdollar"><span class="lab">Per dollar of depreciable basis</span><b>~27¢</b> (apartment) to <b>~37¢</b> (industrial) year-1 deduction → ~11–15¢ saved.</div>
+      <div class="gate">
+        <div class="apply"><b>Applies:</b> client owns or buys depreciable real estate (best newly acquired this year).</div>
+        <div class="skip"><b>Skip:</b> no real estate, land-heavy property, or a near-term resale (recapture claws it back).</div>
+      </div>
+    </div>
+
+    <!-- 6 -->
+    <div class="card">
+      <div class="chead">
+        <div class="num">6</div>
+        <div><h2 class="name">Heavy Vehicle Deduction</h2></div>
+      </div>
+      <span class="badge b-ord">Ordinary</span>
+      <div class="row auth"><span class="lab">Authority</span>IRC <a href="https://www.law.cornell.edu/uscode/text/26/179" target="_blank">§179</a> + <a href="https://www.law.cornell.edu/uscode/text/26/168" target="_blank">§168(k)</a> bonus; <a href="https://www.law.cornell.edu/uscode/text/26/280F" target="_blank">§280F</a> luxury caps.</div>
+      <div class="row"><span class="lab">Method</span>&gt;6,000-lb GVWR business vehicle — §179 (heavy SUV capped $32K) + 100% bonus on the residual.</div>
+      <div class="perdollar"><span class="lab">Per dollar of vehicle cost</span>~<b>$1</b> offset year 1 (× business-use %).</div>
+      <div class="gate">
+        <div class="apply"><b>Applies:</b> needs a heavy vehicle with &gt;50% business use.</div>
+        <div class="skip"><b>Skip:</b> ≤50% business use (drops to ADS straight-line, §280F(b)(1)) or a light passenger auto (luxury cap ~$20,300 guts it).</div>
+      </div>
+    </div>
+
+    <!-- 7 -->
+    <div class="card">
+      <div class="chead">
+        <div class="num">7</div>
+        <div><h2 class="name">Equipment Leasing Fund</h2></div>
+      </div>
+      <span class="badge b-ord">Ordinary</span>
+      <div class="row auth"><span class="lab">Authority</span>IRC <a href="https://www.law.cornell.edu/uscode/text/26/168" target="_blank">§168(k)</a> bonus; <a href="https://www.law.cornell.edu/uscode/text/26/469" target="_blank">§469</a> + Reg. §1.469-5T material participation.</div>
+      <div class="row"><span class="lab">Method</span>Invest in a fund that buys equipment; year-1 K-1 bonus loss ≈ 90% of capital.</div>
+      <div class="perdollar"><span class="lab">Per dollar</span>~<b>90¢</b> offset → ~36¢ saved.</div>
+      <div class="gate">
+        <div class="apply"><b>Applies:</b> client will commit ≥100 hrs/yr so the loss is non-passive.</div>
+        <div class="skip"><b>Skip:</b> passive investor (loss suspends — zero current benefit). High yield, high audit surface; §461(l) excess-loss cap not modeled.</div>
+      </div>
+    </div>
+
+    <!-- 8 -->
+    <div class="card">
+      <div class="chead">
+        <div class="num">8</div>
+        <div><h2 class="name">Augusta Rule</h2></div>
+      </div>
+      <span class="badge b-ord">Ordinary</span>
+      <div class="row auth"><span class="lab">Authority</span>IRC <a href="https://www.law.cornell.edu/uscode/text/26/280A" target="_blank">§280A(g)</a>.</div>
+      <div class="row"><span class="lab">Method</span>Rent your home to your business ≤14 days/yr at documented FMV — business deducts it, you exclude it.</div>
+      <div class="perdollar"><span class="lab">Per year</span>Offset = days × FMV, capped (e.g. 14 × $1,500 = <b>$21,000</b>) → ~$8,500 saved. Fixed, small.</div>
+      <div class="gate">
+        <div class="apply"><b>Applies:</b> client has an S-corp/partnership and a bona fide business use (board meetings, etc.).</div>
+        <div class="skip"><b>Skip:</b> no entity or no legitimate business purpose — IRS scrutinizes the FMV and substance.</div>
+      </div>
+    </div>
+
+    <!-- 9 -->
+    <div class="card">
+      <div class="chead">
+        <div class="num">9</div>
+        <div><h2 class="name">401(k) + Profit Sharing</h2></div>
+      </div>
+      <span class="badge b-ord">Ordinary</span>
+      <div class="row auth"><span class="lab">Authority</span>IRC <a href="https://www.law.cornell.edu/uscode/text/26/401" target="_blank">§401(k)</a>, <a href="https://www.law.cornell.edu/uscode/text/26/415" target="_blank">§415(c)</a> ($72K addition + catch-up), §404.</div>
+      <div class="row"><span class="lab">Method</span>Defer up to $72K (+$8K age 50, +$11,250 age 60–63) into the plan.</div>
+      <div class="perdollar"><span class="lab">Per dollar deferred</span><b>$1</b> offset → ~40¢ saved — but it's <i>deferral</i>, taxed on withdrawal.</div>
+      <div class="gate">
+        <div class="apply"><b>Applies:</b> client has earned income (W-2/SE) and a plan. Recurs annually.</div>
+        <div class="skip"><b>Skip:</b> no earned income (the sale gain doesn't count) or already maxed.</div>
+      </div>
+    </div>
+
+    <!-- 10 -->
+    <div class="card">
+      <div class="chead">
+        <div class="num">10</div>
+        <div><h2 class="name">Aircraft Purchase</h2></div>
+      </div>
+      <span class="badge b-ord">Ordinary</span>
+      <div class="row auth"><span class="lab">Authority</span>IRC <a href="https://www.law.cornell.edu/uscode/text/26/168" target="_blank">§168(k)</a> bonus; <a href="https://www.law.cornell.edu/uscode/text/26/280F" target="_blank">§280F(d)(6)</a> qualified business use; §274 entertainment limits.</div>
+      <div class="row"><span class="lab">Method</span>100% bonus depreciation in year 1 when qualified business use exceeds 50%.</div>
+      <div class="perdollar"><span class="lab">Per dollar of cost</span>~<b>$1</b> offset (× QBU%) if &gt;50%; otherwise ADS over 6 yrs (~17¢).</div>
+      <div class="gate">
+        <div class="apply"><b>Applies:</b> &gt;50% qualified business use and the client wants the plane anyway.</div>
+        <div class="skip"><b>Skip:</b> ≤50% QBU, heavy personal/entertainment use (§274), or deduction exceeds the ordinary pool (engine caps it).</div>
+      </div>
+    </div>
+
+    <!-- 11 -->
+    <div class="card">
+      <div class="chead">
+        <div class="num">11</div>
+        <div><h2 class="name">Short-Term Rental</h2></div>
+      </div>
+      <span class="badge b-ord">Ordinary</span>
+      <div class="row auth"><span class="lab">Authority</span>IRC <a href="https://www.law.cornell.edu/uscode/text/26/469" target="_blank">§469</a> + Reg. §1.469-1T(e)(3)(ii)(A) (the ≤7-day STR exception); <a href="https://www.law.cornell.edu/uscode/text/26/168" target="_blank">§168(k)</a>.</div>
+      <div class="row"><span class="lab">Method</span>≤7-day average stays + material participation → non-passive; cost-seg accelerates ~30% of basis.</div>
+      <div class="perdollar"><span class="lab">Per dollar of property basis</span>~<b>30¢</b> offset year 1 → ~12¢ saved.</div>
+      <div class="gate">
+        <div class="apply"><b>Applies:</b> average guest stay ≤7 days AND material participation.</div>
+        <div class="skip"><b>Skip:</b> either fails — the loss becomes passive and suspends (engine returns $0 net).</div>
+      </div>
+    </div>
+
+    <!-- 12 -->
+    <div class="card">
+      <div class="chead">
+        <div class="num">12</div>
+        <div><h2 class="name">Farm / Business Equipment</h2></div>
+      </div>
+      <span class="badge b-ord">Ordinary</span>
+      <div class="row auth"><span class="lab">Authority</span>IRC <a href="https://www.law.cornell.edu/uscode/text/26/179" target="_blank">§179</a> ($2.56M cap, phase-out begins $4.09M) + <a href="https://www.law.cornell.edu/uscode/text/26/168" target="_blank">§168(k)</a> bonus.</div>
+      <div class="row"><span class="lab">Method</span>§179 immediate expensing + 100% bonus depreciation on the residual.</div>
+      <div class="perdollar"><span class="lab">Per dollar of equipment</span>~<b>$1</b> offset year 1 (subject to the business-income limit).</div>
+      <div class="gate">
+        <div class="apply"><b>Applies:</b> an operating business/farm buys equipment and has business income to absorb §179.</div>
+        <div class="skip"><b>Skip:</b> no business income (§179 carries forward) or spend &gt; $4.09M (dollar-for-dollar phase-out).</div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    Per-dollar coefficients pulled from the RETT engine (calc-oil-gas.js, calc-delphi.js, calc-supplemental-extra.js). Tax-saved figures use a ~40.5% top ordinary / ~23.8% long-term assumption — re-run any specific client in the projector for exact dollars. Reference only; not tax advice.
+  </footer>
+</div>
+</body>
+</html>
