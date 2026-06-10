@@ -542,6 +542,11 @@
       s.oilGas.maxInvestment = Math.max(0, Number.isFinite(v) ? v : 0);
       if (!s.oilGas._userTouched) s.oilGas._userTouched = {};
       s.oilGas._userTouched.maxInvestment = true;
+      // User-OVERRIDE: an explicitly typed amount is respected by the
+      // auto-sizer (clamped at the per-supp cap) instead of being
+      // overwritten. Distinct from _userTouched, which the sweep also sets.
+      if (!s.oilGas._userOverride) s.oilGas._userOverride = {};
+      s.oilGas._userOverride.maxInvestment = true;
       _runOilGasMath();
       _persist();
       // Page-5 Strategy Summary depends on the supplemental allocator
@@ -564,6 +569,9 @@
       s.delphi.investment = Math.max(0, Number.isFinite(dv) ? dv : 0);
       if (!s.delphi._userTouched) s.delphi._userTouched = {};
       s.delphi._userTouched.investment = true;
+      // User-OVERRIDE: respected by the auto-sizer (clamped at cap).
+      if (!s.delphi._userOverride) s.delphi._userOverride = {};
+      s.delphi._userOverride.investment = true;
       // Auto-pick class from amount (advisor 2026-05-06): Class A at the
       // $5M minimum and above (1.75% fee), Class B otherwise (2% fee).
       // The picker UI is hidden — investment is the only knob the

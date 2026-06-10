@@ -3371,6 +3371,17 @@
         // minimum increment (tiny sale), drop it to $0.
         var ceiling = Math.round(_saleForCap * s.capPct);
         if (ceiling < s.minInc) { s.spec[s.knob] = 0; return; }
+        // Manual override (advisor 2026-06-10): if the advisor explicitly
+        // typed an amount in the supp's Details panel (_userOverride — set
+        // only by the render input handler, NOT by this sweep), respect it
+        // — clamp it at the per-supp cap and skip auto-sizing. A 0/blank
+        // override falls through to auto-size so clearing the box returns
+        // the supp to engine sizing.
+        if (s.spec._userOverride && s.spec._userOverride[s.knob]
+            && (Number(s.spec[s.knob]) || 0) > 0) {
+          s.spec[s.knob] = Math.min(Math.max(0, Number(s.spec[s.knob]) || 0), ceiling);
+          return;
+        }
         // Candidate sizes: 0, 25%, 50%, 75%, 100% of the cap. Always
         // include both endpoints so the optimizer can drop to zero or
         // deploy the full cap.

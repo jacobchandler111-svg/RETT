@@ -706,6 +706,13 @@
       // price / cost basis change later.
       if (!st._userTouched) st._userTouched = {};
       st._userTouched[fieldId] = true;
+      // Mark user-OVERRIDE (distinct from _userTouched, which the auto-size
+      // sweep also sets internally). When the advisor explicitly types an
+      // investment amount, the engine's auto-sizer respects it (clamped at
+      // the per-supp cap) instead of choosing its own size. (advisor
+      // 2026-06-10.)
+      if (!st._userOverride) st._userOverride = {};
+      st._userOverride[fieldId] = true;
       _persist();
     });
   }
