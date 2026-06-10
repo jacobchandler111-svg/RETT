@@ -631,6 +631,15 @@
   function _runAllMath() {
     _runOilGasMath();
     _runDelphiMath();
+    // Also recompute the EXTRA supplementals (Equipment Leasing, Augusta,
+    // Farm, PTET, …). Without this, the auto-sizer — which calls this after
+    // setting each candidate investment size — would size the extra supps
+    // against a STALE result, leaving Equipment Leasing / Farm unavailable
+    // and always sized to $0 (advisor 2026-06-10). The core O&G/Delphi math
+    // ran here already; the extra-supp calc lives in calc-supplemental-extra.
+    if (typeof root.recomputeSupplementalExtra === 'function') {
+      try { root.recomputeSupplementalExtra(); } catch (e) { /* */ }
+    }
     _scheduleP5Refresh();
   }
 

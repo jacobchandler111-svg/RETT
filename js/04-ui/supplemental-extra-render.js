@@ -191,7 +191,7 @@
       bucket: 'ordinary',
       defaults: {
         daysRented:      14,
-        fmvPerDay:       1500,
+        fmvPerDay:       2000,      // advisor 2026-06-10: assume $2,000/day FMV by default (override in Details)
         annualRecurring: true       // Augusta is structurally annual — recurs every recognition year of the
                                     // viewed strategy (Strategy A → Y0 only via _strategyYearCount; B/C → each year)
       },
@@ -431,26 +431,14 @@
         '<span class="supp-details-arrow-label">' + (st.valueOpen ? 'Hide value' : 'See value') + '</span>' +
       '</button>';
 
-    // Inline amount box: when Interested, show a single input for the
-    // strategy's primary dollar figure (investment / equipment cost /
-    // daily FMV). Replaces the prior quick-pick chips ($250K/$500K/Custom)
-    // per advisor — advisors type the exact number rather than picking a
-    // suggested amount. Bound to the same data-supx-input the Details
-    // panel uses, so the host 'input' listener updates state WITHOUT a
-    // re-render (caret stays put while typing). Stays visible while
-    // Interested (not just at $0) so the figure can be edited in place.
+    // Inline amount box REMOVED (advisor 2026-06-10). Like Oil & Gas, the
+    // investment / equipment cost / daily-FMV figure is no longer shown on
+    // the card face — it's computed in the background (the auto-sizer sizes
+    // Equipment Leasing and Farm; Augusta defaults to its spec value) and
+    // the advisor can still click "Details" to open and override it. Keeping
+    // the amount off the face matches the Oil & Gas card and keeps the rail
+    // clean. The Details panel (detailRows) still carries the editable field.
     var amountBlock = '';
-    var chipsCfg = CHIPS_CONFIG[spec.id];
-    if (!isPlaceholder && chipsCfg && iState[spec.id] === true) {
-      var primaryVal = Number(st[chipsCfg.primaryField]) || 0;
-      amountBlock =
-        '<div class="supx-chips-row supx-amount-row">' +
-          '<span class="supx-chips-prompt">' + chipsCfg.prompt + ':</span>' +
-          '<div class="currency-input supx-amount-input-wrap">' +
-            '<input type="text" class="supx-amount-input" data-supx-input="' + spec.id + ':' + chipsCfg.primaryField + '" inputmode="numeric" autocomplete="off" value="' + (primaryVal > 0 ? _fmtUSD(primaryVal) : '') + '" placeholder="0">' +
-          '</div>' +
-        '</div>';
-    }
 
     var hiddenCls = (root.__rettSuppHidden && root.__rettSuppHidden[spec.id]) ? ' is-supp-hidden' : '';
     return '' +
@@ -581,9 +569,14 @@
           if (st && spec) {
             (spec.detailRows || []).forEach(function (row) {
               if (row.kind !== 'usd') return;
-              // Skip the chip-managed primary field — chips show when
-              // it's $0 and let the advisor pick a value explicitly.
-              if (chipsCfg && chipsCfg.primaryField === row.id) return;
+              // Fill the default for every USD field INCLUDING the primary
+              // investment/equipment amount. The inline chip box that used to
+              // manage the primary field is gone (the amount is now hidden +
+              // auto-sized), so without seeding the default here the field
+              // would sit at $0, the supp would never compute, and the
+              // auto-sizer would have nothing to size (advisor 2026-06-10).
+              // The auto-sizer sets _userTouched while sweeping, so its $0
+              // candidate and its final pick are still respected below.
               var current = Number(st[row.id]) || 0;
               var defaultVal = Number((spec.defaults || {})[row.id]) || 0;
               var touched = st._userTouched && st._userTouched[row.id];
