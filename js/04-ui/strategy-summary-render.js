@@ -168,9 +168,19 @@
       ? root.__rettResidualCapForEntry(entry) : null;
     var solverOut = (typeof root.runMasterSolver === 'function')
       ? root.runMasterSolver(primaryNet, (_ppCap != null ? { postPrimaryTaxRemaining: _ppCap } : undefined)) : null;
+    // Honest (recompute-based) supplemental benefit — the actual stacked tax
+    // saved, not the master solver's standalone-marginal-rate sum (which
+    // overstates when supps stack). Falls back to the solver total when the
+    // recompute helper isn't available (advisor 2026-06-10).
     var supplementalBenefit = (solverOut && Number.isFinite(solverOut.totalSupplementalBenefit))
       ? solverOut.totalSupplementalBenefit
       : 0;
+    if (typeof root.__rettHonestSuppBenefitForEntry === 'function') {
+      try {
+        var _honest = root.__rettHonestSuppBenefitForEntry(entry, solverOut);
+        if (Number.isFinite(_honest)) supplementalBenefit = _honest;
+      } catch (e) { /* keep solver value */ }
+    }
     // For print iteration / per-supp rows: only the FUNDED supps
     // surface as contributing. Rejected supps still appear in
     // _renderSupplementalLeftColumn (so the advisor sees the toggle)

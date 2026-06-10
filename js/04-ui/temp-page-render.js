@@ -1232,6 +1232,19 @@
         }
       } catch (e) { /* */ }
     }
+    // Override with the HONEST recompute-based benefit (the actual stacked
+    // tax saved) so the bottom total = Σ per-year card "tax saved" and the
+    // net ties to the Strategy Summary, which now also uses the honest value
+    // (advisor 2026-06-10). Falls back to the solver total above if anything
+    // is missing.
+    if (typeof root.__rettHonestSuppBenefit === 'function' &&
+        comp && Array.isArray(ctx.fundedSupps) && ctx.fundedSupps.length) {
+      try {
+        var _hsb = root.__rettHonestSuppBenefit(comp, ctx.fundedSupps,
+          { chosen: ctx.chosen, cfg: ctx.entry && ctx.entry.cfg });
+        if (Number.isFinite(_hsb)) suppBenefit = Math.round(_hsb);
+      } catch (e) { /* keep solver value */ }
+    }
     // Carryover-loss offset credit (A/B/C) — the value of the free
     // §1211(b) $3,000/$1,500 ordinary offset the residual carryforward
     // buys in the first idle year after deployment. buildInterestedSummary

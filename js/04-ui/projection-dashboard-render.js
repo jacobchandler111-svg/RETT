@@ -3204,6 +3204,43 @@
     return Math.round(bf * (excess / totalLossGen));
   }
 
+  // Honest (recompute-based) supplemental benefit for an entry. Derives the
+  // SAME comp the Temp page uses (partial-deploy dial-back + engine flavor)
+  // and hands it to the temp-page helper, which recomputes the actual stacked
+  // tax saved by the funded supps. Replaces the master solver's standalone-
+  // marginal-rate estimate, which overstates when supps stack (advisor
+  // 2026-06-10). Returns 0 if anything's unavailable so callers fall back.
+  function _honestSuppBenefitForEntry(e, solverOut) {
+    // Returns null when it CANNOT compute (so callers keep the solver value
+    // rather than zeroing a real benefit); 0 only when there genuinely are no
+    // funded supps; otherwise the recomputed honest benefit.
+    if (!e || !e.cfg) return null;
+    if (typeof root.__rettHonestSuppBenefit !== 'function') return null;
+    if (typeof root.unifiedTaxComparison !== 'function') return null;
+    var funded = (solverOut && Array.isArray(solverOut.supplementals))
+      ? solverOut.supplementals.filter(function (s) {
+          return s && s.enabled && s.available && s.rivalry && s.rivalry.funded;
+        })
+      : [];
+    if (!funded.length) return 0;
+    var ecfg = e.cfg;
+    var _pd = e._partialDeploy;
+    if (_pd && Number.isFinite(Number(_pd.deployed)) &&
+        Math.round(Number(_pd.deployed)) !== Math.round(Number(ecfg.availableCapital) || 0)) {
+      var _dep = Math.max(0, Math.round(Number(_pd.deployed)));
+      ecfg = Object.assign({}, ecfg, { availableCapital: _dep, investment: _dep, investedCapital: _dep });
+    }
+    if (typeof root.rettFlavorEngineCfg === 'function') {
+      try { ecfg = root.rettFlavorEngineCfg(ecfg); } catch (err) { /* */ }
+    }
+    var comp;
+    try { comp = root.unifiedTaxComparison(ecfg); } catch (err) { return null; }
+    if (!comp || !Array.isArray(comp.rows)) return null;
+    var v = Number(root.__rettHonestSuppBenefit(comp, funded, { chosen: e.type, cfg: e.cfg }));
+    return Number.isFinite(v) ? Math.max(0, v) : null;
+  }
+  root.__rettHonestSuppBenefitForEntry = _honestSuppBenefitForEntry;
+
   // Carryover-loss net-benefit credit (A/B/C). When the projection ends
   // with a residual short-term loss carryforward, the FIRST idle year
   // after deployment (when we'd otherwise show a blank temporary page)
