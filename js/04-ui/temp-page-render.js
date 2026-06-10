@@ -86,27 +86,25 @@
     var recap  = Math.max(0, Number(opts.recap) || 0);
     var status = _readVal('filing-status', 'mfj');
     var state  = _readVal('state-code', 'NONE');
-    // Apply the same 2%/yr inflation factor the engine uses in
-    // _baseScenarioForYear so synthetic trailing rows don't silently drift
-    // into a lower effective rate as brackets inflate but income stays flat.
-    var _year1 = parseInt(_readVal('year1', String(new Date().getFullYear())), 10) || new Date().getFullYear();
-    var _idx   = Math.max(0, year - _year1);
-    var _infl  = (typeof root.TAX_DATA !== 'undefined' && root.TAX_DATA && typeof root.TAX_DATA.inflationRate === 'number')
-                   ? root.TAX_DATA.inflationRate : 0.02;
-    var _inflF = Math.pow(1 + _infl, _idx);
-    var ord    = _recurringOrdinary() * _inflF;
+    // Income is held FLAT across the projection — only the brackets inflate
+    // 2%/yr (passed via `year` to the tax functions). We do NOT project the
+    // client's income upward: the engine's own rows keep income constant
+    // (so the effective rate drifts DOWN slightly as brackets widen), and
+    // the synthetic trailing rows must match. Inflating income here used to
+    // grow ordinary income, wages, SE income, and therefore Additional
+    // Medicare year-over-year — which is wrong, the threshold is statutory
+    // and income is frozen (advisor 2026-06-10).
+    var ord    = _recurringOrdinary();
     var stGain = Math.max(0, _readNum('short-term-gain'));
-    var wages  = Math.max(0, _readNum('w2-wages')) * _inflF;
-    var seInc  = _recurringSeIncome() * _inflF;
-    var qualDiv = _recurringQualDiv() * _inflF;
-    // Passive investment income (rental + dividend + interest)
-    // inflated alongside ord. stGain is asset-specific, not inflated
-    // (no recurring annual gain to grow). Qualified-div goes in
-    // separately for LTCG bracket routing AND NIIT base.
+    var wages  = Math.max(0, _readNum('w2-wages'));
+    var seInc  = _recurringSeIncome();
+    var qualDiv = _recurringQualDiv();
+    // NIIT base = recurring passive investment income (rental + dividend +
+    // interest) + ST gain + qualified dividends + any recapture. All flat.
     var nIIT_base = stGain + qualDiv
-                  + Math.max(0, _readNum('rental-income'))  * _inflF
-                  + Math.max(0, _readNum('dividend-income')) * _inflF
-                  + Math.max(0, _readNum('interest-income')) * _inflF
+                  + Math.max(0, _readNum('rental-income'))
+                  + Math.max(0, _readNum('dividend-income'))
+                  + Math.max(0, _readNum('interest-income'))
                   + recap;
     var fedB = (typeof root.computeFederalTaxBreakdown === 'function')
       ? root.computeFederalTaxBreakdown(ord, year, status, {
