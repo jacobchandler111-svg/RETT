@@ -3400,6 +3400,12 @@
           var ms = (typeof root.runMasterSolver === 'function')
             ? root.runMasterSolver(net, { forceDisabledSupps: e.cfg && e.cfg._forceDisabledSupps })
             : { totalSupplementalBenefit: 0 };
+          // Size on the FAST solver estimate — running the honest recompute
+          // (a full unifiedTaxComparison per size candidate) here cost ~1s/
+          // render. The estimate overstates each supp ~proportionally, so the
+          // size that maximizes the estimate is effectively the same as the
+          // one that maximizes the honest net; the honest value still governs
+          // the DISPLAY and the top-level funding / B≥C decision below.
           return net + (Number(ms.totalSupplementalBenefit) || 0);
         } catch (e) { root.__rettSkipSuppAutoSize = false; return -Infinity; }
       }
@@ -3939,8 +3945,17 @@
           ? root.__rettResidualCapForEntry(entry) : null;
         var s = root.runMasterSolver(entry.metrics.net || 0,
           (_c != null ? { postPrimaryTaxRemaining: _c } : undefined));
+        // Honest combined net for the top-level drop-one decision. Skip the
+        // (expensive) recompute when we're inside the auto-sizer's recursive
+        // pass (__rettSkipSuppAutoSize) — there the solver estimate is fine
+        // for ranking and the final top-level pass re-decides on honest.
+        var _sbC = Number(s.totalSupplementalBenefit) || 0;
+        if (!root.__rettSkipSuppAutoSize) {
+          var _hsbC = _honestSuppBenefitForEntry(entry, s);
+          if (_hsbC != null && Number.isFinite(_hsbC)) _sbC = _hsbC;
+        }
         return {
-          combined: (entry.metrics.net || 0) + (s.totalSupplementalBenefit || 0),
+          combined: (entry.metrics.net || 0) + _sbC,
           fundedRivals: (s.supplementals || []).filter(function (x) {
             return x.rivalry && x.rivalry.funded && x.investment > 0
               && x.rivalry.reason !== 'free-benefit';
@@ -4003,7 +4018,12 @@
               ? root.__rettResidualCapForEntry(rebuilt) : null;
             var ms = root.runMasterSolver(rebuilt.metrics.net || 0,
               { forceDisabledSupps: candDisabled, postPrimaryTaxRemaining: (_cAlt != null ? _cAlt : undefined) });
-            var combinedAlt = (rebuilt.metrics.net || 0) + (ms.totalSupplementalBenefit || 0);
+            var _sbA = Number(ms.totalSupplementalBenefit) || 0;
+            if (!root.__rettSkipSuppAutoSize) {
+              var _hsbA = _honestSuppBenefitForEntry(rebuilt, ms);
+              if (_hsbA != null && Number.isFinite(_hsbA)) _sbA = _hsbA;
+            }
+            var combinedAlt = (rebuilt.metrics.net || 0) + _sbA;
             if (combinedAlt > bestNet + 1 && (!winner || combinedAlt > winner.combined)) {
               winner = { dropId: dropId, combined: combinedAlt, rebuilt: rebuilt };
             }
