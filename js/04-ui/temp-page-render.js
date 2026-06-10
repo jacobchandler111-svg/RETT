@@ -353,7 +353,28 @@
     var setax  = Number(b.seTax)       || 0;
     var state  = Number(b.state)       || 0;
     var fedTotal = (b.federalIncomeTax != null) ? Number(b.federalIncomeTax) : (fedOrd + fedRcp + fedLt + amt);
-    var total = (b.total != null) ? Number(b.total) : (fedTotal + niit + addmed + setax + state);
+    // Sum of the component tax lines this function will render. The displayed
+    // recap contribution depends on whether the §1245/§1250 split is shown.
+    var _recapShown = (fedRcp1245 > 0 || fedRcp1250 > 0) ? (fedRcp1245 + fedRcp1250) : fedRcp;
+    var _componentSum = fedOrd + fedLt + _recapShown + amt + niit + addmed + setax + state;
+    // Bridge mode (Results column): the caller passes the CANONICAL post-
+    // strategy total (engine total net of all supplemental savings). Render a
+    // visible "Less: supplemental tax savings" row equal to the gap between
+    // the component lines and that total, so the column literally adds up —
+    // components − supplemental savings = Total tax — instead of a Total that
+    // silently disagrees with the lines above it (advisor 2026-06-10).
+    var _bridgeRow = '';
+    var total;
+    if (opts.bridgeTotal != null) {
+      total = Math.max(0, Number(opts.bridgeTotal) || 0);
+      var _less = Math.max(0, _componentSum - total);
+      if (_less > 0.5) {
+        _bridgeRow = '<tr class="temp-feeline-row"><td>Less: supplemental tax savings</td>' +
+          '<td class="temp-amt">&minus;' + _fmt(_less) + '</td></tr>';
+      }
+    } else {
+      total = (b.total != null) ? Number(b.total) : (fedTotal + niit + addmed + setax + state);
+    }
 
     // opts.forceRecap — show the recap lines even when $0 (Results column
     // uses this so the CPA sees the strategy drove recapture tax from $X
@@ -389,6 +410,7 @@
       if (!r[2] && amt2 === 0) return '';
       return '<tr><td>' + r[0] + '</td><td class="temp-amt">' + _fmt(amt2) + '</td></tr>';
     }).join('') +
+      _bridgeRow +
       '<tr class="temp-total-row"><td><strong>Total tax</strong></td><td class="temp-amt"><strong>' + _fmt(total) + '</strong></td></tr>';
   }
 
@@ -448,6 +470,74 @@
     return acc;
   }
 
+  // Recompute the post-strategy tax on the ACTUAL post-strategy income,
+  // exactly the way the engine computes every other row (same federal
+  // breakdown + state fold-in). The old Results column hand-synthesized the
+  // tax by subtracting per-supp savings line-by-line, which (a) never
+  // restacked the LT-gain brackets after the supps lowered ordinary income —
+  // so LT tax stayed at its full-income value — and (b) drove Total tax to a
+  // value that didn't match its own line items (advisor 2026-06-10: "Total
+  // tax 0 while ordinary + state ~ $32K"). Recomputing on the reduced income
+  // makes every line correct AND the total the sum of those lines by
+  // construction. Mirrors tax-comparison.js's fed/state call verbatim.
+  function _recomputePostStrategyTax(incomes, year, status, stateCode, struct) {
+    if (typeof root.computeFederalTaxBreakdown !== 'function') return null;
+    incomes = incomes || {}; struct = struct || {};
+    var ord    = Math.max(0, Number(incomes.ordinary)      || 0);
+    var lt     = Math.max(0, Number(incomes.longTermGain)  || 0);
+    var st     = Math.max(0, Number(incomes.shortTermGain) || 0);
+    var r1245  = Math.max(0, Number(incomes.recapture1245) || 0);
+    var r1250  = Math.max(0, Number(incomes.recapture1250) || 0);
+    var rcp    = (r1245 + r1250) > 0 ? (r1245 + r1250)
+                                     : Math.max(0, Number(incomes.recapture) || 0);
+    var qd  = Math.max(0, Number(struct.qualifiedDividend) || 0);
+    var w   = Math.max(0, Number(struct.wages)    || 0);
+    var se  = Math.max(0, Number(struct.seIncome) || 0);
+    var itm = Math.max(0, Number(struct.itemized) || 0);
+    var inv = lt + qd + st;  // NIIT base — engine's narrow default
+    var fed;
+    try {
+      fed = root.computeFederalTaxBreakdown(ord, year, status, {
+        longTermGain: lt, shortTermGain: st, qualifiedDividend: qd,
+        depreciationRecapture: rcp,
+        depreciationRecapture1245: r1245,
+        depreciationRecapture1250: r1250,
+        investmentIncome: inv, wages: w, seIncome: se, itemized: itm
+      }) || {};
+    } catch (e) { return null; }
+    var capLossOff = Math.max(0, Number(fed.lossOrdOffsetApplied) || 0);
+    var stateLT = Number.isFinite(Number(fed.netLongTermGain))  ? Number(fed.netLongTermGain)  : lt;
+    var stateST = Number.isFinite(Number(fed.netShortTermGain)) ? Number(fed.netShortTermGain) : st;
+    var stateTax = 0;
+    if (typeof root.computeStateTax === 'function') {
+      try {
+        stateTax = Number(root.computeStateTax(
+          (ord - capLossOff) + rcp + qd + stateLT + stateST,
+          year, stateCode, status,
+          { itemized: itm, longTermGain: stateLT, lossOrdOffsetApplied: capLossOff }
+        )) || 0;
+      } catch (e) { stateTax = 0; }
+    }
+    var _o = Number(fed.ordinaryTax) || 0;
+    var _r = Number(fed.recapTax)    || 0;
+    var _l = Number(fed.ltTax)       || 0;
+    var _a = Number(fed.amtTopUp)    || 0;
+    return {
+      ordinaryTax:  _o,
+      recapTax:     _r,
+      recapTax1245: Number(fed.recapTax1245) || 0,
+      recapTax1250: Number(fed.recapTax1250) || 0,
+      ltTax:        _l,
+      amt:          _a,
+      niit:         Number(fed.niit) || 0,
+      addlMedicare: Number(fed.addlMedicare) || 0,
+      seTax:        Number(fed.seTax) || 0,
+      state:        stateTax,
+      federalIncomeTax: _o + _r + _l + _a,
+      total:        (Number(fed.total) || 0) + stateTax
+    };
+  }
+
   function _renderResultsCell(withStrategy, baseline, suppTaxSaved, suppOffsetSplit, suppLineSavings, row) {
     if (!withStrategy) return '<div class="temp-baseline-empty">No result data.</div>';
     var _suppTaxSaved = Math.max(0, Math.round(Number(suppTaxSaved) || 0));
@@ -485,8 +575,9 @@
     var _bt1250 = Math.max(0, Number(row && row.recap1250OffsetApplied) || 0);
     var _btSt   = Math.max(0, Number(row && row.shortOffsetApplied)     || 0);
     var incomeRows = '';
+    var _incomes = null;
     if (baseline && baseline._incomes) {
-      var _incomes = baseline._incomes;
+      _incomes = baseline._incomes;
       if (_offTotal > 0 || _btLt > 0 || _btOrd > 0 || _bt1250 > 0 || _btSt > 0) {
         _incomes = Object.assign({}, _incomes, {
           ordinary:       Math.max(0, Number(_incomes.ordinary       || 0) - _offOrd  - _btOrd),
@@ -499,128 +590,52 @@
       }
       incomeRows = _renderIncomeRows(_incomes, 0);
     }
-    // Post-offset ordinary income — used below to recompute Add'l Medicare
-    // on the with-strategy basis. User model 2026-06-09: after every
-    // activity item (Brooklyn ST loss, supp IDC, §1211(b) cap) has
-    // reduced ordinary income, every tax line on the right column —
-    // INCLUDING Add'l Medicare — should be computed on what's LEFT.
-    // The IRS-literal view (Add'l Medicare on full W-2 box 5 wages
-    // regardless of deductions) is technically how the IRS measures it,
-    // but the engine displays the post-strategy taxpayer-facing view.
-    var _postOffsetOrd = (baseline && baseline._incomes)
-      ? Math.max(0, Number(baseline._incomes.ordinary || 0) - _offOrd - _btOrd)
-      : null;
-    // Tax-side reduction. Engine row's withStrategy holds the PRE-supp
-    // tax breakdown. To synthesize post-supp display, use the supp's
-    // ACTUAL per-line savings (fedOrdSaved / fed1245Saved / fed1250Saved /
-    // niitDelta / stateSaved / amtDelta) shipped from calc-oil-gas — these
-    // come from baseline_tax minus optimized_tax computed by the engine
-    // against a snap with reduced ord (and recap) income. So they reflect
-    // the REAL post-supp tax on each bucket, including bracket effects.
-    //
-    // Falls back to the older proportional-by-absorbed-$ allocation when
-    // line-savings aren't available (other supps, legacy shapes). The
-    // proportional path can over-attribute to ord when supp total exceeds
-    // engine's pre-supp ord tax — caught by the W2 $500K + OG $380K case
-    // (audit 2026-06-09): ord income $120K remained, expected ~$15K ord
-    // tax, prior code showed $0.
-    var _wsDisplay = Object.assign({}, withStrategy);
-    var _saveOrd = 0, _save1245 = 0, _save1250 = 0, _residualSave = 0;
-    var _ls = suppLineSavings;
-    var hasLineSavings = _ls && (_ls.fedOrd > 0 || _ls.fed1245 > 0 || _ls.fed1250 > 0 || _ls.niit > 0 || _ls.state > 0 || _ls.amt > 0);
-    if (hasLineSavings) {
-      var _ordTax    = Number(withStrategy.ordinaryTax)  || 0;
-      var _r1245Tax  = Number(withStrategy.recapTax1245) || 0;
-      var _r1250Tax  = Number(withStrategy.recapTax1250) || 0;
-      _saveOrd  = Math.min(_ordTax,   _ls.fedOrd);
-      _save1245 = Math.min(_r1245Tax, _ls.fed1245);
-      _save1250 = Math.min(_r1250Tax, _ls.fed1250);
-      _wsDisplay.ordinaryTax  = Math.max(0, _ordTax   - _saveOrd);
-      _wsDisplay.recapTax1245 = Math.max(0, _r1245Tax - _save1245);
-      _wsDisplay.recapTax1250 = Math.max(0, _r1250Tax - _save1250);
-      _wsDisplay.recapTax = Math.max(0, (Number(withStrategy.recapTax) || 0) - _save1245 - _save1250);
-      _wsDisplay.niit  = Math.max(0, (Number(withStrategy.niit)  || 0) - _ls.niit);
-      _wsDisplay.state = Math.max(0, (Number(withStrategy.state) || 0) - _ls.state);
-      _wsDisplay.amt   = Math.max(0, (Number(withStrategy.amt)   || 0) - _ls.amt);
-      // Residual = supp savings not captured by the per-line buckets
-      // above (numerical drift, rounding, addmed). Surfaces as a single
-      // residual row so the total still reconciles to the activity-column
-      // gross benefit.
-      var _accountedFor = _saveOrd + _save1245 + _save1250 + _ls.niit + _ls.state + _ls.amt + _ls.addmed;
-      _residualSave = Math.max(0, _suppTaxSaved - _accountedFor);
-      _wsDisplay.total = Math.max(0, (Number(withStrategy.total) || 0) - _suppTaxSaved);
-    } else if (_offTotal > 0 && _suppTaxSaved > 0) {
-      // Fallback: proportional by absorbed-$ share. Used when the supp
-      // doesn't ship per-line savings (e.g. Delphi, slot07 — not yet
-      // extended). Same as pre-2026-06-09 behavior.
-      var _ordTaxP   = Number(withStrategy.ordinaryTax)  || 0;
-      var _r1245TaxP = Number(withStrategy.recapTax1245) || 0;
-      var _r1250TaxP = Number(withStrategy.recapTax1250) || 0;
-      _saveOrd  = Math.min(_ordTaxP,   _suppTaxSaved * (_offOrd   / _offTotal));
-      _save1245 = Math.min(_r1245TaxP, _suppTaxSaved * (_off1245  / _offTotal));
-      _save1250 = Math.min(_r1250TaxP, _suppTaxSaved * (_off1250  / _offTotal));
-      _wsDisplay.ordinaryTax  = Math.max(0, _ordTaxP   - _saveOrd);
-      _wsDisplay.recapTax1245 = Math.max(0, _r1245TaxP - _save1245);
-      _wsDisplay.recapTax1250 = Math.max(0, _r1250TaxP - _save1250);
-      _wsDisplay.recapTax = Math.max(0, (Number(withStrategy.recapTax) || 0) - _save1245 - _save1250);
-      _residualSave = Math.max(0, _suppTaxSaved - _saveOrd - _save1245 - _save1250);
-      _wsDisplay.total = Math.max(0, (Number(withStrategy.total) || 0) - _suppTaxSaved);
-    } else if (_suppTaxSaved > 0) {
-      _residualSave = _suppTaxSaved;
-      _wsDisplay.total = Math.max(0, (Number(withStrategy.total) || 0) - _suppTaxSaved);
+    // Recompute the post-strategy tax on the post-strategy income (_incomes)
+    // the SAME way the engine computes every other row, so the tax lines
+    // actually correspond to the income shown and the Total is their honest
+    // sum. The structural (strategy-invariant) inputs — wages, SE income,
+    // qualified dividends, itemized — come from the live inputs; the
+    // reducible income comes from _incomes. Falls back to the raw engine
+    // row only if the calc functions or income aren't available.
+    var _struct = {};
+    var _status = 'mfj', _stateCode = (typeof row !== 'undefined' && row && row.stateCode) || 'NONE';
+    if (typeof root.collectInputs === 'function') {
+      try {
+        var _ci = root.collectInputs() || {};
+        _status    = _ci.filingStatus || 'mfj';
+        _stateCode = _ci.state || _ci.stateCode || _stateCode;
+        _struct = {
+          qualifiedDividend: _ci.qualifiedDividend,
+          wages:             _ci.wages,
+          seIncome:          _ci.seIncome,
+          itemized:          _ci.itemizedDeductions || _ci.itemized
+        };
+      } catch (e) { /* keep defaults */ }
     }
-    // Override Add'l Medicare on the post-strategy basis. After Brooklyn
-    // §1211(b) and supp IDC offsets have reduced ordinary income, the
-    // remaining ordinary income is what the right column shows above —
-    // every tax line below should reflect THAT remaining base. The IRS-
-    // literal Form-8959 rule (Add'l Medicare on full W-2 box 5 regardless
-    // of below-the-line deductions) is technically right but contradicts
-    // the user-facing model where all activity items reduce the taxable
-    // base uniformly. User feedback 2026-06-09: re-compute on what's left.
-    if (_postOffsetOrd != null && (_offOrd > 0 || _btOrd > 0)) {
-      var _fs = (typeof _readVal === 'function')
-        ? _readVal('filing-status', 'mfj') : 'mfj';
-      var _addmedThreshold = (_fs === 'married_separate') ? 125000
-                           : (_fs === 'married_joint')    ? 250000
-                           : 200000;
-      var _newAddmed = Math.max(0, _postOffsetOrd - _addmedThreshold) * 0.009;
-      var _origAddmed = Number(withStrategy && withStrategy.addlMedicare) || 0;
-      var _addmedSavings = Math.max(0, _origAddmed - _newAddmed);
-      _wsDisplay.addlMedicare = _newAddmed;
-      // Drop the additional savings out of total tax so the bottom-line
-      // matches what every visible line item adds up to.
-      _wsDisplay.total = Math.max(0, (Number(_wsDisplay.total) || 0) - _addmedSavings);
+    var _year = Number(row && row.year) || 0;
+    if (!_year && typeof root.collectInputs === 'function') {
+      try { _year = Number((root.collectInputs() || {}).year1) || 0; } catch (e) {}
     }
+    var _recomp = _incomes ? _recomputePostStrategyTax(_incomes, _year, _status, _stateCode, _struct) : null;
+    var _wsDisplay = _recomp || Object.assign({}, withStrategy);
     // Force the recap line to show when the baseline had recapture tax,
     // so the CPA sees it drop to $0 (or whatever residual) under the
     // strategy rather than the row silently disappearing.
     var baselineHadRecap = baseline && Number(baseline.recapTax) > 0;
     var taxRows = _renderTaxRows(_wsDisplay, { forceRecap: baselineHadRecap });
-    // Residual supplemental savings row — covers NIIT / state / AMT
-    // delta that didn't fit into the ord/recap line-item allocation.
-    // Hide when the displayed total tax is already $0 (residual carries
-    // no additional info; activity column's "Gross benefit (tax saved)"
-    // already accounts for it). User feedback 2026-06-09: "Total tax 0
-    // then Less: $X" looks wonky and isn't actionable.
     var suppSavedRow = '';
-    var _displayedTotal = Number(_wsDisplay.total) || 0;
-    if (_residualSave > 0.5 && _displayedTotal > 0.5) {
-      suppSavedRow = '<tr class="temp-feeline-row"><td>Less: Supplemental tax savings (NIIT / state)</td>' +
-        '<td class="temp-amt">&minus;' + _fmt(_residualSave) + '</td></tr>';
-    }
     // No "Net tax after supplementals" row needed — the synthesized
     // _wsDisplay.total in the Total row above already reflects post-supp
     // tax (per-line reductions handled the bulk; residual row above
     // explains any remainder).
     var netTaxRow = '';
     var savedRow = '';
-    if (baseline && baseline.total != null && withStrategy.total != null) {
-      // Saved = baseline total - (engine withStrategy.total - supp savings).
-      // Engine withStrategy.total reflects only Brooklyn; supp savings is
-      // additive. With the synthesized _wsDisplay.total already reflecting
-      // both, this saved value matches the activity column's "Gross
-      // benefit (tax saved)" line.
-      var saved = Number(baseline.total) - Number(withStrategy.total) + _suppTaxSaved;
+    if (baseline && baseline.total != null && _wsDisplay && _wsDisplay.total != null) {
+      // Saved = baseline total − recomputed post-strategy total. Both sides
+      // are computed the same way (engine federal breakdown + state fold-in)
+      // so this is an apples-to-apples year tax delta that ties to the lines
+      // shown above it (baseline − results = saved).
+      var saved = Number(baseline.total) - Number(_wsDisplay.total);
       if (Math.abs(saved) > 0.5) {
         var cls = saved >= 0 ? 'temp-result-saved-row' : 'temp-result-saved-row temp-result-saved-neg';
         var label = saved >= 0 ? 'Tax saved vs baseline' : 'Tax increase vs baseline';
