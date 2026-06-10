@@ -411,34 +411,62 @@
     var dpd = Math.max(0, _num(deductionPerDollar));
     var n   = Math.max(1, _strategyYearCount(cfg));
     var baseOrd = Math.max(0, _num(cfg.baseOrdinaryIncome));
-    var recap   = Math.max(0, _num(cfg.depreciationRecapture ||
-                                   cfg.acceleratedDepreciation || cfg.recap || 0));
+    // §1245 (ordinary-rate) vs §1250 (unrecaptured, capped at 25% federal)
+    // recapture. The deduction waterfalls ordinary -> §1245 -> §1250 the SAME
+    // way Oil & Gas's _computeYearImpact does, so the temp-page Results column
+    // and the honest-benefit recompute reduce the right income buckets (the
+    // prior lumped `absorbed` left depreciation recapture showing full even
+    // when the supp had absorbed it — advisor 2026-06-10). Recapture is a
+    // Year-0-only event (§453(i)); out-years see ordinary income only.
+    var recap1245 = Math.max(0, _num(cfg.depreciationRecapture1245 || cfg.acceleratedDepreciation1245 || 0));
+    var recap1250 = Math.max(0, _num(cfg.depreciationRecapture1250 || cfg.acceleratedDepreciation1250 || 0));
+    if ((recap1245 + recap1250) === 0) {
+      // Only a lump total provided -> treat as §1250 (real-estate default).
+      recap1250 = Math.max(0, _num(cfg.depreciationRecapture || cfg.acceleratedDepreciation || cfg.recap || 0));
+    }
+    // Per-dollar tax saved by bucket: ordinary + §1245 at the ordinary
+    // marginal; §1250 federal is capped at 25% (plus state, which taxes it as
+    // ordinary). These feed the master-solver ESTIMATE; the honest recompute
+    // (authoritative for display + reconciliation) re-derives the exact tax.
+    var fedOrdM = _fedMarginalAt(cfg, baseOrd);
+    var stateM  = _stateMarginalAt(cfg, baseOrd);
+    var ordM    = fedOrdM + stateM;
+    var rate1250 = Math.min(fedOrdM, 0.25) + stateM;
     var perYear = [];
     var remainingInv = inv;
     for (var y = 0; y < n; y++) {
-      var withRecap = (y === 0);
-      // Residual pool = this year's full ordinary pool LESS what the
-      // higher-priority funded supps already claim that year, so the
-      // deduction lands where there's actually room (out-years when Year 0
-      // is contested). The master solver re-rations the realized benefit.
-      var fullPool  = Math.max(0, baseOrd + (withRecap ? recap : 0));
-      var pool      = Math.max(0, fullPool - _higherPriorityOrdClaimForYear(y, selfId));
-      var marginal  = _fedMarginalAt(cfg, baseOrd + (withRecap ? recap : 0)) +
-                      _stateMarginalAt(cfg, baseOrd + (withRecap ? recap : 0));
-      // Investment this year is capped so its deduction doesn't exceed
-      // the year's pool (no point creating wasted NOL when a later year
-      // can absorb it). Y0 takes first because its marginal is highest.
+      var withRecap  = (y === 0);
+      var yRecap1245 = withRecap ? recap1245 : 0;
+      var yRecap1250 = withRecap ? recap1250 : 0;
+      // Residual pool = this year's full ordinary+recap pool LESS what the
+      // higher-priority funded supps already claim that year (they consume
+      // ordinary first, then §1245, then §1250), so the deduction lands where
+      // there's actually room. The master solver re-rations realized benefit.
+      var claim     = _higherPriorityOrdClaimForYear(y, selfId);
+      var residOrd  = Math.max(0, baseOrd - claim);
+      var claimRec  = Math.max(0, claim - baseOrd);
+      var resid1245 = Math.max(0, yRecap1245 - Math.min(claimRec, yRecap1245));
+      var resid1250 = Math.max(0, yRecap1250 - Math.max(0, claimRec - yRecap1245));
+      var pool      = residOrd + resid1245 + resid1250;
       var maxInvThisYear = dpd > 0 ? (pool / dpd) : 0;
       var invY      = Math.min(remainingInv, maxInvThisYear);
       var dedY      = invY * dpd;
       var absorbedY = Math.min(dedY, pool);
+      // Split absorbed deduction ordinary -> §1245 -> §1250.
+      var absOrd  = Math.min(absorbedY, residOrd);
+      var absRem  = absorbedY - absOrd;
+      var abs1245 = Math.min(absRem, resid1245);
+      var abs1250 = Math.min(absRem - abs1245, resid1250);
       perYear.push({
         investment:   invY,
         deduction:    dedY,
         absorbed:     absorbedY,
+        absorbedOrd:  absOrd,
+        absorbed1245: abs1245,
+        absorbed1250: abs1250,
         nolGenerated: Math.max(0, dedY - absorbedY),  // ~0 by construction
-        totalSaved:   absorbedY * marginal,
-        marginal:     marginal,
+        totalSaved:   absOrd * ordM + abs1245 * ordM + abs1250 * rate1250,
+        marginal:     ordM,
         includeRecap: withRecap,
         pool:         pool
       });
