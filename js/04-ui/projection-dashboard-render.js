@@ -3327,11 +3327,16 @@
       // more than its share of the sale. Free-benefit supps (PTET, Augusta)
       // have no investment knob and aren't swept/capped here.
       var _saleForCap = Math.max(0, Number(currentCfg.salePrice) || 0);
+      // Per-supp auto-size ceiling as a fraction of the sale price. Oil & Gas
+      // and the equipment-type direct-investment supps cap at 10% of the sale
+      // (advisor 2026-06-10 — no single supp should soak up more than a tenth
+      // of the proceeds); Delphi, a fund-style placement, stays at 50%. The
+      // advisor can still override any amount up to this ceiling.
       var SIZABLE = [
-        { id: 'oilGas', spec: (root.__rettSupplemental      || {}).oilGas, knob: 'maxInvestment',    minInc: 50000,  capPct: 0.20 },
+        { id: 'oilGas', spec: (root.__rettSupplemental      || {}).oilGas, knob: 'maxInvestment',    minInc: 50000,  capPct: 0.10 },
         { id: 'delphi', spec: (root.__rettSupplemental      || {}).delphi, knob: 'investment',       minInc: 100000, capPct: 0.50 },
-        { id: 'slot07', spec: (root.__rettSupplementalExtra || {}).slot07, knob: 'investmentAmount', minInc: 50000,  capPct: 0.20 },
-        { id: 'slot12', spec: (root.__rettSupplementalExtra || {}).slot12, knob: 'equipmentCost',    minInc: 50000,  capPct: 0.20 }
+        { id: 'slot07', spec: (root.__rettSupplementalExtra || {}).slot07, knob: 'investmentAmount', minInc: 50000,  capPct: 0.10 },
+        { id: 'slot12', spec: (root.__rettSupplementalExtra || {}).slot12, knob: 'equipmentCost',    minInc: 50000,  capPct: 0.10 }
       ];
       function _measureCombinedAt(_cfgIgnored) {
         // Measure the FULL post-pipeline combined net (after Brooklyn
