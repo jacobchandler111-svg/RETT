@@ -392,10 +392,10 @@
     if (!comp || !Array.isArray(comp.rows) || !comp.rows.length) return '';
 
     // Total cash inflow over the horizon: sale price (one-time, hits Y1)
-    // plus ordinary income for each year, inflated 2%/yr to mirror the
-    // tax engine's bracket projection. Same denominator drives both
-    // pies, so the green "Kept" slice difference reads as pure planning
-    // value.
+    // plus ordinary income for each year. Income is held FLAT — we do NOT
+    // project it upward (only the tax brackets inflate); the same denominator
+    // drives both pies, so the green "Kept" slice difference reads as pure
+    // planning value (advisor 2026-06-10: income is frozen across the horizon).
     var cfg = (result && result.config) || {};
     var salePrice = cfg.salePrice || (
       (typeof window.__rettSumPropertyField === 'function')
@@ -403,12 +403,7 @@
         : (parseUSD((document.getElementById('sale-price') || {}).value) || 0)
     );
     var baseOrd = cfg.baseOrdinaryIncome || 0;
-    var inflRate = (window.TAX_DATA && typeof window.TAX_DATA.inflationRate === 'number')
-      ? window.TAX_DATA.inflationRate : 0.02;
-    var totalOrd = 0;
-    for (var i = 0; i < years.length; i++) {
-      totalOrd += baseOrd * Math.pow(1 + inflRate, i);
-    }
+    var totalOrd = baseOrd * years.length;
     var totalInflow = salePrice + totalOrd;
     if (totalInflow <= 0) return '';
 
