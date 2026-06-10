@@ -538,7 +538,7 @@
     };
   }
 
-  function _renderResultsCell(withStrategy, baseline, suppTaxSaved, suppOffsetSplit, suppLineSavings, row) {
+  function _renderResultsCell(withStrategy, baseline, suppTaxSaved, suppOffsetSplit, suppLineSavings, row, lowerBracketBenefit) {
     if (!withStrategy) return '<div class="temp-baseline-empty">No result data.</div>';
     var _suppTaxSaved = Math.max(0, Math.round(Number(suppTaxSaved) || 0));
     // suppOffsetSplit shape: { ord, r1245, r1250, total } (post-2026-06-08).
@@ -634,8 +634,14 @@
       // Saved = baseline total − recomputed post-strategy total. Both sides
       // are computed the same way (engine federal breakdown + state fold-in)
       // so this is an apples-to-apples year tax delta that ties to the lines
-      // shown above it (baseline − results = saved).
-      var saved = Number(baseline.total) - Number(_wsDisplay.total);
+      // shown above it (baseline − results = saved). PLUS the deferral /
+      // lower-tax-bracket benefit (allocated to Y0 by the render loop): the
+      // value of recognizing the gain in a later year is a real saving that
+      // the matched-timing baseline can't see on any single year, so it's
+      // folded into Y0's tax-saved here. This makes Σ (per-year tax saved)
+      // across the cards equal the bottom panel's "total tax saved" — the
+      // advisor's reconciliation model (advisor 2026-06-10).
+      var saved = Number(baseline.total) - Number(_wsDisplay.total) + (Number(lowerBracketBenefit) || 0);
       if (Math.abs(saved) > 0.5) {
         var cls = saved >= 0 ? 'temp-result-saved-row' : 'temp-result-saved-row temp-result-saved-neg';
         var label = saved >= 0 ? 'Tax saved vs baseline' : 'Tax increase vs baseline';
@@ -1032,35 +1038,23 @@
     // splitting it across years for LTCG-bracket arbitrage).
     if (lbb !== 0) rows.push(['Gain from lower tax bracket (deferred recognition)', _fmt(lbb)]);
 
-    var grossRow = (grossBenefit !== 0)
-      ? '<tr class="temp-gross-row"><td>Gross benefit (tax saved)</td><td class="temp-amt">' + _fmt(grossBenefit) + '</td></tr>'
-      : '';
-
-    // Fee lines AFTER the gross row. Order: supp mgmt fee → Asset
-    // Manager fee → Brookhaven fee → net-this-year. Supp mgmt fee
-    // moved here per advisor: gross is gross before any fees.
-    var feeRows = '';
-    if (suppMgmtFee > 0) {
-      feeRows += '<tr class="temp-feeline-row"><td>Less: Supplemental management fee</td><td class="temp-amt">&minus;' + _fmt(suppMgmtFee) + '</td></tr>';
-    }
-    if (amFeeYear > 0) {
-      feeRows += '<tr class="temp-feeline-row"><td>Less: Asset Manager fee</td><td class="temp-amt">&minus;' + _fmt(amFeeYear) + '</td></tr>';
-    }
-    if (bhFeeYear > 0) {
-      feeRows += '<tr class="temp-feeline-row"><td>Less: Brookhaven fee</td><td class="temp-amt">&minus;' + _fmt(bhFeeYear) + '</td></tr>';
-    }
-    var netForYearRow = (suppMgmtFee > 0 || amFeeYear > 0 || bhFeeYear > 0)
-      ? '<tr class="temp-netyear-row"><td><strong>Net benefit this year</strong></td><td class="temp-amt"><strong>' + _fmt(netForYear) + '</strong></td></tr>'
-      : '';
+    // Per-year GROSS BENEFIT / fee / net-this-year rows intentionally
+    // removed (advisor 2026-06-10). The activity column now shows only WHAT
+    // HAPPENED that year (Brooklyn loss, supplemental offsets, deferral gain);
+    // the dollar the CPA cares about per year is "Tax saved vs baseline" in
+    // the Results column, and ALL fees + the net reconciliation live once at
+    // the bottom (Σ yearly tax saved − Asset Manager fee − Brookhaven fee =
+    // net). Showing a per-year "gross benefit" that didn't match the Results
+    // tax-saved (it carried the deferral benefit, fees, etc.) was the source
+    // of the "that math doesn't make sense" confusion. _suppDisplayCapped /
+    // grossBenefit / netForYear are still computed above for the year-card
+    // relevance gate but no longer rendered here.
 
     return '<table class="temp-activity-table"><tbody>' +
       rows.map(function (r) {
         var cls = r[2] ? (' class="' + r[2] + '"') : '';
         return '<tr' + cls + '><td>' + r[0] + '</td><td class="temp-amt">' + r[1] + '</td></tr>';
       }).join('') +
-      grossRow +
-      feeRows +
-      netForYearRow +
       '</tbody></table>';
   }
 
@@ -1285,16 +1279,17 @@
 
     return '' +
       '<div class="temp-fees-panel">' +
-        '<div class="temp-fees-head">Fees &amp; Net Benefit Reconciliation</div>' +
+        '<div class="temp-fees-head">Total Tax Saved &rarr; Net Benefit</div>' +
         '<table class="temp-fees-table"><tbody>' +
+          '<tr class="temp-fees-foot"><td colspan="2" class="temp-fees-foot"><em>Sum of each year’s &ldquo;tax saved vs baseline&rdquo; above:</em></td></tr>' +
           brooklynRows +
           '<tr><td>Supplemental tax savings (vetted total)</td><td class="temp-amt">' + _fmt(suppBenefit) + '</td></tr>' +
           carryoverRow +
-          '<tr class="temp-fees-subtotal"><td><strong>Total gross benefit</strong></td><td class="temp-amt temp-fees-gross"><strong>' + _fmt(totalGross) + '</strong></td></tr>' +
-          '<tr><td>Asset Manager fees (across all years)</td><td class="temp-amt">&minus;' + _fmt(brooklynFees) + '</td></tr>' +
-          '<tr><td>Brookhaven fees (across all years)</td><td class="temp-amt">&minus;' + _fmt(brookhavenFees) + '</td></tr>' +
+          '<tr class="temp-fees-subtotal"><td><strong>Total tax saved (vs doing nothing)</strong></td><td class="temp-amt temp-fees-gross"><strong>' + _fmt(totalGross) + '</strong></td></tr>' +
+          '<tr><td>Less: Asset Manager fee (across all years)</td><td class="temp-amt">&minus;' + _fmt(brooklynFees) + '</td></tr>' +
+          '<tr><td>Less: Brookhaven fee (across all years)</td><td class="temp-amt">&minus;' + _fmt(brookhavenFees) + '</td></tr>' +
           addlFundsTaxRow +
-          '<tr class="temp-fees-total"><td><strong>Net benefit (gross − fees)</strong></td><td class="temp-amt"><strong>' + _fmt(net) + '</strong></td></tr>' +
+          '<tr class="temp-fees-total"><td><strong>Net benefit (tax saved − fees)</strong></td><td class="temp-amt"><strong>' + _fmt(net) + '</strong></td></tr>' +
           '<tr class="temp-fees-check' + (checkOk ? ' is-ok' : ' is-mismatch') + '"><td>Strategy Summary net benefit ' + (checkOk ? '✓ matches' : '⚠ mismatch') + '</td><td class="temp-amt">' + _fmt(ssDisplayedNet) + '</td></tr>' +
         '</tbody></table>' +
       '</div>';
@@ -1417,7 +1412,8 @@
             _suppSavedCapped,
             _computeSuppOrdOffsetForYear(i, fundedSupps),
             _computeSuppLineSavings(i, fundedSupps),
-            row
+            row,
+            lowerBracketBenefit
           ) +
         '</div>' +
         _renderWithdrawalCell(row, year, cfg) +
