@@ -406,6 +406,25 @@
   // allocation, which over-attributed savings to ordinary tax when supp
   // total exceeded the engine's pre-supp ord tax line (zeroing it out
   // even when meaningful ordinary income remained).
+  // Per-year saturation scale for a funded supp — the SINGLE source of
+  // truth shared by every per-supp reconstruction on this page (activity
+  // column, results-column ord offset, results-column per-line tax savings,
+  // and the gross/net path). When the funded supps' combined Y0 ordinary
+  // deduction exceeds the available Y0 ordinary pool, the master-solver
+  // clips each supp's realized benefit; Y0 may be scaled down while Y1+
+  // passes through unchanged (each future year has its own pool). Every
+  // column MUST apply the same scale or the year card contradicts itself —
+  // e.g. the activity column showing a clipped offset while the results
+  // column reduces income by the unclipped amount (advisor 2026-06-10).
+  function _suppSatScale(s, displayedI) {
+    var y0 = Number.isFinite(Number(s.y0SaturationScale))
+      ? Number(s.y0SaturationScale)
+      : (Number.isFinite(Number(s.saturationScale)) ? Number(s.saturationScale) : 1);
+    var y1 = Number.isFinite(Number(s.y1PlusSaturationScale))
+      ? Number(s.y1PlusSaturationScale) : 1;
+    return (displayedI === 0) ? y0 : y1;
+  }
+
   function _computeSuppLineSavings(displayedI, fundedSupps) {
     var acc = { fedOrd: 0, fed1245: 0, fed1250: 0, fedLt: 0, amt: 0, niit: 0, addmed: 0, state: 0 };
     if (!Array.isArray(fundedSupps)) return acc;
@@ -417,13 +436,14 @@
       var perYear = Array.isArray(last.perYear) ? last.perYear : null;
       var py = (perYear && perYear[displayedI]) ? perYear[displayedI] : null;
       if (!py) return;
-      acc.fedOrd  += Math.max(0, Number(py.fedOrdSaved)  || 0);
-      acc.fed1245 += Math.max(0, Number(py.fed1245Saved) || 0);
-      acc.fed1250 += Math.max(0, Number(py.fed1250Saved) || 0);
-      acc.niit    += Math.max(0, Number(py.niitDelta)    || 0);
-      acc.addmed  += Math.max(0, Number(py.addmedDelta)  || 0);
-      acc.state   += Math.max(0, Number(py.stateSaved)   || 0);
-      acc.amt     += Math.max(0, Number(py.amtDelta)     || 0);
+      var sc = _suppSatScale(s, displayedI);
+      acc.fedOrd  += Math.max(0, Number(py.fedOrdSaved)  || 0) * sc;
+      acc.fed1245 += Math.max(0, Number(py.fed1245Saved) || 0) * sc;
+      acc.fed1250 += Math.max(0, Number(py.fed1250Saved) || 0) * sc;
+      acc.niit    += Math.max(0, Number(py.niitDelta)    || 0) * sc;
+      acc.addmed  += Math.max(0, Number(py.addmedDelta)  || 0) * sc;
+      acc.state   += Math.max(0, Number(py.stateSaved)   || 0) * sc;
+      acc.amt     += Math.max(0, Number(py.amtDelta)     || 0) * sc;
     });
     return acc;
   }
@@ -695,23 +715,15 @@
         var last      = (extraSpec && extraSpec.lastResult)
                      || (coreSpec  && coreSpec.lastResult) || null;
         if (!last) return;
-        // Per-year saturation scale — MUST mirror _computeSuppSavingsForYear
-        // so the itemized per-supp lines reflect the SAME post-competition
-        // allocation that the gross/net path and the Strategy Summary show.
-        // Without this, a supp's ordinary offset / "other tax savings" stayed
-        // frozen at its STANDALONE demand when a rival supp was added to the
-        // same Y0 ordinary pool — e.g. Oil & Gas offset didn't shrink and
-        // PTET printed its uncompeted net instead of realizedNetBenefit
-        // (advisor 2026-06-10). Y0 may be clipped by the shared ordinary
-        // pool; Y1+ passes through unchanged (each future year has its own
-        // pool). Falls back to the legacy single saturationScale when the
-        // per-year split fields aren't present.
-        var _y0Scale = Number.isFinite(Number(s.y0SaturationScale))
-          ? Number(s.y0SaturationScale)
-          : (Number.isFinite(Number(s.saturationScale)) ? Number(s.saturationScale) : 1);
-        var _y1Scale = Number.isFinite(Number(s.y1PlusSaturationScale))
-          ? Number(s.y1PlusSaturationScale) : 1;
-        var _satScale = (displayedI === 0) ? _y0Scale : _y1Scale;
+        // Per-year saturation scale — shared with _computeSuppSavingsForYear,
+        // _computeSuppOrdOffsetForYear and _computeSuppLineSavings via the
+        // _suppSatScale helper so every column of the year card reflects the
+        // SAME post-competition allocation. Without it, a supp's ordinary
+        // offset / "other tax savings" stayed frozen at its STANDALONE demand
+        // when a rival supp was added to the same Y0 ordinary pool — e.g. Oil
+        // & Gas offset didn't shrink and PTET printed its uncompeted net
+        // (advisor 2026-06-10).
+        var _satScale = _suppSatScale(s, displayedI);
         // Track whether THIS supp contributed to ord/LT/ST in this
         // year. If it didn't but it has netBenefit > 0 (e.g. PTET, which
         // shifts state tax to federal deduction without offsetting
@@ -1083,16 +1095,9 @@
       if (!last) return;
       // Per-year saturation scale (audit R2 #5): Y0 may be clipped by the
       // shared ord pool; Y1+ passes through unchanged because each future
-      // year has its own pool. Master-solver now exposes y0SaturationScale
-      // + y1PlusSaturationScale separately. Fall back to legacy single
-      // saturationScale when the new fields aren't present.
-      var _y0Scale  = Number.isFinite(Number(s.y0SaturationScale))
-        ? Number(s.y0SaturationScale)
-        : Number.isFinite(Number(s.saturationScale)) ? Number(s.saturationScale) : 1;
-      var _y1Scale  = Number.isFinite(Number(s.y1PlusSaturationScale))
-        ? Number(s.y1PlusSaturationScale)
-        : 1;
-      var satScale = (displayedI === 0) ? _y0Scale : _y1Scale;
+      // year has its own pool. Shared with the other per-supp reconstructions
+      // via _suppSatScale so the columns can't disagree.
+      var satScale = _suppSatScale(s, displayedI);
       var detail = last.detail || {};
       var perYear = Array.isArray(last.perYear) ? last.perYear : null;
       // Multi-year (Oil & Gas style): perYear[i].totalSaved already
@@ -1301,6 +1306,11 @@
       var last      = (extraSpec && extraSpec.lastResult)
                    || (coreSpec  && coreSpec.lastResult) || null;
       if (!last) return;
+      // Same per-year saturation scale the activity column and gross/net
+      // path apply — without it the results column reduces ordinary income
+      // by the UNCLIPPED offset while the activity column shows the clipped
+      // one, so the two halves of the year card disagree (advisor 2026-06-10).
+      var sc = _suppSatScale(s, displayedI);
       var perYear = Array.isArray(last.perYear) ? last.perYear : null;
       if (perYear && perYear[displayedI]) {
         var py = perYear[displayedI];
@@ -1309,12 +1319,12 @@
         // attribute that fully to ordinary (they don't reach recap today).
         var hasSplit = (py.absorbedOrd != null) || (py.absorbed1245 != null) || (py.absorbed1250 != null);
         if (hasSplit) {
-          acc.ord   += Math.max(0, Number(py.absorbedOrd)   || 0);
-          acc.r1245 += Math.max(0, Number(py.absorbed1245)  || 0);
-          acc.r1250 += Math.max(0, Number(py.absorbed1250)  || 0);
+          acc.ord   += Math.max(0, Number(py.absorbedOrd)   || 0) * sc;
+          acc.r1245 += Math.max(0, Number(py.absorbed1245)  || 0) * sc;
+          acc.r1250 += Math.max(0, Number(py.absorbed1250)  || 0) * sc;
         } else {
           var c = (py.absorbed != null) ? Number(py.absorbed) : Number(py.deduction || 0);
-          if (c > 0) acc.ord += c;
+          if (c > 0) acc.ord += c * sc;
         }
         return;
       }
@@ -1322,9 +1332,9 @@
       if (detail.ordOffsetY0 != null || detail.ordOffsetRestPerYear != null) {
         var yc = Number(detail.yearCount || 1);
         if (displayedI < yc) {
-          acc.ord += (displayedI === 0)
+          acc.ord += ((displayedI === 0)
             ? Math.max(0, Number(detail.ordOffsetY0 || 0))
-            : Math.max(0, Number(detail.ordOffsetRestPerYear || 0));
+            : Math.max(0, Number(detail.ordOffsetRestPerYear || 0))) * sc;
         }
         return;
       }
@@ -1343,7 +1353,7 @@
         || detail.expense
         || 0
       ) || 0;
-      if (ordKey > 0) acc.ord += ordKey;
+      if (ordKey > 0) acc.ord += ordKey * sc;
     });
     acc.total = acc.ord + acc.r1245 + acc.r1250;
     return acc;
