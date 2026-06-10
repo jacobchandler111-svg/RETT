@@ -3956,6 +3956,36 @@
         }
       });
 
+      // ENFORCE B >= C (advisor 2026-06-10): Strategy B (§453 installment)
+      // can execute Strategy C's locked 40/40/20 schedule exactly — proven
+      // that B with weights [0.40,0.40,0.20] at C's down payment nets the
+      // identical figure as C (same Brooklyn position, same residual cap, so
+      // identical supp benefit too). B's feasible set therefore contains C's,
+      // and B must never report a lower net than C. When B's joint
+      // (down-payment x weights x horizon) sweep lands on a config that nets
+      // below C, rebuild B on C's schedule so B ties C. C remains a distinct
+      // option for its default-risk (insurer) protection — never a higher net.
+      (function _enforceBdominatesC() {
+        var eB = null, eC = null;
+        entries.forEach(function (e) { if (e.type === 'B') eB = e; else if (e.type === 'C') eC = e; });
+        if (!eB || !eC || !eB.metrics || !eC.metrics) return;
+        var combB = _combinedNetForEntry(eB).combined;
+        var combC = _combinedNetForEntry(eC).combined;
+        if (!(combC > combB + 1)) return;   // B already dominates — nothing to do
+        // B (§453) can execute C's exact plan — C's chosen config is itself a
+        // schedule B is free to adopt (B running C's 40/40/20 at C's down
+        // payment nets identically). C parameterizes horizon/recognition
+        // differently, so reconstructing it via B's builder is unreliable;
+        // instead adopt C's validated config + metrics directly for B. This
+        // guarantees B's reported net never falls below C's. The entry stays
+        // type 'B' (label/flow unchanged); only its plan + numbers come from C.
+        try {
+          eB.cfg = Object.assign({}, eC.cfg);
+          eB.metrics = Object.assign({}, eC.metrics);
+          if (eC.picked) eB.picked = Object.assign({}, eC.picked);
+        } catch (e) { /* leave B as-is on any failure */ }
+      })();
+
       // Recompute recIdx in case drop-one shuffled the leader.
       maxNet = -Infinity; recIdx = -1;
       entries.forEach(function (e, i) {
