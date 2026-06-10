@@ -1647,5 +1647,78 @@
     host.innerHTML = html + _renderExcessLossPanel(ctx) + _renderFeesPanel(ctx);
   }
 
+  // ── Honest supplemental benefit ───────────────────────────────────────
+  // The master solver estimates each supp's benefit at its OWN standalone
+  // marginal rate, so stacking several overstates the combined supplemental
+  // contribution (the real saved tax is lower once income drops into lower
+  // brackets). This helper measures the TRUE supplemental benefit for a
+  // given strategy's engine output: for each year, recompute the tax with
+  // only Brooklyn's offsets, then again with Brooklyn + the (saturated)
+  // supplemental offsets, and sum the difference. Both sides use the SAME
+  // recompute path so any recompute-vs-engine drift cancels and we isolate
+  // the pure supplemental delta. Returns a whole-dollar number (advisor
+  // 2026-06-10 — make the honest, recomputed number authoritative).
+  function _honestSuppBenefitForComp(comp, fundedSupps, opts) {
+    if (!comp || !Array.isArray(comp.rows)) return 0;
+    if (!Array.isArray(fundedSupps) || !fundedSupps.length) return 0;
+    if (typeof _recomputePostStrategyTax !== 'function') return 0;
+    opts = opts || {};
+    var status = 'mfj', stateCode = 'NONE', year1 = 0, struct = {};
+    if (typeof root.collectInputs === 'function') {
+      try {
+        var ci = root.collectInputs() || {};
+        status    = ci.filingStatus || 'mfj';
+        stateCode = ci.state || ci.stateCode || 'NONE';
+        year1     = Number(ci.year1) || 0;
+        struct = { qualifiedDividend: ci.qualifiedDividend, wages: ci.wages,
+                   seIncome: ci.seIncome, itemized: ci.itemizedDeductions || ci.itemized };
+      } catch (e) { /* defaults */ }
+    }
+    var total = 0;
+    comp.rows.forEach(function (row, i) {
+      if (!row) return;
+      if (row.baseline && !row.baseline._incomes && typeof _deriveIncomesForEngineRow === 'function') {
+        try { row.baseline._incomes = _deriveIncomesForEngineRow(row, i, opts.chosen, opts.cfg); } catch (e) {}
+      }
+      var baseInc = row.baseline && row.baseline._incomes;
+      if (!baseInc) return;
+      // Brooklyn loss offsets already applied by the engine this year.
+      var btLt   = Math.max(0, Number(row.ltOffsetApplied)        || 0);
+      var btOrd  = Math.max(0, Number(row.ordOffsetApplied)       || 0);
+      var bt1250 = Math.max(0, Number(row.recap1250OffsetApplied) || 0);
+      var btSt   = Math.max(0, Number(row.shortOffsetApplied)     || 0);
+      // Saturated supplemental offsets for this year.
+      var split  = (typeof _computeSuppOrdOffsetForYear === 'function')
+        ? (_computeSuppOrdOffsetForYear(i, fundedSupps) || { ord: 0, r1245: 0, r1250: 0 })
+        : { ord: 0, r1245: 0, r1250: 0 };
+      var offOrd  = Math.max(0, Math.round(Number(split.ord)   || 0));
+      var off1245 = Math.max(0, Math.round(Number(split.r1245) || 0));
+      var off1250 = Math.max(0, Math.round(Number(split.r1250) || 0));
+      if (offOrd + off1245 + off1250 <= 0) return;  // no supp activity this year
+      var year = Number(row.year) || (year1 + i);
+      // Brooklyn-only income (baseline less Brooklyn offsets).
+      var brkInc = Object.assign({}, baseInc, {
+        ordinary:      Math.max(0, Number(baseInc.ordinary      || 0) - btOrd),
+        longTermGain:  Math.max(0, Number(baseInc.longTermGain  || 0) - btLt),
+        shortTermGain: Math.max(0, Number(baseInc.shortTermGain || 0) - btSt),
+        recapture1250: Math.max(0, Number(baseInc.recapture1250 || 0) - bt1250),
+        recapture:     Math.max(0, Number(baseInc.recapture     || 0) - bt1250)
+      });
+      // Brooklyn + supplemental income (also less the supp offsets).
+      var suppInc = Object.assign({}, brkInc, {
+        ordinary:      Math.max(0, Number(brkInc.ordinary      || 0) - offOrd),
+        recapture1245: Math.max(0, Number(brkInc.recapture1245 || 0) - off1245),
+        recapture1250: Math.max(0, Number(brkInc.recapture1250 || 0) - off1250),
+        recapture:     Math.max(0, Number(brkInc.recapture     || 0) - off1245 - off1250)
+      });
+      var brkTax  = _recomputePostStrategyTax(brkInc,  year, status, stateCode, struct);
+      var suppTax = _recomputePostStrategyTax(suppInc, year, status, stateCode, struct);
+      if (!brkTax || !suppTax) return;
+      total += (Number(brkTax.total) || 0) - (Number(suppTax.total) || 0);
+    });
+    return Math.round(total);
+  }
+  root.__rettHonestSuppBenefit = _honestSuppBenefitForComp;
+
   root.renderTempPage = render;
 })(window);
