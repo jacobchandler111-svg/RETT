@@ -495,6 +495,27 @@
     return true;
   }
 
+  // Debounced heavy rebuild. Toggling Interested changes the rivalry-funded
+  // supplemental total -> Brooklyn's pool, so the full pipeline + Strategy
+  // Summary must re-run. But running it SYNCHRONOUSLY on every click made the
+  // extra-supp cards lag a second or two while the core rail (oilGas/delphi)
+  // already felt instant — because the core rail debounces this exact work via
+  // _scheduleP5Refresh. Mirror that here: the card re-render gives immediate
+  // visual feedback, and the expensive auto-sizer runs once, ~150ms after the
+  // last click, instead of once per click. (advisor 2026-06-10.)
+  var _heavyTimer;
+  function _scheduleHeavyRebuild() {
+    clearTimeout(_heavyTimer);
+    _heavyTimer = setTimeout(function () {
+      if (typeof root.runFullPipeline === 'function') {
+        try { root.runFullPipeline(); } catch (e) { /* */ }
+      }
+      if (typeof root.renderStrategySummary === 'function') {
+        try { root.renderStrategySummary(); } catch (e) { /* */ }
+      }
+    }, 150);
+  }
+
   function _renderHost() {
     var host = document.getElementById('supplemental-extra-host');
     if (!host) return;
@@ -593,17 +614,12 @@
         _renderHost();
         _persist();
         // Conservation: toggling Interested changes the rivalry-funded
-        // supplemental total, which changes Brooklyn's effective pool.
-        // Run the full pipeline first so __lastResult / cfg.investment
-        // reflect the new allocation, THEN re-render Page 5. Without
-        // this, Page 5 would surface stale Brooklyn deployment numbers
-        // until another input change triggered a pipeline rerun.
-        if (typeof root.runFullPipeline === 'function') {
-          try { root.runFullPipeline(); } catch (e) { /* */ }
-        }
-        if (typeof root.renderStrategySummary === 'function') {
-          try { root.renderStrategySummary(); } catch (e) { /* */ }
-        }
+        // supplemental total -> Brooklyn's effective pool, so the full
+        // pipeline + Strategy Summary must re-run. DEBOUNCED (see
+        // _scheduleHeavyRebuild) so the card toggle above is instant and
+        // rapid multi-card clicking doesn't fire the expensive auto-sizer
+        // once per click — matching the core supp rail's _scheduleP5Refresh.
+        _scheduleHeavyRebuild();
         return;
       }
 
