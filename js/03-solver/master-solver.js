@@ -449,6 +449,15 @@
     // (PTET / Augusta) that are funded unconditionally but still draw from
     // the shared pool, so every subset's saturation must include them.
     var ordPool = _y0OrdPool(cfg);
+    // Recurring (Y1+) pool — the rivalry's subset objective must credit the
+    // SAME out-year benefit the final realization does (runMasterSolver passes
+    // this to _saturateOrdinary at funding time). Without it, a multi-year
+    // capital supp whose Year 0 is crowded out (e.g. Farm / Equipment Leasing
+    // behind Oil & Gas) evaluates to ~$0 net here and is denied funding as
+    // 'capital-exhausted', even though its Year 1+ deduction is real and gets
+    // realized downstream — a funding-vs-realization inconsistency (advisor
+    // 2026-06-10).
+    var y1Pool = _y1OrdPool(cfg);
     var alwaysOnOrd = [];
 
     var decisions = {};
@@ -512,7 +521,7 @@
     // Baseline: fund no rivals — Brooklyn keeps all capital and only the
     // investment-free pool supps realize benefit. Any rival subset must
     // beat this saturated baseline net of the capital it pulls.
-    var bestObj = _saturateOrdinary(alwaysOnOrd, ordPool).total;
+    var bestObj = _saturateOrdinary(alwaysOnOrd, ordPool, y1Pool).total;
     if (k > 0 && k <= 20) {
       var subsetCount = 1 << k;
       for (var m = 1; m < subsetCount; m++) {
@@ -529,7 +538,7 @@
         // allocated best-first), minus the Brooklyn yield foregone on the
         // capital the subset pulls. A crowded-out ord supp adds ~$0
         // saturated net but costs sumInv*brooklynRate, so it loses here.
-        var sumNet = _saturateOrdinary(items, ordPool).total;
+        var sumNet = _saturateOrdinary(items, ordPool, y1Pool).total;
         var obj = sumNet - sumInv * brooklynYieldRate;
         if (obj > bestObj || (obj === bestObj && sumInv < bestInv)) {
           bestObj = obj;
