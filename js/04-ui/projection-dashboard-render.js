@@ -3319,9 +3319,19 @@
       //   store  — global store object name
       //   knob   — field on spec that controls the dollar size
       //   minInc — minimum increment (skip sweeps below this)
+      // Per-supp auto-sizing with a hard cap (advisor 2026-06-10): marking
+      // a capital-deploying supplemental Interested lets the engine pick the
+      // optimal deployment up to a ceiling expressed as a % of the SALE
+      // price — Delphi up to 50%, every other capital supp up to 20%. The
+      // ceiling below IS that cap, so no single supplemental can ever draw
+      // more than its share of the sale. Free-benefit supps (PTET, Augusta)
+      // have no investment knob and aren't swept/capped here.
+      var _saleForCap = Math.max(0, Number(currentCfg.salePrice) || 0);
       var SIZABLE = [
-        { id: 'oilGas', spec: (root.__rettSupplemental      || {}).oilGas, knob: 'maxInvestment', minInc: 50000 },
-        { id: 'delphi', spec: (root.__rettSupplemental      || {}).delphi, knob: 'investment',    minInc: 100000 }
+        { id: 'oilGas', spec: (root.__rettSupplemental      || {}).oilGas, knob: 'maxInvestment',    minInc: 50000,  capPct: 0.20 },
+        { id: 'delphi', spec: (root.__rettSupplemental      || {}).delphi, knob: 'investment',       minInc: 100000, capPct: 0.50 },
+        { id: 'slot07', spec: (root.__rettSupplementalExtra || {}).slot07, knob: 'investmentAmount', minInc: 50000,  capPct: 0.20 },
+        { id: 'slot12', spec: (root.__rettSupplementalExtra || {}).slot12, knob: 'equipmentCost',    minInc: 50000,  capPct: 0.20 }
       ];
       function _measureCombinedAt(_cfgIgnored) {
         // Measure the FULL post-pipeline combined net (after Brooklyn
@@ -3354,11 +3364,16 @@
       SIZABLE.forEach(function (s) {
         if (interestMap[s.id] !== true) return;
         if (!s.spec) return;
-        var ceiling = Math.max(0, Number(s.spec[s.knob]) || 0);
-        if (ceiling < s.minInc) return;
-        // Candidate sizes: 0, 25%, 50%, 75%, 100% of ceiling. Always
+        // Ceiling = the per-supp cap (% of sale price). The engine
+        // auto-sizes within [0, ceiling]; the client's typed amount is no
+        // longer the ceiling — marking Interested lets the optimizer pick
+        // the best size up to the cap. If the cap is below the supp's
+        // minimum increment (tiny sale), drop it to $0.
+        var ceiling = Math.round(_saleForCap * s.capPct);
+        if (ceiling < s.minInc) { s.spec[s.knob] = 0; return; }
+        // Candidate sizes: 0, 25%, 50%, 75%, 100% of the cap. Always
         // include both endpoints so the optimizer can drop to zero or
-        // keep user's full ceiling.
+        // deploy the full cap.
         var candidates = [0, ceiling * 0.25, ceiling * 0.5, ceiling * 0.75, ceiling];
         var origValue = s.spec[s.knob];
         var bestSize = ceiling;
