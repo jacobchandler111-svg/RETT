@@ -543,15 +543,15 @@
     if (amount <= 0) return _writeResult('slot07', null);
     var deprPct = Math.min(1, Math.max(0, _num(st.depreciablePct) / 100));
     var yr1Loss = amount * deprPct;
-    // Active-investor gate: 100 hours/year is the §469-5T(a)(3) test
-    // ("the individual's participation constitutes substantially all
-    // of the participation by all individuals"). The yes/no toggle
-    // captures whether the client is willing to commit those hours;
-    // without it the K-1 loss is passive and suspended (no net benefit).
-    // (Field renamed from materialPart → commitHours per advisor
-    // 2026-05-06; old saved cases with materialPart=true still pass
-    // through via the back-compat read below.)
-    var active = !!(st.commitHours || st.materialPart);
+    // Material participation (§469-5T(a)(3), the 100-hours test) is now
+    // ASSUMED whenever the client marks this supplemental Interested
+    // (advisor 2026-06-10): expressing interest means they commit to the
+    // participation, so the K-1 loss is non-passive and offsets ordinary
+    // income. Previously this was gated on a separate "willing to commit
+    // 100 hours?" toggle (commitHours), which defaulted off and left the
+    // loss suspended — the strategy showed $0 even when funded. The toggle
+    // is retired; interest is the commitment.
+    var active = true;
     var nonPassiveRaw = active ? yr1Loss : 0;
     // Cap at the Y0 ordinary-income pool — see _capDeductionAtOrdPool
     // for full rationale. K-1 losses beyond this become unused NOL.
@@ -744,10 +744,16 @@
     var st = _state('slot11');
     var cost = Math.max(0, _num(st.propertyCost));
     if (cost <= 0) return _writeResult('slot11', null);
-    var qualifies = (_num(st.avgUseDays) <= 7) && !!st.materialPart;
+    // Material participation is ASSUMED when Interested (advisor
+    // 2026-06-10) — same principle as Equipment Leasing. The remaining
+    // gate is the factual STR test: average guest stay ≤ 7 days (the
+    // §1.469-1T(e)(3)(ii)(A) short-term-rental exception that makes the
+    // loss non-passive). That's a property characteristic, not a
+    // willingness question, so it stays.
+    var qualifies = (_num(st.avgUseDays) <= 7);
     if (!qualifies) {
       return _writeResult('slot11', { netBenefit: 0, investment: Math.round(cost),
-        detail: { reason: 'Requires avg stay ≤7 days AND material participation' } });
+        detail: { reason: 'Requires average guest stay ≤ 7 days (short-term-rental test)' } });
     }
     var landPct = Math.min(0.5, Math.max(0, _num(st.landPct) / 100));
     var depreciable = cost * (1 - landPct);

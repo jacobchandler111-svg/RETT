@@ -172,14 +172,12 @@
       },
       detailRows: [
         { id: 'investmentAmount', label: 'Investment amount',                kind: 'usd', placeholder: '500,000' },
-        { id: 'depreciablePct',   label: 'Depreciable basis (% of capital)', kind: 'pct', placeholder: '90' },
-        // Material participation is a strict requirement under §469
-        // (otherwise the loss is suspended as passive). The simplest
-        // §469-5T(a) test for active investors is 100 hours/year + at
-        // least as many as anyone else. Asking the user this directly
-        // captures the binding constraint without requiring them to
-        // self-classify under multi-prong tests.
-        { id: 'commitHours',      label: 'Will commit ≥100 hours/year?',     kind: 'yesno' }
+        { id: 'depreciablePct',   label: 'Depreciable basis (% of capital)', kind: 'pct', placeholder: '90' }
+        // Material participation (§469-5T(a), the 100-hours test) is now
+        // ASSUMED when the client marks this Interested — the calc treats
+        // the K-1 loss as non-passive automatically — so the old
+        // "Will commit ≥100 hours/year?" question was removed
+        // (advisor 2026-06-10): expressing interest is the commitment.
       ]
     },
     {
