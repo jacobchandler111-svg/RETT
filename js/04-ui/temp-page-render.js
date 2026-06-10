@@ -490,7 +490,16 @@
                                      : Math.max(0, Number(incomes.recapture) || 0);
     var qd  = Math.max(0, Number(struct.qualifiedDividend) || 0);
     var w   = Math.max(0, Number(struct.wages)    || 0);
-    var se  = Math.max(0, Number(struct.seIncome) || 0);
+    // SE earnings base for SE/FICA tax + the SE side of Additional Medicare.
+    // Active supplemental business deductions (working-interest IDC, §179 +
+    // bonus, materially-participated K-1 loss) reduce SE net earnings, so the
+    // caller passes seReduction = the SUPPLEMENTAL ordinary offset for the
+    // year (NOT the Brooklyn §1211(b) capital-loss offset, which doesn't touch
+    // earned income). Floored at 0 so a W-2-only client (seIncome 0) is
+    // unaffected — supps can't reduce employer-reported Medicare wages, which
+    // stay in `w`. (advisor 2026-06-10.)
+    var seRed = Math.max(0, Number(struct.seReduction) || 0);
+    var se  = Math.max(0, (Number(struct.seIncome) || 0) - seRed);
     var itm = Math.max(0, Number(struct.itemized) || 0);
     var inv = lt + qd + st;  // NIIT base — engine's narrow default
     var fed;
@@ -606,7 +615,12 @@
           qualifiedDividend: _ci.qualifiedDividend,
           wages:             _ci.wages,
           seIncome:          _ci.seIncome,
-          itemized:          _ci.itemizedDeductions || _ci.itemized
+          itemized:          _ci.itemizedDeductions || _ci.itemized,
+          // Supps reduce SE earnings (and thus SE tax + the SE side of Add'l
+          // Medicare). Use ONLY the supplemental ord offset (_offOrd), never
+          // the Brooklyn §1211(b) offset (_btOrd) — capital losses don't
+          // reduce earned income. W-2 wages stay fixed in `wages` above.
+          seReduction:       _offOrd
         };
       } catch (e) { /* keep defaults */ }
     }
@@ -1723,7 +1737,13 @@
         recapture:     Math.max(0, Number(brkInc.recapture     || 0) - off1245 - off1250)
       });
       var brkTax  = _recomputePostStrategyTax(brkInc,  year, status, stateCode, struct);
-      var suppTax = _recomputePostStrategyTax(suppInc, year, status, stateCode, struct);
+      // The supp side also reduces the SE earnings base by the supplemental
+      // ordinary offset (offOrd) — so SE/FICA tax + the SE part of Additional
+      // Medicare fall as ordinary/SE income is offset. Brooklyn's recompute
+      // (brkTax) keeps the full SE base — capital losses don't reduce earned
+      // income. (advisor 2026-06-10.)
+      var suppStruct = Object.assign({}, struct, { seReduction: offOrd });
+      var suppTax = _recomputePostStrategyTax(suppInc, year, status, stateCode, suppStruct);
       if (!brkTax || !suppTax) return;
       total += (Number(brkTax.total) || 0) - (Number(suppTax.total) || 0);
     });

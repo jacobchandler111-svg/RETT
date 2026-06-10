@@ -3372,11 +3372,15 @@
       // (advisor 2026-06-10 — no single supp should soak up more than a tenth
       // of the proceeds); Delphi, a fund-style placement, stays at 50%. The
       // advisor can still override any amount up to this ceiling.
+      // Farm (slot12, deducts 100c/$) is sized BEFORE Equipment Leasing
+      // (slot07, ~90c/$) so the higher-yield supp claims scarce out-year
+      // headroom first and Equipment Leasing defers to it — deterministic,
+      // not order-of-history dependent (advisor 2026-06-10).
       var SIZABLE = [
         { id: 'oilGas', spec: (root.__rettSupplemental      || {}).oilGas, knob: 'maxInvestment',    minInc: 50000,  capPct: 0.10 },
         { id: 'delphi', spec: (root.__rettSupplemental      || {}).delphi, knob: 'investment',       minInc: 100000, capPct: 0.50 },
-        { id: 'slot07', spec: (root.__rettSupplementalExtra || {}).slot07, knob: 'investmentAmount', minInc: 50000,  capPct: 0.10 },
-        { id: 'slot12', spec: (root.__rettSupplementalExtra || {}).slot12, knob: 'equipmentCost',    minInc: 50000,  capPct: 0.10 }
+        { id: 'slot12', spec: (root.__rettSupplementalExtra || {}).slot12, knob: 'equipmentCost',    minInc: 50000,  capPct: 0.10 },
+        { id: 'slot07', spec: (root.__rettSupplementalExtra || {}).slot07, knob: 'investmentAmount', minInc: 50000,  capPct: 0.10 }
       ];
       function _measureCombinedAt() {
         // Measure the FULL post-pipeline combined net (after Brooklyn
