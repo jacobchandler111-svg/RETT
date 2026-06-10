@@ -3378,7 +3378,7 @@
         { id: 'slot07', spec: (root.__rettSupplementalExtra || {}).slot07, knob: 'investmentAmount', minInc: 50000,  capPct: 0.10 },
         { id: 'slot12', spec: (root.__rettSupplementalExtra || {}).slot12, knob: 'equipmentCost',    minInc: 50000,  capPct: 0.10 }
       ];
-      function _measureCombinedAt(_cfgIgnored) {
+      function _measureCombinedAt() {
         // Measure the FULL post-pipeline combined net (after Brooklyn
         // optimizer dial-back and drop-one verification) at the current
         // supp sizes. Calls buildInterestedSummary recursively with the
@@ -3437,7 +3437,6 @@
         // include both endpoints so the optimizer can drop to zero or
         // deploy the full cap.
         var candidates = [0, ceiling * 0.25, ceiling * 0.5, ceiling * 0.75, ceiling];
-        var origValue = s.spec[s.knob];
         var bestSize = ceiling;
         var bestNet  = -Infinity;
         for (var i = 0; i < candidates.length; i++) {
@@ -3446,16 +3445,12 @@
           s.spec._userTouched = s.spec._userTouched || {};
           s.spec._userTouched[s.knob] = true;
           try { root.__rettRunAllSuppMath(); } catch (e) { /* swallow */ }
-          // Recollect cfg so the freshly-set supp Y0 deployment flows
-          // into the measurement.
-          var refreshedCfg = currentCfg;
-          if (typeof root.runAllocator === 'function') {
-            var _ra = root.runAllocator(rawCap);
-            refreshedCfg = Object.assign({}, currentCfg, {
-              suppY0Deployment: Math.max(0, Math.round(_ra.allocatedToSupplementals || 0))
-            });
-          }
-          var combined = _measureCombinedAt(refreshedCfg);
+          // _measureCombinedAt re-runs the FULL pipeline (its own
+          // collectInputs + allocation), so it reads the freshly-set supp
+          // sizing directly — no need to pre-compute a cfg here. (The earlier
+          // refreshedCfg/runAllocator pre-pass was discarded by the callee and
+          // only added redundant allocator work per candidate.)
+          var combined = _measureCombinedAt();
           if (combined > bestNet) {
             bestNet  = combined;
             bestSize = candidates[i];
