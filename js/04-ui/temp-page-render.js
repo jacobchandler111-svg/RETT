@@ -508,7 +508,13 @@
     var se  = seRaw - seCut;
     var w   = Math.max(0, (Number(struct.wages) || 0) - Math.max(0, earnedRed - seCut));
     var itm = Math.max(0, Number(struct.itemized) || 0);
-    var inv = lt + qd + st;  // NIIT base — engine's narrow default
+    // NIIT base = net investment income. §1250 unrecaptured gain IS net
+    // investment income (gain on disposition of property) and must be in the
+    // base — the baseline path (_recurringBaselineForYear + the engine row)
+    // already includes recapture, so excluding it here understated the Results
+    // NIIT and overstated the tax saved (audit 2026-06-10). §1245 is ORDINARY
+    // income, not capital gain, so it stays OUT of the NIIT base.
+    var inv = lt + qd + st + r1250;
     var fed;
     try {
       fed = root.computeFederalTaxBreakdown(ord, year, status, {
