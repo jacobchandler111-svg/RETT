@@ -124,10 +124,40 @@
     return '(field)';
   }
 
+  // Loss indicator: for the gain/loss-capable fields, show a red "(loss)"
+  // tag in the field's label whenever the entered value is negative (a
+  // capital loss). The value itself already renders in accounting
+  // parentheses — "($100,000)" — and parseUSD round-trips it; this adds the
+  // explicit word the advisor asked for so a loss can't be mistaken for a
+  // gain. (advisor 2026-06-10)
+  var LOSS_LABEL_IDS = { 'short-term-gain': 1, 'long-term-gain': 1 };
+  function _updateLossTag(el) {
+    if (!el || !el.id || !LOSS_LABEL_IDS[el.id]) return;
+    var row = el.closest ? el.closest('.input-row') : null;
+    if (!row) return;
+    var label = row.querySelector('.label');
+    if (!label) return;
+    var tag = label.querySelector('.rett-loss-tag');
+    var n = _toNum(el.value);
+    var isLoss = isFinite(n) && n < 0;
+    if (isLoss) {
+      if (!tag) {
+        tag = document.createElement('span');
+        tag.className = 'rett-loss-tag';
+        tag.textContent = ' (loss)';
+        tag.style.cssText = 'color:#c0392b;font-weight:700;white-space:nowrap;';
+        label.appendChild(tag);
+      }
+      tag.style.display = '';
+    } else if (tag) {
+      tag.style.display = 'none';
+    }
+  }
+
   function _format(el) {
     if (!el) return;
     var raw = el.value;
-    if (raw === '' || raw == null) return;
+    if (raw === '' || raw == null) { _updateLossTag(el); return; }
     // Detect a paste of pure non-numeric characters (e.g. "abc") so we
     // can surface that the field was discarded instead of silently
     // showing $0. parseUSD strips to '' → 0; the flag captures intent.
@@ -166,14 +196,16 @@
       el.classList.remove('input-error');
     }
     el.value = _formatNum(n);
+    _updateLossTag(el);
   }
 
   function _strip(el) {
     if (!el) return;
-    if (el.value === '' || el.value == null) return;
+    if (el.value === '' || el.value == null) { _updateLossTag(el); return; }
     var n = _toNum(el.value);
     if (!isFinite(n)) return;
     el.value = String(n);
+    _updateLossTag(el);
   }
 
   function wire(el) {
@@ -181,6 +213,9 @@
     el.__rettMoneyWired = true;
     el.addEventListener('blur',  function () { _format(el); });
     el.addEventListener('focus', function () { _strip(el);  });
+    // Live-toggle the "(loss)" label tag as the user types a negative
+    // (or parenthesized) value, before blur reformats it.
+    el.addEventListener('input', function () { _updateLossTag(el); });
     // Programmatic value writes (case restore, _recomputeAvailableCapital)
     // dispatch `change` after setting el.value. Reformat then, but only
     // when the user isn't actively typing in this field.
