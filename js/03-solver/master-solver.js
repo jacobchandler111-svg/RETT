@@ -313,10 +313,19 @@
         realizedDetail[s.id] = { y0: realized[s.id], rest: 0, y0Demand: 0, rate: 0, y1Scale: 1 };
       }
     });
-    // ---- Y0 ration: sort by Y0 rate desc; tie -> smaller restNet first
-    // (single-year supps get first dibs; a multi-year supp can still realize
-    // Y1+ even if Y0 is crowded out). Audit R2 finding #10.
+    // ---- Y0 ration. FREE supps first: Augusta / PTET deploy no capital —
+    // they're "set-and-forget" benefits the client gets just for opting in —
+    // so they claim their slice of the shared ordinary pool BEFORE the
+    // capital strategies (Oil & Gas, Delphi, Equipment Leasing, Farm). A
+    // capital supp's deduction that over-subscribes the pool is wasted NOL
+    // anyway, so seating the free supps first never costs total benefit and
+    // makes them show every applicable year instead of being crowded out of
+    // Y0 (advisor 2026-06-10). Within each tier: sort by Y0 rate desc; tie ->
+    // smaller restNet first (single-year supps get first dibs; a multi-year
+    // supp can still realize Y1+ even if Y0 is crowded out). Audit R2 #10.
     ordList.sort(function (a, b) {
+      var af = a.isFree ? 1 : 0, bf = b.isFree ? 1 : 0;
+      if (af !== bf) return bf - af;
       var d = b.ordInfo.rate - a.ordInfo.rate;
       if (d !== 0) return d;
       return (a.ordInfo.restNet || 0) - (b.ordInfo.restNet || 0);
@@ -334,6 +343,8 @@
     var y1Scale = {};
     var y1List = ordList.filter(function (s) { return (s.ordInfo.y1Demand || 0) > 0; });
     y1List.sort(function (a, b) {
+      var af = a.isFree ? 1 : 0, bf = b.isFree ? 1 : 0;
+      if (af !== bf) return bf - af;   // free (no-capital) supps first, same as Y0
       var d = (b.ordInfo.y1Rate || 0) - (a.ordInfo.y1Rate || 0);
       if (d !== 0) return d;
       return (a.ordInfo.restNet || 0) - (b.ordInfo.restNet || 0);
@@ -670,6 +681,10 @@
     var sat = _saturateOrdinary(
       fundedSupps.map(function (s) {
         return { id: s.id, netBenefit: s.netBenefit,
+                 // Free (no-capital) supps — PTET / Augusta — are funded
+                 // unconditionally as 'free-benefit'; they claim the shared
+                 // ordinary pool ahead of the capital strategies (2026-06-10).
+                 isFree: !!(s.rivalry && s.rivalry.reason === 'free-benefit'),
                  ordInfo: _ordInfoOf(s.id, s.result, s.netBenefit) };
       }),
       _y0OrdPool(cfg),
