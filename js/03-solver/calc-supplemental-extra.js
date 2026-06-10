@@ -174,6 +174,14 @@
     if (rate <= 0 && cfg.state && PTET_RATES_2026[cfg.state] != null) {
       rate = PTET_RATES_2026[cfg.state] / 100;
     }
+    // No-income-tax states have no state income tax to route through the
+    // entity, so PTET's benefit must be $0. The stateRate input defaults to
+    // 5.49%, which keeps `rate > 0` and skips the PTET_RATES_2026 table guard
+    // above (that table correctly omits these states) — leaking a phantom
+    // benefit. Force rate to 0 so the `rate <= 0` exit below excludes PTET.
+    // (browser-test Test H: TX showed a phantom ~$24,375/yr; advisor 2026-06-09.)
+    var NO_PTET_STATES = { TX: 1, FL: 1, NV: 1, WA: 1, WY: 1, AK: 1, SD: 1, TN: 1, NH: 1 };
+    if (cfg.state && NO_PTET_STATES[cfg.state]) rate = 0;
     if (income <= 0 || rate <= 0) return _writeResult('ptet', null);
 
     var ptet = income * rate;
