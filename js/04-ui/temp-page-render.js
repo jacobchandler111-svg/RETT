@@ -489,17 +489,24 @@
     var rcp    = (r1245 + r1250) > 0 ? (r1245 + r1250)
                                      : Math.max(0, Number(incomes.recapture) || 0);
     var qd  = Math.max(0, Number(struct.qualifiedDividend) || 0);
-    var w   = Math.max(0, Number(struct.wages)    || 0);
-    // SE earnings base for SE/FICA tax + the SE side of Additional Medicare.
-    // Active supplemental business deductions (working-interest IDC, §179 +
-    // bonus, materially-participated K-1 loss) reduce SE net earnings, so the
-    // caller passes seReduction = the SUPPLEMENTAL ordinary offset for the
-    // year (NOT the Brooklyn §1211(b) capital-loss offset, which doesn't touch
-    // earned income). Floored at 0 so a W-2-only client (seIncome 0) is
-    // unaffected — supps can't reduce employer-reported Medicare wages, which
-    // stay in `w`. (advisor 2026-06-10.)
-    var seRed = Math.max(0, Number(struct.seReduction) || 0);
-    var se  = Math.max(0, (Number(struct.seIncome) || 0) - seRed);
+    // Earned-income bases for SE/FICA tax + Additional Medicare. The caller
+    // passes seReduction = the SUPPLEMENTAL ordinary offset for the year (NOT
+    // the Brooklyn §1211(b) capital-loss offset, which doesn't touch earned
+    // income). It reduces SE earnings first (active business deductions —
+    // working-interest IDC, §179+bonus, materially-participated K-1 loss — do
+    // lower SE net earnings, dropping SE/FICA tax and the SE side of Add'l
+    // Medicare). Any remainder is then applied to the W-2 wage base.
+    //
+    // ADVISOR OVERRIDE (2026-06-10): reducing the W-2 wage base makes Add'l
+    // Medicare fall with taxable income even for a pure W-2 earner. This is NOT
+    // strictly correct — employer-reported Medicare wages (Box 5) aren't
+    // reduced by these deductions — so it OVERSTATES the benefit for a W-2
+    // client by the Add'l Medicare delta. Deliberate model choice per advisor.
+    var earnedRed = Math.max(0, Number(struct.seReduction) || 0);
+    var seRaw = Math.max(0, Number(struct.seIncome) || 0);
+    var seCut = Math.min(earnedRed, seRaw);
+    var se  = seRaw - seCut;
+    var w   = Math.max(0, (Number(struct.wages) || 0) - Math.max(0, earnedRed - seCut));
     var itm = Math.max(0, Number(struct.itemized) || 0);
     var inv = lt + qd + st;  // NIIT base — engine's narrow default
     var fed;
