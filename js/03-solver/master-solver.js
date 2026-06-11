@@ -142,13 +142,46 @@
     }
     return Math.max(0, stdDed + tenTop);
   }
+  // Brooklyn-first recapture (advisor 2026-06-11). The §1250 unrecaptured-
+  // depreciation recapture that the chosen PRIMARY (Brooklyn) strategy already
+  // absorbs with its short-term losses must NOT also be sheltered by the
+  // ordinary-offset supps — otherwise a supp sizes up to offset recapture
+  // Brooklyn has already wiped (a double-offset; the supp "does the excess").
+  // buildInterestedSummary stashes how much §1250 Brooklyn absorbs AT FULL
+  // STRENGTH (supp-blind) on __rettPrimaryRecap1250Absorbed each render — full
+  // strength because we run Brooklyn first and never dial it back to feed the
+  // offsetters. The loss waterfall is ST -> LT -> §1250, so this is >0 only
+  // when Brooklyn's loss exceeds the regular LT gain; otherwise it's 0 and the
+  // supps keep the full recapture (a real, non-overlapping offset).
+  function _suppExposedRecap(r1245, r1250) {
+    var absorbed = Math.max(0, Number(root.__rettPrimaryRecap1250Absorbed) || 0);
+    // §1245 is ordinary income — Brooklyn capital losses can't net it past the
+    // §1211(b) $3K cap — so it stays fully exposed. Only the §1250 slice
+    // Brooklyn absorbs is removed.
+    var e1245 = Math.max(0, Number(r1245) || 0);
+    var e1250 = Math.max(0, (Number(r1250) || 0) - absorbed);
+    return { recap1245: e1245, recap1250: e1250, total: e1245 + e1250 };
+  }
+  // Resolve a cfg's recapture into the §1245/§1250 split (lump defaults to
+  // §1250, matching the engine's real-estate convention) then return the
+  // slice still exposed to the supps.
+  function _exposedRecapFromCfg(cfg) {
+    if (!cfg) return { recap1245: 0, recap1250: 0, total: 0 };
+    var r1245 = Number(cfg.acceleratedDepreciation1245 || cfg.depreciationRecapture1245) || 0;
+    var r1250 = Number(cfg.acceleratedDepreciation1250 || cfg.depreciationRecapture1250) || 0;
+    if (r1245 + r1250 === 0) {
+      r1250 = Number(cfg.acceleratedDepreciation || cfg.depreciationRecapture || cfg.recap) || 0;
+    }
+    return _suppExposedRecap(r1245, r1250);
+  }
+
   // Year-0 shared ordinary pool available to ord-offset supps: total Y0
-  // ordinary income (recurring + the one-time accelerated-depreciation
-  // recapture) LESS the floor we deliberately leave unsheltered.
+  // ordinary income (recurring + the EXPOSED accelerated-depreciation
+  // recapture — net of what Brooklyn already absorbs) LESS the floor we
+  // deliberately leave unsheltered.
   function _y0OrdPool(cfg) {
     if (!cfg) return 0;
-    var gross = (Number(cfg.baseOrdinaryIncome) || 0) +
-                (Number(cfg.acceleratedDepreciation) || 0);
+    var gross = (Number(cfg.baseOrdinaryIncome) || 0) + _exposedRecapFromCfg(cfg).total;
     return Math.max(0, gross - _ordFloor(cfg, 0));
   }
   // Recurring (Y1+) shared ordinary pool. Each future year has its OWN pool
@@ -1094,6 +1127,9 @@
   root.runMasterSolver              = runMasterSolver;
   root.runAllocator                 = runAllocator;
   root.runBrooklynOptimizer         = runBrooklynOptimizer;
+  // Shared by the supp calc modules (calc-oil-gas, calc-supplemental-extra) so
+  // they size against the SAME Brooklyn-net-of recapture pool the solver uses.
+  root.__rettSuppExposedRecap       = _suppExposedRecap;
 
   // Post-primary residual tax for a chosen-strategy entry = Σ withStrategy
   // .total across the engine rows = the tax that REMAINS after the primary

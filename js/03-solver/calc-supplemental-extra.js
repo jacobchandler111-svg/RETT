@@ -82,11 +82,21 @@
   // that has no immediate tax benefit, and NOL carry-forward isn't
   // modeled in the supplemental engine. Returning 0 means "no cap" —
   // callers should fall back to the raw deduction in that case.
+  // Recapture still exposed to the supps after the chosen primary (Brooklyn)
+  // strategy absorbs its §1250 slice (advisor 2026-06-11). Lump recap defaults
+  // to §1250 (real-estate). Falls back to the full recap when the master-solver
+  // helper isn't loaded yet (boot race) so behavior degrades to pre-fix safely.
+  function _exposedRecap(cfg) {
+    var r1245 = _num(cfg.depreciationRecapture1245 || cfg.acceleratedDepreciation1245);
+    var r1250 = _num(cfg.depreciationRecapture1250 || cfg.acceleratedDepreciation1250);
+    if (r1245 + r1250 === 0) r1250 = _num(cfg.depreciationRecapture || cfg.acceleratedDepreciation || cfg.recap);
+    if (typeof root.__rettSuppExposedRecap === 'function') return root.__rettSuppExposedRecap(r1245, r1250);
+    return { recap1245: r1245, recap1250: r1250, total: r1245 + r1250 };
+  }
   function _ordIncomePoolY0(cfg) {
     if (!cfg) return 0;
     return Math.max(0,
-      _num(cfg.baseOrdinaryIncome) +
-      _num(cfg.acceleratedDepreciation)
+      _num(cfg.baseOrdinaryIncome) + _exposedRecap(cfg).total
     );
   }
   function _capDeductionAtOrdPool(cfg, deductionRaw) {
@@ -418,12 +428,12 @@
     // prior lumped `absorbed` left depreciation recapture showing full even
     // when the supp had absorbed it — advisor 2026-06-10). Recapture is a
     // Year-0-only event (§453(i)); out-years see ordinary income only.
-    var recap1245 = Math.max(0, _num(cfg.depreciationRecapture1245 || cfg.acceleratedDepreciation1245 || 0));
-    var recap1250 = Math.max(0, _num(cfg.depreciationRecapture1250 || cfg.acceleratedDepreciation1250 || 0));
-    if ((recap1245 + recap1250) === 0) {
-      // Only a lump total provided -> treat as §1250 (real-estate default).
-      recap1250 = Math.max(0, _num(cfg.depreciationRecapture || cfg.acceleratedDepreciation || cfg.recap || 0));
-    }
+    // EXPOSED recapture only — the §1250 slice Brooklyn already absorbs is
+    // removed so the deduction doesn't waterfall into (and over-deploy capital
+    // to chase) recapture the primary strategy has wiped (advisor 2026-06-11).
+    var _er = _exposedRecap(cfg);
+    var recap1245 = _er.recap1245;
+    var recap1250 = _er.recap1250;
     // Per-dollar tax saved by bucket: ordinary + §1245 at the ordinary
     // marginal; §1250 federal is capped at 25% (plus state, which taxes it as
     // ordinary). These feed the master-solver ESTIMATE; the honest recompute

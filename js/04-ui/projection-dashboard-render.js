@@ -3326,6 +3326,48 @@
     if (_suppBlind) currentCfg = Object.assign({}, currentCfg, { _suppBlind: true });
     var userDuration = currentCfg.structuredSaleDurationMonths || 36;
 
+    // Brooklyn-first recapture (advisor 2026-06-11). Compute how much §1250
+    // unrecaptured-depreciation recapture the chosen primary (Brooklyn)
+    // strategy absorbs with its short-term losses, AT FULL STRENGTH (supp-blind
+    // capital, the strategy's auto-picked combo) — full strength because we run
+    // Brooklyn first and never dial it back to free recapture for the
+    // ordinary-offset supps. The loss waterfall is ST -> LT -> §1250, so this
+    // is >0 only when Brooklyn's loss exceeds the regular LT gain. The supp
+    // pool / calc modules subtract it (master-solver __rettSuppExposedRecap) so
+    // a supp never sizes up to shelter recapture Brooklyn has already wiped.
+    // Computed once at the TOP level (not inside the auto-sizer's recursive
+    // skip passes) and BEFORE the auto-sizer so the sweep sees the right pool.
+    if (!_suppBlind && !root.__rettSkipSuppAutoSize) {
+      root.__rettPrimaryRecap1250Absorbed = 0;
+      var _prevSkipRc = root.__rettSkipSuppAutoSize;
+      try {
+        // "Brooklyn run first, alone, at its own optimum" = the supp-blind
+        // summary's chosen entry. Skip-flag guards the inner build from
+        // re-clearing the tax cache, re-auto-sizing, or re-entering this block.
+        root.__rettSkipSuppAutoSize = true;
+        var _blindSum = buildInterestedSummary({ suppBlind: true });
+        root.__rettSkipSuppAutoSize = _prevSkipRc;
+        var _rcChosen = root.__rettChosenStrategy || 'A';
+        var _be = (_blindSum && _blindSum.entries)
+          ? _blindSum.entries.find(function (x) { return x.type === _rcChosen; }) : null;
+        if (_be && _be.cfg && typeof root.unifiedTaxComparison === 'function') {
+          // recap1250 absorption is invariant to the gain-absorbing dial-back
+          // (loss reaches §1250 only after wiping all regular LT either way),
+          // so the entry's supp-blind cfg is sufficient — no _partialDeploy
+          // adjustment needed.
+          var _rcCfg = Object.assign({}, _be.cfg, { suppY0Deployment: 0 });
+          if (typeof root.rettFlavorEngineCfg === 'function') _rcCfg = root.rettFlavorEngineCfg(_rcCfg);
+          var _rcCmp = root.unifiedTaxComparison(_rcCfg);
+          if (_rcCmp && Array.isArray(_rcCmp.rows)) {
+            root.__rettPrimaryRecap1250Absorbed = Math.max(0, Math.round(
+              _rcCmp.rows.reduce(function (a, r) {
+                return a + (Number(r.recap1250OffsetApplied) || 0);
+              }, 0)));
+          }
+        }
+      } catch (e) { root.__rettSkipSuppAutoSize = _prevSkipRc; root.__rettPrimaryRecap1250Absorbed = 0; }
+    }
+
     // Auto-size every Interested supplemental within its user-typed ceiling
     // (advisor 2026-06-08). User's typed value becomes a MAX cap; engine
     // sweeps [0..ceiling] and picks the size that maximizes combined net

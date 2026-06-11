@@ -175,28 +175,36 @@
   function _computeYearImpact(snap, investment, idcPct) {
     var ordBaseline = snap.ordTotal + snap.recap;
     var deduction = Math.max(0, investment) * idcPct;
-    var absorbed = Math.min(deduction, Math.max(0, ordBaseline));
-    var nolGenerated = Math.max(0, deduction - Math.max(0, ordBaseline));
-    var newOrd = Math.max(0, ordBaseline - deduction);
-    // Apply the deduction to ord FIRST, then to recap. Keep §1245/§1250
-    // ratio when reducing recap. Then build a snap-override with reduced
-    // ord + reduced recap fields. Audit follow-up 2026-06-08: prior
-    // version passed newOrd = ord+recap-deduction as ordOverride but
-    // ALSO let _totalTaxAt re-add recap via fields — double-counting
-    // recap in the optimized scenario. Result: OG's marginal estimate
-    // was wrong, and the chunked-greedy optimizer was placing Y0 chunks
-    // in years where the recap-absorbing benefit should have dominated.
+    // Apply the deduction to ord FIRST, then to the EXPOSED recapture. The
+    // §1250 slice the chosen primary (Brooklyn) strategy already absorbs with
+    // its short-term losses is removed so the IDC deduction can't ALSO shelter
+    // recapture Brooklyn has wiped — a double-offset where the supp "does the
+    // excess" (advisor 2026-06-11). §1245 is ordinary recapture (Brooklyn
+    // can't net it past §1211(b)) so it stays fully exposed. When Brooklyn
+    // doesn't reach the §1250 bucket (loss < regular LT gain), exposed == full
+    // recapture and behavior is unchanged. Keep §1245/§1250 fields reduced so
+    // _totalTaxAt re-derives the optimized recap tax correctly (audit
+    // 2026-06-08 — don't double-count recap in the optimized scenario).
     var absorbedFromOrd   = Math.min(deduction, Math.max(0, snap.ordTotal));
     var leftAfterOrd      = Math.max(0, deduction - absorbedFromOrd);
-    var absorbedFromRecap = Math.min(leftAfterOrd, Math.max(0, snap.recap));
-    var newOrdOnly        = Math.max(0, snap.ordTotal - absorbedFromOrd);
-    var _r1245 = Number(snap.recap1245) || 0;
-    var _r1250 = Number(snap.recap1250) || 0;
-    var _rTotal = _r1245 + _r1250;
-    var _r1245Ratio = _rTotal > 0 ? (_r1245 / _rTotal) : 0;
-    var _r1250Ratio = _rTotal > 0 ? (_r1250 / _rTotal) : ((snap.recap || 0) > 0 ? 1 : 0);
-    var newRecap1245 = Math.max(0, _r1245 - absorbedFromRecap * _r1245Ratio);
-    var newRecap1250 = Math.max(0, _r1250 - absorbedFromRecap * _r1250Ratio);
+    var _snapR1245 = Number(snap.recap1245) || 0;
+    var _snapR1250 = ((_snapR1245 + (Number(snap.recap1250) || 0)) > 0)
+      ? (Number(snap.recap1250) || 0)
+      : Math.max(0, Number(snap.recap) || 0);   // lump -> §1250 (real-estate)
+    var _exp = (typeof root.__rettSuppExposedRecap === 'function')
+      ? root.__rettSuppExposedRecap(_snapR1245, _snapR1250)
+      : { recap1245: _snapR1245, recap1250: _snapR1250, total: _snapR1245 + _snapR1250 };
+    var absorbedFromRecap = Math.min(leftAfterOrd, Math.max(0, _exp.total));
+    var absorbed       = absorbedFromOrd + absorbedFromRecap;
+    var nolGenerated   = Math.max(0, deduction - absorbed);
+    var newOrd         = Math.max(0, ordBaseline - deduction);   // display only
+    var newOrdOnly     = Math.max(0, snap.ordTotal - absorbedFromOrd);
+    // Waterfall the recap absorption §1245-first (ordinary, full value) then
+    // the exposed §1250 slice.
+    var absorbed1245 = Math.min(absorbedFromRecap, _exp.recap1245);
+    var absorbed1250 = Math.max(0, absorbedFromRecap - absorbed1245);
+    var newRecap1245 = Math.max(0, _snapR1245 - absorbed1245);
+    var newRecap1250 = Math.max(0, _snapR1250 - absorbed1250);
     var newRecapTotal = Math.max(0, (snap.recap || 0) - absorbedFromRecap);
     var optimizedSnap = Object.assign({}, snap, {
       ordTotal:  newOrdOnly,
@@ -206,15 +214,9 @@
     });
     var baseline  = _totalTaxAt(snap, null);
     var optimized = _totalTaxAt(optimizedSnap, null);
-    // Split detail — Tab 7 display needs to know how much of the IDC
-    // deduction landed on each income bucket (ord vs §1245 recap vs §1250
-    // recap) so the right-column income/tax lines can show the post-supp
-    // reduction on each bucket individually (audit 2026-06-08). Without
-    // this split the display had to use `absorbed` as a single ord-only
-    // number, but the deduction actually waterfalls ord → §1245 → §1250
-    // proportionally to the user's recap split.
-    var absorbed1245 = absorbedFromRecap * _r1245Ratio;
-    var absorbed1250 = absorbedFromRecap * _r1250Ratio;
+    // Split detail (absorbed1245 / absorbed1250) computed above in the
+    // ord → §1245 → exposed-§1250 waterfall — Tab 7's right-column income/tax
+    // lines read these to show the post-supp reduction per bucket.
     return {
       investment:     investment,
       idcPct:         idcPct,
