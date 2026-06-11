@@ -670,26 +670,39 @@
       var r = run(pm);
       if (r) { _seen[pm] = 1; scored.push(r); }
     }
-    function bestPm() { return Math.round(scored.reduce(function (a, b) { return b.net > a.net ? b : a; }).frac * 1000); }
-    // Coarse pass: 5% steps (50 permille), 100% → 30%.
+    // Excess-carryover penalty (advisor 2026-06-11). The raw-net measure
+    // (savings − fees) already charges the fee on Brooklyn loss that only
+    // STRANDS as carryforward (no gain left to absorb it), but the excess-loss
+    // fee CREDIT refunds that fee downstream — so without an explicit penalty
+    // the optimizer rides the credit-flat tail and over-deploys into a large
+    // unused carryover (e.g. Strategy C stranding $2M+). Penalize each scored
+    // deployment by WASTE_PENALTY × (lossGenerated − lossApplied) so the pick
+    // lands where the loss is actually usable. Tune WASTE_PENALTY up to fight
+    // carryover harder, down to favor net.
+    var WASTE_PENALTY = 0.5;
+    function score(s) { return s.net - WASTE_PENALTY * Math.max(0, Number(s.waste) || 0); }
+    function bestPm() { return Math.round(scored.reduce(function (a, b) { return score(b) > score(a) ? b : a; }).frac * 1000); }
+    // Coarse → mid → fine, each pass narrowing around the prior winner. A
+    // coarse 10% grid then 5% then 1% evaluates far fewer points than a flat
+    // 5% sweep + 1% + 0.1% refinements (advisor 2026-06-11 — the sweep was
+    // getting clunky), and 1% resolution is plenty for the dollar size here.
+    // Coarse pass: 10% steps, 100% → 30%.
     consider(1000);
-    for (var p = 950; p >= 300; p -= 50) consider(p);
-    // Fine pass: 1% steps (10 permille) within ±5% of the coarse winner.
+    for (var p = 900; p >= 300; p -= 100) consider(p);
+    // Mid pass: 5% steps within ±10% of the coarse winner.
     var bc = bestPm();
-    for (var q = bc - 50; q <= bc + 50; q += 10) consider(q);
-    // Ultra-fine pass: 0.1% steps (1 permille) within ±1% of the fine
-    // winner — lands the net peak on its clean tranche boundary instead of
-    // overshooting into a tiny wasteful final tranche.
+    for (var q = bc - 100; q <= bc + 100; q += 50) consider(q);
+    // Fine pass: 1% steps within ±5% of the mid winner.
     var bf = bestPm();
-    for (var u = bf - 10; u <= bf + 10; u++) consider(u);
+    for (var u = bf - 50; u <= bf + 50; u += 10) consider(u);
     var maxNet = scored.reduce(function (m, s) { return Math.max(m, s.net); }, -Infinity);
     if (maxNet <= 0) return 0;                 // even the best deployment loses money → don't deploy
-    // Pick the net-MAX deployment; among near-exact ties (within $250 — e.g.
-    // a strategy whose excess capital is inert, so several deployments net
-    // identically) prefer the SMALLEST so we don't park idle capital. The
-    // tight tolerance prevents drifting BELOW the peak and giving up real net.
+    // Pick the SCORE-max deployment (net penalized for stranded carryover);
+    // among near-ties (within $250) prefer the SMALLEST so we don't park idle
+    // capital or generate carryover we don't need.
+    var maxScore = scored.reduce(function (m, s) { return Math.max(m, score(s)); }, -Infinity);
     var tol = 250;
-    var winners = scored.filter(function (s) { return s.net >= maxNet - tol; })
+    var winners = scored.filter(function (s) { return score(s) >= maxScore - tol; })
                         .sort(function (a, b) { return a.frac - b.frac; });
     return winners.length ? Math.min(1, Math.max(0, winners[0].frac)) : 1;
   }
@@ -3686,11 +3699,16 @@
           var _redCfg   = Object.assign({}, e.cfg, { availableCapital: _redCap, investment: _redCap, investedCapital: _redCap });
           var _fullNet  = e.metrics.net;   // full-deployment net (from the auto-pick)
           var m2 = _scenarioMetrics(_redCfg);
-          // Apply the dial-back when it's an explicit user slider override,
-          // OR when it genuinely improves the displayed net — a safety guard
-          // so the optimizer's dial-back can never make net WORSE than full
-          // (e.g. if a fee-model edge case ever disagreed with the sweep).
-          if (m2 && (hasOverride || m2.net > _fullNet)) {
+          // Apply the optimizer's dial-back. It was previously gated on
+          // `m2.net > _fullNet` (only dial back if it RAISED displayed net),
+          // but the excess-loss fee CREDIT inflates the full-deployment net by
+          // refunding the fee on stranded loss — so that gate vetoed every
+          // dial-back that traded a little net for much less stranded carryover
+          // and snapped Strategy C back to full deployment (advisor 2026-06-11).
+          // _netMaxDeployFraction already balances net against stranding via the
+          // waste penalty, so trust its scale<1 pick here (slider override still
+          // forces its own amount).
+          if (m2 && (hasOverride || scale < 1)) {
             e.metrics.tax            = m2.tax;
             e.metrics.brooklynFees   = m2.brooklynFees;
             e.metrics.brookhavenFees = m2.brookhavenFees;
