@@ -661,8 +661,9 @@
     }
     if (salePrice <= 0) return;
     if (!(s.oilGas._userTouched && s.oilGas._userTouched.maxInvestment)) {
-      // 10% of sale price — typical sizing per advisor (was 5%).
-      s.oilGas.maxInvestment = Math.round(salePrice * 0.10);
+      // 5% of sale price — matches the per-supp auto-size cap (advisor
+      // 2026-06-11, tightened from 10%; the engine sweeps [0..5% of sale]).
+      s.oilGas.maxInvestment = Math.round(salePrice * 0.05);
     }
     if (!(s.delphi._userTouched && s.delphi._userTouched.investment)) {
       var pct25 = salePrice * 0.25;

@@ -3404,25 +3404,26 @@
       // Per-supp auto-sizing with a hard cap (advisor 2026-06-10): marking
       // a capital-deploying supplemental Interested lets the engine pick the
       // optimal deployment up to a ceiling expressed as a % of the SALE
-      // price — Delphi up to 50%, every other capital supp up to 20%. The
+      // price — Delphi up to 50%, every other capital supp up to 5%. The
       // ceiling below IS that cap, so no single supplemental can ever draw
       // more than its share of the sale. Free-benefit supps (PTET, Augusta)
       // have no investment knob and aren't swept/capped here.
       var _saleForCap = Math.max(0, Number(currentCfg.salePrice) || 0);
       // Per-supp auto-size ceiling as a fraction of the sale price. Oil & Gas
-      // and the equipment-type direct-investment supps cap at 10% of the sale
-      // (advisor 2026-06-10 — no single supp should soak up more than a tenth
-      // of the proceeds); Delphi, a fund-style placement, stays at 50%. The
-      // advisor can still override any amount up to this ceiling.
+      // and the equipment-type direct-investment supps cap at 5% of the sale
+      // (advisor 2026-06-11 — tightened from 10%; no single supp should soak up
+      // more than a twentieth of the proceeds); Delphi, a fund-style placement,
+      // stays at 50%. The advisor can still override any amount up to this
+      // ceiling.
       // Farm (slot12, deducts 100c/$) is sized BEFORE Equipment Leasing
       // (slot07, ~90c/$) so the higher-yield supp claims scarce out-year
       // headroom first and Equipment Leasing defers to it — deterministic,
       // not order-of-history dependent (advisor 2026-06-10).
       var SIZABLE = [
-        { id: 'oilGas', spec: (root.__rettSupplemental      || {}).oilGas, knob: 'maxInvestment',    minInc: 50000,  capPct: 0.10 },
+        { id: 'oilGas', spec: (root.__rettSupplemental      || {}).oilGas, knob: 'maxInvestment',    minInc: 50000,  capPct: 0.05 },
         { id: 'delphi', spec: (root.__rettSupplemental      || {}).delphi, knob: 'investment',       minInc: 100000, capPct: 0.50 },
-        { id: 'slot12', spec: (root.__rettSupplementalExtra || {}).slot12, knob: 'equipmentCost',    minInc: 50000,  capPct: 0.10 },
-        { id: 'slot07', spec: (root.__rettSupplementalExtra || {}).slot07, knob: 'investmentAmount', minInc: 50000,  capPct: 0.10 }
+        { id: 'slot12', spec: (root.__rettSupplementalExtra || {}).slot12, knob: 'equipmentCost',    minInc: 50000,  capPct: 0.05 },
+        { id: 'slot07', spec: (root.__rettSupplementalExtra || {}).slot07, knob: 'investmentAmount', minInc: 50000,  capPct: 0.05 }
       ];
       function _measureCombinedAt() {
         // Measure the FULL post-pipeline combined net (after Brooklyn
