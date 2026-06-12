@@ -571,7 +571,15 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       // high-LTCG / low-ord scenarios escape AMT that would actually
       // owe top-up on a real return.
       const _stdDedAddback = (deduction === stdDed && stdDed > 0) ? stdDed : 0;
-      const amtAmti     = taxableOrdinary + _stdDedAddback + ltAmount;
+      // Oil & Gas IDC AMT preference (advisor 2026-06-12). Intangible drilling
+      // costs are deducted for REGULAR tax but NOT for AMT — the deducted amount
+      // is added back to AMTI. The caller passes the O&G IDC ordinary offset
+      // here; it is re-included in the AMTI ordinary base (NOT the regular base,
+      // which keeps the deduction), so AMT is computed as if the IDC had not
+      // been deducted. Assumes 100% of the O&G deduction is IDC (a future split
+      // could pass only the IDC fraction). $0 for non-O&G supps and regular tax.
+      const _amtIdcPref = Math.max(0, Number(opts.amtIdcPreference) || 0);
+      const amtAmti     = taxableOrdinary + _stdDedAddback + ltAmount + _amtIdcPref;
       // AMT slice routing:
       //   §1245 stays in the ORDINARY AMTI slice (26/28% rate, no carve-
       //     out) — it's ordinary income for both regular and AMT.
@@ -602,7 +610,7 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       // ltTax (itemized deductions are retained for AMT) — the override only
       // bites when the standard deduction is in play.
       const _amtDeduction = Math.max(0, deduction - _stdDedAddback);
-      const _amtTaxableOrd = Math.max(0, ordinaryGross - _amtDeduction - _carriedLossOrdOffset);
+      const _amtTaxableOrd = Math.max(0, ordinaryGross - _amtDeduction - _carriedLossOrdOffset) + _amtIdcPref;
       const _amtDeductionConsumedOnOrd = Math.max(0, ordinaryGross - _amtTaxableOrd - _carriedLossOrdOffset);
       const _amtLeftoverDeduction = Math.max(0, _amtDeduction - _amtDeductionConsumedOnOrd);
       let _amtLtTax = 0;

@@ -391,7 +391,14 @@
     } else {
       rows.push(['Depreciation recap tax',         fedRcp,     !!opts.forceRecap]);
     }
-    rows.push(['AMT top-up',              amt,    false]);
+    // When the with-strategy AMT includes an Oil & Gas IDC add-back, label the
+    // line so the CPA sees the AMT is IDC-driven and how much was added back
+    // (IDC is deducted for regular tax but not AMT — advisor 2026-06-12).
+    var _idcAddback = Math.max(0, Number(b.amtIdcAddback) || 0);
+    var _amtLabel = _idcAddback > 0
+      ? 'AMT top-up — incl. Oil & Gas IDC (' + _fmt(_idcAddback) + ' added back)'
+      : 'AMT top-up';
+    rows.push([_amtLabel,                 amt,    false]);
     rows.push(['NIIT (3.8%)',             niit,   false]);
     // Additional Medicare = 0.9% × (W-2 wages − threshold). Threshold is
     // $250K MFJ / $200K single / $125K MFS / $200K HoH (fixed by statute,
@@ -522,7 +529,11 @@
         depreciationRecapture: rcp,
         depreciationRecapture1245: r1245,
         depreciationRecapture1250: r1250,
-        investmentIncome: inv, wages: w, seIncome: se, itemized: itm
+        investmentIncome: inv, wages: w, seIncome: se, itemized: itm,
+        // Oil & Gas IDC AMT preference: the O&G IDC ordinary offset is deducted
+        // for regular tax (already removed from `ord`) but added BACK to AMTI —
+        // IDC isn't deductible for AMT (advisor 2026-06-12).
+        amtIdcPreference: Math.max(0, Number(struct.amtIdcPreference) || 0)
       }) || {};
     } catch (e) { return null; }
     var capLossOff = Math.max(0, Number(fed.lossOrdOffsetApplied) || 0);
@@ -553,6 +564,7 @@
       addlMedicare: Number(fed.addlMedicare) || 0,
       seTax:        Number(fed.seTax) || 0,
       state:        stateTax,
+      amtIdcAddback: Math.max(0, Number(struct.amtIdcPreference) || 0),
       federalIncomeTax: _o + _r + _l + _a,
       total:        (Number(fed.total) || 0) + stateTax
     };
@@ -633,7 +645,9 @@
           // Medicare). Use ONLY the supplemental ord offset (_offOrd), never
           // the Brooklyn §1211(b) offset (_btOrd) — capital losses don't
           // reduce earned income. W-2 wages stay fixed in `wages` above.
-          seReduction:       _offOrd
+          seReduction:       _offOrd,
+          // Oil & Gas IDC is added back to AMTI (deducted for regular tax only).
+          amtIdcPreference:  Math.max(0, Math.round(Number(_split.oilGasOrd) || 0))
         };
       } catch (e) { /* keep defaults */ }
     }
@@ -1345,9 +1359,11 @@
   // 401k unified shape, augusta, PTET) only absorb against ordinary
   // income — they don't reach recap. We default those to ord-only.
   function _computeSuppOrdOffsetForYear(displayedI, fundedSupps) {
-    var ZERO = { ord: 0, r1245: 0, r1250: 0, total: 0 };
+    var ZERO = { ord: 0, r1245: 0, r1250: 0, total: 0, oilGasOrd: 0 };
     if (!Array.isArray(fundedSupps)) return ZERO;
-    var acc = { ord: 0, r1245: 0, r1250: 0 };
+    // oilGasOrd = the Oil & Gas portion of the ordinary offset — IDC, which is
+    // deducted for regular tax but added back for AMT (see amtIdcPreference).
+    var acc = { ord: 0, r1245: 0, r1250: 0, oilGasOrd: 0 };
     fundedSupps.forEach(function (s) {
       var extraSpec = (root.__rettSupplementalExtra && root.__rettSupplementalExtra[s.id]) || null;
       var coreSpec  = (root.__rettSupplemental      && root.__rettSupplemental[s.id])      || null;
@@ -1367,12 +1383,14 @@
         // attribute that fully to ordinary (they don't reach recap today).
         var hasSplit = (py.absorbedOrd != null) || (py.absorbed1245 != null) || (py.absorbed1250 != null);
         if (hasSplit) {
-          acc.ord   += Math.max(0, Number(py.absorbedOrd)   || 0) * sc;
+          var _ordAdd = Math.max(0, Number(py.absorbedOrd) || 0) * sc;
+          acc.ord   += _ordAdd;
           acc.r1245 += Math.max(0, Number(py.absorbed1245)  || 0) * sc;
           acc.r1250 += Math.max(0, Number(py.absorbed1250)  || 0) * sc;
+          if (s.id === 'oilGas') acc.oilGasOrd += _ordAdd;
         } else {
           var c = (py.absorbed != null) ? Number(py.absorbed) : Number(py.deduction || 0);
-          if (c > 0) acc.ord += c * sc;
+          if (c > 0) { acc.ord += c * sc; if (s.id === 'oilGas') acc.oilGasOrd += c * sc; }
         }
         return;
       }
@@ -1755,7 +1773,11 @@
       // Medicare fall as ordinary/SE income is offset. Brooklyn's recompute
       // (brkTax) keeps the full SE base — capital losses don't reduce earned
       // income. (advisor 2026-06-10.)
-      var suppStruct = Object.assign({}, struct, { seReduction: offOrd });
+      var suppStruct = Object.assign({}, struct, { seReduction: offOrd,
+        // O&G IDC added back to AMTI on the supp side (brkTax has no supp offset,
+        // so its IDC preference is 0) — this is what trims the O&G supp's
+        // incremental benefit when the IDC add-back triggers AMT.
+        amtIdcPreference: Math.max(0, Math.round(Number(split.oilGasOrd) || 0)) });
       var suppTax = _recomputePostStrategyTax(suppInc, year, status, stateCode, suppStruct);
       if (!brkTax || !suppTax) return;
       total += (Number(brkTax.total) || 0) - (Number(suppTax.total) || 0);
