@@ -411,13 +411,13 @@
     rows.push([_amtLabel,                 amt,    false]);
     rows.push(['NIIT (3.8%)',             niit,   false]);
     // Additional Medicare = 0.9% × (W-2 wages − threshold). Threshold is
-    // $250K MFJ / $200K single / $125K MFS / $200K HoH (fixed by statute,
-    // not indexed). Label spells out the trigger so a CPA reading the
-    // line immediately sees why it appears + why it doesn't move under
-    // strategy (Brooklyn / supps can't reduce employer-reported Medicare
-    // wages). Audit 2026-06-09: user flagged confusion that this stayed
-    // identical on baseline vs with-strategy.
-    rows.push(["Add'l Medicare (0.9% on W-2 above $250K MFJ)", addmed, false]);
+    // statutory (not indexed) and varies by filing status: $250K MFJ /
+    // $200K single / $125K MFS / $200K HoH. Show the ACTUAL threshold for
+    // THIS return's filing status — the label previously hardcoded "$250K
+    // MFJ" for every filer, which mis-stated the trigger for MFS ($125K),
+    // single ($200K) and HoH ($200K). (audit 2026-06-12)
+    var _amThresh = ({ single: 200000, mfj: 250000, mfs: 125000, hoh: 200000 })[_readVal('filing-status', 'mfj')] || 250000;
+    rows.push(["Add'l Medicare (0.9% on W-2 over $" + Math.round(_amThresh / 1000) + "K)", addmed, false]);
     rows.push(['SE / FICA tax',           setax,  false]);
     rows.push(['State income tax',        state,  true]);
     return rows.map(function (r) {
