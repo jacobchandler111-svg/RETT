@@ -583,24 +583,46 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       const amtOrdOnly  = _computeAmt(amtAmti, year, status, ltAmount, _recap1250InTaxable, recapTax1250);
 
       // === AMT preferential-rate layer (TMT capital-gains stacking) ===
-      // Form 6251 Part III line 44: the AMT LTCG brackets are positioned using
-      // the REGULAR taxable ordinary income (NET of the standard deduction) —
-      // the same `taxableOrdinary` base the regular `ltTax` already stacked on.
-      // So the AMT gain tax equals the regular gain tax, and we simply reuse it.
-      // Only the 26/28% ordinary slice (amtOrdOnly, run on the full std-ded-
-      // disallowed AMTI) and the §1250-at-25% carve differ between AMT and
-      // regular tax. The standard deduction is disallowed for the ORDINARY AMT
-      // slice (added back via amtAmti) yet still sets the GAIN's bracket
-      // position — that asymmetry is exactly what the form prescribes, not an
-      // inconsistency.
+      // CONSERVATIVE: the standard deduction is disallowed at EVERY point in the
+      // AMT calc — not just the 26/28% ordinary slice (which already runs on the
+      // full ordinary AMTI via _stdDedAddback), but ALSO the LTCG bracket
+      // positioning. The gains stack on `taxableOrdinary + _stdDedAddback` (the
+      // full ordinary AMTI), NOT on the regular post-std-ded taxable income.
+      // This OVERRIDES the literal Form 6251 Part III line 44 (which would
+      // position the gains using the regular, std-ded-net taxable income); the
+      // advisor's accountant circled back 2026-06-12 and chose the most
+      // conservative reading — no standard deduction anywhere in AMT. (This
+      // re-reverts the 2026-06-11 `_amtLtTax = ltTax` change back to the
+      // 2026-06-03 method. Canonical $250k ord / $2M gain MFJ: AMT = $29,252.)
       //
-      // CPA-confirmed 2026-06-11 (advisor's accountant): this SUPERSEDES the
-      // prior 2026-06-03 read that stacked the gains on the full AMTI ordinary
-      // base. That earlier departure overstated AMT by ~5% × standard deduction
-      // whenever a gain straddled the 15%/20% AMT breakpoint (e.g. the canonical
-      // $250k ord / $2M gain MFJ case: $29,252 → the correct $27,642). Do not
-      // re-introduce the std-ded add-back into the gain stacking base.
-      const _amtLtTax = ltTax;
+      // Mirrors the regular LTCG bracket walk above exactly, but:
+      //   stackBase   = taxableOrdinary + _stdDedAddback  (full AMTI ordinary)
+      //   taxableLt   = ltAmount - _amtLeftoverDeduction  (std ded NOT shifting floors)
+      // For an ITEMIZED filer _stdDedAddback = 0, so this reduces to the regular
+      // ltTax (itemized deductions are retained for AMT) — the override only
+      // bites when the standard deduction is in play.
+      const _amtDeduction = Math.max(0, deduction - _stdDedAddback);
+      const _amtTaxableOrd = Math.max(0, ordinaryGross - _amtDeduction - _carriedLossOrdOffset);
+      const _amtDeductionConsumedOnOrd = Math.max(0, ordinaryGross - _amtTaxableOrd - _carriedLossOrdOffset);
+      const _amtLeftoverDeduction = Math.max(0, _amtDeduction - _amtDeductionConsumedOnOrd);
+      let _amtLtTax = 0;
+      if (ltAmount > 0 && ltBrk && ltBrk.length) {
+            const _amtTaxableLt = Math.max(0, ltAmount - _amtLeftoverDeduction);
+            let remaining = _amtTaxableLt;
+            let stackBase = _amtTaxableOrd;
+            let prevMax = 0;
+            for (const b of ltBrk) {
+                  const cap = b[0], rate = b[1];
+                  if (remaining <= 0) break;
+                  const slabRoom = Math.max(0, cap - Math.max(stackBase, prevMax));
+                  if (slabRoom <= 0) { prevMax = cap; continue; }
+                  const slabUse = Math.min(slabRoom, remaining);
+                  _amtLtTax += slabUse * rate;
+                  remaining -= slabUse;
+                  stackBase += slabUse;
+                  prevMax = cap;
+            }
+      }
       const amtTotal    = amtOrdOnly + _amtLtTax;
       // Regular tax for AMT comparison includes recapTax — without
       // it the AMT top-up double-counts the recapture portion.
