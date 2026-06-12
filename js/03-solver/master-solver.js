@@ -38,6 +38,23 @@
   var REGISTRY_KEY = '__rettSupplementalRegistry';
   var ENABLED_KEY  = '__rettSupplementalEnabled';
 
+  // ── Oil & Gas IDC AMT preference fraction ────────────────────────────────
+  // Only the "excess IDC" is an AMT preference (IRC §57(a)(2)): the IDC
+  // deducted MINUS what 120-month (10-year) straight-line amortization would
+  // allow. In the first year ~1/10 of the IDC is recovered by that
+  // amortization and stays deductible for AMT, so the preference is ~90% of
+  // the IDC, NOT 100%. The advisor chose the conservative middle ground
+  // (option C, 2026-06-12 research): use 90% and deliberately SKIP the
+  // independent-producer exception (§57(a)(2)(E)) + 40% AMTI cap, which would
+  // exempt most individual working-interest investors entirely. Single source
+  // of truth — temp-page-render reads this same global. Dial later for a
+  // partial-IDC split or to model the independent-producer exemption.
+  if (root.__rettIdcAmtPrefFraction == null) root.__rettIdcAmtPrefFraction = 0.90;
+  function _idcAmtPrefFraction() {
+    var f = Number(root.__rettIdcAmtPrefFraction);
+    return (isNaN(f) || f < 0) ? 0.90 : Math.min(1, f);
+  }
+
   function _registry() {
     if (!root[REGISTRY_KEY]) root[REGISTRY_KEY] = {};
     return root[REGISTRY_KEY];
@@ -433,7 +450,8 @@
     var wages    = Math.max(0, Number(cfg && cfg.wages) || 0);
     var touched  = false;
     var newPy = py.map(function (p, i) {
-      var idc = Math.max(0, Number(p && p.absorbedOrd) || 0);
+      // Only the excess IDC (~90%) is an AMT preference — see _idcAmtPrefFraction.
+      var idc = Math.max(0, Number(p && p.absorbedOrd) || 0) * _idcAmtPrefFraction();
       if (idc <= 0) return p;
       var regOrd = Math.max(0, residOrd - idc);
       var clawback = 0;

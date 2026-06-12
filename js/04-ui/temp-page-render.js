@@ -26,6 +26,16 @@
 (function (root) {
   'use strict';
 
+  // Oil & Gas IDC AMT preference fraction — only the "excess IDC" (~90%, the
+  // IDC net of first-year 120-month amortization) is an AMT add-back, not 100%
+  // (IRC §57(a)(2); advisor option C, 2026-06-12). Single source of truth lives
+  // in master-solver (root.__rettIdcAmtPrefFraction); fall back to 0.90 if the
+  // solver hasn't initialized it yet.
+  function _idcAmtPrefFraction() {
+    var f = Number(root.__rettIdcAmtPrefFraction);
+    return (isNaN(f) || f < 0) ? 0.90 : Math.min(1, f);
+  }
+
   // Default number of year cards (Y0..Y_TOTAL_YEARS-1). The actual
   // count is max(TOTAL_YEARS, engineRows.length) — see render() — so a
   // C scenario whose recognition extends past the default still gets
@@ -647,7 +657,8 @@
           // reduce earned income. W-2 wages stay fixed in `wages` above.
           seReduction:       _offOrd,
           // Oil & Gas IDC is added back to AMTI (deducted for regular tax only).
-          amtIdcPreference:  Math.max(0, Math.round(Number(_split.oilGasOrd) || 0))
+          // Only the excess IDC (~90%) is the preference — see _idcAmtPrefFraction.
+          amtIdcPreference:  Math.max(0, Math.round((Number(_split.oilGasOrd) || 0) * _idcAmtPrefFraction()))
         };
       } catch (e) { /* keep defaults */ }
     }
@@ -1777,7 +1788,7 @@
         // O&G IDC added back to AMTI on the supp side (brkTax has no supp offset,
         // so its IDC preference is 0) — this is what trims the O&G supp's
         // incremental benefit when the IDC add-back triggers AMT.
-        amtIdcPreference: Math.max(0, Math.round(Number(split.oilGasOrd) || 0)) });
+        amtIdcPreference: Math.max(0, Math.round((Number(split.oilGasOrd) || 0) * _idcAmtPrefFraction())) });
       var suppTax = _recomputePostStrategyTax(suppInc, year, status, stateCode, suppStruct);
       if (!brkTax || !suppTax) return;
       total += (Number(brkTax.total) || 0) - (Number(suppTax.total) || 0);
