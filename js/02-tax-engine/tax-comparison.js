@@ -2145,7 +2145,26 @@ if (typeof window !== 'undefined') {
 if (typeof window !== 'undefined') {
       var _utcRaw   = window.unifiedTaxComparison;
       var _utcCache = new Map();
-      window.__rettClearTaxCache = function () { _utcCache.clear(); };
+      // Per-render memo for the low-level federal breakdown. Profiling
+      // (2026-06-12 audit) found computeFederalTaxBreakdown invoked ~107,000
+      // times in a single full render with only ~1,366 DISTINCT
+      // (ordinaryIncome, year, status, opts) tuples — a ~78x redundancy from
+      // the optimizer's nested rivalry / auto-size / drop-one passes all
+      // re-pricing the same scenarios. The function is a PURE function of its
+      // four arguments + the session-constant TAX_DATA, and EVERY field it
+      // returns is a primitive number/boolean (verified — no nested
+      // array/object), so a memo keyed on the fully-serialized args is
+      // bit-identical to recomputation. Safety: (1) never cache before
+      // TAX_DATA loads (a pre-load degenerate $0 result must not be served
+      // after the async fetch lands); (2) every consumer — hit OR miss —
+      // receives a SHALLOW CLONE, so a caller that mutates the result cannot
+      // poison the cached pristine copy; (3) cleared with _utcCache once per
+      // top-level render. Wrapping window.* intercepts bare-name callers
+      // exactly as the unifiedTaxComparison wrapper does (load order:
+      // tax-calc-federal.js -> this file).
+      var _cftbRaw   = window.computeFederalTaxBreakdown;
+      var _cftbCache = new Map();
+      window.__rettClearTaxCache = function () { _utcCache.clear(); _cftbCache.clear(); };
       window.unifiedTaxComparison = function (cfg, opts) {
             var key;
             try {
@@ -2159,6 +2178,27 @@ if (typeof window !== 'undefined') {
             _utcCache.set(key, r);
             return r;
       };
+
+      if (typeof _cftbRaw === 'function') {
+            window.computeFederalTaxBreakdown = function (ordinaryIncome, year, status, opts) {
+                  // Bypass the memo until tax data is loaded (pre-load returns
+                  // a degenerate $0 result that must not be cached).
+                  var _ready = (typeof TAX_DATA !== 'undefined') && TAX_DATA && TAX_DATA.federal;
+                  if (!_ready) return _cftbRaw(ordinaryIncome, year, status, opts);
+                  var key;
+                  try {
+                        key = ordinaryIncome + '|' + year + '|' + status + '|' +
+                              (opts != null ? JSON.stringify(opts) : '');
+                  } catch (e) {
+                        return _cftbRaw(ordinaryIncome, year, status, opts);  // non-serializable -> bypass
+                  }
+                  var hit = _cftbCache.get(key);
+                  if (hit !== undefined) return Object.assign({}, hit);   // clone: caller can't poison cache
+                  var r = _cftbRaw(ordinaryIncome, year, status, opts);
+                  _cftbCache.set(key, r);                                  // store pristine
+                  return Object.assign({}, r);                            // return a clone
+            };
+      }
 }
 
 
