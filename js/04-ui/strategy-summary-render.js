@@ -982,28 +982,50 @@
       return Number.isFinite(Number(s.realizedNetBenefit))
         ? Number(s.realizedNetBenefit) : (Number(s.netBenefit) || 0);
     }
-    var contributing = solverOut.supplementals.filter(function (s) {
+    // ACTIVE = supps currently adding benefit (enabled, funded, realized > 0).
+    var active = solverOut.supplementals.filter(function (s) {
       if (!s.enabled || !s.available) return false;
       if (s.rivalry && !s.rivalry.funded) return false;
       // Hide supps the shared ordinary pool fully crowded out (realized $0)
       // — they don't add to the client's net, so they shouldn't list here.
       return _realized(s) > 0;
     });
-    if (!contributing.length) return '';
-    var rows = contributing.map(function (s) {
-      var rNet = _realized(s);
-      var sign = rNet >= 0 ? '+' : '';
-      var amt = sign + _fmt(rNet);
+    // INACTIVE = Interested supps the advisor has TOGGLED OFF. Keep them
+    // visible as a muted row with the toggle (unchecked) so they can be
+    // flipped back on — toggling a supplemental off must NOT make it vanish
+    // (advisor 2026-06-12: "what if I want to bring it back"). Still skips
+    // supps that never produced a result (nothing to bring back).
+    var inactive = solverOut.supplementals.filter(function (s) {
+      // Toggled off — keep visible regardless of whether the disabled supp
+      // still has a computed result. Capital supps (Equipment Leasing, Farm)
+      // auto-size to $0 when disabled, which nulls their result (available =
+      // false); we still want the muted row + re-enable toggle.
+      return !s.enabled;
+    });
+    if (!active.length && !inactive.length) return '';
+    function _suppRow(s, isActive) {
+      var amt, rowAttr, checked;
+      if (isActive) {
+        var rNet = _realized(s);
+        amt = (rNet >= 0 ? '+' : '') + _fmt(rNet);
+        rowAttr = ''; checked = ' checked';
+      } else {
+        amt = 'Not active';
+        rowAttr = ' style="opacity:.5"'; checked = '';
+      }
       return '' +
-        '<div class="supp-strat-row" data-supp-row="' + s.id + '">' +
+        '<div class="supp-strat-row" data-supp-row="' + s.id + '"' + rowAttr + '>' +
           '<label class="supp-row-toggle">' +
-            '<input type="checkbox" data-supp-toggle="' + s.id + '" checked>' +
+            '<input type="checkbox" data-supp-toggle="' + s.id + '"' + checked + '>' +
             '<span class="supp-row-switch" aria-hidden="true"></span>' +
           '</label>' +
           '<div class="supp-strat-name">' + s.name + '</div>' +
           '<div class="supp-strat-amt">' + amt + '</div>' +
         '</div>';
-    }).join('');
+    }
+    var rows = active.map(function (s) { return _suppRow(s, true); })
+      .concat(inactive.map(function (s) { return _suppRow(s, false); }))
+      .join('');
 
     return '' +
       '<div class="input-section">' +
