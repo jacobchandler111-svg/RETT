@@ -408,6 +408,49 @@
     return { total: Math.round(total), realized: realized, detail: realizedDetail };
   }
 
+  // Oil & Gas IDC AMT clawback (advisor 2026-06-12). O&G's intangible drilling
+  // cost is deducted for regular tax but added BACK to AMTI post-strategy (IDC
+  // isn't deductible for AMT — see tax-calc-federal `amtIdcPreference`). After
+  // the primary (Brooklyn) strategy wipes the capital gain, the residual is the
+  // recurring ordinary income; adding the IDC back there often triggers AMT
+  // that claws back most of O&G's federal benefit. The FUNDING layer (rivalry +
+  // auto-sizer) must rank/size O&G by this AFTER-AMT value so it doesn't
+  // over-invest in O&G when AMT eats it (and funds higher-benefit supps first).
+  //
+  // Returns a SHALLOW CLONE of the O&G result with each year's totalSaved (and
+  // the rollup) reduced by that year's incremental IDC AMT. The original
+  // lastResult is NOT mutated — the per-year display recompute
+  // (__rettHonestSuppBenefit / temp-page) applies the IDC AMT itself from the
+  // untouched absorbedOrd, so there's no double-count. Demand/absorbed fields
+  // are left intact so the shared-ordinary-pool rationing is unchanged.
+  function _oilGasResultAfterAmt(cfg, result) {
+    if (!result || typeof root.computeFederalTaxBreakdown !== 'function') return result;
+    var py = Array.isArray(result.perYear) ? result.perYear : null;
+    if (!py || !py.length) return result;
+    var year     = Number(cfg && cfg.year1) || 2026;
+    var status   = (cfg && cfg.filingStatus) || 'mfj';
+    var residOrd = Math.max(0, Number(cfg && cfg.baseOrdinaryIncome) || 0);
+    var wages    = Math.max(0, Number(cfg && cfg.wages) || 0);
+    var touched  = false;
+    var newPy = py.map(function (p, i) {
+      var idc = Math.max(0, Number(p && p.absorbedOrd) || 0);
+      if (idc <= 0) return p;
+      var regOrd = Math.max(0, residOrd - idc);
+      var clawback = 0;
+      try {
+        var w = root.computeFederalTaxBreakdown(regOrd, year + i, status, { longTermGain: 0, wages: wages, amtIdcPreference: idc }) || {};
+        var n = root.computeFederalTaxBreakdown(regOrd, year + i, status, { longTermGain: 0, wages: wages }) || {};
+        clawback = Math.max(0, (Number(w.amtTopUp) || 0) - (Number(n.amtTopUp) || 0));
+      } catch (e) { clawback = 0; }
+      if (clawback <= 0) return p;
+      touched = true;
+      return Object.assign({}, p, { totalSaved: Math.max(0, (Number(p.totalSaved) || 0) - clawback) });
+    });
+    if (!touched) return result;
+    var newTotal = newPy.reduce(function (a, p) { return a + (Number(p.totalSaved) || 0); }, 0);
+    return Object.assign({}, result, { perYear: newPy, totalSaved: newTotal });
+  }
+
   // Rivalry optimizer — for each Interested supplemental, compare its
   // net-benefit-per-dollar against Brooklyn's net-benefit-per-dollar at
   // full Available Capital. Greedy-allocate from highest rate down,
@@ -466,6 +509,8 @@
       })
       .map(function (spec) {
         var result = (typeof spec.getResult === 'function') ? spec.getResult() : null;
+        // Rank O&G by its AFTER-AMT benefit (IDC added back post-strategy).
+        if (spec.id === 'oilGas') result = _oilGasResultAfterAmt(cfg, result);
         var net = (typeof spec.getNetBenefit === 'function')
           ? Number(spec.getNetBenefit(result)) || 0 : 0;
         var inv = (typeof spec.getInvestment === 'function')
@@ -687,6 +732,8 @@
       .map(function (spec) {
         var interest = (typeof spec.getInterest === 'function') ? spec.getInterest() : null;
         var result   = (typeof spec.getResult   === 'function') ? spec.getResult()   : null;
+        // O&G ranked/saturated by its AFTER-AMT benefit (IDC added back).
+        if (spec.id === 'oilGas') result = _oilGasResultAfterAmt(cfg, result);
         var benefit  = (typeof spec.getNetBenefit === 'function')
           ? Number(spec.getNetBenefit(result)) || 0
           : 0;
