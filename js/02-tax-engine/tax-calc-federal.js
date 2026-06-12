@@ -576,8 +576,11 @@ function computeFederalTaxBreakdown(ordinaryIncome, year, status, opts) {
       // is added back to AMTI. The caller passes the O&G IDC ordinary offset
       // here; it is re-included in the AMTI ordinary base (NOT the regular base,
       // which keeps the deduction), so AMT is computed as if the IDC had not
-      // been deducted. Assumes 100% of the O&G deduction is IDC (a future split
-      // could pass only the IDC fraction). $0 for non-O&G supps and regular tax.
+      // been deducted. The caller has ALREADY scaled the offset by the excess-
+      // IDC fraction (root.__rettIdcAmtPrefFraction = 0.90 — only the IDC net
+      // of first-year 120-month amortization is an AMT preference per IRC
+      // §57(a)(2)); this engine adds back exactly what it is handed. $0 for
+      // non-O&G supps and for regular tax.
       const _amtIdcPref = Math.max(0, Number(opts.amtIdcPreference) || 0);
       const amtAmti     = taxableOrdinary + _stdDedAddback + ltAmount + _amtIdcPref;
       // AMT slice routing:
