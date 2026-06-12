@@ -153,11 +153,13 @@ function getStateNode(year, stateCode) {
           return TAX_DATA.states[key][stateCode] || null;
 }
 
-// Map a federal filing status to the state bracket bucket. Source data
-// only carries 'single' and 'married_joint'; MFS uses MFJ-halved
-// brackets (Form 1040 standard treatment), HOH uses single brackets
-// (close approximation — actual HOH brackets are slightly wider in some
-// states but unpublished data points are out of scope here).
+// Map a federal filing status to the state bracket bucket. MFS prefers an
+// EXPLICIT 'married_separate' array when the state data carries one (handled
+// in getStateBrackets / getStateStandardDeduction below); this fallback maps
+// MFS to MFJ-halved brackets only when no explicit array exists (the Form
+// 1040 standard approximation). HOH uses single brackets (close
+// approximation — actual HOH brackets are slightly wider in some states but
+// unpublished data points are out of scope here).
 function _stateBracketChoice(status) {
           const fk = fsKey(status);
           if (fk === 'married_joint') return { key: 'married_joint', halve: false };
@@ -170,9 +172,21 @@ function _stateBracketChoice(status) {
 function getStateBrackets(year, stateCode, status) {
           const node = getStateNode(year, stateCode);
           if (!node || node.noIncomeTax) return null;
-          const choice = _stateBracketChoice(status);
           const factor = (TAX_DATA.states[String(year)] && TAX_DATA.states[String(year)][stateCode])
                   ? 1 : _yearProjectionFactor(year);
+          // Audit A1 (2026-06-12): prefer an EXPLICIT 'married_separate' bracket
+          // array when the state data carries one (IA, KS, LA, MD, NE, OH, OK).
+          // For most it equals halved-MFJ (no change), but MD & OH MFS actually
+          // use the SINGLE brackets — the halved-MFJ approximation over-collects
+          // (~$1,026 on MD $400k). Using the authoritative array already in the
+          // data file fixes those without altering any data value. Falls back to
+          // the halved-MFJ approximation only when no explicit array exists.
+          const fk = fsKey(status);
+          if ((fk === 'married_separate' || fk === 'mfs') &&
+              node.brackets && Array.isArray(node.brackets.married_separate)) {
+                  return _projectFlatBrackets(node.brackets.married_separate, factor);
+          }
+          const choice = _stateBracketChoice(status);
           // MFS halves the MFJ thresholds (rates are unchanged) — mirrors
           // how a real return treats MFS at the federal level.
           const halve = choice.halve ? 0.5 : 1;
@@ -183,6 +197,13 @@ function getStateBrackets(year, stateCode, status) {
 function getStateStandardDeduction(year, stateCode, status) {
           const node = getStateNode(year, stateCode);
           if (!node || node.noIncomeTax) return 0;
+          // Audit A1: prefer an explicit 'married_separate' standard deduction
+          // when present (mirrors getStateBrackets). Falls back to halved-MFJ.
+          const fk = fsKey(status);
+          if ((fk === 'married_separate' || fk === 'mfs') &&
+              node.standardDeduction && node.standardDeduction.married_separate != null) {
+                  return node.standardDeduction.married_separate;
+          }
           const choice = _stateBracketChoice(status);
           const raw = (node.standardDeduction && node.standardDeduction[choice.key]) || 0;
           // Standard deduction is held FLAT at base-year values across the
