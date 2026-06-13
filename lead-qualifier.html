@@ -136,9 +136,9 @@
      keys off "gain after debt is paid" = min(gain, sale - debt):
      the appreciation you actually walk away with as deployable cash.
   ================================================================ */
-  var STRONG_MIN = 1000000;   // >= $1M gain-after-debt  -> strong fit ("we can work with them")
-  var GOOD_MIN   =  500000;   // >= $500k                -> strong potential
-  var MAYBE_MIN  =  250000;   // >= $250k                -> worth a conversation
+  var STRONG_MIN = 1000000;   // >= $1M gain-after-debt  -> STRONG fit (the real bar)
+  var MEDIUM_MIN =  500000;   // $500k - $1M             -> MEDIUM fit (likely some benefit)
+  var LOW_MIN    =  250000;   // $250k - $500k           -> limited / worth a conversation
                               //  < $250k                -> point to alternatives
   var LTCG_RATE  = 0.20;      // federal long-term cap-gains rate (high earners)
   var NIIT_RATE  = 0.038;     // net investment income tax
@@ -171,15 +171,15 @@
       h:'You look like an excellent candidate for RETT.',
       p:'With this much gain after your debt is paid, clients at your level typically see a meaningful, multiples-of-fees net benefit — especially once our supplemental strategies are layered in. The next step is a complimentary, no-obligation analysis of your exact numbers.'
     },
-    good: {
-      cls:'v-good', tag:'Strong potential',
-      h:'You’re likely a good fit — let’s run your numbers.',
-      p:'A gain of this size usually produces a solid net benefit after fees. A full analysis will confirm the exact figure for your income, state, and timing.'
+    medium: {
+      cls:'v-good', tag:'Medium fit',
+      h:'There’s likely a real benefit — though below where RETT shines most.',
+      p:'$1M or more of gain after debt is the level where RETT delivers the most, but a gain of your size usually still produces a meaningful net benefit after fees. A full analysis will confirm the figure for your income, state, and timing.'
     },
-    maybe: {
-      cls:'v-maybe', tag:'Worth a conversation',
-      h:'RETT may help — it depends on your full picture.',
-      p:'At this level the benefit is more sensitive to your income, state, and how the sale is structured. A quick conversation will tell us whether RETT or another approach is the better move for you.'
+    low: {
+      cls:'v-maybe', tag:'Limited fit',
+      h:'There may be some benefit, but it’s likely modest.',
+      p:'At this level the planning cost is closer to the benefit, so it depends on your income, state, and how the sale is structured. A quick conversation will tell us whether RETT or a simpler approach is the better move for you.'
     },
     alt: {
       cls:'v-alt', tag:'Other options may fit better',
@@ -244,12 +244,12 @@
     var tax = gain * CG_RATE;
 
     var tier;
-    if(gain <= 0)                       tier = 'nogain';
-    else if(netProceeds <= 0)           tier = 'noequity';            // debt swallows the whole sale
+    if(gain <= 0)                        tier = 'nogain';
+    else if(netProceeds <= 0)            tier = 'noequity';            // debt swallows the whole sale
     else if(gainAfterDebt >= STRONG_MIN) tier = 'strong';
-    else if(gainAfterDebt >= GOOD_MIN)   tier = 'good';
-    else if(gainAfterDebt >= MAYBE_MIN)  tier = 'maybe';
-    else if(gain >= STRONG_MIN && netProceeds < MAYBE_MIN) tier = 'noequity'; // big gain, no cash left
+    else if(gainAfterDebt >= MEDIUM_MIN) tier = 'medium';
+    else if(gainAfterDebt >= LOW_MIN)    tier = 'low';
+    else if(gain >= STRONG_MIN && netProceeds < LOW_MIN) tier = 'noequity'; // big gain, no cash left
     else                                 tier = 'alt';
 
     render(tier, gain, gainAfterDebt, tax);
