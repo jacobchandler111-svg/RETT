@@ -132,14 +132,20 @@
 <script>
 (function(){
   /* ===================== TWEAKABLE KNOBS =========================
-     Calibrated against the RETT engine (2026-06-12). The qualifier
-     keys off "gain after debt is paid" = min(gain, sale - debt):
-     the appreciation you actually walk away with as deployable cash.
+     Two independent axes (advisor 2026-06-12):
+       GAIN  = sale - basis           -> the tax opportunity. Want >= $1M.
+       AVAIL = sale - debt            -> capital we can actually invest.
+                                         MORE DEBT = LESS AVAIL = WORSE.
+     Best fit = >= $1M gain AND enough available capital to offset the
+     whole gain in one year (~$1.7M), with ~$3M+ being a great fit.
   ================================================================ */
-  var STRONG_MIN = 1000000;   // >= $1M gain-after-debt  -> STRONG fit (the real bar)
-  var MEDIUM_MIN =  500000;   // $500k - $1M             -> MEDIUM fit (likely some benefit)
-  var LOW_MIN    =  250000;   // $250k - $500k           -> limited / worth a conversation
-                              //  < $250k                -> point to alternatives
+  var GAIN_STRONG  = 1000000;  // >= $1M gain  -> meets the primary bar
+  var GAIN_MED     =  500000;  // $500k-$1M    -> some benefit, below the bar
+
+  var AVAIL_GREAT  = 3000000;  // >= $3M to invest -> great (full-scale deployment)
+  var AVAIL_STRONG = 1700000;  // >= $1.7M         -> strong (offset the gain in one year)
+  var AVAIL_MED    = 1000000;  // >= $1M           -> workable; below this, debt caps the benefit
+
   var LTCG_RATE  = 0.20;      // federal long-term cap-gains rate (high earners)
   var NIIT_RATE  = 0.038;     // net investment income tax
   var CG_RATE    = LTCG_RATE + NIIT_RATE;   // ~23.8% federal; state adds more
@@ -166,25 +172,35 @@
   function val(id){ return Number(($(id).value || '').replace(/[^0-9]/g,'')) || 0; }
 
   var TIERS = {
+    great: {
+      cls:'v-strong', tag:'Great fit',
+      h:'You’re exactly who RETT is built for.',
+      p:'A $1M+ gain with this much capital free to invest lets us deploy the strategy at full scale and offset the gain efficiently — often in a single year. This is a great fit. The next step is a complimentary, no-obligation analysis of your exact numbers.'
+    },
     strong: {
       cls:'v-strong', tag:'Strong fit',
-      h:'You look like an excellent candidate for RETT.',
-      p:'With this much gain after your debt is paid, clients at your level typically see a meaningful, multiples-of-fees net benefit — especially once our supplemental strategies are layered in. The next step is a complimentary, no-obligation analysis of your exact numbers.'
+      h:'You look like a strong candidate for RETT.',
+      p:'With $1M+ of gain and enough capital free to invest, we can typically offset the gain in one year and produce a meaningful, multiples-of-fees net benefit — especially with our supplemental strategies layered in. Let’s run your exact numbers.'
     },
     medium: {
       cls:'v-good', tag:'Medium fit',
-      h:'There’s likely a real benefit — though below where RETT shines most.',
-      p:'$1M or more of gain after debt is the level where RETT delivers the most, but a gain of your size usually still produces a meaningful net benefit after fees. A full analysis will confirm the figure for your income, state, and timing.'
+      h:'There’s likely a real benefit — just below the ideal range.',
+      p:'Either your gain or the capital you have free to invest is a bit under the level where RETT shines most, but there’s usually still meaningful benefit after fees. A full analysis will confirm the figure for your income, state, and timing.'
+    },
+    debtheavy: {
+      cls:'v-maybe', tag:'Limited by debt',
+      h:'Strong gain — but the debt is the holdup.',
+      p:'Your gain is right where we like it, but most of your proceeds go to paying off what you owe, leaving limited capital to actually put the strategy to work. The benefit is capped by how much you can invest. It can still be worth a conversation — sometimes the timing or structure can be adjusted to free up more.'
     },
     low: {
       cls:'v-maybe', tag:'Limited fit',
       h:'There may be some benefit, but it’s likely modest.',
-      p:'At this level the planning cost is closer to the benefit, so it depends on your income, state, and how the sale is structured. A quick conversation will tell us whether RETT or a simpler approach is the better move for you.'
+      p:'Both the gain and the capital available to invest are on the lighter side, so the planning cost is closer to the benefit. A quick conversation will tell us whether RETT or a simpler approach is the better move for you.'
     },
     alt: {
       cls:'v-alt', tag:'Other options may fit better',
       h:'RETT may not be the most efficient fit at this level.',
-      p:'Your gain after debt is modest, so the planning cost may outweigh the benefit. These approaches are often a better match — and we’re happy to point you in the right direction:',
+      p:'Your gain is modest, so the planning cost may outweigh the benefit. These approaches are often a better match — and we’re happy to point you in the right direction:',
       alts:['1031 like-kind exchange (defer by reinvesting in real estate)',
             'Installment sale (spread the gain over several years)',
             'Qualified Opportunity Zone investment',
@@ -196,9 +212,9 @@
       p:'Your sale price is at or below your cost basis, so there isn’t a meaningful capital-gains tax for RETT to reduce. If your numbers change, come back and re-check.'
     },
     noequity: {
-      cls:'v-maybe', tag:'Little equity after debt',
-      h:'Most of your proceeds go to paying off debt.',
-      p:'You have a real gain, but after the loans are paid there’s limited cash left to put the strategy to work. It can still be worth a conversation — sometimes the timing or structure can be adjusted.'
+      cls:'v-maybe', tag:'No capital left to invest',
+      h:'Your debt is as large as the sale.',
+      p:'After the loans are paid there’s essentially no cash left to put the strategy to work, so RETT can’t add value here. If the debt or sale price changes, come back and re-check.'
     }
   };
 
@@ -208,7 +224,7 @@
     return html;
   }
 
-  function render(tierKey, gain, gainAfterDebt, tax){
+  function render(tierKey, gain, avail, tax){
     var t = TIERS[tierKey];
     var altHtml = t.alts ? '<ul class="alt-list"><li>'+t.alts.join('</li><li>')+'</li></ul>' : '';
     var statsHtml = '';
@@ -220,8 +236,8 @@
             '<div class="vsub">~'+Math.round(CG_RATE*100)+'% federal (LT cap gains + NIIT) — your state adds more</div></div>' +
           '<div class="stat"><div class="k">Capital gain</div><div class="v">'+money(gain)+'</div>' +
             '<div class="vsub">sale price &minus; cost basis</div></div>' +
-          '<div class="stat"><div class="k">Gain after debt paid</div><div class="v">'+money(gainAfterDebt)+'</div>' +
-            '<div class="vsub">what you walk away with</div></div>' +
+          '<div class="stat"><div class="k">Capital free to invest</div><div class="v">'+money(avail)+'</div>' +
+            '<div class="vsub">sale price &minus; debt owed</div></div>' +
         '</div>';
     }
     $('result').innerHTML =
@@ -238,21 +254,26 @@
     var sale = val('sale'), basis = val('basis'), debt = val('debt');
     if(sale <= 0){ $('result').innerHTML = '<div class="empty">Enter your numbers above to see your result.</div>'; return; }
 
-    var gain = Math.max(0, sale - basis);
-    var netProceeds = Math.max(0, sale - debt);          // cash after paying off debt
-    var gainAfterDebt = Math.min(gain, netProceeds);     // appreciation you can actually deploy
-    var tax = gain * CG_RATE;
+    var gain  = Math.max(0, sale - basis);   // the tax opportunity
+    var avail = Math.max(0, sale - debt);    // capital free to invest (more debt = less = worse)
+    var tax   = gain * CG_RATE;
 
     var tier;
-    if(gain <= 0)                        tier = 'nogain';
-    else if(netProceeds <= 0)            tier = 'noequity';            // debt swallows the whole sale
-    else if(gainAfterDebt >= STRONG_MIN) tier = 'strong';
-    else if(gainAfterDebt >= MEDIUM_MIN) tier = 'medium';
-    else if(gainAfterDebt >= LOW_MIN)    tier = 'low';
-    else if(gain >= STRONG_MIN && netProceeds < LOW_MIN) tier = 'noequity'; // big gain, no cash left
-    else                                 tier = 'alt';
+    if(gain <= 0)               tier = 'nogain';        // sale <= basis
+    else if(avail <= 0)         tier = 'noequity';      // debt >= sale, nothing to invest
+    else if(gain >= GAIN_STRONG){                       // ---- meets the $1M gain bar ----
+      if(avail >= AVAIL_GREAT)       tier = 'great';    // $1M+ gain & $3M+ to invest
+      else if(avail >= AVAIL_STRONG) tier = 'strong';   // $1M+ gain & $1.7M+ to invest
+      else if(avail >= AVAIL_MED)    tier = 'medium';   // $1M+ gain & $1M+ to invest
+      else                           tier = 'debtheavy';// strong gain, but debt caps the capital
+    } else if(gain >= GAIN_MED){                        // ---- $500k-$1M gain (below bar) ----
+      if(avail >= AVAIL_STRONG)      tier = 'medium';   // light gain but plenty of capital
+      else                           tier = 'low';
+    } else {                                            // ---- gain < $500k ----
+      tier = 'alt';
+    }
 
-    render(tier, gain, gainAfterDebt, tax);
+    render(tier, gain, avail, tax);
   }
 
   ['sale','basis','debt'].forEach(function(id){ attachMoney($(id)); });
