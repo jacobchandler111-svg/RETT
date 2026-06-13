@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RETT — Do You Qualify? | BrookHaven</title>
+<style>
+  /* ----------------------------------------------------------------
+     RETT lead qualifier — standalone, self-contained (no external deps).
+     Safe to email or host anywhere; everything is inline.
+     Tweakable knobs are grouped at the top of the <script> block.
+  ----------------------------------------------------------------- */
+  :root{
+    --navy:#0f1e35; --navy2:#16294a; --gold:#c2a24a; --gold-d:#a9882f;
+    --ink:#1d2433; --muted:#6b7689; --line:#e4e7ee; --bg:#f4f6fa;
+    --green:#1f7a4d; --green-bg:#e7f4ec; --blue:#1d5fb0; --blue-bg:#e8f0fb;
+    --amber:#9a6a12; --amber-bg:#fbf1dd; --grey:#5b6473; --grey-bg:#eef0f4;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       color:var(--ink);background:var(--bg);line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:640px;margin:0 auto;padding:0 18px 60px}
+
+  /* header */
+  header{background:linear-gradient(160deg,var(--navy),var(--navy2));color:#fff;
+         padding:34px 24px 30px;text-align:center;border-bottom:3px solid var(--gold)}
+  .brand{font-size:12px;letter-spacing:.32em;color:var(--gold);font-weight:700;text-transform:uppercase}
+  .logo{font-size:30px;font-weight:800;letter-spacing:.04em;margin:8px 0 2px}
+  .logo sup{font-size:12px;top:-1em;letter-spacing:0}
+  .tagline{font-size:13px;color:#b9c3d6;letter-spacing:.06em}
+  .sub{margin-top:16px;font-size:18px;font-weight:600;color:#fff}
+  .sub span{color:var(--gold)}
+
+  /* card */
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;
+        box-shadow:0 6px 24px rgba(15,30,53,.06);padding:26px 24px;margin-top:-22px;position:relative;z-index:2}
+  .lead{font-size:14px;color:var(--muted);margin-bottom:20px;text-align:center}
+
+  .field{margin-bottom:16px}
+  label{display:block;font-size:13px;font-weight:600;color:var(--ink);margin-bottom:6px}
+  label .hint{font-weight:400;color:var(--muted);font-size:12px}
+  .input-money{position:relative}
+  .input-money:before{content:"$";position:absolute;left:14px;top:50%;transform:translateY(-50%);
+        color:var(--muted);font-weight:600;font-size:16px}
+  input[type=text]{width:100%;padding:13px 14px 13px 28px;font-size:17px;border:1.5px solid var(--line);
+        border-radius:9px;color:var(--ink);background:#fff;transition:border-color .15s;font-variant-numeric:tabular-nums}
+  input[type=text]:focus{outline:none;border-color:var(--gold)}
+  input[type=text]::placeholder{color:#aab2c0}
+
+  .note{font-size:12px;color:var(--muted);margin-top:2px}
+
+  /* result */
+  #result{margin-top:8px}
+  .verdict{border-radius:12px;padding:20px;margin-bottom:16px;border:1px solid transparent}
+  .verdict .tag{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px}
+  .verdict h2{font-size:21px;font-weight:800;margin-bottom:8px;letter-spacing:-.01em}
+  .verdict p{font-size:14.5px;color:var(--ink)}
+  .v-strong{background:var(--green-bg);border-color:#bfe3cd}.v-strong .tag,.v-strong h2{color:var(--green)}
+  .v-good{background:var(--blue-bg);border-color:#c6dbf5}.v-good .tag,.v-good h2{color:var(--blue)}
+  .v-maybe{background:var(--amber-bg);border-color:#ecd9ad}.v-maybe .tag,.v-maybe h2{color:var(--amber)}
+  .v-alt{background:var(--grey-bg);border-color:#d8dde6}.v-alt .tag,.v-alt h2{color:var(--grey)}
+
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);
+         border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:16px}
+  .stat{background:#fff;padding:14px 16px}
+  .stat .k{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+  .stat .v{font-size:21px;font-weight:800;margin-top:3px;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .stat.hero{grid-column:1/-1;background:var(--navy);}
+  .stat.hero .k{color:var(--gold)}.stat.hero .v{color:#fff}
+  .stat .vsub{font-size:11.5px;color:var(--muted);font-weight:500;margin-top:1px}
+  .stat.hero .vsub{color:#9fb0cb}
+
+  .alt-list{margin:10px 0 0;padding-left:18px;font-size:13.5px;color:var(--ink)}
+  .alt-list li{margin:3px 0}
+
+  .cta{display:block;width:100%;text-align:center;background:linear-gradient(160deg,var(--gold),var(--gold-d));
+       color:var(--navy);font-weight:800;font-size:16px;letter-spacing:.02em;padding:15px;border:none;
+       border-radius:10px;text-decoration:none;cursor:pointer;box-shadow:0 4px 14px rgba(169,136,47,.28)}
+  .cta:hover{filter:brightness(1.04)}
+  .cta.secondary{background:#fff;color:var(--navy);border:1.5px solid var(--navy);box-shadow:none;margin-top:10px}
+
+  .empty{text-align:center;color:var(--muted);font-size:14px;padding:18px 0}
+
+  footer{margin-top:22px;font-size:11.5px;color:var(--muted);text-align:center;padding:0 6px}
+  footer .lines{margin-top:12px;color:#9aa4b3;letter-spacing:.18em;font-size:10.5px;font-weight:700}
+
+  @media (max-width:480px){.logo{font-size:25px}.sub{font-size:16px}.stat .v{font-size:19px}}
+</style>
+</head>
+<body>
+  <header>
+    <div class="brand">BrookHaven &middot; Integrated Wealth Solutions</div>
+    <div class="logo">RETT<sup>&trade;</sup></div>
+    <div class="tagline">REAL ESTATE TRANSITION TRUST</div>
+    <div class="sub">Selling a property? <span>See if you qualify.</span></div>
+  </header>
+
+  <div class="wrap">
+    <div class="card">
+      <p class="lead">Answer three quick questions about your sale to see whether a
+        Real&nbsp;Estate&nbsp;Transition&nbsp;Trust could meaningfully reduce the tax on your gain.</p>
+
+      <div class="field">
+        <label for="sale">Expected sale price <span class="hint">— what the property will sell for</span></label>
+        <div class="input-money"><input id="sale" type="text" inputmode="numeric" placeholder="3,000,000" autocomplete="off" /></div>
+      </div>
+
+      <div class="field">
+        <label for="basis">Cost basis <span class="hint">— what you paid, plus improvements</span></label>
+        <div class="input-money"><input id="basis" type="text" inputmode="numeric" placeholder="1,000,000" autocomplete="off" /></div>
+      </div>
+
+      <div class="field">
+        <label for="debt">Amount still owed <span class="hint">— mortgage / loans to be paid off at closing</span></label>
+        <div class="input-money"><input id="debt" type="text" inputmode="numeric" placeholder="0" autocomplete="off" /></div>
+        <div class="note">Leave at 0 if the property is paid off.</div>
+      </div>
+
+      <div id="result">
+        <div class="empty">Enter your numbers above to see your result.</div>
+      </div>
+    </div>
+
+    <footer>
+      This tool provides a high-level estimate only and is <strong>not tax, legal, or investment advice.</strong>
+      Your actual benefit depends on your income, filing status, state, and full tax picture. Figures use an
+      assumed long-term capital-gains rate; your result will be confirmed in a complimentary analysis.
+      <div class="lines">CPA &middot; LAW &middot; INVESTMENT MANAGEMENT &middot; INSURANCE &middot; TRUSTEE SERVICES</div>
+    </footer>
+  </div>
+
+<script>
+(function(){
+  /* ===================== TWEAKABLE KNOBS =========================
+     Calibrated against the RETT engine (2026-06-12). The qualifier
+     keys off "gain after debt is paid" = min(gain, sale - debt):
+     the appreciation you actually walk away with as deployable cash.
+  ================================================================ */
+  var STRONG_MIN = 1000000;   // >= $1M gain-after-debt  -> strong fit ("we can work with them")
+  var GOOD_MIN   =  500000;   // >= $500k                -> strong potential
+  var MAYBE_MIN  =  250000;   // >= $250k                -> worth a conversation
+                              //  < $250k                -> point to alternatives
+  var LTCG_RATE  = 0.20;      // federal long-term cap-gains rate (high earners)
+  var NIIT_RATE  = 0.038;     // net investment income tax
+  var CG_RATE    = LTCG_RATE + NIIT_RATE;   // ~23.8% federal; state adds more
+
+  // ---- the booking link / phone the CTA points to (EDIT THESE) ----
+  var BOOK_URL = "mailto:info@brookhaven.example?subject=RETT%20Analysis%20Request";
+  var PHONE    = "";          // e.g. "tel:+14045551234"; leave "" to hide
+
+  // ----------------------------------------------------------------
+  var $ = function(id){ return document.getElementById(id); };
+  var fmt = function(n){ return n.toLocaleString('en-US',{maximumFractionDigits:0}); };
+  var money = function(n){ return '$' + fmt(Math.round(n)); };
+
+  // currency-format an input as the user types
+  function attachMoney(el){
+    el.addEventListener('input', function(){
+      var caretEnd = el.selectionStart === el.value.length;
+      var digits = el.value.replace(/[^0-9]/g,'');
+      el.value = digits ? Number(digits).toLocaleString('en-US') : '';
+      if(caretEnd){ el.selectionStart = el.selectionEnd = el.value.length; }
+      compute();
+    });
+  }
+  function val(id){ return Number(($(id).value || '').replace(/[^0-9]/g,'')) || 0; }
+
+  var TIERS = {
+    strong: {
+      cls:'v-strong', tag:'Strong fit',
+      h:'You look like an excellent candidate for RETT.',
+      p:'With this much gain after your debt is paid, clients at your level typically see a meaningful, multiples-of-fees net benefit — especially once our supplemental strategies are layered in. The next step is a complimentary, no-obligation analysis of your exact numbers.'
+    },
+    good: {
+      cls:'v-good', tag:'Strong potential',
+      h:'You’re likely a good fit — let’s run your numbers.',
+      p:'A gain of this size usually produces a solid net benefit after fees. A full analysis will confirm the exact figure for your income, state, and timing.'
+    },
+    maybe: {
+      cls:'v-maybe', tag:'Worth a conversation',
+      h:'RETT may help — it depends on your full picture.',
+      p:'At this level the benefit is more sensitive to your income, state, and how the sale is structured. A quick conversation will tell us whether RETT or another approach is the better move for you.'
+    },
+    alt: {
+      cls:'v-alt', tag:'Other options may fit better',
+      h:'RETT may not be the most efficient fit at this level.',
+      p:'Your gain after debt is modest, so the planning cost may outweigh the benefit. These approaches are often a better match — and we’re happy to point you in the right direction:',
+      alts:['1031 like-kind exchange (defer by reinvesting in real estate)',
+            'Installment sale (spread the gain over several years)',
+            'Qualified Opportunity Zone investment',
+            'Charitable remainder trust (income + tax deduction)']
+    },
+    nogain: {
+      cls:'v-alt', tag:'No taxable gain',
+      h:'There’s little or no capital gain to plan around.',
+      p:'Your sale price is at or below your cost basis, so there isn’t a meaningful capital-gains tax for RETT to reduce. If your numbers change, come back and re-check.'
+    },
+    noequity: {
+      cls:'v-maybe', tag:'Little equity after debt',
+      h:'Most of your proceeds go to paying off debt.',
+      p:'You have a real gain, but after the loans are paid there’s limited cash left to put the strategy to work. It can still be worth a conversation — sometimes the timing or structure can be adjusted.'
+    }
+  };
+
+  function ctaBlock(){
+    var html = '<a class="cta" href="'+BOOK_URL+'">Book my free analysis &rarr;</a>';
+    if(PHONE){ html += '<a class="cta secondary" href="'+PHONE+'">Or call us</a>'; }
+    return html;
+  }
+
+  function render(tierKey, gain, gainAfterDebt, tax){
+    var t = TIERS[tierKey];
+    var altHtml = t.alts ? '<ul class="alt-list"><li>'+t.alts.join('</li><li>')+'</li></ul>' : '';
+    var statsHtml = '';
+    if(gain > 0){
+      statsHtml =
+        '<div class="stats">' +
+          '<div class="stat hero"><div class="k">Est. capital-gains tax exposure</div>' +
+            '<div class="v">'+money(tax)+'</div>' +
+            '<div class="vsub">~'+Math.round(CG_RATE*100)+'% federal (LT cap gains + NIIT) — your state adds more</div></div>' +
+          '<div class="stat"><div class="k">Capital gain</div><div class="v">'+money(gain)+'</div>' +
+            '<div class="vsub">sale price &minus; cost basis</div></div>' +
+          '<div class="stat"><div class="k">Gain after debt paid</div><div class="v">'+money(gainAfterDebt)+'</div>' +
+            '<div class="vsub">what you walk away with</div></div>' +
+        '</div>';
+    }
+    $('result').innerHTML =
+      statsHtml +
+      '<div class="verdict '+t.cls+'">' +
+        '<div class="tag">'+t.tag+'</div>' +
+        '<h2>'+t.h+'</h2>' +
+        '<p>'+t.p+'</p>' + altHtml +
+      '</div>' +
+      ctaBlock();
+  }
+
+  function compute(){
+    var sale = val('sale'), basis = val('basis'), debt = val('debt');
+    if(sale <= 0){ $('result').innerHTML = '<div class="empty">Enter your numbers above to see your result.</div>'; return; }
+
+    var gain = Math.max(0, sale - basis);
+    var netProceeds = Math.max(0, sale - debt);          // cash after paying off debt
+    var gainAfterDebt = Math.min(gain, netProceeds);     // appreciation you can actually deploy
+    var tax = gain * CG_RATE;
+
+    var tier;
+    if(gain <= 0)                       tier = 'nogain';
+    else if(netProceeds <= 0)           tier = 'noequity';            // debt swallows the whole sale
+    else if(gainAfterDebt >= STRONG_MIN) tier = 'strong';
+    else if(gainAfterDebt >= GOOD_MIN)   tier = 'good';
+    else if(gainAfterDebt >= MAYBE_MIN)  tier = 'maybe';
+    else if(gain >= STRONG_MIN && netProceeds < MAYBE_MIN) tier = 'noequity'; // big gain, no cash left
+    else                                 tier = 'alt';
+
+    render(tier, gain, gainAfterDebt, tax);
+  }
+
+  ['sale','basis','debt'].forEach(function(id){ attachMoney($(id)); });
+})();
+</script>
+</body>
+</html>
