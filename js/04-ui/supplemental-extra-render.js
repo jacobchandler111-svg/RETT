@@ -412,7 +412,7 @@
       detailsBlock =
         '<button type="button" class="supp-details-arrow' + detailsOpenCls + '" data-supx-details-target="' + spec.id + '" aria-expanded="' + (st.detailsOpen ? 'true' : 'false') + '" title="' + (st.detailsOpen ? 'Hide details' : 'Show details') + '">' +
           '<span class="supp-details-arrow-chev" aria-hidden="true">&#9662;</span>' +
-          '<span class="supp-details-arrow-label">Details</span>' +
+          '<span class="supp-details-arrow-label">Input Details</span>' +
         '</button>' +
         '<div class="supp-details-panel"' + (st.detailsOpen ? '' : ' hidden') + '>' +
           detailRows +

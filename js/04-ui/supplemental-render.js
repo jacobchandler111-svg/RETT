@@ -285,7 +285,7 @@
         '</div>' +
         '<button type="button" class="supp-details-arrow' + detailsOpenCls + '" data-supp-details-target="oilGas" aria-expanded="' + (st.detailsOpen ? 'true' : 'false') + '" aria-controls="supp-details-oilGas" title="' + (st.detailsOpen ? 'Hide details' : 'Show details') + '">' +
           '<span class="supp-details-arrow-chev" aria-hidden="true">&#9662;</span>' +
-          '<span class="supp-details-arrow-label">Details</span>' +
+          '<span class="supp-details-arrow-label">Input Details</span>' +
         '</button>' +
         '<div class="supp-details-panel" id="supp-details-oilGas"' + (st.detailsOpen ? '' : ' hidden') + '>' +
           '<div class="supp-details-row">' +
@@ -366,7 +366,7 @@
         '</div>' +
         '<button type="button" class="supp-details-arrow' + detailsOpenCls + '" data-supp-details-target="delphi" aria-expanded="' + (st.detailsOpen ? 'true' : 'false') + '" aria-controls="supp-details-delphi" title="' + (st.detailsOpen ? 'Hide details' : 'Show details') + '">' +
           '<span class="supp-details-arrow-chev" aria-hidden="true">&#9662;</span>' +
-          '<span class="supp-details-arrow-label">Details</span>' +
+          '<span class="supp-details-arrow-label">Input Details</span>' +
         '</button>' +
         '<div class="supp-details-panel" id="supp-details-delphi"' + (st.detailsOpen ? '' : ' hidden') + '>' +
           '<div class="supp-details-row">' +

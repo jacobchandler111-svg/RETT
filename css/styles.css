@@ -7074,8 +7074,9 @@ body { font-size: 16px; }
 .supp-details-arrow.is-open .supp-details-arrow-chev {
     transform: rotate(0deg); /* points down when open */
 }
-.supp-details-arrow-label { display: none; }
-.supp-details-arrow.is-open .supp-details-arrow-label { display: inline; }
+/* Always show the "Input Details" label (not just when open) so the
+   user knows what the chevron opens before clicking (advisor 2026-06-15). */
+.supp-details-arrow-label { display: inline; }
 
 /* "See Value" button — appears beneath the Details arrow on each
    placeholder card. Disabled until the user marks Interested so the
