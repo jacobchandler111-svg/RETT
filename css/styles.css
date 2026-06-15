@@ -8637,7 +8637,10 @@ body { font-size: 16px; }
     font-size: clamp(2.2rem, 4.2vw, 3.4rem);
     font-weight: 600;
     line-height: 1.05;
-    color: #1d4ed8;
+    /* BrookHaven brand navy (advisor 2026-06-12) — was the off-brand royal
+       blue #1d4ed8; now matches the brand navy used on the LT-gain segment
+       of the proceeds breakdown bar so Tab 2 reads cohesively. */
+    color: var(--rett-navy);
     overflow: visible;
     white-space: nowrap;
 }
