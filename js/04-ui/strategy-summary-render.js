@@ -499,17 +499,27 @@
       opt:            opt,
       optScale:       optScale,
       effectiveBkFees: effectiveBrooklynFees,
+      brookhavenFees: m.brookhavenFees || 0,
       fees:           fees,
       savings:        savings,
       net:            net,
       roi:            roi,
+      // Return on Planning — use the SAME ratio the on-screen ROP square
+      // shows (net / (fees + setup fees)) so the printout and the screen
+      // never disagree. The legacy `roi` (net/fees) is left passed for
+      // back-compat but the print view reads `rop`.
+      rop:            ropRatio,
       horizon:        horizon,
       leverage:       leverage,
       dur:            dur,
       recYr:          recYr,
       year1:          year1,
       supplements:    fundedSupplements,
-      supplementalBenefit: supplementalBenefit
+      supplementalBenefit: supplementalBenefit,
+      // Fee roll-up for the "Fees" block at the bottom of the leave-behind.
+      suppFeesTotal:  suppFeesTotal,
+      totalFeesAll:   totalFeesAll,
+      suppSetupFeeMap: _suppSetupFeeMap
     });
 
     host.innerHTML = html;
@@ -542,11 +552,6 @@
       : d.entry.type === 'B' ? 'Installment Sale'
       : 'Structured Installment Sale';
     var stratNum = d.entry.type === 'A' ? '01' : d.entry.type === 'B' ? '02' : '03';
-
-    // Tax comparison row
-    var doNothing = m.doNothing || 0;
-    var taxWith   = m.tax || 0;
-    var saving    = Math.max(0, doNothing - taxWith);
 
     // Email field will eventually pull from the Pre-Meeting
     // Questionnaire. Until that's wired up, we render a muted
@@ -593,54 +598,117 @@
       '</div>' +
     '</div>';
 
-    // Hero 3-box row
+    // The printout reads as a top-to-bottom narrative (advisor 2026-06-15):
+    //   1. What You Told Us   — the client inputs, summarized (one income
+    //      figure + the sale + its gain), NOT a line-by-line breakdown.
+    //   2. Your Strategy      — the primary strategy + any supplemental
+    //      strategies, each with its return and the fees baked into it.
+    //   3. What We Save You    — You Save / Net Benefit / Return on Planning.
+    //   4. Fees                — the full fee roll-up, at the very bottom.
+    var reportedIncome = Number(cfg.baseOrdinaryIncome) || 0;
+    var salePriceV     = Number(cfg.salePrice) || 0;
+    var costBasisV     = Number(cfg.costBasis) || 0;
+    // The SALE's long-term gain is computed from the property fields, NOT
+    // cfg.baseLongTermGain (that's the separate Section-02 "other capital
+    // gains" input). Mirror inputs-collector's formula exactly:
+    //   ltGain   = max(0, salePrice − costBasis − depreciation − stPropGain)
+    //   recapture = depreciation taken (the part taxed at recapture rates)
+    var accelDepV      = Number(cfg.acceleratedDepreciation) || 0;
+    var stPropGainV    = Number(cfg.shortTermPropertyGain) || 0;
+    var ltGainV        = Math.max(0, salePriceV - costBasisV - accelDepV - stPropGainV);
+    var recaptureV     = Math.max(0, accelDepV);
+    // Return on Planning — combined net benefit (primary + supps) over the
+    // combined fees, mirroring the on-screen ROP square exactly so the
+    // printout and the live page never disagree (advisor 2026-06-15: do
+    // NOT compute a per-supp %, which goes infinite for fee-free supps —
+    // sum the nets, sum the fees, divide once).
+    var ropRatioP    = Number(d.rop) || 0;
+    var ropPct       = Math.round(ropRatioP * 100);
+    var ropPerDollar = (ropRatioP > 0) ? ropRatioP.toFixed(2) : '0.00';
+    var suppSetupMap = d.suppSetupFeeMap || {};
+
+    // ===== 1 + 2 : "What You Told Us"  |  "Your Strategy" (two columns) =====
+    h += '<div class="print-body">';
+
+    // LEFT: client-input summary, simplified to a single income figure.
+    h += '<div class="print-col">';
+    h += '<div class="print-section">' +
+      '<div class="print-section-head">What You Told Us</div>' +
+      '<table class="print-table"><tbody>' +
+        '<tr><td>Reported annual income</td><td class="print-r">' + _fmt(reportedIncome) + '</td></tr>' +
+        '<tr><td>Property sale price</td><td class="print-r">' + _fmt(salePriceV) + '</td></tr>' +
+        '<tr><td>Cost basis</td><td class="print-r">' + _fmt(costBasisV) + '</td></tr>' +
+        '<tr><td>Long-term capital gain</td><td class="print-r">' + _fmt(ltGainV) + '</td></tr>' +
+        (recaptureV > 0
+          ? '<tr><td>Depreciation recapture</td><td class="print-r">' + _fmt(recaptureV) + '</td></tr>'
+          : '') +
+        '<tr><td>Filing &middot; State</td><td class="print-r">' + _filingLabel(cfg.filingStatus) +
+          ' &middot; ' + (cfg.state && cfg.state !== 'NONE' ? cfg.state : '&mdash;') + '</td></tr>' +
+      '</tbody></table>' +
+    '</div>';
+    h += '</div>'; // /print-col left
+
+    // RIGHT: the strategy we selected + supplemental strategies.
+    h += '<div class="print-col">';
+    h += '<div class="print-section">' +
+      '<div class="print-section-head">Your Strategy</div>' +
+      '<table class="print-table"><tbody>' +
+        '<tr><td>Primary strategy</td><td class="print-r"><strong>' + stratLabel + '</strong></td></tr>' +
+        '<tr><td>Tax year</td><td class="print-r">' + year1 + '</td></tr>' +
+        (entry.type === 'C'
+          ? '<tr><td>Structured sale term</td><td class="print-r">' + d.dur + ' months</td></tr>'
+          : '') +
+      '</tbody></table>' +
+    '</div>';
+
+    if (d.supplements && d.supplements.length) {
+      var suppRows = '';
+      d.supplements.forEach(function (s) {
+        // Saturation-adjusted realized net (matches the on-screen per-supp
+        // rows and the combined-net hero). Skip supps the shared ordinary
+        // pool fully crowded out (realized $0) — they add nothing.
+        var printNet = Number.isFinite(Number(s.realizedNetBenefit))
+          ? Number(s.realizedNetBenefit)
+          : (Number(s.netBenefit) || 0);
+        if (printNet <= 0) return;
+        var setupF  = Math.max(0, Number(suppSetupMap[s.id]) || 0);
+        var mgmtF   = Number(s.result && s.result.mgmtFeeDollars) || 0;
+        var suppFee = setupF + mgmtF;
+        suppRows += '<tr><td>' + s.name + '</td>' +
+          '<td class="print-num print-green">+' + _fmt(printNet) + '</td>' +
+          '<td class="print-num">' + (suppFee > 0 ? _fmt(suppFee) : '&mdash;') + '</td></tr>';
+      });
+      if (suppRows) {
+        h += '<div class="print-section">' +
+          '<div class="print-section-head">Supplemental Strategies</div>' +
+          '<table class="print-table">' +
+            '<thead><tr><th>Strategy</th><th class="print-num">Return</th><th class="print-num">Fees</th></tr></thead>' +
+            '<tbody>' + suppRows + '</tbody>' +
+          '</table>' +
+        '</div>';
+      }
+    }
+    h += '</div>'; // /print-col right
+    h += '</div>'; // /print-body
+
+    // ===== 3 : "What We Save You" (hero) =====
+    h += '<div class="print-section-head print-savings-head">What We Save You</div>';
     h += '<div class="print-hero-row">' +
       '<div class="print-hero-box">' +
         '<div class="print-hero-label">You Save</div>' +
         '<div class="print-hero-value">' + _fmt(savings) + '</div>' +
-        '<div class="print-hero-sub">Total projected tax savings vs. doing nothing</div>' +
-      '</div>' +
-      '<div class="print-hero-box print-hero-fees">' +
-        '<div class="print-hero-label">Total Fees</div>' +
-        '<div class="print-hero-value">' + _fmt(fees) + '</div>' +
-        '<div class="print-hero-sub">Brooklyn position + Brookhaven planning</div>' +
+        '<div class="print-hero-sub">Total projected tax saved vs. doing nothing</div>' +
       '</div>' +
       '<div class="print-hero-box print-hero-net">' +
         '<div class="print-hero-label">Net Benefit</div>' +
         '<div class="print-hero-value">' + _fmt(net) + '</div>' +
-        '<div class="print-hero-sub">' + _fmtMultiplier(roi) + '&times; return on every $1 in fees</div>' +
+        '<div class="print-hero-sub">After all fees shown below</div>' +
       '</div>' +
-    '</div>';
-
-    // Two-column body
-    h += '<div class="print-body">';
-
-    // LEFT: Tax comparison + fee breakdown
-    h += '<div class="print-col">';
-
-    h += '<div class="print-section">' +
-      '<div class="print-section-head">Tax Comparison &mdash; ' + d.horizon + '-Year Horizon</div>' +
-      '<table class="print-table">' +
-        '<thead><tr><th>Scenario</th><th class="print-num">Tax Owed</th><th class="print-num">Difference</th></tr></thead>' +
-        '<tbody>' +
-          '<tr><td>Without planning (do nothing)</td><td class="print-num">' + _fmt(doNothing) + '</td><td class="print-num">—</td></tr>' +
-          '<tr><td>With ' + stratLabel + ' strategy</td><td class="print-num">' + _fmt(taxWith) + '</td><td class="print-num print-green">&#x2212;' + _fmt(saving) + '</td></tr>' +
-          (d.supplements.length ? '<tr><td>Supplemental strategies benefit</td><td class="print-num print-green">+' + _fmt(d.supplementalBenefit) + '</td><td class="print-num print-green">+' + _fmt(d.supplementalBenefit) + '</td></tr>' : '') +
-        '</tbody>' +
-      '</table>' +
-    '</div>';
-
-    h += '<div class="print-section">' +
-      '<div class="print-section-head">Fees Included</div>' +
-      '<table class="print-table">' +
-        '<tbody>' +
-          '<tr><td>Brooklyn position management' +
-            (opt && opt.dialBack ? ' <span class="print-note">(investment scaled to ' + _fmt(opt.recommendedInvestment) + ')</span>' : '') +
-          '</td><td class="print-num">' + _fmt(d.effectiveBkFees) + '</td></tr>' +
-          '<tr><td>Brookhaven planning &amp; advisory</td><td class="print-num">' + _fmt(m.brookhavenFees || 0) + '</td></tr>' +
-          '<tr class="print-total-row"><td><strong>Total fees</strong></td><td class="print-num"><strong>' + _fmt(fees) + '</strong></td></tr>' +
-        '</tbody>' +
-      '</table>' +
+      '<div class="print-hero-box">' +
+        '<div class="print-hero-label">Return on Planning</div>' +
+        '<div class="print-hero-value">' + ropPct.toLocaleString('en-US') + '%</div>' +
+        '<div class="print-hero-sub">$' + ropPerDollar + ' back for every $1 in fees</div>' +
+      '</div>' +
     '</div>';
 
     if (opt && opt.dialBack) {
@@ -651,64 +719,20 @@
       '</div>';
     }
 
-    h += '</div>'; // /print-col left
-
-    // RIGHT: Strategy details
-    h += '<div class="print-col">';
-
-    h += '<div class="print-section">' +
-      '<div class="print-section-head">Selected Strategy</div>' +
-      '<table class="print-table">' +
-        '<tbody>' +
-          '<tr><td>Strategy</td><td class="print-r"><strong>' + stratLabel + '</strong></td></tr>' +
-          '<tr><td>Tax year</td><td class="print-r">' + year1 + '</td></tr>' +
-          '<tr><td>Filing status</td><td class="print-r">' + _filingLabel(cfg.filingStatus) + '</td></tr>' +
-          '<tr><td>State</td><td class="print-r">' + (cfg.state || '—') + '</td></tr>' +
-          '<tr><td>Closing / implementation</td><td class="print-r">' + (cfg.implementationDate || '—') + '</td></tr>' +
-          '<tr><td>Brooklyn horizon</td><td class="print-r">' + d.horizon + ' years</td></tr>' +
-          '<tr><td>Brooklyn leverage</td><td class="print-r">' + d.leverage + '% short</td></tr>' +
-          (entry.type === 'C'
-            ? '<tr><td>Structured sale term</td><td class="print-r">' + d.dur + ' months</td></tr>' +
-              '<tr><td>Gain recognition starts</td><td class="print-r">Year ' + (d.recYr||2) + ' (' + (year1+(d.recYr||2)-1) + ')</td></tr>'
-            : '') +
-        '</tbody>' +
-      '</table>' +
+    // ===== 4 : "Fees" (the full roll-up, at the very bottom) =====
+    h += '<div class="print-section print-fees-section">' +
+      '<div class="print-section-head">Fees</div>' +
+      '<table class="print-table"><tbody>' +
+        '<tr><td>Asset Manager &mdash; Brooklyn position' +
+          (opt && opt.dialBack ? ' <span class="print-note">(scaled to ' + _fmt(opt.recommendedInvestment) + ')</span>' : '') +
+        '</td><td class="print-num">' + _fmt(d.effectiveBkFees) + '</td></tr>' +
+        (Number(d.suppFeesTotal) > 0
+          ? '<tr><td>Supplemental strategy fees</td><td class="print-num">' + _fmt(d.suppFeesTotal) + '</td></tr>'
+          : '') +
+        '<tr><td>Brookhaven planning &amp; advisory</td><td class="print-num">' + _fmt(d.brookhavenFees || 0) + '</td></tr>' +
+        '<tr class="print-total-row"><td><strong>Total fees</strong></td><td class="print-num"><strong>' + _fmt(d.totalFeesAll) + '</strong></td></tr>' +
+      '</tbody></table>' +
     '</div>';
-
-    if (d.supplements && d.supplements.length) {
-      h += '<div class="print-section">' +
-        '<div class="print-section-head">Supplemental Strategies</div>' +
-        '<table class="print-table"><tbody>';
-      d.supplements.forEach(function (s) {
-        // Use saturation-adjusted realized net (matches the screen path's
-        // _realized helper at line ~957 and the hero's combined-net total).
-        // Pre-fix this used s.netBenefit (raw, pre-saturation) so printed
-        // per-supp rows could sum to more than the printed hero on heavy
-        // ord-offset stacks. Audit 2026-06-08 finding #7.
-        var printNet = Number.isFinite(Number(s.realizedNetBenefit))
-          ? Number(s.realizedNetBenefit)
-          : (Number(s.netBenefit) || 0);
-        if (printNet <= 0) return;  // skip crowded-out supps
-        h += '<tr><td>' + s.name + '</td><td class="print-num print-green">+' + _fmt(printNet) + '</td></tr>';
-      });
-      h += '</tbody></table></div>';
-    }
-
-    // Print ROI display: percent format matching the screen view
-    // (roi = net / fees). Renders as e.g. "828%" with the sub-line
-    // "For every $1 in fees, $8.28 returned in net benefit".
-    var roiPct = Math.round((roi || 0) * 100);
-    var roiPerDollar = (roi > 0) ? roi.toFixed(2) : '0.00';
-    h += '<div class="print-section">' +
-      '<div class="print-section-head">Return on Planning</div>' +
-      '<div class="print-roi-display">' +
-        '<span class="print-roi-num">' + roiPct.toLocaleString('en-US') + '%</span>' +
-        '<span class="print-roi-label">For every $1 in fees, $' + roiPerDollar + ' returned in net benefit</span>' +
-      '</div>' +
-    '</div>';
-
-    h += '</div>'; // /print-col right
-    h += '</div>'; // /print-body
 
     h += '<div class="print-footer">' +
       '<div class="print-footer-attrib">' +
