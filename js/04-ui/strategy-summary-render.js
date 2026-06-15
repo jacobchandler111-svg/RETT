@@ -434,7 +434,7 @@
       .filter(function (x) { return x.fee > 0; });
     var suppFeesTotal = fundedSuppFees.reduce(function (sum, s) { return sum + s.fee; }, 0);
     var suppFeeBullet = suppFeesTotal > 0
-      ? _bullet('Supplemental Strategy Fees<span class="strat-savings-line">Brookhaven setup fees + fund management on funded supplemental strategies</span>', suppFeesTotal)
+      ? _bullet('Supplemental Strategy Fees', suppFeesTotal)
       : '';
     var totalFeesAll = fees + suppFeesTotal;
 
@@ -444,9 +444,9 @@
         '<button type="button" class="num section-review-btn" id="fee-review-btn" aria-expanded="false" title="Toggle side-by-side baseline vs. strategy reconciliation">REVIEW &#9662;</button>' +
       '</div>' +
       '<div class="section-body">' +
-        _bullet('Asset Manager fees<span class="strat-savings-line">Borrow + fund + short-side carry over the position</span>', effectiveBrooklynFees) +
+        _bullet('Asset Manager fees', effectiveBrooklynFees) +
         suppFeeBullet +
-        _bullet('Brookhaven fees<span class="strat-savings-line">Planning engagement plus ongoing services</span>', m.brookhavenFees || 0) +
+        _bullet('Brookhaven fees', m.brookhavenFees || 0) +
         '<div class="fee-summary-row">' +
           '<div class="fee-summary-label">Total Fees</div>' +
           '<div class="fee-summary-amt">' + _fmt(totalFeesAll) + '</div>' +
