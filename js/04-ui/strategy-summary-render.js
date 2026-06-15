@@ -376,7 +376,15 @@
             '<div class="walkaway-side withplan">' +
               '<div class="walkaway-label">With Planning</div>' +
               '<div class="walkaway-amt">' + _fmt(walkawayWithPlanning) + '</div>' +
-              '<div class="walkaway-tagline">what you walk away with</div>' +
+              // When the with-planning walk-away exceeds the sale price, the
+              // planning offset baseline (non-sale) income tax on top of the
+              // sale tax — flag it with a small side note so the figure
+              // doesn't look like a typo. (advisor 2026-06-12.)
+              '<div class="walkaway-tagline">what you walk away with' +
+                (walkawayWithPlanning > salePrice
+                  ? '<span class="walkaway-sidenote"> &mdash; incl. additional baseline offset</span>'
+                  : '') +
+              '</div>' +
             '</div>' +
           '</div>' +
         '</div>' +
@@ -471,13 +479,12 @@
     // Page 1 already; no need to repeat it on the client-facing
     // summary.
 
-    // Implementation panel — hidden by default, expand via the small
-    // triangle on the trailing dash. Advisor-only audit view: shows
-    // the dollar allocation across Brooklyn + each enabled supplemental
-    // so the math can be checked (no double-spending sale proceeds),
-    // and the Brooklyn optimizer's recommendation re. dialing back
-    // investment to keep loss carryforward within absorbable gain.
-    html += _renderImplementationPanel(currentCfg, entry.loss || 0, opt);
+    // Implementation panel (advisor-only audit triangle) REMOVED from the
+    // Strategy Summary per advisor 2026-06-12 — the same allocation/audit
+    // detail lives on the Temporary page (CPA view + fees panel), which is
+    // where the advisor goes to verify the math. _renderImplementationPanel
+    // is left defined (unused) in case it's wanted back.
+    // html += _renderImplementationPanel(currentCfg, entry.loss || 0, opt);
 
     // The legacy "Print / Save as PDF" button that previously rendered
     // here (window.print() trigger) was removed per advisor spec. The
