@@ -737,9 +737,9 @@
         '<span class="print-footer-bh-sub">Integrated Wealth Solutions &middot; A Multi-Family Office</span>' +
       '</div>' +
       '<p class="print-footer-disclaimer">' +
-        'This document was prepared by BrookHaven for discussion purposes only and does not constitute tax or legal advice. ' +
-        'Results are projections based on current tax law and the inputs provided; actual outcomes may vary. ' +
-        '[ Compliance line goes here &mdash; final copy pending ]' +
+        'This document is provided for informational and discussion purposes only and does not constitute tax, legal, accounting, or investment advice. ' +
+        'All figures shown are estimates based on current tax law and the information provided; they are not guarantees, and actual financial results may differ materially from these estimates. ' +
+        'Please consult your own tax, legal, and financial advisors before acting on any strategy described here.' +
       '</p>' +
     '</div>';
 
