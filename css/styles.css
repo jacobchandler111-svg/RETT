@@ -6553,7 +6553,16 @@ body { font-size: 16px; }
     main { padding: 0 !important; margin: 0 !important; }
     main > section:not(#page-allocator) { display: none !important; }
     #page-allocator { display: block !important; padding: 0 !important; margin: 0 !important; }
-    #page-allocator > *:not(.print-view) { display: none !important; }
+    /* The .print-view is rendered INSIDE #strategy-fee-summary-host (the
+       same host that holds the on-screen summary), so we must keep the
+       host displayed and walk INTO it — hiding the host with
+       display:none would collapse the print-view inside it and print a
+       blank page (advisor 2026-06-15). Hide page-allocator's other
+       direct children (legacy #print-header, the print button row), keep
+       the host, then within the host show only the print-view. */
+    #page-allocator > *:not(#strategy-fee-summary-host) { display: none !important; }
+    #strategy-fee-summary-host { display: block !important; padding: 0 !important; margin: 0 !important; }
+    #strategy-fee-summary-host > *:not(.print-view) { display: none !important; }
     .print-view {
         display: block !important;
         position: static !important;
