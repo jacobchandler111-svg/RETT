@@ -2682,63 +2682,44 @@
   }
 
   // Build the cash-flow table the seller cares about: when does the
-  // structured-sale buyer actually deliver money? At closing they pay
-  // the basis cash up front; gain installments hit in the recognition
-  // year(s) the engine resolved (typically Year +recIdx+1 under the
-  // 18-month MEP window). Reads the recognitionSchedule directly so
-  // multi-year recognition (rec=3, rec=4) renders correctly without
-  // re-deriving the calendar math here.
+  // structured-sale (Strategy C) buyer actually deliver money? Built from
+  // the canonical _describeInstallmentSchedule(cfg) so the displayed cash
+  // matches the engine AND the one-line "Recommended terms" summary:
+  //   • Basis flows PROPORTIONALLY inside each installment (each payment is
+  //     gain + basis per the §453 GP ratio). The pre-2026-05-27 "basis lump
+  //     at closing" model was retired (it treated basis as deployable Y0
+  //     cash); rendering it that way overstated Y0 cash and understated each
+  //     installment. Each installment cash = its weighted share of the
+  //     contract (sale − recap).
+  //   • A closing row appears ONLY when the seller takes real Y0 cash —
+  //     down payment + forced debt/personal-use payoff + recapture proceeds.
+  //   • Dating is anchored to the SALE year (cfg.year1): closing in year1,
+  //     installments on Jan 1 of year1+1, +2, … . This is why we don't date
+  //     off cfg.implementationDate: C repurposes implementationDate to
+  //     year1+1 (Brooklyn-deploy timing) when there's no Y0 tranche, which
+  //     previously mislabeled the closing row and produced two same-date
+  //     rows. (advisor 2026-06-12 — payment-schedule date-labeling audit.)
   function _buildPaymentScheduleHtml(cfg, comp, durationMonths) {
-    if (!cfg || !comp) return '';
-    var year1 = cfg.year1 || (new Date()).getFullYear();
-    // Closing-day cash = basis recovery + accelerated-depreciation
-    // proceeds. In a structured sale only the LTCG is parked inside
-    // the insurance product; the basis cash AND the depr-equivalent
-    // cash (representing the buyer's payment that corresponds to
-    // recaptured depreciation) both flow to the seller at closing.
-    // Recapture is recognized as Y1 ordinary income in the tax engine,
-    // but the cash itself is delivered up front — so the seller's
-    // closing-day check is basis + accel-depr, not basis alone.
-    var basisCash = Math.max(0, Number(cfg.costBasis) || 0);
-    var accelDeprCash = Math.max(0, Number(cfg.acceleratedDepreciation) || 0);
-    var closingCash = basisCash + accelDeprCash;
-    var sched = (comp.recognitionSchedule && comp.recognitionSchedule.length)
-      ? comp.recognitionSchedule.slice()
-      : [];
-    if (!sched.length) return '';
-
-    // Build a year -> {gain, isClosing} map so we can merge the closing
-    // basis-cash line into Y1 instead of showing two rows for the same
-    // year (cleaner for sellers — one cash deposit, one date).
-    var byYear = {};
-    sched.forEach(function (r) {
-      var y = r.year || year1;
-      if (!byYear[y]) byYear[y] = { year: y, gain: 0, isClosing: false };
-      byYear[y].gain += (r.gainRecognized || 0);
-    });
-    if (!byYear[year1]) byYear[year1] = { year: year1, gain: 0, isClosing: false };
-    byYear[year1].isClosing = true;
-
-    var years = Object.keys(byYear).map(function (k) { return byYear[k]; })
-      .sort(function (a, b) { return a.year - b.year; });
-
-    // Total gain in the structured product = sum of all recognized
-    // installments. Used to express each gain row as a % so the advisor
-    // can confirm the schedule against MetLife's canonical caps
-    // (3-yr: 40/40/20; 4-yr+: 50/30/10/10).
-    var totalGainInstallments = years.reduce(function (s, y) { return s + (y.gain || 0); }, 0);
-
+    if (!cfg) return '';
+    var s = _describeInstallmentSchedule(cfg);
+    if (!s || !s.rows.length) return '';
+    // Use the entered sale/closing date for the closing row only when it
+    // actually falls in the closing year; otherwise label by that year.
+    var saleYr = null;
+    try {
+      if (typeof root.parseLocalDate === 'function' && cfg.implementationDate) {
+        var _d = root.parseLocalDate(cfg.implementationDate);
+        if (_d && !isNaN(_d.getTime())) saleYr = _d.getFullYear();
+      }
+    } catch (e) { /* fall back to year label */ }
     var rows = '';
     var totalCash = 0;
-    years.forEach(function (yr) {
-      var cash = (yr.isClosing ? closingCash : 0) + yr.gain;
-      // Suppress zero-cash rows so the table only shows years where the
-      // seller actually receives money. Zero rows are honest engine
-      // output (the recognitionSchedule pads to horizon) but they add
-      // noise to a table built specifically to answer "when does cash
-      // arrive?".
-      if (cash <= 0) return;
-      var dateLabel = yr.isClosing ? _fmtClosingDate(cfg.implementationDate, yr.year) : ('Jan 1, ' + yr.year);
+    s.rows.forEach(function (r) {
+      var cash = Math.max(0, Number(r.cash) || 0);
+      if (cash <= 0) return;   // skip $0 rows (e.g. recap-only Y0 with no recap)
+      var dateLabel = r.atClosing
+        ? ((saleYr === r.year) ? _fmtClosingDate(cfg.implementationDate, r.year) : ('Jan 1, ' + r.year))
+        : ('Jan 1, ' + r.year);
       totalCash += cash;
       rows += '<tr>' +
         '<td>' + dateLabel + '</td>' +
