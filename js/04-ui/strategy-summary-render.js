@@ -302,16 +302,21 @@
     // directly would always show the full-investment tax even when the
     // optimizer has dialed Brooklyn back below the absorbable cap,
     // breaking the walkaway↔you-save reconciliation.
-    var withPlanningTax = Math.max(0, (m.doNothing || 0) - primarySavings);
-    // Walk-away = sale proceeds − tax − fees (+ supplemental net, which
-    // is already post-its-own-fees). Subtracting fees on the With-Planning
-    // side makes the walkaway numbers TRULY comparable: the delta between
-    // No Planning and With Planning equals the Net Benefit shown below
-    // (savings − fees + supplementalBenefit). Without fees in the
-    // walkaway, the delta over-stated the take-home benefit by the
-    // fee amount.
-    var walkawayNoPlanning   = salePrice - (m.doNothing || 0);
-    var walkawayWithPlanning = salePrice - withPlanningTax - fees + supplementalBenefit;
+    // Walk-away on the SALE-ONLY basis (advisor 2026-06-12). "No Planning"
+    // = Tab 2's "Cash Kept from Sale" (sale price − tax ON THE SALE) — read
+    // straight from that tile's DOM so it's the EXACT figure the client saw,
+    // exactly as the Projection page (Tab 4) does. Previously this used
+    // salePrice − m.doNothing (TOTAL tax), which wrongly subtracted the
+    // client's recurring W-2 income tax from the sale walk-away and made this
+    // tile ~$94k lower than Tab 2 for the same scenario. "With Planning" =
+    // "No Planning" + Net Benefit, so the delta between the two tiles still
+    // equals the Net Benefit shown below (net = savings − fees + suppBenefit).
+    var _cashKeptEl = (typeof document !== 'undefined') ? document.getElementById('bt-cash-kept') : null;
+    var _cashKeptFromSale = (_cashKeptEl && typeof parseUSD === 'function' && _cashKeptEl.textContent)
+      ? (parseUSD(_cashKeptEl.textContent) || 0)
+      : (salePrice - (m.doNothing || 0));   // fallback if Tab 2 hasn't rendered yet
+    var walkawayNoPlanning   = _cashKeptFromSale;
+    var walkawayWithPlanning = _cashKeptFromSale + net;
     // Return on Planning rendered as a percentage = (net / fees) × 100.
     // Was a multiplier (× back) earlier; switched to percent per advisor
     // 2026-05-09 so the headline reads as an ROI figure ("828%") rather
