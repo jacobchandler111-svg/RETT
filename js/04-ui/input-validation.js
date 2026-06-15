@@ -70,8 +70,12 @@
     // STG is now an independent income item under Income Sources
     // (any short-term gain the client recognized this year, NOT a
     // carve-out from the property sale). LT gain = sale - basis - depr.
-    var stGain = _num('short-term-gain');
-    if (stGain < 0) errors.push({ field: 'short-term-gain', message: 'Short-term gain cannot be negative. (Use the projection engine to handle losses.)' });
+    // Short-term / long-term gain may be NEGATIVE — a capital LOSS is a valid
+    // entry. The engine nets it per Schedule D (ST↔LT), applies the §1211(b)
+    // $3,000/$1,500-MFS ordinary offset, and carries the remainder forward.
+    // (Previously this blocked negative ST gain; advisor 2026-06-12 — losses
+    // are now first-class on the input page, matching the money formatter that
+    // already renders them as "($X)" with a "(loss)" tag.)
     // Q2: subtract ST-held property gain.
     var _stPropGain = (typeof window.__rettShortTermPropertyGain === 'function')
       ? window.__rettShortTermPropertyGain() : 0;

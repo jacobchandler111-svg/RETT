@@ -89,8 +89,12 @@
       ordTotal = 0;
       ordSourcesPos.forEach(function (id)    { ordTotal += Math.max(0, _num(id)); });
       ordSourcesSigned.forEach(function (id) { ordTotal += _num(id); });
-      stGain = Math.max(0, _num('short-term-gain')) + stPropGain;
-      var ltGainIncome = Math.max(0, _num('long-term-gain'));
+      // Signed (NOT clamped): a Section-02 ST/LT capital LOSS nets against
+      // gains and feeds §1211(b) inside computeFederalTaxBreakdown — mirror
+      // the no-sale baseline below, which already passes signed values.
+      // Clamping silently dropped legitimate losses. (advisor 2026-06-12.)
+      stGain = _num('short-term-gain') + stPropGain;
+      var ltGainIncome = _num('long-term-gain');
       ltGain = (sale - basis - depr - stPropGain) + ltGainIncome;
       qualDiv = Math.max(0, _num('qualified-dividends'));
       wages = Math.max(0, _num('w2-wages'));
@@ -100,7 +104,7 @@
       seInc = (biType === 'se' || biType === 'k1-partnership-gp')
         ? Math.max(0, _num('business-income-amount')) : 0;
       recap = depr;
-      nIIT_base = Math.max(0, ltGain) + stGain + recap + qualDiv
+      nIIT_base = ltGain + stGain + recap + qualDiv
                 + Math.max(0, _num('rental-income'))
                 + Math.max(0, _num('dividend-income'))
                 + Math.max(0, _num('interest-income'));
@@ -128,7 +132,7 @@
     var _hasSplit = (_snap1245 + _snap1250) > 0;
     var recap1245 = _snap1245;
     var recap1250 = _hasSplit ? _snap1250 : recap;
-    var nIIT_base_split = Math.max(0, ltGain) + stGain + recap1250 + qualDiv
+    var nIIT_base_split = ltGain + stGain + recap1250 + qualDiv
                   + Math.max(0, _num('rental-income'))
                   + Math.max(0, _num('dividend-income'))
                   + Math.max(0, _num('interest-income'));
@@ -168,9 +172,16 @@
     // base because most states do NOT honor the federal §1250 25%
     // cap — they tax recapture at full state rates. The federal split
     // happens inside computeFederalTaxBreakdown.
+    // State base mirrors federal AGI: use the breakdown's POST-§1211 netting
+    // gains (>=0) minus only the CAPPED loss offset — not the raw signed loss
+    // (folding a -$100K loss here would deduct the full $100K from state
+    // income instead of the $3K/$1.5K cap). Post-netting values come straight
+    // from computeFederalTaxBreakdown. Mirrors the no-sale path below.
+    var _netLt = fedB ? (Number(fedB.netLongTermGain)  || 0) : Math.max(0, ltGain);
+    var _netSt = fedB ? (Number(fedB.netShortTermGain) || 0) : Math.max(0, stGain);
     var stateTax = (typeof computeStateTax === 'function')
-      ? (computeStateTax(ord + recap + Math.max(0, ltGain) + stGain, year, state, status,
-            { longTermGain: Math.max(0, ltGain), shortTermGain: stGain }) || 0)
+      ? (computeStateTax(ord + recap + _netSt + _netLt - lossOff, year, state, status,
+            { longTermGain: _netLt, shortTermGain: _netSt }) || 0)
       : 0;
 
     var total = fedTotal + niit + addmed + seTax + stateTax;
@@ -374,7 +385,7 @@
           var basisX = Math.max(0, basis - pBasis);
           var deprX  = Math.max(0, depr  - pDepr);
           var stPropX = Math.max(0, stPropGain - (pIsST ? pGain : 0));
-          var stGainX = Math.max(0, _num('short-term-gain')) + stPropX;
+          var stGainX = _num('short-term-gain') + stPropX;   // signed (capital loss allowed)
           // Q7: ltGainIncome (non-property LT income) is recurring annual
           // income — it persists whether or not THIS property exists, so
           // add it to the LT bucket in the "without property N" scenario.
@@ -411,9 +422,12 @@
             ? (Number(fedX.ordinaryTax) || 0) + (Number(fedX.recapTax) || 0)
               + (Number(fedX.ltTax) || 0) + (Number(fedX.amtTopUp) || 0)
             : 0;
+          var _xNetLt   = fedX ? (Number(fedX.netLongTermGain)  || 0) : Math.max(0, ltGainX);
+          var _xNetSt   = fedX ? (Number(fedX.netShortTermGain) || 0) : Math.max(0, stGainX);
+          var _xLossOff = fedX ? (Number(fedX.lossOrdOffsetApplied) || 0) : 0;
           var stateX = (typeof computeStateTax === 'function')
-            ? (computeStateTax(ord + deprX + ltGainX + stGainX, year, state, status,
-                  { longTermGain: ltGainX, shortTermGain: stGainX }) || 0)
+            ? (computeStateTax(ord + deprX + _xNetSt + _xNetLt - _xLossOff, year, state, status,
+                  { longTermGain: _xNetLt, shortTermGain: _xNetSt }) || 0)
             : 0;
           var niitX = fedX ? Number(fedX.niit) || 0 : 0;
           var addmedX = fedX ? Number(fedX.addlMedicare) || 0 : 0;
