@@ -141,6 +141,10 @@
   }
 
   function _renderValueArrow(key, st) {
+    // Value Added is hidden on the Tab-5 supp cards (advisor 2026-06-12);
+    // value is shown only on the Strategy Summary. Returning '' removes the
+    // arrow without touching the card template or the (now-inert) toggle handler.
+    return '';
     var openCls = st.valueOpen ? ' is-open' : '';
     return '' +
       '<button type="button" class="supp-details-arrow supp-value-arrow' + openCls + '" ' +
@@ -153,6 +157,7 @@
   }
 
   function _renderValuePanel(key, st) {
+    return '';   // Value Added hidden on supp cards (advisor 2026-06-12) — see _renderValueArrow
     var benefit = _netBenefitForKey(key);
     var display = (benefit !== null) ? _fmtUSD(benefit) : '—';
     var label   = (benefit !== null && benefit >= 0) ? 'Tax Savings Added' : 'Net Impact';

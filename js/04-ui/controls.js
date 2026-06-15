@@ -329,6 +329,12 @@ function _bindCaseControls() {
     window.__rettSuppressAutoSave = true;
     store.startNewCase();
     resetAllInputs(true, true);   // clear form but stay on the current tab
+    // Reset the strategy / supplemental selections HERE (advisor 2026-06-12):
+    // New Client is now the only place selections clear (input-change no
+    // longer does). startNewCase only clears storage, so do it explicitly.
+    if (typeof window.__rettResetStrategySelection === 'function') {
+      try { window.__rettResetStrategySelection(); } catch (e) { /* */ }
+    }
     _refreshCaseDropdown('');
     if (nameInput) {
       nameInput.value = '';
@@ -2545,14 +2551,15 @@ function bindControls() {
     if (!el) return;
     const evt = (el.tagName === 'SELECT') ? 'change' : 'input';
     el.addEventListener(evt, _recomputeAvailableCapital);
-    // Reset the user's strategy pick on any change — but suppress during
-    // case-load / programmatic restore (__rettApplyingState) so loading
-    // a saved client doesn't wipe their persisted strategy choice.
-    el.addEventListener(evt, function () {
-      if (window.__rettApplyingState) return;
-      _resetStrategySelection();
-    });
+    // NOTE (advisor 2026-06-12): input changes NO LONGER reset the user's
+    // strategy / supplemental selections. Selections now persist across input
+    // edits (downstream numbers still recompute from the live inputs); they
+    // reset ONLY when the user clicks "New Client" — which calls
+    // window.__rettResetStrategySelection (exposed below).
   });
+  // Expose the reset so the New Client button (wired in a different scope) can
+  // clear selections explicitly, now that input-change no longer does.
+  window.__rettResetStrategySelection = _resetStrategySelection;
   // Initial call so the available-capital is set on first paint when a
   // case-load restored sale-price.
   _recomputeAvailableCapital();
