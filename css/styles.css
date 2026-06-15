@@ -9058,3 +9058,44 @@ body { font-size: 16px; }
   border-radius: var(--radius-soft) !important;
 }
 /* === end Bubbly polish v1 === */
+
+/* === Supplemental Strategy Setup Fees (Temp page footer, advisor input) === */
+.temp-supp-fee-section {
+  max-width: 1280px;
+  margin: 24px auto 28px;
+  padding: 22px 28px 18px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+}
+.temp-supp-fee-head {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--rett-navy);
+  margin: 0 0 4px;
+}
+.temp-supp-fee-note {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: 0 0 14px;
+  line-height: 1.45;
+}
+.temp-supp-fee-table { width: 100%; border-collapse: collapse; }
+.temp-supp-fee-table td { padding: 8px 0; border-bottom: 1px solid var(--rule-soft); }
+.temp-supp-fee-table tr:last-child td { border-bottom: none; }
+.supp-fee-name { font-size: 14px; color: var(--ink); font-weight: 500; }
+.supp-fee-input-cell { text-align: right; width: 180px; }
+.supp-setup-fee-input {
+  width: 150px;
+  padding: 8px 12px;
+  font-size: 15px;
+  text-align: right;
+  border: 1.5px solid var(--rule);
+  border-radius: 8px;
+  color: var(--ink);
+  background: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.supp-setup-fee-input:focus { outline: none; border-color: var(--rett-navy); }
+.supp-setup-fee-input::placeholder { color: #aab2c0; }

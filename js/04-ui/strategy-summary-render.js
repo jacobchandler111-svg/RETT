@@ -190,8 +190,33 @@
           return s.enabled && s.available && s.rivalry && s.rivalry.funded;
         })
       : [];
+    // Brookhaven flat per-strategy SETUP fees (advisor-entered on the Temp
+    // page, persisted in window.__rettSuppSetupFees). Charged ONCE per FUNDED
+    // supplemental strategy (rivalry funded + dollars granted), regardless of
+    // how many investments deploy. Unlike the management fees already netted
+    // into each supp's honest benefit, the setup fee is a NEW cost not yet
+    // reflected anywhere, so: (1) subtract it from each funded supp's own
+    // displayed net benefit — mutate realizedNetBenefit/netBenefit ONCE,
+    // guarded, so every per-supp display site reflects it; (2) subtract the
+    // total from the overall net here; (3) add it to the ROP denominator and
+    // the Fees Baked In total below. Only funded supps (which add net benefit)
+    // are charged, so this only bites when there's a benefit to reduce.
+    var _suppSetupFeeMap = (window.__rettSuppSetupFees && typeof window.__rettSuppSetupFees === 'object')
+      ? window.__rettSuppSetupFees : {};
+    var appliedSetupFees = 0;
+    (solverOut && solverOut.supplementals ? solverOut.supplementals : []).forEach(function (s) {
+      if (!(s.rivalry && s.rivalry.funded && (s.rivalry.granted || 0) > 0)) return;
+      var setup = Math.max(0, Number(_suppSetupFeeMap[s.id]) || 0);
+      if (setup <= 0) return;
+      appliedSetupFees += setup;
+      if (!s._setupFeeApplied) {
+        if (Number.isFinite(Number(s.realizedNetBenefit))) s.realizedNetBenefit = Number(s.realizedNetBenefit) - setup;
+        if (Number.isFinite(Number(s.netBenefit)))         s.netBenefit         = Number(s.netBenefit) - setup;
+        s._setupFeeApplied = true;
+      }
+    });
     var savings = primarySavings + supplementalBenefit;
-    var net = primaryNet + supplementalBenefit;
+    var net = primaryNet + supplementalBenefit - appliedSetupFees;
     // Return on Planning expressed as a percentage of NET benefit over
     // fees ("for every $1 of fees, you get back $X of net benefit",
     // rendered as a percentage). Was a multiplier (× back); switched per
@@ -322,7 +347,7 @@
     // 2026-05-09 so the headline reads as an ROI figure ("828%") rather
     // than the abstract "8.3×". Uses NET benefit over fees (not gross
     // savings) — the numerator matches the hero number above.
-    var ropRatio = (fees > 0 && net > 0) ? (net / fees) : 0;
+    var ropRatio = ((fees + appliedSetupFees) > 0 && net > 0) ? (net / (fees + appliedSetupFees)) : 0;
     var ropPctNum = Math.round(ropRatio * 100);
     var ropDisplay = (ropRatio > 0)
       ? ropPctNum.toLocaleString('en-US') + '<span class="rop-x">%</span>'
@@ -394,13 +419,14 @@
         return s.rivalry && s.rivalry.funded && (s.rivalry.granted || 0) > 0;
       })
       .map(function (s) {
-        var fee = Number(s.result && s.result.mgmtFeeDollars) || 0;
-        return { id: s.id, fee: fee };
+        var mgmtFee  = Number(s.result && s.result.mgmtFeeDollars) || 0;
+        var setupFee = Math.max(0, Number(_suppSetupFeeMap[s.id]) || 0);
+        return { id: s.id, fee: mgmtFee + setupFee };
       })
       .filter(function (x) { return x.fee > 0; });
     var suppFeesTotal = fundedSuppFees.reduce(function (sum, s) { return sum + s.fee; }, 0);
     var suppFeeBullet = suppFeesTotal > 0
-      ? _bullet('Supplemental Strategy Fees<span class="strat-savings-line">Fund management fees on funded supplemental strategies</span>', suppFeesTotal)
+      ? _bullet('Supplemental Strategy Fees<span class="strat-savings-line">Brookhaven setup fees + fund management on funded supplemental strategies</span>', suppFeesTotal)
       : '';
     var totalFeesAll = fees + suppFeesTotal;
 
@@ -410,11 +436,9 @@
         '<button type="button" class="num section-review-btn" id="fee-review-btn" aria-expanded="false" title="Toggle side-by-side baseline vs. strategy reconciliation">REVIEW &#9662;</button>' +
       '</div>' +
       '<div class="section-body">' +
-        _bullet('Asset Manager fees<span class="strat-savings-line">Borrow + fund + short-side carry over the position' +
-          (opt && opt.dialBack ? ' &mdash; scaled to ' + _fmt(opt.recommendedInvestment) + ' invested' : '') +
-          '</span>', effectiveBrooklynFees) +
+        _bullet('Asset Manager fees<span class="strat-savings-line">Borrow + fund + short-side carry over the position</span>', effectiveBrooklynFees) +
         suppFeeBullet +
-        _bullet('Brookhaven fees<span class="strat-savings-line">Planning engagement + ongoing service (flat schedule)</span>', m.brookhavenFees || 0) +
+        _bullet('Brookhaven fees<span class="strat-savings-line">Planning engagement plus ongoing services</span>', m.brookhavenFees || 0) +
         '<div class="fee-summary-row">' +
           '<div class="fee-summary-label">Total Fees</div>' +
           '<div class="fee-summary-amt">' + _fmt(totalFeesAll) + '</div>' +

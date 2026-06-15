@@ -1268,6 +1268,13 @@
     // double-counts when supps have rivalry-capping or interlocking
     // effects (Delphi LT-add absorbed by Brooklyn, etc.).
     var suppBenefit = 0;
+    // Brookhaven flat per-strategy setup fees (advisor-entered on this page).
+    // Summed over the FUNDED supps so the panel net + the reconciliation
+    // check stay consistent with the Strategy Summary, which subtracts the
+    // same amount. (advisor 2026-06-12.)
+    var appliedSetupFees = 0;
+    var _suppSetupMap = (root.__rettSuppSetupFees && typeof root.__rettSuppSetupFees === 'object')
+      ? root.__rettSuppSetupFees : {};
     if (typeof root.runMasterSolver === 'function') {
       try {
         // Same post-primary residual cap as _resolveChosen / the hero —
@@ -1280,6 +1287,11 @@
         if (sOut && Number.isFinite(Number(sOut.totalSupplementalBenefit))) {
           suppBenefit = Math.round(Number(sOut.totalSupplementalBenefit));
         }
+        (sOut && sOut.supplementals ? sOut.supplementals : []).forEach(function (s) {
+          if (s.rivalry && s.rivalry.funded && (s.rivalry.granted || 0) > 0) {
+            appliedSetupFees += Math.max(0, Number(_suppSetupMap[s.id]) || 0);
+          }
+        });
       } catch (e) { /* */ }
     }
     // Override with the HONEST recompute-based benefit (the actual stacked
@@ -1311,14 +1323,14 @@
     var brooklynFees   = Math.round(Number(m.brooklynFees   || 0) || 0);
     var brookhavenFees = Math.round(Number(m.brookhavenFees || 0) || 0);
     var totalFees      = brooklynFees + brookhavenFees;
-    var net = totalGross - totalFees - addlFundsTax;
+    var net = totalGross - totalFees - addlFundsTax - appliedSetupFees;
     // Strategy Summary's displayed net = primary net (Brooklyn savings
     // − fees + carryover credit − additional-funds tax) + supplementalBenefit.
     // entry.metrics.net is the primary piece only; adding suppBenefit gives
     // the user-facing total. With the credit + tax now folded into `net`
     // above, the two sides reconcile to the dollar.
     var primaryNet = Math.round(Number(m.net || 0) || 0);
-    var ssDisplayedNet = primaryNet + suppBenefit;
+    var ssDisplayedNet = primaryNet + suppBenefit - appliedSetupFees;
     var checkOk = Math.abs(net - ssDisplayedNet) <= 5;
 
     // The lower-bracket benefit is now baked INTO Y0's per-year card
@@ -1339,6 +1351,9 @@
     var addlFundsTaxRow = (addlFundsTax > 5)
       ? '<tr><td>Additional-funds liquidation tax (one-time)</td><td class="temp-amt">&minus;' + _fmt(addlFundsTax) + '</td></tr>'
       : '';
+    var suppSetupFeeRow = (appliedSetupFees > 5)
+      ? '<tr><td>Less: Supplemental strategy setup fees (Brookhaven, flat)</td><td class="temp-amt">&minus;' + _fmt(appliedSetupFees) + '</td></tr>'
+      : '';
 
     return '' +
       '<div class="temp-fees-panel">' +
@@ -1351,10 +1366,79 @@
           '<tr class="temp-fees-subtotal"><td><strong>Total tax saved (vs doing nothing)</strong></td><td class="temp-amt temp-fees-gross"><strong>' + _fmt(totalGross) + '</strong></td></tr>' +
           '<tr><td>Less: Asset Manager fee (across all years)</td><td class="temp-amt">&minus;' + _fmt(brooklynFees) + '</td></tr>' +
           '<tr><td>Less: Brookhaven fee (across all years)</td><td class="temp-amt">&minus;' + _fmt(brookhavenFees) + '</td></tr>' +
+          suppSetupFeeRow +
           addlFundsTaxRow +
           '<tr class="temp-fees-total"><td><strong>Net benefit (tax saved − fees)</strong></td><td class="temp-amt"><strong>' + _fmt(net) + '</strong></td></tr>' +
           '<tr class="temp-fees-check' + (checkOk ? ' is-ok' : ' is-mismatch') + '"><td>Strategy Summary net benefit ' + (checkOk ? '✓ matches' : '⚠ mismatch') + '</td><td class="temp-amt">' + _fmt(ssDisplayedNet) + '</td></tr>' +
         '</tbody></table>' +
+      '</div>';
+  }
+
+  // ── Supplemental strategy SETUP fees (advisor input) ──────────────────
+  // Flat one-time Brookhaven fee per supplemental strategy, entered here on
+  // the Temp page (a footer below the reconciliation panel, above admin).
+  // Stored in window.__rettSuppSetupFees and persisted to localStorage so the
+  // advisor's fee schedule survives reloads + this page's dynamic re-renders.
+  // The fee is applied (subtracted from net + ROP + the supp's own benefit)
+  // only when the strategy is FUNDED — see the Strategy Summary and the fees
+  // panel above. (advisor 2026-06-12.)
+  var _SUPP_FEE_STRATS = [
+    { id: 'oilGas', name: 'Oil &amp; Gas Working Interest' },
+    { id: 'delphi', name: 'Delphi Fund' },
+    { id: 'ptet',   name: 'PTET &mdash; Pass-Through Entity SALT' },
+    { id: 'slot07', name: 'Equipment Leasing Fund' },
+    { id: 'slot08', name: 'Augusta Rule &mdash; &sect;280A(g)' },
+    { id: 'slot12', name: 'Farm / Business Equipment' }
+  ];
+  function _suppSetupFeesObj() {
+    if (!root.__rettSuppSetupFees || typeof root.__rettSuppSetupFees !== 'object') {
+      var init = {};
+      try {
+        var saved = JSON.parse((root.localStorage && root.localStorage.getItem('rettSuppSetupFees')) || '{}');
+        if (saved && typeof saved === 'object') init = saved;
+      } catch (e) { /* ignore */ }
+      root.__rettSuppSetupFees = init;
+    }
+    return root.__rettSuppSetupFees;
+  }
+  function _wireSuppFeeInputs() {
+    if (root.__rettSuppFeeListenerWired) return;
+    root.__rettSuppFeeListenerWired = true;
+    // 'input' keeps the model live (no re-render → no focus loss while typing).
+    document.addEventListener('input', function (e) {
+      var el = e.target;
+      if (!el || !el.classList || !el.classList.contains('supp-setup-fee-input')) return;
+      var id = el.getAttribute('data-supp-fee-id'); if (!id) return;
+      var v = (typeof parseUSD === 'function') ? parseUSD(el.value) : Number(el.value);
+      _suppSetupFeesObj()[id] = Math.max(0, Number(v) || 0);
+    });
+    // 'change' (blur / Enter) persists + recomputes so the net updates.
+    document.addEventListener('change', function (e) {
+      var el = e.target;
+      if (!el || !el.classList || !el.classList.contains('supp-setup-fee-input')) return;
+      var id = el.getAttribute('data-supp-fee-id'); if (!id) return;
+      var fees = _suppSetupFeesObj();
+      fees[id] = Math.max(0, (typeof parseUSD === 'function') ? (parseUSD(el.value) || 0) : (Number(el.value) || 0));
+      try { root.localStorage.setItem('rettSuppSetupFees', JSON.stringify(fees)); } catch (e2) { /* ignore */ }
+      if (typeof root.runFullPipeline === 'function') { try { root.runFullPipeline(); } catch (e3) { /* */ } }
+    });
+  }
+  function _renderSuppFeeInputs() {
+    _wireSuppFeeInputs();
+    var fees = _suppSetupFeesObj();
+    var rows = _SUPP_FEE_STRATS.map(function (s) {
+      var v = Math.max(0, Number(fees[s.id]) || 0);
+      var disp = v > 0 ? ('$' + Math.round(v).toLocaleString('en-US')) : '';
+      return '<tr>' +
+        '<td class="supp-fee-name">' + s.name + '</td>' +
+        '<td class="supp-fee-input-cell"><input type="text" inputmode="numeric" class="supp-setup-fee-input" data-supp-fee-id="' + s.id + '" placeholder="$0" value="' + disp + '" aria-label="' + s.name + ' setup fee" /></td>' +
+      '</tr>';
+    }).join('');
+    return '' +
+      '<div class="temp-supp-fee-section" id="temp-supp-fee-section">' +
+        '<h3 class="temp-supp-fee-head">Supplemental Strategy Setup Fees</h3>' +
+        '<p class="temp-supp-fee-note">Flat one-time Brookhaven setup fee per strategy. Charged once if the strategy is funded (regardless of how many investments), then subtracted from the net benefit, the strategy’s own contribution, and Return on Planning. Leave blank for $0.</p>' +
+        '<table class="temp-supp-fee-table"><tbody>' + rows + '</tbody></table>' +
       '</div>';
   }
 
@@ -1711,7 +1795,7 @@
     var coversTax = ctx.entry && ctx.entry.cfg &&
       (ctx.entry.cfg.coverTaxesFromSale === true || ctx.entry.cfg.coverTaxesFromSale === 'yes');
     host.classList.toggle('temp-baselines--withdrawals', !!coversTax);
-    host.innerHTML = html + _renderExcessLossPanel(ctx) + _renderFeesPanel(ctx);
+    host.innerHTML = html + _renderExcessLossPanel(ctx) + _renderFeesPanel(ctx) + _renderSuppFeeInputs();
   }
 
   // ── Honest supplemental benefit ───────────────────────────────────────
