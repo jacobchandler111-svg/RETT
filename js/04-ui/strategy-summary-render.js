@@ -511,6 +511,7 @@
       rop:            ropRatio,
       horizon:        horizon,
       leverage:       leverage,
+      leverageLabel:  leverageLabel,
       dur:            dur,
       recYr:          recYr,
       year1:          year1,
@@ -580,11 +581,10 @@
       '</div>' +
       '<div class="print-header-meta">' +
         '<span class="print-client-name">' + (clientName || 'Client Name') + '</span>' +
-        '<span class="print-client-email">' +
-          (clientEmail
-            ? clientEmail
-            : '<span class="print-email-placeholder">email pending</span>') +
-        '</span>' +
+        // Only render the email line when we actually have one — no
+        // "email pending" placeholder on the client leave-behind
+        // (advisor 2026-06-15).
+        (clientEmail ? '<span class="print-client-email">' + clientEmail + '</span>' : '') +
         '<span class="print-date">Prepared ' + dateStr + '</span>' +
       '</div>' +
     '</div>';
@@ -593,9 +593,10 @@
     // Title block
     h += '<div class="print-title-block">' +
       '<h1 class="print-title">Moving Forward With Brookhaven</h1>' +
-      '<div class="print-strategy-tag">Strategy ' + stratNum + ' &mdash; ' + stratLabel +
-        ' &middot; ' + _filingLabel(cfg.filingStatus) + ' &middot; ' + (cfg.state || '') +
-      '</div>' +
+      // Filing status + state live in the "What You Told Us" block below,
+      // so the tag stays lean: just the strategy number + name
+      // (advisor 2026-06-15).
+      '<div class="print-strategy-tag">Strategy ' + stratNum + ' &mdash; ' + stratLabel + '</div>' +
     '</div>';
 
     // The printout reads as a top-to-bottom narrative (advisor 2026-06-15):
@@ -653,7 +654,10 @@
     h += '<div class="print-section">' +
       '<div class="print-section-head">Your Strategy</div>' +
       '<table class="print-table"><tbody>' +
-        '<tr><td>Primary strategy</td><td class="print-r"><strong>' + stratLabel + '</strong></td></tr>' +
+        '<tr><td>Main strategy</td><td class="print-r"><strong>' + stratLabel + '</strong></td></tr>' +
+        (d.leverageLabel
+          ? '<tr><td>Asset Manager (long / short)</td><td class="print-r"><strong>' + d.leverageLabel + '</strong></td></tr>'
+          : '') +
         '<tr><td>Tax year</td><td class="print-r">' + year1 + '</td></tr>' +
         (entry.type === 'C'
           ? '<tr><td>Structured sale term</td><td class="print-r">' + d.dur + ' months</td></tr>'
@@ -671,18 +675,17 @@
           ? Number(s.realizedNetBenefit)
           : (Number(s.netBenefit) || 0);
         if (printNet <= 0) return;
-        var setupF  = Math.max(0, Number(suppSetupMap[s.id]) || 0);
-        var mgmtF   = Number(s.result && s.result.mgmtFeeDollars) || 0;
-        var suppFee = setupF + mgmtF;
+        // Per advisor 2026-06-15: the supplemental block tells the client
+        // only WHAT they picked and the RETURN — the fees live in the
+        // "Fees" roll-up at the bottom, so no per-supp fee column here.
         suppRows += '<tr><td>' + s.name + '</td>' +
-          '<td class="print-num print-green">+' + _fmt(printNet) + '</td>' +
-          '<td class="print-num">' + (suppFee > 0 ? _fmt(suppFee) : '&mdash;') + '</td></tr>';
+          '<td class="print-num print-green">+' + _fmt(printNet) + '</td></tr>';
       });
       if (suppRows) {
         h += '<div class="print-section">' +
           '<div class="print-section-head">Supplemental Strategies</div>' +
           '<table class="print-table">' +
-            '<thead><tr><th>Strategy</th><th class="print-num">Return</th><th class="print-num">Fees</th></tr></thead>' +
+            '<thead><tr><th>Strategy</th><th class="print-num">Return</th></tr></thead>' +
             '<tbody>' + suppRows + '</tbody>' +
           '</table>' +
         '</div>';
@@ -711,21 +714,15 @@
       '</div>' +
     '</div>';
 
-    if (opt && opt.dialBack) {
-      h += '<div class="print-optimizer-note">' +
-        '<strong>Investment optimized:</strong> At full capital (' + _fmt(opt.availableCapital) + '), Brooklyn would generate ' +
-        _fmt(opt.brooklynLossAtFull) + ' in losses against ' + _fmt(opt.totalAbsorbableGain) + ' of absorbable gain. ' +
-        'Investment scaled to ' + _fmt(opt.recommendedInvestment) + ' — same tax savings, ' + _fmt(opt.excessLossAtFull) + ' less in wasted carryforward.' +
-      '</div>';
-    }
+    // "Investment optimized" note removed from the client leave-behind per
+    // advisor 2026-06-15 — the dial-back rationale is internal and isn't
+    // shown to the client.
 
     // ===== 4 : "Fees" (the full roll-up, at the very bottom) =====
     h += '<div class="print-section print-fees-section">' +
       '<div class="print-section-head">Fees</div>' +
       '<table class="print-table"><tbody>' +
-        '<tr><td>Asset Manager &mdash; Brooklyn position' +
-          (opt && opt.dialBack ? ' <span class="print-note">(scaled to ' + _fmt(opt.recommendedInvestment) + ')</span>' : '') +
-        '</td><td class="print-num">' + _fmt(d.effectiveBkFees) + '</td></tr>' +
+        '<tr><td>Asset Manager fees</td><td class="print-num">' + _fmt(d.effectiveBkFees) + '</td></tr>' +
         (Number(d.suppFeesTotal) > 0
           ? '<tr><td>Supplemental strategy fees</td><td class="print-num">' + _fmt(d.suppFeesTotal) + '</td></tr>'
           : '') +

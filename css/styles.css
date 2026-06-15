@@ -6575,20 +6575,23 @@ body { font-size: 16px; }
     }
 
     /* ---------- Print layout ---------- */
+    /* Sized up modestly (advisor 2026-06-15) so the leaner page —
+       supplemental fees and the optimizer note removed — fills more of
+       the sheet rather than sitting at ~3/4. Measured against real print
+       typography (extracted @media print rules) to stay on one page. */
     .print-view {
         font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
-        font-size: 9.5pt;
+        font-size: 10pt;
         color: #111;
         background: #fff;
         line-height: 1.5;
     }
     /* Bordered "leave-behind" frame so the printed sheet reads as a
-       single professional document rather than a loose page. Tight
-       padding so the frame + content fit one Letter page. */
+       single professional document rather than a loose page. */
     .print-doc-frame {
         border: 1.5pt solid #0a1d3d;
         border-radius: 6pt;
-        padding: 12pt 14pt 10pt;
+        padding: 16pt 20pt 14pt;
         background: #fff;
         page-break-inside: avoid;
     }
@@ -6674,18 +6677,18 @@ body { font-size: 16px; }
         border-radius: 1pt;
     }
     .print-title-block {
-        margin-bottom: 8pt;
+        margin-bottom: 12pt;
     }
     .print-title {
         font-family: 'Fraunces', Georgia, serif;
-        font-size: 17pt;
+        font-size: 18pt;
         font-weight: 500;
         font-style: italic;
         color: #0a1d3d;
         margin: 0 0 2pt;
     }
     .print-strategy-tag {
-        font-size: 8pt;
+        font-size: 8.5pt;
         color: #555;
         letter-spacing: 0.06em;
         text-transform: uppercase;
@@ -6694,22 +6697,22 @@ body { font-size: 16px; }
     /* "What We Save You" heading sits directly above the hero row as a
        full-width section head (not inside a .print-section column). */
     .print-savings-head {
-        margin-top: 3pt;
-        margin-bottom: 5pt;
+        margin-top: 6pt;
+        margin-bottom: 7pt;
     }
-    .print-fees-section { margin-top: 3pt; }
+    .print-fees-section { margin-top: 8pt; }
 
     /* Hero boxes */
     .print-hero-row {
         display: flex;
-        gap: 7pt;
-        margin-bottom: 10pt;
+        gap: 9pt;
+        margin-bottom: 13pt;
     }
     .print-hero-box {
         flex: 1;
         border: 1px solid #c8d4e0;
         border-radius: 4pt;
-        padding: 6pt 8pt;
+        padding: 10pt 11pt;
         background: #f8fafc;
     }
     /* Net Benefit hero: highlight with the brand amber so it draws
@@ -6725,20 +6728,20 @@ body { font-size: 16px; }
         border-color: #c0cee0;
     }
     .print-hero-label {
-        font-size: 7pt;
+        font-size: 8pt;
         letter-spacing: 0.1em;
         text-transform: uppercase;
         color: #555;
-        margin-bottom: 2pt;
+        margin-bottom: 3pt;
     }
     .print-hero-value {
-        font-size: 14pt;
+        font-size: 16pt;
         font-weight: 700;
         color: #111;
         line-height: 1.1;
     }
     .print-hero-sub {
-        font-size: 7pt;
+        font-size: 7.5pt;
         color: #666;
         margin-top: 2pt;
     }
@@ -6746,7 +6749,7 @@ body { font-size: 16px; }
     /* Body columns */
     .print-body {
         display: flex;
-        gap: 14pt;
+        gap: 16pt;
     }
     .print-col {
         flex: 1;
@@ -6755,10 +6758,10 @@ body { font-size: 16px; }
 
     /* Sections */
     .print-section {
-        margin-bottom: 7pt;
+        margin-bottom: 11pt;
     }
     .print-section-head {
-        font-size: 7pt;
+        font-size: 8pt;
         letter-spacing: 0.1em;
         text-transform: uppercase;
         color: #0a1d3d;
@@ -6772,18 +6775,18 @@ body { font-size: 16px; }
     .print-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 8.5pt;
+        font-size: 9.5pt;
     }
     .print-table th {
         text-align: left;
         font-weight: 600;
-        padding: 2pt 4pt;
+        padding: 2.5pt 5pt;
         border-bottom: 1px solid #c8d4e0;
-        font-size: 7.5pt;
+        font-size: 8pt;
         color: #333;
     }
     .print-table td {
-        padding: 2.5pt 4pt;
+        padding: 4.5pt 5pt;
         color: #111;
         vertical-align: top;
         border-bottom: 1px solid #e8eef4;
