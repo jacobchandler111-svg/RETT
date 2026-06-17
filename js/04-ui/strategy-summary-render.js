@@ -488,20 +488,24 @@
       _futureSaleYes = !!(_fyn && _fyn.value === 'yes');
     } catch (e) { _futureSaleYes = false; }
     if (_futureSaleYes) {
-      // Capture the chosen strategy's combo + deployed capital + current gain
-      // so the two-tier model can project, per future sale, what the existing
-      // position absorbs for free vs. what a bit more deployment would wipe.
+      // Capture the chosen strategy's combo + capital + current gain so the
+      // two-tier model can project, per future sale, what the existing position
+      // carries forward vs. what the sale's own proceeds wipe.
       (function () {
         var ci = {};
         try { ci = (typeof root.collectInputs === 'function') ? (root.collectInputs() || {}) : {}; } catch (e) { ci = {}; }
         var year0 = Number(ci.year1) || (new Date()).getFullYear();
-        var deployed = (entry && entry._partialDeploy && Number(entry._partialDeploy.deployed)) ||
-                       (entry && entry.cfg && Number(entry.cfg.availableCapital)) || 0;
+        // Use the FULL available capital, not the optimizer's dialed-back
+        // deployment (advisor 2026-06-17): project as if the client fully
+        // invested everything — any side capital is assumed deployed alongside
+        // the initial investment — so the carryforward reflects it all working.
+        var fullCapital = (entry && entry.cfg && Number(entry.cfg.availableCapital)) ||
+                          (entry && entry._partialDeploy && Number(entry._partialDeploy.deployed)) || 0;
         var currentGain = Math.max(0, (Number(ci.salePrice) || 0) - (Number(ci.costBasis) || 0));
         var currentCombo = (typeof root.findSchwabCombo === 'function')
           ? root.findSchwabCombo('beta1', leverageLabel) : null;
-        _fspCoverage = (deployed > 0 && currentCombo)
-          ? { year0: year0, existingCapital: deployed, currentGain: currentGain, currentCombo: currentCombo }
+        _fspCoverage = (fullCapital > 0 && currentCombo)
+          ? { year0: year0, existingCapital: fullCapital, currentGain: currentGain, currentCombo: currentCombo }
           : null;
       })();
       html += _renderFutureSalesPlanner();
