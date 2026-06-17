@@ -5287,6 +5287,48 @@ body { font-size: 16px; }
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.01em;
 }
+/* Selected Strategy as ONE full-width block (was a 2-col card row), with
+   the supplemental on/off toggles nested in the same block below the
+   strategy rows. Width + spacing now match Fees Baked In / Future Sales. */
+.forward-strategy-block {
+    margin: 36px 0 32px;
+}
+.forward-strategy-block .forward-strategy-body {
+    /* No tall-card centering now that it's a normal-height section. */
+    min-height: 0;
+    justify-content: flex-start;
+}
+.forward-supp-subsection {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--rule);
+}
+.forward-supp-subhead {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted, #6B7A99);
+    font-weight: 700;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.forward-supp-hint {
+    font-family: inherit;
+    font-size: 9px;
+    letter-spacing: 0.03em;
+    text-transform: none;
+    color: var(--muted, #6B7A99);
+    font-weight: 400;
+    opacity: 0.85;
+}
+/* Breathing room between Fees Baked In and the Future Sales Estimator. */
+.fsp-section {
+    margin-top: 28px;
+}
 .forward-top-row > .input-section .section-heading {
     margin-bottom: 16px;
 }

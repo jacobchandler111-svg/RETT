@@ -296,34 +296,32 @@
           : (Number(currentCfg.leverage) || 1) * 100);
     var longPct = (currentCfg.tierKey === 'beta0') ? shortPct : 100 + shortPct;
     var leverageLabel = Math.round(longPct) + '/' + Math.round(shortPct);
-    var hasSupps = !!(fundedSupplements.length || (solverOut && solverOut.anyInterested));
-    var selectedStrategyHtml = '<div class="input-section forward-strategy-card">' +
+    // Selected Strategy + Supplemental Strategies — ONE full-width block
+    // (advisor 2026-06-17). Was two separated side-by-side cards; now a
+    // single section matching the width of Fees Baked In / Future Sales.
+    // Strategy name + Asset Manager leverage sit on top; the supplemental
+    // on/off toggle rows sit below, in the same block.
+    html += '<div class="input-section forward-strategy-block">' +
       '<div class="section-heading">' +
         '<h2>Selected Strategy</h2>' +
         '<span class="num">STRATEGY ' + _stratNum(entry.type) + '</span>' +
       '</div>' +
-      '<div class="section-body forward-strategy-body">' +
-        '<div class="input-row forward-strategy-row">' +
-          '<div class="label">Strategy<span class="sub">' + _strategyDescriptor(entry.type) + '</span></div>' +
-          '<div class="forward-fee-display forward-strategy-name">' +
-            _stratName(entry.type) +
+      '<div class="section-body">' +
+        '<div class="forward-strategy-body">' +
+          '<div class="input-row forward-strategy-row">' +
+            '<div class="label">Strategy<span class="sub">' + _strategyDescriptor(entry.type) + '</span></div>' +
+            '<div class="forward-fee-display forward-strategy-name">' +
+              _stratName(entry.type) +
+            '</div>' +
+          '</div>' +
+          '<div class="input-row forward-strategy-row">' +
+            '<div class="label">Asset Manager<span class="sub">long &percnt; / short &percnt;</span></div>' +
+            '<div class="forward-balance forward-strategy-leverage">' + leverageLabel + '</div>' +
           '</div>' +
         '</div>' +
-        '<div class="input-row forward-strategy-row">' +
-          '<div class="label">Asset Manager<span class="sub">long &percnt; / short &percnt;</span></div>' +
-          '<div class="forward-balance forward-strategy-leverage">' + leverageLabel + '</div>' +
-        '</div>' +
+        _renderSupplementalLeftColumn(solverOut) +
       '</div>' +
     '</div>';
-
-    if (hasSupps) {
-      html += '<div class="forward-top-row">' +
-        selectedStrategyHtml +
-        _renderSupplementalLeftColumn(solverOut) +
-      '</div>';
-    } else {
-      html += selectedStrategyHtml;
-    }
 
     // ============ Return on Planning — left: walk-away + compare; right: ROP square ============
     // The big-picture question for the client: "what do I actually walk
@@ -1101,13 +1099,15 @@
       .concat(inactive.map(function (s) { return _suppRow(s, false); }))
       .join('');
 
+    // Bare sub-section (no standalone card) — nests inside the Selected
+    // Strategy block so the two read as one full-width section. The advisor
+    // flips supps on/off via the switches here (advisor 2026-06-17).
     return '' +
-      '<div class="input-section">' +
-        '<div class="section-heading">' +
-          '<h2>Supplemental Strategies</h2>' +
-          '<span class="num">ADD-ONS</span>' +
+      '<div class="forward-supp-subsection">' +
+        '<div class="forward-supp-subhead">Supplemental Strategies' +
+          '<span class="forward-supp-hint">tap a switch to add or remove</span>' +
         '</div>' +
-        '<div class="section-body">' + rows + '</div>' +
+        rows +
       '</div>';
   }
 
