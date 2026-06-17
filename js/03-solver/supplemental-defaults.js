@@ -24,7 +24,7 @@
     id:           'oilGas',
     name:         'Oil & Gas Working Interest',
     shortName:    'Oil & Gas',
-    descriptor:   'IDC + bonus depreciation deduct ~95% of capital against ordinary income.',
+    descriptor:   'IDC + bonus depreciation deduct ~90% of capital against ordinary income.',
     order:        10,
     incomeBucket: 'ordinary',
     getInterest: function () {

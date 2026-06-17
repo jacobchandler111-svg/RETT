@@ -161,7 +161,7 @@
   // year entry points agree on the input shape.
   function _normIdcPct(raw) {
     var v = Number(raw);
-    if (!Number.isFinite(v)) v = 0.95;
+    if (!Number.isFinite(v)) v = 0.90;
     var f = v > 1 ? v / 100 : v;
     if (f < 0) f = 0;
     if (f > 1) f = 1;

@@ -3462,18 +3462,24 @@
         // the best size up to the cap. If the cap is below the supp's
         // minimum increment (tiny sale), drop it to $0.
         var ceiling = Math.round(_saleForCap * s.capPct);
-        if (ceiling < s.minInc) { s.spec[s.knob] = 0; return; }
-        // Manual override (advisor 2026-06-10): if the advisor explicitly
-        // typed an amount in the supp's Details panel (_userOverride — set
-        // only by the render input handler, NOT by this sweep), respect it
-        // — clamp it at the per-supp cap and skip auto-sizing. A 0/blank
-        // override falls through to auto-size so clearing the box returns
-        // the supp to engine sizing.
+        // Manual override (advisor 2026-06-17): if the advisor explicitly typed
+        // an amount in the supp's Details panel (_userOverride — set only by the
+        // render input handler, NOT by this sweep), HONOR it even ABOVE the
+        // auto-size ceiling. That 5%/50%-of-sale ceiling governs only the
+        // optimizer's own sweep below; a deliberate typed amount is the
+        // advisor's call and must stick (previously it was clamped back to the
+        // ceiling, so e.g. $500K reverted to the $300K 5% cap). Clamp only to
+        // the sale price as an absolute sanity bound. A 0/blank override falls
+        // through to auto-size so clearing the box returns the supp to engine
+        // sizing. Checked BEFORE the sub-minimum zeroing so an override also
+        // survives on a small sale.
         if (s.spec._userOverride && s.spec._userOverride[s.knob]
             && (Number(s.spec[s.knob]) || 0) > 0) {
-          s.spec[s.knob] = Math.min(Math.max(0, Number(s.spec[s.knob]) || 0), ceiling);
+          var _ovCap = Math.max(0, Number(_saleForCap) || 0) || Infinity;
+          s.spec[s.knob] = Math.min(Math.max(0, Number(s.spec[s.knob]) || 0), _ovCap);
           return;
         }
+        if (ceiling < s.minInc) { s.spec[s.knob] = 0; return; }
         // Candidate sizes: 0, 25%, 50%, 75%, 100% of the cap. Always
         // include both endpoints so the optimizer can drop to zero or
         // deploy the full cap.
