@@ -1342,11 +1342,27 @@
     // but the panel otherwise wouldn't see.
     var carryoverCredit = Math.round(Number(m._carryoverOffsetCredit || 0) || 0);
     var addlFundsTax    = Math.round(Number(m._additionalFundsTriggeredTax || 0) || 0);
-    var totalGross = brooklynGross + suppBenefit + carryoverCredit;
+    // Surface each funded supp's FUND/MANAGEMENT fee (e.g. Delphi 2% =
+    // mgmtFeeDollars) as its own line instead of leaving it baked inside the
+    // supp's net benefit. We display the supp's GROSS tax saved (net + fee) in
+    // "total tax saved" and subtract the fee below, so the panel reads
+    // gross − all fees = net. Because the same fee is both added (into gross)
+    // and subtracted (as a fee line), the net is identical to before — only the
+    // presentation changes (advisor 2026-06-17).
+    var suppFundFees = 0;
+    (ctx.fundedSupps || []).forEach(function (fs) {
+      var es = (root.__rettSupplementalExtra && root.__rettSupplementalExtra[fs.id]) || null;
+      var cs = (root.__rettSupplemental      && root.__rettSupplemental[fs.id])      || null;
+      var lr = (es && es.lastResult) || (cs && cs.lastResult) || (fs && fs.result) || null;
+      if (lr) suppFundFees += Math.max(0, Number(lr.mgmtFeeDollars) || 0);
+    });
+    suppFundFees = Math.round(suppFundFees);
+    var suppGross = suppBenefit + suppFundFees;   // gross tax saved before the fund fee
+    var totalGross = brooklynGross + suppGross + carryoverCredit;
     var brooklynFees   = Math.round(Number(m.brooklynFees   || 0) || 0);
     var brookhavenFees = Math.round(Number(m.brookhavenFees || 0) || 0);
     var totalFees      = brooklynFees + brookhavenFees;
-    var net = totalGross - totalFees - addlFundsTax - appliedSetupFees;
+    var net = totalGross - totalFees - suppFundFees - addlFundsTax - appliedSetupFees;
     // Strategy Summary's displayed net = primary net (Brooklyn savings
     // − fees + carryover credit − additional-funds tax) + supplementalBenefit.
     // entry.metrics.net is the primary piece only; adding suppBenefit gives
@@ -1377,18 +1393,22 @@
     var suppSetupFeeRow = (appliedSetupFees > 5)
       ? '<tr><td>Less: Supplemental strategy setup fees (Brookhaven, flat)</td><td class="temp-amt">&minus;' + _fmt(appliedSetupFees) + '</td></tr>'
       : '';
+    var suppFundFeeRow = (suppFundFees > 5)
+      ? '<tr><td>Less: Supplemental fund fees (e.g. Delphi management, 2%)</td><td class="temp-amt">&minus;' + _fmt(suppFundFees) + '</td></tr>'
+      : '';
 
     return '' +
       '<div class="temp-fees-panel">' +
         '<div class="temp-fees-head">Total Tax Saved &rarr; Net Benefit</div>' +
         '<table class="temp-fees-table"><tbody>' +
-          '<tr class="temp-fees-foot"><td colspan="2" class="temp-fees-foot"><em>Sum of each year’s &ldquo;tax saved vs baseline&rdquo; above:</em></td></tr>' +
+          '<tr class="temp-fees-foot"><td colspan="2" class="temp-fees-foot"><em>Gross tax benefit across all years, then fees &rarr; net:</em></td></tr>' +
           brooklynRows +
-          '<tr><td>Supplemental tax savings (vetted total)</td><td class="temp-amt">' + _fmt(suppBenefit) + '</td></tr>' +
+          '<tr><td>Supplemental tax savings (gross, before fund fee)</td><td class="temp-amt">' + _fmt(suppGross) + '</td></tr>' +
           carryoverRow +
           '<tr class="temp-fees-subtotal"><td><strong>Total tax saved (vs doing nothing)</strong></td><td class="temp-amt temp-fees-gross"><strong>' + _fmt(totalGross) + '</strong></td></tr>' +
           '<tr><td>Less: Asset Manager fee (across all years)</td><td class="temp-amt">&minus;' + _fmt(brooklynFees) + '</td></tr>' +
           '<tr><td>Less: Brookhaven fee (across all years)</td><td class="temp-amt">&minus;' + _fmt(brookhavenFees) + '</td></tr>' +
+          suppFundFeeRow +
           suppSetupFeeRow +
           addlFundsTaxRow +
           '<tr class="temp-fees-total"><td><strong>Net benefit (tax saved − fees)</strong></td><td class="temp-amt"><strong>' + _fmt(net) + '</strong></td></tr>' +
