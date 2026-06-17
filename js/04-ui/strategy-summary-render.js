@@ -1501,73 +1501,87 @@
     if (!y) return null;
     return Math.max(1, y - (Number(year0) || y));
   }
-  // The two-tier estimate for one future sale.
-  //   tier1 (free): excess loss the EXISTING position throws off by the sale
-  //     year, beyond what the current sale consumed — carries forward, no new
-  //     cost. = max(0, existingCapital × cumLoss(currentCombo, N) − currentGain).
-  //   tier2 (with more): capital to wipe the remaining gain at the future
-  //     combo's rate, charged the ongoing mgmt fee × N (NO new Brookhaven
-  //     setup — the engagement is already live).
-  // Returns null when uncomputable; { needsDate:true } when the row has no date.
-  function _fspRowCoverage(salePrice, gain, dateStr, combinedRate) {
-    var cov = _fspCoverage;
-    if (!cov || !(gain > 0)) return null;
-    var N = _fspYearsUntil(dateStr, cov.year0);
-    if (N == null) return { needsDate: true };
-    var existingCumLoss = cov.existingCapital * _fspCumLoss(cov.currentCombo, N);
-    var freeCarry = Math.max(0, existingCumLoss - cov.currentGain);
-    var tier1 = Math.min(gain, freeCarry);
-    var remaining = Math.max(0, gain - tier1);
-    var futureCombo = _fspPickCombo(Math.max(salePrice, cov.existingCapital));
-    var L = _fspCumLoss(futureCombo, N);
-    var addlCapital = (L > 0) ? (remaining / L) : 0;
-    var addlFees = addlCapital * _fspFeeRate(futureCombo) * N;
-    var grossSaved = gain * combinedRate;            // tax on tier1 + tier2 (full coverage)
-    var netSaved = Math.max(0, grossSaved - addlFees);
-    return {
-      N: N, tier1: Math.round(tier1), remaining: Math.round(remaining),
-      addlCapital: Math.round(addlCapital), addlFees: Math.round(addlFees),
-      netSaved: Math.round(netSaved), fullyFree: tier1 >= gain - 0.5,
-      futureCombo: futureCombo
-    };
-  }
-  // Coverage display for one row: returns the "covered by current plan" cell
-  // text and the "we could save you" cell text.
-  function _fspCoverCells(sp, gain, dateStr, combinedRate) {
-    var cov = _fspRowCoverage(sp, gain, dateStr, combinedRate);
-    if (gain <= 0) return { covered: '—', saving: '—', tier1: 0, saving$: 0 };
-    if (!cov) return { covered: '—', saving: _fmt(Math.round(gain * combinedRate)), tier1: 0, saving$: Math.round(gain * combinedRate) };
-    if (cov.needsDate) return { covered: 'add a date', saving: '—', tier1: 0, saving$: 0 };
-    var coveredTxt = cov.fullyFree ? '✓ Fully covered' : _fmt(cov.tier1);
-    return { covered: coveredTxt, saving: _fmt(cov.netSaved), tier1: cov.tier1, saving$: cov.netSaved };
-  }
-  function _fspRecalcRow(idx, rate) {
-    var rows = _fspState(), r = rows[idx];
-    if (!r) return { gain: 0, tax: 0, saving: 0 };
-    rate = rate || _fspCombinedRate();
-    var sp = _fspParse(r.salePrice), cb = _fspParse(r.costBasis);
-    var gain = Math.max(0, sp - cb), tax = Math.round(gain * rate.combined);
-    var cells = _fspCoverCells(sp, gain, r.date, rate.combined);
-    var tr = document.querySelector('[data-fsp-row="' + idx + '"]');
-    if (tr) {
-      var g = tr.querySelector('.fsp-gain'), t = tr.querySelector('.fsp-tax'),
-          cvd = tr.querySelector('.fsp-covered'), sv = tr.querySelector('.fsp-saving');
-      if (g) g.textContent = _fmt(gain);
-      if (t) t.textContent = _fmt(tax);
-      if (cvd) { cvd.textContent = cells.covered; cvd.classList.toggle('fsp-covered-full', cells.tier1 >= gain - 0.5 && gain > 0); }
-      if (sv) sv.textContent = cells.saving;
+  // Portfolio coverage (advisor 2026-06-17). The future sales SHARE ONE finite
+  // pool of carryforward loss that the existing position keeps building each
+  // year. We allocate it CHRONOLOGICALLY: the current sale draws first, then
+  // each future sale in date order takes what's left of the pool AS OF its own
+  // year — poolByYear(N) = deployedCapital × cumLoss(combo, N). So sales bunched
+  // close together compete for a smaller pool, while sales spread further out
+  // see a bigger pool (but only what earlier sales left behind). Free coverage
+  // (tier 1) carries NO new fee; the shortfall (tier 2) is wiped with additional
+  // capital charged the combo's mgmt fee × years (no new Brookhaven setup). The
+  // %-of-tax we save therefore falls as the total gain outgrows the pool —
+  // more of it spills into the fee-bearing tier. Returns an index→entry map.
+  function _fspComputePortfolio(rows, combinedRate) {
+    var cov = _fspCoverage, byIdx = {};
+    var entries = rows.map(function (r, idx) {
+      var sp = _fspParse(r.salePrice), cb = _fspParse(r.costBasis);
+      return { idx: idx, sp: sp, gain: Math.max(0, sp - cb),
+               N: cov ? _fspYearsUntil(r.date, cov.year0) : null };
+    });
+    if (!cov) {
+      entries.forEach(function (e) {
+        byIdx[e.idx] = { computable: false, zero: e.gain <= 0, free: 0,
+          netSaved: e.gain > 0 ? Math.round(e.gain * combinedRate) : 0, fullyFree: false };
+      });
+      return byIdx;
     }
-    return { gain: gain, tax: tax, saving: cells.saving$ };
+    var dated = entries.filter(function (e) { return e.gain > 0 && e.N != null; })
+                       .sort(function (a, b) { return (a.N - b.N) || (a.idx - b.idx); });
+    var consumed = cov.currentGain;   // the current sale already drew this much of the pool
+    dated.forEach(function (e) {
+      var poolByThen = cov.existingCapital * _fspCumLoss(cov.currentCombo, e.N);
+      var free = Math.min(e.gain, Math.max(0, poolByThen - consumed));
+      consumed += free;
+      var remaining = Math.max(0, e.gain - free);
+      var futureCombo = _fspPickCombo(Math.max(e.sp, cov.existingCapital));
+      var L = _fspCumLoss(futureCombo, e.N);
+      var addlCapital = (L > 0) ? (remaining / L) : 0;
+      var addlFees = addlCapital * _fspFeeRate(futureCombo) * e.N;
+      byIdx[e.idx] = {
+        computable: true, free: Math.round(free), remaining: Math.round(remaining),
+        addlCapital: Math.round(addlCapital), addlFees: Math.round(addlFees),
+        netSaved: Math.max(0, Math.round(e.gain * combinedRate - addlFees)),
+        fullyFree: free >= e.gain - 0.5
+      };
+    });
+    entries.forEach(function (e) {
+      if (byIdx[e.idx]) return;
+      byIdx[e.idx] = (e.gain <= 0)
+        ? { computable: false, zero: true, free: 0, netSaved: 0 }
+        : { computable: false, needsDate: true, free: 0, netSaved: 0 };
+    });
+    return byIdx;
   }
-  function _fspRecalcTotal() {
-    var rows = _fspState(), rate = _fspCombinedRate(), gSum = 0, tSum = 0, cvSum = 0, svSum = 0;
-    for (var i = 0; i < rows.length; i++) {
-      var sp = _fspParse(rows[i].salePrice), cb = _fspParse(rows[i].costBasis);
-      var gain = Math.max(0, sp - cb);
-      var cells = _fspCoverCells(sp, gain, rows[i].date, rate.combined);
-      gSum += gain; tSum += Math.round(gain * rate.combined);
-      cvSum += (cells.tier1 || 0); svSum += (cells.saving$ || 0);
-    }
+  // Format one portfolio entry into the two cell strings.
+  function _fspCellsFromEntry(p) {
+    if (!p || p.zero) return { covered: '—', saving: '—', covered$: 0, saving$: 0, fullyFree: false };
+    if (p.needsDate) return { covered: 'add a date', saving: '—', covered$: 0, saving$: 0, fullyFree: false };
+    if (!p.computable) return { covered: '—', saving: _fmt(p.netSaved || 0), covered$: 0, saving$: p.netSaved || 0, fullyFree: false };
+    return { covered: p.fullyFree ? '✓ Fully covered' : _fmt(p.free),
+             saving: _fmt(p.netSaved), covered$: p.free, saving$: p.netSaved, fullyFree: p.fullyFree };
+  }
+  // The sales are interconnected (shared pool), so any edit re-allocates the
+  // whole table — recompute every row + the totals together.
+  function _fspRecalcAll() {
+    var rows = _fspState(), rate = _fspCombinedRate();
+    var port = _fspComputePortfolio(rows, rate.combined);
+    var gSum = 0, tSum = 0, cvSum = 0, svSum = 0;
+    rows.forEach(function (r, idx) {
+      var sp = _fspParse(r.salePrice), cb = _fspParse(r.costBasis);
+      var gain = Math.max(0, sp - cb), tax = Math.round(gain * rate.combined);
+      var cells = _fspCellsFromEntry(port[idx]);
+      gSum += gain; tSum += tax; cvSum += (cells.covered$ || 0); svSum += (cells.saving$ || 0);
+      var tr = document.querySelector('[data-fsp-row="' + idx + '"]');
+      if (tr) {
+        var g = tr.querySelector('.fsp-gain'), t = tr.querySelector('.fsp-tax'),
+            cvd = tr.querySelector('.fsp-covered'), sv = tr.querySelector('.fsp-saving');
+        if (g) g.textContent = _fmt(gain);
+        if (t) t.textContent = _fmt(tax);
+        if (cvd) { cvd.textContent = cells.covered; cvd.classList.toggle('fsp-covered-full', !!cells.fullyFree); }
+        if (sv) sv.textContent = cells.saving;
+      }
+    });
     var gEl = document.querySelector('.fsp-total-gain'), tEl = document.querySelector('.fsp-total-tax'),
         cvEl = document.querySelector('.fsp-total-covered'), svEl = document.querySelector('.fsp-total-saving');
     if (gEl) gEl.textContent = _fmt(gSum);
@@ -1577,14 +1591,15 @@
   }
   function _renderFutureSalesPlanner() {
     var rows = _fspState(), rate = _fspCombinedRate();
+    var port = _fspComputePortfolio(rows, rate.combined);
     var gSum = 0, tSum = 0, cvSum = 0, svSum = 0;
     var haveModel = !!_fspCoverage;
     var body = rows.map(function (r, i) {
       var sp = _fspParse(r.salePrice), cb = _fspParse(r.costBasis);
       var gain = Math.max(0, sp - cb), tax = Math.round(gain * rate.combined);
-      var cells = _fspCoverCells(sp, gain, r.date, rate.combined);
-      gSum += gain; tSum += tax; cvSum += (cells.tier1 || 0); svSum += (cells.saving$ || 0);
-      var coveredCls = (cells.tier1 >= gain - 0.5 && gain > 0) ? ' fsp-covered-full' : '';
+      var cells = _fspCellsFromEntry(port[i]);
+      gSum += gain; tSum += tax; cvSum += (cells.covered$ || 0); svSum += (cells.saving$ || 0);
+      var coveredCls = cells.fullyFree ? ' fsp-covered-full' : '';
       return '<tr class="fsp-row" data-fsp-row="' + i + '">' +
         '<td><input type="date" class="fsp-input fsp-date" data-fsp-field="date" data-fsp-idx="' + i + '" value="' + (r.date || '') + '" autocomplete="off"></td>' +
         '<td><input type="text" inputmode="numeric" class="fsp-input fsp-usd" data-fsp-field="salePrice" data-fsp-idx="' + i + '" value="' + (sp > 0 ? _fmt(sp) : '') + '" placeholder="$0"></td>' +
@@ -1602,7 +1617,7 @@
       ? '23.8% federal + ' + rate.stateCode + ' state ≈ ' + stPct + '%'
       : '23.8% federal (no state income tax)';
     var coverNote = haveModel
-      ? ' &ldquo;Covered by current plan&rdquo; is what we project your existing position can absorb by the sale year at no added cost (its losses keep accruing each year); the &ldquo;we could save you&rdquo; figure assumes a bit more is deployed to wipe the rest. Estimates — worth a conversation.'
+      ? ' Coverage is shared across all the sales you list: your current plan keeps building losses each year, so we apply that growing pool in date order. Sales bunched close together share a smaller pool; sales spread further out get more. &ldquo;Covered by current plan&rdquo; is the no-added-cost portion; &ldquo;we could save you&rdquo; assumes a bit more is deployed to wipe the rest, net of Brooklyn fees. Estimates — worth a conversation.'
       : '';
     return '<div class="input-section fsp-section" id="future-sales-planner">' +
       '<div class="section-heading"><h2>Future Sales Estimator</h2></div>' +
@@ -1640,7 +1655,7 @@
       if (!Number.isFinite(idx) || !field) return;
       var rows = _fspState(); if (!rows[idx]) return;
       rows[idx][field] = (field === 'date') ? el.value : _fspParse(el.value);
-      _fspRecalcRow(idx); _fspRecalcTotal(); _fspPersist();
+      _fspRecalcAll(); _fspPersist();
     });
     root.document.addEventListener('change', function (e) {
       var el = e.target;
