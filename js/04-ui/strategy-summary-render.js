@@ -170,15 +170,26 @@
       ? root.runMasterSolver(primaryNet, (_ppCap != null ? { postPrimaryTaxRemaining: _ppCap } : undefined)) : null;
     // Honest (recompute-based) supplemental benefit — the actual stacked tax
     // saved, not the master solver's standalone-marginal-rate sum (which
-    // overstates when supps stack). Falls back to the solver total when the
-    // recompute helper isn't available (advisor 2026-06-10).
-    var supplementalBenefit = (solverOut && Number.isFinite(solverOut.totalSupplementalBenefit))
-      ? solverOut.totalSupplementalBenefit
-      : 0;
+    // overstates when several ordinary-deduction supps stack). Falls back to
+    // the solver total when the recompute helper isn't available (advisor
+    // 2026-06-10).
+    var _solverSupp = (solverOut && Number.isFinite(solverOut.totalSupplementalBenefit))
+      ? Number(solverOut.totalSupplementalBenefit)
+      : null;
+    var supplementalBenefit = (_solverSupp != null) ? _solverSupp : 0;
     if (typeof root.__rettHonestSuppBenefitForEntry === 'function') {
       try {
         var _honest = root.__rettHonestSuppBenefitForEntry(entry, solverOut);
-        if (Number.isFinite(_honest)) supplementalBenefit = _honest;
+        if (Number.isFinite(_honest)) {
+          // The honest recompute only sees each supp's ORDINARY offset, so it
+          // correctly TRIMS overstated stacking of ordinary-deduction supps —
+          // but it OVERSTATES a character-conversion supp (Delphi adds LT gain
+          // + qualified dividends it can't see, so it counts the ordinary
+          // savings without the offsetting capital-gain cost). Let it correct
+          // the benefit DOWN only, never above the solver's already-correct
+          // realized total (which DOES net the added gain). (advisor 2026-06-17.)
+          supplementalBenefit = (_solverSupp != null) ? Math.min(_solverSupp, _honest) : _honest;
+        }
       } catch (e) { /* keep solver value */ }
     }
     // For print iteration / per-supp rows: only the FUNDED supps

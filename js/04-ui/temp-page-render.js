@@ -1268,6 +1268,7 @@
     // double-counts when supps have rivalry-capping or interlocking
     // effects (Delphi LT-add absorbed by Brooklyn, etc.).
     var suppBenefit = 0;
+    var _solverSupp = null;   // master-solver realized total (correct for capital-conversion supps)
     // Brookhaven flat per-strategy setup fees (advisor-entered on this page).
     // Summed over the FUNDED supps so the panel net + the reconciliation
     // check stay consistent with the Strategy Summary, which subtracts the
@@ -1286,6 +1287,7 @@
         var sOut = root.runMasterSolver(Number(m.net) || 0, (_ppCapFP != null ? { postPrimaryTaxRemaining: _ppCapFP } : undefined));
         if (sOut && Number.isFinite(Number(sOut.totalSupplementalBenefit))) {
           suppBenefit = Math.round(Number(sOut.totalSupplementalBenefit));
+          _solverSupp = suppBenefit;
         }
         (sOut && sOut.supplementals ? sOut.supplementals : []).forEach(function (s) {
           if (s.rivalry && s.rivalry.funded && (s.rivalry.granted || 0) > 0) {
@@ -1294,17 +1296,25 @@
         });
       } catch (e) { /* */ }
     }
-    // Override with the HONEST recompute-based benefit (the actual stacked
-    // tax saved) so the bottom total = Σ per-year card "tax saved" and the
-    // net ties to the Strategy Summary, which now also uses the honest value
-    // (advisor 2026-06-10). Falls back to the solver total above if anything
-    // is missing.
+    // Reconcile against the HONEST recompute-based benefit (the actual stacked
+    // tax saved) so the bottom total = Σ per-year card "tax saved" and the net
+    // ties to the Strategy Summary, which uses the same rule (advisor
+    // 2026-06-10). The recompute only sees each supp's ORDINARY offset, so it
+    // correctly TRIMS overstated stacking of ordinary-deduction supps — but it
+    // OVERSTATES a character-conversion supp (Delphi adds LT gain + qualified
+    // dividends it can't see). So let it correct the benefit DOWN only, never
+    // above the solver's already-correct realized total (which DOES net the
+    // added gain). Falls back to the recompute if the solver value is missing.
+    // (advisor 2026-06-17.)
     if (typeof root.__rettHonestSuppBenefit === 'function' &&
         comp && Array.isArray(ctx.fundedSupps) && ctx.fundedSupps.length) {
       try {
         var _hsb = root.__rettHonestSuppBenefit(comp, ctx.fundedSupps,
           { chosen: ctx.chosen, cfg: ctx.entry && ctx.entry.cfg });
-        if (Number.isFinite(_hsb)) suppBenefit = Math.round(_hsb);
+        if (Number.isFinite(_hsb)) {
+          var _h = Math.round(_hsb);
+          suppBenefit = (_solverSupp != null) ? Math.min(_solverSupp, _h) : _h;
+        }
       } catch (e) { /* keep solver value */ }
     }
     // Carryover-loss offset credit (A/B/C) — the value of the free
