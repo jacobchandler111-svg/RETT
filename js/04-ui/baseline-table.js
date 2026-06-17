@@ -690,7 +690,7 @@
     var keepSweep = keepPct * Math.PI * 2;
     var taxSweep  = taxPct * Math.PI * 2;
     var svg = '';
-    svg += _arc(start, keepSweep, '#2563eb');             // blue (kept)
+    svg += _arc(start, keepSweep, '#0b1b3a');             // navy (kept)
     svg += _arc(start + keepSweep, taxSweep, '#dc2626');  // red (lost)
     slicesEl.innerHTML = svg;
 
@@ -723,7 +723,7 @@
     if (g > 0) {
       if (keepSweep > 0.10) {
         var keepMid = start + keepSweep / 2;
-        leaders += _leader(keepMid, '#2563eb', 'Gain Kept', _fmt(keep));
+        leaders += _leader(keepMid, '#0b1b3a', 'Gain Kept', _fmt(keep));
       }
       if (taxSweep > 0.10) {
         var lostMid = start + keepSweep + taxSweep / 2;
