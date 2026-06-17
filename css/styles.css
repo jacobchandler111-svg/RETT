@@ -8661,7 +8661,7 @@ body { font-size: 16px; }
     /* BrookHaven brand navy (advisor 2026-06-12) — was the off-brand royal
        blue #1d4ed8; now matches the brand navy used on the LT-gain segment
        of the proceeds breakdown bar so Tab 2 reads cohesively. */
-    color: var(--rett-navy);
+    color: var(--rett-cyan);
     overflow: visible;
     white-space: nowrap;
 }
@@ -8756,7 +8756,7 @@ body { font-size: 16px; }
     border-radius: 3px;
     display: inline-block;
 }
-.baseline-pie-swatch--keep { background: #0b1b3a; }
+.baseline-pie-swatch--keep { background: var(--rett-cyan); }
 .baseline-pie-swatch--tax  { background: #dc2626; }
 .baseline-pie-legend-label {
     font-size: 0.95rem;
