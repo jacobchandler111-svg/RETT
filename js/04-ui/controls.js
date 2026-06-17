@@ -2023,22 +2023,12 @@ function bindControls() {
   //
   // Simplified shape (2026-05-15): single #future-estimated-gain field
   // — no more sale-basis-depr breakdown, no auto-compute listener.
-  var futureYesNoEl   = document.getElementById('future-sale-yes-no');
   var futureGroupEl   = document.getElementById('future-sale-fields-group');
-  var futureHintEl    = document.getElementById('future-sale-hint');
-  if (futureYesNoEl) {
-    var syncFutureGroup = function () {
-      var yes = (futureYesNoEl.value === 'yes');
-      // Detail (gain/date) now lives on the Strategy Summary estimator —
-      // keep this group hidden always; just show the hint on "yes" and let
-      // the estimator surface there (advisor 2026-06-17).
-      if (futureGroupEl) futureGroupEl.hidden = true;
-      if (futureHintEl)  futureHintEl.hidden = !yes;
-    };
-    futureYesNoEl.addEventListener('change', syncFutureGroup);
-    futureYesNoEl.addEventListener('input',  syncFutureGroup);
-    syncFutureGroup();
-  }
+  // Detail (gain/date) now lives on the Strategy Summary's Future Sales
+  // Estimator (gated on the yes/no); keep this Page-1 group hidden always.
+  // The yes/no itself needs no handler here — the estimator reads it on
+  // render (advisor 2026-06-17).
+  if (futureGroupEl) futureGroupEl.hidden = true;
 
   // Strategy-selection page (between Inputs and Projection): three
   // cards, each with Interested / Not Interested. Currently NOT wired

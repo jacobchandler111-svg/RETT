@@ -5500,13 +5500,6 @@ body { font-size: 16px; }
     margin: 2px 0 10px;
     line-height: 1.45;
 }
-.future-sale-hint {
-    font-size: 13px;
-    font-style: italic;
-    color: var(--muted, #6B7A99);
-    margin: 8px 2px 0;
-    line-height: 1.45;
-}
 .fsp-desc {
     font-size: 13px;
     color: var(--muted, #6B7A99);
