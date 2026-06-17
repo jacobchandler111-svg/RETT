@@ -1532,34 +1532,37 @@
     }
     var dated = entries.filter(function (e) { return e.gain > 0 && e.N != null; })
                        .sort(function (a, b) { return (a.N - b.N) || (a.idx - b.idx); });
-    var consumed = cov.currentGain;   // the current sale already drew this much of the pool
+    // PASS 1 — each sale self-covers from its OWN proceeds first. Those
+    // proceeds don't exist until the sale happens, so they only work the SALE
+    // YEAR — one year of loss (~59% of capital at 200/100, ~32% at 145/45),
+    // capped at the proceeds. Combo qualifies on the proceeds (≥$3M → 200/100,
+    // else 145/45). This is a dedicated, per-sale resource.
     dated.forEach(function (e) {
-      var poolByThen = cov.existingCapital * _fspCumLoss(cov.currentCombo, e.N);
-      var free = Math.min(e.gain, Math.max(0, poolByThen - consumed));
-      consumed += free;
-      var remaining = Math.max(0, e.gain - free);
-      // Tier 2: the future sale's OWN proceeds, redeployed to offset its own
-      // tax. Key limit (advisor 2026-06-17): those proceeds don't exist until
-      // the sale happens, so they only work the SALE YEAR — ONE year of loss
-      // (~59% of capital at 200/100, ~32% at 145/45), NOT the multi-year
-      // cumulative. (Lead time grows the CURRENT sale's carryforward above —
-      // tier 1 — not this.) And you can deploy at most the proceeds. So an
-      // almost-all-gain sale can't be fully wiped from its own capital in its
-      // sale year — the rest is simply owed. Combo qualifies on the proceeds
-      // (≥$3M → 200/100, else 145/45); fee is one year on the deployed amount.
-      var futureCombo = _fspPickCombo(e.sp);
-      var Lown = _fspCumLoss(futureCombo, 1);                   // proceeds work the sale year only
-      var maxTier2Loss = e.sp * Lown;
-      var tier2 = Math.min(remaining, Math.max(0, maxTier2Loss));
-      var addlCapital = (Lown > 0) ? (tier2 / Lown) : 0;       // ≤ sale proceeds
-      var addlFees = addlCapital * _fspFeeRate(futureCombo) * 1;
-      var coveredTotal = free + tier2;                          // carryforward + own-proceeds (≤ gain)
+      e.combo = _fspPickCombo(e.sp);
+      e.Lown = _fspCumLoss(e.combo, 1);
+      e.selfCover = Math.min(e.gain, Math.max(0, e.sp * e.Lown));
+      e.shortfall = Math.max(0, e.gain - e.selfCover);
+    });
+    // PASS 2 — the CURRENT sale's shared carryforward fills only the SHORTFALLS
+    // (advisor 2026-06-17). A sale that fully covers itself uses none of the
+    // pool, so it funnels down to sales that can't self-cover (e.g. a small
+    // sale right after a big one that's already covered). Chronological,
+    // earliest first; the pool grows with each sale's lead time and is net of
+    // the current sale's own gain.
+    var cfConsumed = 0;
+    dated.forEach(function (e) {
+      var pool = Math.max(0, cov.existingCapital * _fspCumLoss(cov.currentCombo, e.N) - cov.currentGain);
+      var cfUsed = Math.min(e.shortfall, Math.max(0, pool - cfConsumed));
+      cfConsumed += cfUsed;
+      var coveredTotal = e.selfCover + cfUsed;                  // own proceeds + carryforward (≤ gain)
+      var addlCapital = (e.Lown > 0) ? (e.selfCover / e.Lown) : 0;   // proceeds deployed for self-cover
+      var addlFees = addlCapital * _fspFeeRate(e.combo) * 1;          // one year of fee; carryforward is free
       var netSaved = Math.max(0, coveredTotal * combinedRate - addlFees);
       byIdx[e.idx] = {
-        computable: true, free: Math.round(free), remaining: Math.round(remaining),
+        computable: true, free: Math.round(cfUsed), self: Math.round(e.selfCover),
         covered: Math.round(coveredTotal), uncovered: Math.round(Math.max(0, e.gain - coveredTotal)),
         addlCapital: Math.round(addlCapital), addlFees: Math.round(addlFees),
-        netSaved: Math.round(netSaved), fullyFree: free >= e.gain - 0.5,
+        netSaved: Math.round(netSaved), fullyFree: cfUsed >= e.gain - 0.5,
         fullyCovered: coveredTotal >= e.gain - 0.5
       };
     });
@@ -1576,8 +1579,8 @@
     if (!p || p.zero) return { covered: '—', saving: '—', covered$: 0, saving$: 0, fullyFree: false };
     if (p.needsDate) return { covered: 'add a date', saving: '—', covered$: 0, saving$: 0, fullyFree: false };
     if (!p.computable) return { covered: '—', saving: _fmt(p.netSaved || 0), covered$: 0, saving$: p.netSaved || 0, fullyFree: false };
-    return { covered: p.fullyFree ? '✓ Fully covered' : _fmt(p.free),
-             saving: _fmt(p.netSaved), covered$: p.free, saving$: p.netSaved, fullyFree: p.fullyFree };
+    var coveredTxt = p.fullyFree ? '✓ Fully covered' : (p.free > 0 ? _fmt(p.free) : '—');
+    return { covered: coveredTxt, saving: _fmt(p.netSaved), covered$: p.free, saving$: p.netSaved, fullyFree: p.fullyFree };
   }
   // The sales are interconnected (shared pool), so any edit re-allocates the
   // whole table — recompute every row + the totals together.
