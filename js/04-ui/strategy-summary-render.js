@@ -1534,21 +1534,22 @@
       var free = Math.min(e.gain, Math.max(0, poolByThen - consumed));
       consumed += free;
       var remaining = Math.max(0, e.gain - free);
-      // Tier 2: deploy MORE capital to wipe the remainder — but there's a hard
-      // limit. You can put in at most the sale proceeds, and a year of capital
-      // throws off only cumLoss(combo, N) of loss (200/100 maxes ~59% of
-      // capital in year 1, 145/45 ~32%). So an almost-all-gain sale CAN'T be
-      // fully wiped in a short window — the coverable shortfall is capped at
-      // proceeds × cumLoss, and the rest is simply owed. The combo qualifies on
-      // the proceeds we can deploy (≥$3M → 200/100, else 145/45). More years
-      // raise the cap (cumulative loss), so a far-out sale can still be wiped.
+      // Tier 2: the future sale's OWN proceeds, redeployed to offset its own
+      // tax. Key limit (advisor 2026-06-17): those proceeds don't exist until
+      // the sale happens, so they only work the SALE YEAR — ONE year of loss
+      // (~59% of capital at 200/100, ~32% at 145/45), NOT the multi-year
+      // cumulative. (Lead time grows the CURRENT sale's carryforward above —
+      // tier 1 — not this.) And you can deploy at most the proceeds. So an
+      // almost-all-gain sale can't be fully wiped from its own capital in its
+      // sale year — the rest is simply owed. Combo qualifies on the proceeds
+      // (≥$3M → 200/100, else 145/45); fee is one year on the deployed amount.
       var futureCombo = _fspPickCombo(e.sp);
-      var L = _fspCumLoss(futureCombo, e.N);
-      var maxTier2Loss = e.sp * L;                              // most loss the proceeds can make by year N
+      var Lown = _fspCumLoss(futureCombo, 1);                   // proceeds work the sale year only
+      var maxTier2Loss = e.sp * Lown;
       var tier2 = Math.min(remaining, Math.max(0, maxTier2Loss));
-      var addlCapital = (L > 0) ? (tier2 / L) : 0;             // ≤ sale proceeds
-      var addlFees = addlCapital * _fspFeeRate(futureCombo) * e.N;
-      var coveredTotal = free + tier2;                          // free + paid coverage (≤ gain)
+      var addlCapital = (Lown > 0) ? (tier2 / Lown) : 0;       // ≤ sale proceeds
+      var addlFees = addlCapital * _fspFeeRate(futureCombo) * 1;
+      var coveredTotal = free + tier2;                          // carryforward + own-proceeds (≤ gain)
       var netSaved = Math.max(0, coveredTotal * combinedRate - addlFees);
       byIdx[e.idx] = {
         computable: true, free: Math.round(free), remaining: Math.round(remaining),
@@ -1630,7 +1631,7 @@
       ? '23.8% federal + ' + rate.stateCode + ' state ≈ ' + stPct + '%'
       : '23.8% federal (no state income tax)';
     var coverNote = haveModel
-      ? ' Two things offset each future sale: (1) the leftover losses your CURRENT sale&rsquo;s strategy keeps generating, which carry forward — that growing pool is shared across the sales in date order (earliest first), shown under &ldquo;covered by current sale&rdquo;; and (2) the future sale&rsquo;s OWN proceeds, redeployed into the strategy (200/100 if ≥ $3M, else 145/45) to offset its own tax. &ldquo;We could save you&rdquo; is the total of both, net of Brooklyn fees. A ceiling applies: a dollar of capital only throws off so much loss in a window (about 59&percnt;/yr at the higher leverage, 32&percnt;/yr at the lower), so a sale that&rsquo;s nearly all gain on a short fuse can&rsquo;t be fully wiped — more lead time covers more. Estimates — worth a conversation.'
+      ? ' Two things offset each future sale: (1) the leftover losses your CURRENT sale&rsquo;s strategy keeps generating, which carry forward — that growing pool is shared across the sales in date order (earliest first), shown under &ldquo;covered by current sale&rdquo;; and (2) the future sale&rsquo;s OWN proceeds, redeployed into the strategy (200/100 if ≥ $3M, else 145/45) to offset its own tax. Those proceeds only exist once it sells, so they work just the sale year — about 59&percnt; of capital at the higher leverage, 32&percnt; at the lower — meaning a sale that&rsquo;s nearly all gain can only self-cover ~59&percnt;/32&percnt; from its own money. More lead time doesn&rsquo;t help the proceeds; it grows the CURRENT sale&rsquo;s carryforward (source 1). &ldquo;We could save you&rdquo; is the total of both, net of Brooklyn fees. Estimates — worth a conversation.'
       : '';
     return '<div class="input-section fsp-section" id="future-sales-planner">' +
       '<div class="section-heading"><h2>Future Sales Estimator</h2></div>' +
