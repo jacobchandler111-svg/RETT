@@ -78,6 +78,18 @@
   function renderStrategySummary() {
     var host = document.getElementById('strategy-fee-summary-host');
     if (!host) return;
+    // Don't blow away the Future Sales Estimator while the advisor is typing
+    // in it. A reactive re-render (the supplemental pipeline / supp-refresh
+    // fires on ANY input via document-level listeners) mid-keystroke would
+    // replace host.innerHTML, destroying the focused input and eating the
+    // caret — the "click in, edit, then it poses out" bug. The estimator is a
+    // standalone calc whose rows live in window.__rettFutureSalesPlanner and
+    // recompute themselves on input, so skipping the full re-render while one
+    // of its fields is focused loses nothing; it renders normally once focus
+    // leaves. Single-point guard so EVERY re-render source is covered.
+    // (advisor 2026-06-17.)
+    var _ae = (typeof document !== 'undefined') ? document.activeElement : null;
+    if (_ae && _ae.classList && _ae.classList.contains('fsp-input')) return;
     if (typeof root.buildInterestedSummary !== 'function') {
       host.innerHTML = _renderNoChoiceHtml();
       return;
