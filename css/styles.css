@@ -5547,6 +5547,8 @@ body { font-size: 16px; }
     color: var(--ink);
 }
 .fsp-tax { font-weight: 600; color: var(--rett-danger, #C0392B); }
+.fsp-saving { font-weight: 600; color: var(--rett-success, #1F8A4C); }
+.fsp-table thead th:nth-child(6) { text-align: right; }
 .fsp-del-cell { width: 28px; text-align: center; }
 .fsp-del {
     border: none;
@@ -5571,6 +5573,7 @@ body { font-size: 16px; }
 }
 .fsp-total-row .fsp-amt { font-size: 14px; }
 .fsp-total-row .fsp-total-tax { color: var(--rett-danger, #C0392B); }
+.fsp-total-row .fsp-total-saving { color: var(--rett-success, #1F8A4C); }
 .fsp-add {
     margin-top: 14px;
     padding: 8px 14px;

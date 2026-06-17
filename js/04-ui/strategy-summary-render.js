@@ -479,7 +479,17 @@
     // ============ Future Sales Estimator (standalone) ============
     // Simple multi-row tax ballpark for the client's future property sales.
     // Sits between Fees Baked In and Grow Your Net Benefit. Informational
-    // only — does not touch the engine or the net-benefit hero.
+    // only — does not touch the engine or the net-benefit hero. Capture the
+    // chosen strategy's loss/fee-per-dollar rates so the "we could save you"
+    // column can estimate the harvest benefit at the real configured leverage.
+    (function () {
+      var _avail = (entry && entry.cfg && Number(entry.cfg.availableCapital)) || 0;
+      var _lf = entry && entry.metrics ? Number(entry.metrics._lossAtFull) : NaN;
+      var _ff = entry && entry.metrics ? Number(entry.metrics._brooklynFeesAtFull) : NaN;
+      _fspEngineRates = (_avail > 0 && Number.isFinite(_lf) && _lf > 0)
+        ? { lossPerDollar: _lf / _avail, feePerDollar: (Number.isFinite(_ff) ? _ff / _avail : 0) }
+        : null;
+    })();
     html += _renderFutureSalesPlanner();
 
     // ============ Future Sale optimization callout ============
@@ -1449,44 +1459,73 @@
     var stateRate = BIG > 0 ? (st / BIG) : 0;
     return { fed: FSP_FED_RATE, state: stateRate, combined: FSP_FED_RATE + stateRate, stateCode: state };
   }
+  // Engine loss/fee rates for the "we could save you" estimate, captured at
+  // render time from the chosen strategy's metrics (the SAME rates the
+  // Future-Sale optimization callout uses). null → savings shows "—".
+  var _fspEngineRates = null;
+  // Estimated NET tax we could save on a future sale via the Brooklyn loss
+  // harvest. Coverage model: capital (defaulted to the sale price — i.e. the
+  // client redeploys the proceeds) generates loss = capital × lossPerDollar,
+  // which offsets up to the full gain; we save the tax on the offset portion
+  // minus the asset-manager fee on the capital actually used. Returns null
+  // when it can't be estimated (no engine rates / no gain).
+  function _fspRowSaving(salePrice, gain, combinedRate) {
+    var r = _fspEngineRates;
+    if (!r || !(gain > 0) || !(r.lossPerDollar > 0)) return null;
+    var capital    = Math.max(0, salePrice);            // redeploy sale proceeds
+    var offset     = Math.min(gain, capital * r.lossPerDollar);
+    var grossSaved = offset * combinedRate;
+    var capUsed    = offset / r.lossPerDollar;
+    var fees       = capUsed * (r.feePerDollar || 0);
+    return Math.max(0, Math.round(grossSaved - fees));
+  }
   function _fspRecalcRow(idx, rate) {
     var rows = _fspState(), r = rows[idx];
-    if (!r) return { gain: 0, tax: 0 };
+    if (!r) return { gain: 0, tax: 0, saving: 0 };
     rate = rate || _fspCombinedRate();
     var sp = _fspParse(r.salePrice), cb = _fspParse(r.costBasis);
     var gain = Math.max(0, sp - cb), tax = Math.round(gain * rate.combined);
+    var saving = _fspRowSaving(sp, gain, rate.combined);
     var tr = document.querySelector('[data-fsp-row="' + idx + '"]');
     if (tr) {
-      var g = tr.querySelector('.fsp-gain'), t = tr.querySelector('.fsp-tax');
+      var g = tr.querySelector('.fsp-gain'), t = tr.querySelector('.fsp-tax'), sv = tr.querySelector('.fsp-saving');
       if (g) g.textContent = _fmt(gain);
       if (t) t.textContent = _fmt(tax);
+      if (sv) sv.textContent = (saving == null ? '—' : _fmt(saving));
     }
-    return { gain: gain, tax: tax };
+    return { gain: gain, tax: tax, saving: saving || 0 };
   }
   function _fspRecalcTotal() {
-    var rows = _fspState(), rate = _fspCombinedRate(), gSum = 0, tSum = 0;
+    var rows = _fspState(), rate = _fspCombinedRate(), gSum = 0, tSum = 0, svSum = 0;
     for (var i = 0; i < rows.length; i++) {
       var sp = _fspParse(rows[i].salePrice), cb = _fspParse(rows[i].costBasis);
       var gain = Math.max(0, sp - cb);
       gSum += gain; tSum += Math.round(gain * rate.combined);
+      svSum += (_fspRowSaving(sp, gain, rate.combined) || 0);
     }
-    var gEl = document.querySelector('.fsp-total-gain'), tEl = document.querySelector('.fsp-total-tax');
+    var gEl = document.querySelector('.fsp-total-gain'), tEl = document.querySelector('.fsp-total-tax'),
+        svEl = document.querySelector('.fsp-total-saving');
     if (gEl) gEl.textContent = _fmt(gSum);
     if (tEl) tEl.textContent = _fmt(tSum);
+    if (svEl) svEl.textContent = _fmt(svSum);
   }
   function _renderFutureSalesPlanner() {
     var rows = _fspState(), rate = _fspCombinedRate();
-    var gSum = 0, tSum = 0;
+    var gSum = 0, tSum = 0, svSum = 0;
+    var anySaving = false;
     var body = rows.map(function (r, i) {
       var sp = _fspParse(r.salePrice), cb = _fspParse(r.costBasis);
       var gain = Math.max(0, sp - cb), tax = Math.round(gain * rate.combined);
-      gSum += gain; tSum += tax;
+      var saving = _fspRowSaving(sp, gain, rate.combined);
+      if (saving != null) anySaving = true;
+      gSum += gain; tSum += tax; svSum += (saving || 0);
       return '<tr class="fsp-row" data-fsp-row="' + i + '">' +
         '<td><input type="date" class="fsp-input fsp-date" data-fsp-field="date" data-fsp-idx="' + i + '" value="' + (r.date || '') + '" autocomplete="off"></td>' +
         '<td><input type="text" inputmode="numeric" class="fsp-input fsp-usd" data-fsp-field="salePrice" data-fsp-idx="' + i + '" value="' + (sp > 0 ? _fmt(sp) : '') + '" placeholder="$0"></td>' +
         '<td><input type="text" inputmode="numeric" class="fsp-input fsp-usd" data-fsp-field="costBasis" data-fsp-idx="' + i + '" value="' + (cb > 0 ? _fmt(cb) : '') + '" placeholder="$0"></td>' +
         '<td class="fsp-amt fsp-gain">' + _fmt(gain) + '</td>' +
         '<td class="fsp-amt fsp-tax">' + _fmt(tax) + '</td>' +
+        '<td class="fsp-amt fsp-saving">' + (saving == null ? '—' : _fmt(saving)) + '</td>' +
         '<td class="fsp-del-cell">' + (rows.length > 1 ? '<button type="button" class="fsp-del" data-fsp-del="' + i + '" title="Remove this row" aria-label="Remove this row">&times;</button>' : '') + '</td>' +
       '</tr>';
     }).join('');
@@ -1495,19 +1534,23 @@
     var stateNote = (rate.state > 0)
       ? '23.8% federal + ' + rate.stateCode + ' state ≈ ' + stPct + '%'
       : '23.8% federal (no state income tax)';
+    var saveNote = anySaving
+      ? ' &ldquo;We could save you&rdquo; estimates the Brooklyn loss-harvest benefit at this strategy’s rates, assuming the sale proceeds are redeployed as capital.'
+      : '';
     return '<div class="input-section fsp-section" id="future-sales-planner">' +
       '<div class="section-heading"><h2>Future Sales Estimator</h2></div>' +
       '<div class="section-body">' +
-        '<p class="fsp-desc">Ballpark the tax on future property sales. Long-term gains estimated at <strong>' + combPct + '%</strong> (' + stateNote + ').</p>' +
+        '<p class="fsp-desc">Ballpark the tax on future property sales. Long-term gains estimated at <strong>' + combPct + '%</strong> (' + stateNote + ').' + saveNote + '</p>' +
         '<table class="fsp-table">' +
           '<thead><tr>' +
-            '<th>Planned sale date</th><th>Sale price</th><th>Cost basis</th><th>Gain</th><th>Est. tax owed</th><th aria-hidden="true"></th>' +
+            '<th>Planned sale date</th><th>Sale price</th><th>Cost basis</th><th>Gain</th><th>Est. tax owed</th><th>We could save you</th><th aria-hidden="true"></th>' +
           '</tr></thead>' +
           '<tbody>' + body + '</tbody>' +
           '<tfoot><tr class="fsp-total-row">' +
             '<td colspan="3">Total</td>' +
             '<td class="fsp-amt fsp-total-gain">' + _fmt(gSum) + '</td>' +
             '<td class="fsp-amt fsp-total-tax">' + _fmt(tSum) + '</td>' +
+            '<td class="fsp-amt fsp-total-saving">' + _fmt(svSum) + '</td>' +
             '<td aria-hidden="true"></td>' +
           '</tr></tfoot>' +
         '</table>' +
