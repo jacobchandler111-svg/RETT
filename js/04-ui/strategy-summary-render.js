@@ -480,14 +480,20 @@
     // Simple multi-row tax ballpark for the client's future property sales.
     // Sits between Fees Baked In and Grow Your Net Benefit. Informational
     // only — does not touch the engine or the net-benefit hero. Capture the
-    // chosen strategy's loss/fee-per-dollar rates so the "we could save you"
-    // column can estimate the harvest benefit at the real configured leverage.
+    // chosen strategy's combo + deployed capital + current gain so the
+    // two-tier coverage model can project, per future sale, what the existing
+    // position absorbs for free vs. what a bit more deployment would wipe.
     (function () {
-      var _avail = (entry && entry.cfg && Number(entry.cfg.availableCapital)) || 0;
-      var _lf = entry && entry.metrics ? Number(entry.metrics._lossAtFull) : NaN;
-      var _ff = entry && entry.metrics ? Number(entry.metrics._brooklynFeesAtFull) : NaN;
-      _fspEngineRates = (_avail > 0 && Number.isFinite(_lf) && _lf > 0)
-        ? { lossPerDollar: _lf / _avail, feePerDollar: (Number.isFinite(_ff) ? _ff / _avail : 0) }
+      var ci = {};
+      try { ci = (typeof root.collectInputs === 'function') ? (root.collectInputs() || {}) : {}; } catch (e) { ci = {}; }
+      var year0 = Number(ci.year1) || (new Date()).getFullYear();
+      var deployed = (entry && entry._partialDeploy && Number(entry._partialDeploy.deployed)) ||
+                     (entry && entry.cfg && Number(entry.cfg.availableCapital)) || 0;
+      var currentGain = Math.max(0, (Number(ci.salePrice) || 0) - (Number(ci.costBasis) || 0));
+      var currentCombo = (typeof root.findSchwabCombo === 'function')
+        ? root.findSchwabCombo('beta1', leverageLabel) : null;
+      _fspCoverage = (deployed > 0 && currentCombo)
+        ? { year0: year0, existingCapital: deployed, currentGain: currentGain, currentCombo: currentCombo }
         : null;
     })();
     html += _renderFutureSalesPlanner();
@@ -1459,25 +1465,78 @@
     var stateRate = BIG > 0 ? (st / BIG) : 0;
     return { fed: FSP_FED_RATE, state: stateRate, combined: FSP_FED_RATE + stateRate, stateCode: state };
   }
-  // Engine loss/fee rates for the "we could save you" estimate, captured at
-  // render time from the chosen strategy's metrics (the SAME rates the
-  // Future-Sale optimization callout uses). null → savings shows "—".
-  var _fspEngineRates = null;
-  // Estimated NET tax we could save on a future sale via the Brooklyn loss
-  // harvest. Coverage model: capital (defaulted to the sale price — i.e. the
-  // client redeploys the proceeds) generates loss = capital × lossPerDollar,
-  // which offsets up to the full gain; we save the tax on the offset portion
-  // minus the asset-manager fee on the capital actually used. Returns null
-  // when it can't be estimated (no engine rates / no gain).
-  function _fspRowSaving(salePrice, gain, combinedRate) {
-    var r = _fspEngineRates;
-    if (!r || !(gain > 0) || !(r.lossPerDollar > 0)) return null;
-    var capital    = Math.max(0, salePrice);            // redeploy sale proceeds
-    var offset     = Math.min(gain, capital * r.lossPerDollar);
-    var grossSaved = offset * combinedRate;
-    var capUsed    = offset / r.lossPerDollar;
-    var fees       = capUsed * (r.feePerDollar || 0);
-    return Math.max(0, Math.round(grossSaved - fees));
+  // ── Future-sale coverage model (two-tier, advisor 2026-06-17) ──────────
+  // Captured at render time from the chosen strategy: the combo it runs, the
+  // capital already deployed, and the current sale's gain. null → coverage
+  // columns show "—".
+  var _fspCoverage = null;
+  // Cumulative loss-as-fraction-of-capital a combo generates over its first N
+  // years (declining per-year curve in schwab-strategies.js, summed). Beyond
+  // the 10-year curve, reuse the last year's factor.
+  function _fspCumLoss(combo, N) {
+    if (!combo || !Array.isArray(combo.lossByYear) || !(N > 0)) return 0;
+    var lb = combo.lossByYear, last = lb.length - 1, s = 0;
+    for (var i = 0; i < N; i++) s += (i <= last) ? lb[i] : lb[last];
+    return s;
+  }
+  // Pick the leverage combo by the capital available: 200/100 needs $3M and
+  // harvests far more loss per dollar (so it covers a gain with less capital);
+  // otherwise 145/45 ($1M min). Mirrors "$2M → 145/45, $3M+ → 200/100".
+  function _fspPickCombo(capital) {
+    var c200 = (typeof root.getSchwabCombo === 'function') ? root.getSchwabCombo('beta1_200_100') : null;
+    var c145 = (typeof root.getSchwabCombo === 'function') ? root.getSchwabCombo('beta1_145_45') : null;
+    if (c200 && capital >= c200.minInvestment) return c200;
+    return c145 || c200 || null;
+  }
+  function _fspFeeRate(combo) {
+    if (!combo || typeof root.brooklynFeeRateFor !== 'function') return 0;
+    return Number(root.brooklynFeeRateFor(combo.longPct, combo.shortPct)) || 0;
+  }
+  function _fspYearsUntil(dateStr, year0) {
+    if (!dateStr) return null;
+    var y = Number(String(dateStr).slice(0, 4));
+    if (!y) return null;
+    return Math.max(1, y - (Number(year0) || y));
+  }
+  // The two-tier estimate for one future sale.
+  //   tier1 (free): excess loss the EXISTING position throws off by the sale
+  //     year, beyond what the current sale consumed — carries forward, no new
+  //     cost. = max(0, existingCapital × cumLoss(currentCombo, N) − currentGain).
+  //   tier2 (with more): capital to wipe the remaining gain at the future
+  //     combo's rate, charged the ongoing mgmt fee × N (NO new Brookhaven
+  //     setup — the engagement is already live).
+  // Returns null when uncomputable; { needsDate:true } when the row has no date.
+  function _fspRowCoverage(salePrice, gain, dateStr, combinedRate) {
+    var cov = _fspCoverage;
+    if (!cov || !(gain > 0)) return null;
+    var N = _fspYearsUntil(dateStr, cov.year0);
+    if (N == null) return { needsDate: true };
+    var existingCumLoss = cov.existingCapital * _fspCumLoss(cov.currentCombo, N);
+    var freeCarry = Math.max(0, existingCumLoss - cov.currentGain);
+    var tier1 = Math.min(gain, freeCarry);
+    var remaining = Math.max(0, gain - tier1);
+    var futureCombo = _fspPickCombo(Math.max(salePrice, cov.existingCapital));
+    var L = _fspCumLoss(futureCombo, N);
+    var addlCapital = (L > 0) ? (remaining / L) : 0;
+    var addlFees = addlCapital * _fspFeeRate(futureCombo) * N;
+    var grossSaved = gain * combinedRate;            // tax on tier1 + tier2 (full coverage)
+    var netSaved = Math.max(0, grossSaved - addlFees);
+    return {
+      N: N, tier1: Math.round(tier1), remaining: Math.round(remaining),
+      addlCapital: Math.round(addlCapital), addlFees: Math.round(addlFees),
+      netSaved: Math.round(netSaved), fullyFree: tier1 >= gain - 0.5,
+      futureCombo: futureCombo
+    };
+  }
+  // Coverage display for one row: returns the "covered by current plan" cell
+  // text and the "we could save you" cell text.
+  function _fspCoverCells(sp, gain, dateStr, combinedRate) {
+    var cov = _fspRowCoverage(sp, gain, dateStr, combinedRate);
+    if (gain <= 0) return { covered: '—', saving: '—', tier1: 0, saving$: 0 };
+    if (!cov) return { covered: '—', saving: _fmt(Math.round(gain * combinedRate)), tier1: 0, saving$: Math.round(gain * combinedRate) };
+    if (cov.needsDate) return { covered: 'add a date', saving: '—', tier1: 0, saving$: 0 };
+    var coveredTxt = cov.fullyFree ? '✓ Fully covered' : _fmt(cov.tier1);
+    return { covered: coveredTxt, saving: _fmt(cov.netSaved), tier1: cov.tier1, saving$: cov.netSaved };
   }
   function _fspRecalcRow(idx, rate) {
     var rows = _fspState(), r = rows[idx];
@@ -1485,47 +1544,52 @@
     rate = rate || _fspCombinedRate();
     var sp = _fspParse(r.salePrice), cb = _fspParse(r.costBasis);
     var gain = Math.max(0, sp - cb), tax = Math.round(gain * rate.combined);
-    var saving = _fspRowSaving(sp, gain, rate.combined);
+    var cells = _fspCoverCells(sp, gain, r.date, rate.combined);
     var tr = document.querySelector('[data-fsp-row="' + idx + '"]');
     if (tr) {
-      var g = tr.querySelector('.fsp-gain'), t = tr.querySelector('.fsp-tax'), sv = tr.querySelector('.fsp-saving');
+      var g = tr.querySelector('.fsp-gain'), t = tr.querySelector('.fsp-tax'),
+          cvd = tr.querySelector('.fsp-covered'), sv = tr.querySelector('.fsp-saving');
       if (g) g.textContent = _fmt(gain);
       if (t) t.textContent = _fmt(tax);
-      if (sv) sv.textContent = (saving == null ? '—' : _fmt(saving));
+      if (cvd) { cvd.textContent = cells.covered; cvd.classList.toggle('fsp-covered-full', cells.tier1 >= gain - 0.5 && gain > 0); }
+      if (sv) sv.textContent = cells.saving;
     }
-    return { gain: gain, tax: tax, saving: saving || 0 };
+    return { gain: gain, tax: tax, saving: cells.saving$ };
   }
   function _fspRecalcTotal() {
-    var rows = _fspState(), rate = _fspCombinedRate(), gSum = 0, tSum = 0, svSum = 0;
+    var rows = _fspState(), rate = _fspCombinedRate(), gSum = 0, tSum = 0, cvSum = 0, svSum = 0;
     for (var i = 0; i < rows.length; i++) {
       var sp = _fspParse(rows[i].salePrice), cb = _fspParse(rows[i].costBasis);
       var gain = Math.max(0, sp - cb);
+      var cells = _fspCoverCells(sp, gain, rows[i].date, rate.combined);
       gSum += gain; tSum += Math.round(gain * rate.combined);
-      svSum += (_fspRowSaving(sp, gain, rate.combined) || 0);
+      cvSum += (cells.tier1 || 0); svSum += (cells.saving$ || 0);
     }
     var gEl = document.querySelector('.fsp-total-gain'), tEl = document.querySelector('.fsp-total-tax'),
-        svEl = document.querySelector('.fsp-total-saving');
+        cvEl = document.querySelector('.fsp-total-covered'), svEl = document.querySelector('.fsp-total-saving');
     if (gEl) gEl.textContent = _fmt(gSum);
     if (tEl) tEl.textContent = _fmt(tSum);
+    if (cvEl) cvEl.textContent = _fmt(cvSum);
     if (svEl) svEl.textContent = _fmt(svSum);
   }
   function _renderFutureSalesPlanner() {
     var rows = _fspState(), rate = _fspCombinedRate();
-    var gSum = 0, tSum = 0, svSum = 0;
-    var anySaving = false;
+    var gSum = 0, tSum = 0, cvSum = 0, svSum = 0;
+    var haveModel = !!_fspCoverage;
     var body = rows.map(function (r, i) {
       var sp = _fspParse(r.salePrice), cb = _fspParse(r.costBasis);
       var gain = Math.max(0, sp - cb), tax = Math.round(gain * rate.combined);
-      var saving = _fspRowSaving(sp, gain, rate.combined);
-      if (saving != null) anySaving = true;
-      gSum += gain; tSum += tax; svSum += (saving || 0);
+      var cells = _fspCoverCells(sp, gain, r.date, rate.combined);
+      gSum += gain; tSum += tax; cvSum += (cells.tier1 || 0); svSum += (cells.saving$ || 0);
+      var coveredCls = (cells.tier1 >= gain - 0.5 && gain > 0) ? ' fsp-covered-full' : '';
       return '<tr class="fsp-row" data-fsp-row="' + i + '">' +
         '<td><input type="date" class="fsp-input fsp-date" data-fsp-field="date" data-fsp-idx="' + i + '" value="' + (r.date || '') + '" autocomplete="off"></td>' +
         '<td><input type="text" inputmode="numeric" class="fsp-input fsp-usd" data-fsp-field="salePrice" data-fsp-idx="' + i + '" value="' + (sp > 0 ? _fmt(sp) : '') + '" placeholder="$0"></td>' +
         '<td><input type="text" inputmode="numeric" class="fsp-input fsp-usd" data-fsp-field="costBasis" data-fsp-idx="' + i + '" value="' + (cb > 0 ? _fmt(cb) : '') + '" placeholder="$0"></td>' +
         '<td class="fsp-amt fsp-gain">' + _fmt(gain) + '</td>' +
         '<td class="fsp-amt fsp-tax">' + _fmt(tax) + '</td>' +
-        '<td class="fsp-amt fsp-saving">' + (saving == null ? '—' : _fmt(saving)) + '</td>' +
+        '<td class="fsp-amt fsp-covered' + coveredCls + '">' + cells.covered + '</td>' +
+        '<td class="fsp-amt fsp-saving">' + cells.saving + '</td>' +
         '<td class="fsp-del-cell">' + (rows.length > 1 ? '<button type="button" class="fsp-del" data-fsp-del="' + i + '" title="Remove this row" aria-label="Remove this row">&times;</button>' : '') + '</td>' +
       '</tr>';
     }).join('');
@@ -1534,22 +1598,23 @@
     var stateNote = (rate.state > 0)
       ? '23.8% federal + ' + rate.stateCode + ' state ≈ ' + stPct + '%'
       : '23.8% federal (no state income tax)';
-    var saveNote = anySaving
-      ? ' &ldquo;We could save you&rdquo; estimates the Brooklyn loss-harvest benefit at this strategy’s rates, assuming the sale proceeds are redeployed as capital.'
+    var coverNote = haveModel
+      ? ' &ldquo;Covered by current plan&rdquo; is what we project your existing position can absorb by the sale year at no added cost (its losses keep accruing each year); the &ldquo;we could save you&rdquo; figure assumes a bit more is deployed to wipe the rest. Estimates — worth a conversation.'
       : '';
     return '<div class="input-section fsp-section" id="future-sales-planner">' +
       '<div class="section-heading"><h2>Future Sales Estimator</h2></div>' +
       '<div class="section-body">' +
-        '<p class="fsp-desc">Ballpark the tax on future property sales. Long-term gains estimated at <strong>' + combPct + '%</strong> (' + stateNote + ').' + saveNote + '</p>' +
+        '<p class="fsp-desc">Ballpark the tax on future property sales. Long-term gains estimated at <strong>' + combPct + '%</strong> (' + stateNote + ').' + coverNote + '</p>' +
         '<table class="fsp-table">' +
           '<thead><tr>' +
-            '<th>Planned sale date</th><th>Sale price</th><th>Cost basis</th><th>Gain</th><th>Est. tax owed</th><th>We could save you</th><th aria-hidden="true"></th>' +
+            '<th>Planned sale date</th><th>Sale price</th><th>Cost basis</th><th>Gain</th><th>Est. tax owed</th><th>Covered by current plan</th><th>We could save you</th><th aria-hidden="true"></th>' +
           '</tr></thead>' +
           '<tbody>' + body + '</tbody>' +
           '<tfoot><tr class="fsp-total-row">' +
             '<td colspan="3">Total</td>' +
             '<td class="fsp-amt fsp-total-gain">' + _fmt(gSum) + '</td>' +
             '<td class="fsp-amt fsp-total-tax">' + _fmt(tSum) + '</td>' +
+            '<td class="fsp-amt fsp-total-covered">' + _fmt(cvSum) + '</td>' +
             '<td class="fsp-amt fsp-total-saving">' + _fmt(svSum) + '</td>' +
             '<td aria-hidden="true"></td>' +
           '</tr></tfoot>' +
