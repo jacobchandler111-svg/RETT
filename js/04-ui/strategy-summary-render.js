@@ -1534,15 +1534,28 @@
       var free = Math.min(e.gain, Math.max(0, poolByThen - consumed));
       consumed += free;
       var remaining = Math.max(0, e.gain - free);
-      var futureCombo = _fspPickCombo(Math.max(e.sp, cov.existingCapital));
+      // Tier 2: deploy MORE capital to wipe the remainder — but there's a hard
+      // limit. You can put in at most the sale proceeds, and a year of capital
+      // throws off only cumLoss(combo, N) of loss (200/100 maxes ~59% of
+      // capital in year 1, 145/45 ~32%). So an almost-all-gain sale CAN'T be
+      // fully wiped in a short window — the coverable shortfall is capped at
+      // proceeds × cumLoss, and the rest is simply owed. The combo qualifies on
+      // the proceeds we can deploy (≥$3M → 200/100, else 145/45). More years
+      // raise the cap (cumulative loss), so a far-out sale can still be wiped.
+      var futureCombo = _fspPickCombo(e.sp);
       var L = _fspCumLoss(futureCombo, e.N);
-      var addlCapital = (L > 0) ? (remaining / L) : 0;
+      var maxTier2Loss = e.sp * L;                              // most loss the proceeds can make by year N
+      var tier2 = Math.min(remaining, Math.max(0, maxTier2Loss));
+      var addlCapital = (L > 0) ? (tier2 / L) : 0;             // ≤ sale proceeds
       var addlFees = addlCapital * _fspFeeRate(futureCombo) * e.N;
+      var coveredTotal = free + tier2;                          // free + paid coverage (≤ gain)
+      var netSaved = Math.max(0, coveredTotal * combinedRate - addlFees);
       byIdx[e.idx] = {
         computable: true, free: Math.round(free), remaining: Math.round(remaining),
+        covered: Math.round(coveredTotal), uncovered: Math.round(Math.max(0, e.gain - coveredTotal)),
         addlCapital: Math.round(addlCapital), addlFees: Math.round(addlFees),
-        netSaved: Math.max(0, Math.round(e.gain * combinedRate - addlFees)),
-        fullyFree: free >= e.gain - 0.5
+        netSaved: Math.round(netSaved), fullyFree: free >= e.gain - 0.5,
+        fullyCovered: coveredTotal >= e.gain - 0.5
       };
     });
     entries.forEach(function (e) {
@@ -1617,7 +1630,7 @@
       ? '23.8% federal + ' + rate.stateCode + ' state ≈ ' + stPct + '%'
       : '23.8% federal (no state income tax)';
     var coverNote = haveModel
-      ? ' Coverage is shared across all the sales you list: your current plan keeps building losses each year, so we apply that growing pool in date order. Sales bunched close together share a smaller pool; sales spread further out get more. &ldquo;Covered by current plan&rdquo; is the no-added-cost portion; &ldquo;we could save you&rdquo; assumes a bit more is deployed to wipe the rest, net of Brooklyn fees. Estimates — worth a conversation.'
+      ? ' Coverage is shared across all the sales you list: your current plan keeps building losses each year, so we apply that growing pool in date order — sales bunched together share a smaller pool, sales spread out get more. &ldquo;Covered by current plan&rdquo; is the no-added-cost portion; &ldquo;we could save you&rdquo; deploys a bit more to wipe the rest, net of Brooklyn fees. There&rsquo;s a ceiling though: a dollar of capital only throws off so much loss in a given window (about 59&percnt;/yr at higher leverage, 32&percnt;/yr at lower), so a sale that&rsquo;s nearly all gain can&rsquo;t be fully wiped in a short timeframe — more lead time covers more. Estimates — worth a conversation.'
       : '';
     return '<div class="input-section fsp-section" id="future-sales-planner">' +
       '<div class="section-heading"><h2>Future Sales Estimator</h2></div>' +
