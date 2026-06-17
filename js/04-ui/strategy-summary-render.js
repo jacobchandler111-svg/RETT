@@ -1611,7 +1611,6 @@
     var rows = _fspState(), rate = _fspCombinedRate();
     var port = _fspComputePortfolio(rows, rate.combined);
     var gSum = 0, tSum = 0, cvSum = 0, svSum = 0;
-    var haveModel = !!_fspCoverage;
     var body = rows.map(function (r, i) {
       var sp = _fspParse(r.salePrice), cb = _fspParse(r.costBasis);
       var gain = Math.max(0, sp - cb), tax = Math.round(gain * rate.combined);
@@ -1629,19 +1628,9 @@
         '<td class="fsp-del-cell">' + (rows.length > 1 ? '<button type="button" class="fsp-del" data-fsp-del="' + i + '" title="Remove this row" aria-label="Remove this row">&times;</button>' : '') + '</td>' +
       '</tr>';
     }).join('');
-    var stPct = (rate.state * 100).toFixed(1).replace(/\.0$/, '');
-    var combPct = (rate.combined * 100).toFixed(1).replace(/\.0$/, '');
-    var stateNote = (rate.state > 0)
-      ? '23.8% federal + ' + rate.stateCode + ' state ≈ ' + stPct + '%'
-      : '23.8% federal (no state income tax)';
-    var coverNote = haveModel
-      ? ' Two things offset each future sale: (1) the leftover losses your CURRENT sale&rsquo;s strategy keeps generating, which carry forward — that growing pool is shared across the sales in date order (earliest first), shown under &ldquo;covered by current sale&rdquo;; and (2) the future sale&rsquo;s OWN proceeds, redeployed into the strategy (200/100 if ≥ $3M, else 145/45) to offset its own tax. Those proceeds only exist once it sells, so they work just the sale year — about 59&percnt; of capital at the higher leverage, 32&percnt; at the lower — meaning a sale that&rsquo;s nearly all gain can only self-cover ~59&percnt;/32&percnt; from its own money. More lead time doesn&rsquo;t help the proceeds; it grows the CURRENT sale&rsquo;s carryforward (source 1). &ldquo;We could save you&rdquo; is the total of both, net of Brooklyn fees. Estimates — worth a conversation.'
-      : '';
     return '<div class="input-section fsp-section" id="future-sales-planner">' +
       '<div class="section-heading"><h2>Future Sales Estimator</h2></div>' +
       '<div class="section-body">' +
-        '<p class="fsp-intro">Earlier you mentioned a possible large sale down the road — let’s map it out. List what you’re thinking of selling, and we’ll show what the plan you already have can cover.</p>' +
-        '<p class="fsp-desc">Ballpark the tax on future property sales. Long-term gains estimated at <strong>' + combPct + '%</strong> (' + stateNote + ').' + coverNote + '</p>' +
         '<table class="fsp-table">' +
           '<thead><tr>' +
             '<th>Planned sale date</th><th>Sale price</th><th>Cost basis</th><th>Gain</th><th>Est. tax owed</th><th>Covered by current sale</th><th>We could save you</th><th aria-hidden="true"></th>' +

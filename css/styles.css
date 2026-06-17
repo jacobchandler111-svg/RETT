@@ -5492,21 +5492,6 @@ body { font-size: 16px; }
 
 /* Grow Your Net Benefit — projection card at the very bottom of Page 5 */
 /* ============ Future Sales Estimator (standalone tax ballpark) ============ */
-.fsp-intro {
-    font-family: var(--font-display, Georgia, serif);
-    font-style: italic;
-    font-size: 15px;
-    color: var(--ink);
-    margin: 2px 0 10px;
-    line-height: 1.45;
-}
-.fsp-desc {
-    font-size: 13px;
-    color: var(--muted, #6B7A99);
-    margin: 2px 0 14px;
-    line-height: 1.5;
-}
-.fsp-desc strong { color: var(--ink); }
 .fsp-table {
     width: 100%;
     border-collapse: collapse;
@@ -5514,13 +5499,13 @@ body { font-size: 16px; }
 }
 .fsp-table thead th {
     font-family: var(--font-mono);
-    font-size: 10px;
-    letter-spacing: 0.08em;
+    font-size: 12px;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--muted, #6B7A99);
-    font-weight: 600;
+    color: var(--ink);
+    font-weight: 700;
     text-align: left;
-    padding: 0 10px 8px;
+    padding: 0 10px 9px;
     border-bottom: 1px solid var(--rule);
     white-space: nowrap;
 }
