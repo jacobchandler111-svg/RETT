@@ -5449,6 +5449,107 @@ body { font-size: 16px; }
 }
 
 /* Grow Your Net Benefit — projection card at the very bottom of Page 5 */
+/* ============ Future Sales Estimator (standalone tax ballpark) ============ */
+.fsp-desc {
+    font-size: 13px;
+    color: var(--muted, #6B7A99);
+    margin: 2px 0 14px;
+    line-height: 1.5;
+}
+.fsp-desc strong { color: var(--ink); }
+.fsp-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+.fsp-table thead th {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted, #6B7A99);
+    font-weight: 600;
+    text-align: left;
+    padding: 0 10px 8px;
+    border-bottom: 1px solid var(--rule);
+    white-space: nowrap;
+}
+.fsp-table thead th:nth-child(4),
+.fsp-table thead th:nth-child(5) { text-align: right; }
+.fsp-table tbody td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: middle;
+}
+.fsp-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 7px 9px;
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--ink);
+    background: var(--paper-cool, #fff);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    min-width: 110px;
+}
+.fsp-input:focus {
+    outline: none;
+    border-color: var(--rett-blue, #1F6FEB);
+    box-shadow: 0 0 0 2px rgba(31, 111, 235, 0.15);
+}
+.fsp-amt {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: var(--ink);
+}
+.fsp-tax { font-weight: 600; color: var(--rett-danger, #C0392B); }
+.fsp-del-cell { width: 28px; text-align: center; }
+.fsp-del {
+    border: none;
+    background: none;
+    color: var(--muted, #6B7A99);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+.fsp-del:hover { color: var(--rett-danger, #C0392B); background: rgba(192, 57, 43, 0.08); }
+.fsp-total-row td {
+    padding: 10px 10px 0;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink);
+    font-weight: 700;
+    border-top: 2px solid var(--rule);
+}
+.fsp-total-row .fsp-amt { font-size: 14px; }
+.fsp-total-row .fsp-total-tax { color: var(--rett-danger, #C0392B); }
+.fsp-add {
+    margin-top: 14px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--rett-blue, #1F6FEB);
+    background: var(--paper-cool, #fff);
+    border: 1px dashed var(--rett-blue, #1F6FEB);
+    border-radius: 6px;
+    cursor: pointer;
+}
+.fsp-add:hover { background: rgba(31, 111, 235, 0.08); }
+@media (max-width: 760px) {
+    .fsp-table, .fsp-table thead, .fsp-table tbody, .fsp-table tfoot,
+    .fsp-table tr, .fsp-table td, .fsp-table th { display: block; }
+    .fsp-table thead { display: none; }
+    .fsp-table tbody td { border-bottom: none; padding: 4px 0; }
+    .fsp-row { border-bottom: 1px solid var(--rule); padding: 8px 0; margin-bottom: 6px; }
+    .fsp-amt { text-align: left; }
+}
+
 .growth-projection {
     margin: 56px 0 28px;
     padding: 22px 24px 26px;

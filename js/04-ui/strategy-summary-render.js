@@ -466,6 +466,12 @@
       '</div>' +
     '</div>';
 
+    // ============ Future Sales Estimator (standalone) ============
+    // Simple multi-row tax ballpark for the client's future property sales.
+    // Sits between Fees Baked In and Grow Your Net Benefit. Informational
+    // only — does not touch the engine or the net-benefit hero.
+    html += _renderFutureSalesPlanner();
+
     // ============ Future Sale optimization callout ============
     // Now AFTER fees-baked-in so it reads as a follow-on: "those were
     // the fees on the current sale; here's what additional fees would
@@ -1376,6 +1382,159 @@
     if (heroLabel) heroLabel.textContent = 'Grown To';
     finalHost.innerHTML =
       '<div class="growth-final-sub">' + endLabel + ' &middot; ' + ret + '% annual return</div>';
+  }
+
+  // =====================================================================
+  // Future Sales Estimator (advisor 2026-06-17) — a standalone, simple
+  // multi-row table for ballparking the tax on the client's FUTURE property
+  // sales. Each row: planned date, sale price, cost basis → gain (price −
+  // basis) and estimated tax (gain × [23.8% federal LTCG+NIIT + the client's
+  // state top rate]). Purely informational — it does NOT feed the engine,
+  // the optimizer, or the net-benefit hero. Rows + values persist in
+  // window.__rettFutureSalesPlanner + localStorage so they survive re-renders
+  // and reloads. Sits between "Fees Baked In" and "Grow Your Net Benefit".
+  // -----------------------------------------------------------------
+  var FSP_KEY = 'rettFutureSalesPlanner';
+  function _fspState() {
+    if (!Array.isArray(root.__rettFutureSalesPlanner)) {
+      var init = null;
+      try {
+        var s = JSON.parse((root.localStorage && root.localStorage.getItem(FSP_KEY)) || 'null');
+        if (Array.isArray(s)) init = s;
+      } catch (e) { /* ignore */ }
+      root.__rettFutureSalesPlanner = init || [
+        { date: '', salePrice: 0, costBasis: 0 },
+        { date: '', salePrice: 0, costBasis: 0 },
+        { date: '', salePrice: 0, costBasis: 0 }
+      ];
+    }
+    return root.__rettFutureSalesPlanner;
+  }
+  function _fspPersist() {
+    try { root.localStorage.setItem(FSP_KEY, JSON.stringify(_fspState())); } catch (e) { /* ignore */ }
+  }
+  function _fspParse(v) {
+    return Math.max(0, Number(String(v == null ? '' : v).replace(/[^0-9.]/g, '')) || 0);
+  }
+  // Federal LTCG + NIIT for the high-bracket clients this tool targets.
+  var FSP_FED_RATE = 0.238;
+  // Client's effective top state rate on a large LT gain (captures the top
+  // marginal bracket + any state LTCG preferential treatment via the engine's
+  // own computeStateTax). NONE/no-tax states → 0.
+  function _fspCombinedRate() {
+    var state = 'NONE', year = (new Date()).getFullYear(), status = 'mfj';
+    try {
+      var ci = root.collectInputs() || {};
+      state  = ci.state || ci.stateCode || 'NONE';
+      year   = Number(ci.year1) || year;
+      status = ci.filingStatus || 'mfj';
+    } catch (e) { /* defaults */ }
+    var BIG = 10000000, st = 0;
+    if (typeof root.computeStateTax === 'function') {
+      try { st = Number(root.computeStateTax(BIG, year, state, status, { longTermGain: BIG })) || 0; }
+      catch (e) { st = 0; }
+    }
+    var stateRate = BIG > 0 ? (st / BIG) : 0;
+    return { fed: FSP_FED_RATE, state: stateRate, combined: FSP_FED_RATE + stateRate, stateCode: state };
+  }
+  function _fspRecalcRow(idx, rate) {
+    var rows = _fspState(), r = rows[idx];
+    if (!r) return { gain: 0, tax: 0 };
+    rate = rate || _fspCombinedRate();
+    var sp = _fspParse(r.salePrice), cb = _fspParse(r.costBasis);
+    var gain = Math.max(0, sp - cb), tax = Math.round(gain * rate.combined);
+    var tr = document.querySelector('[data-fsp-row="' + idx + '"]');
+    if (tr) {
+      var g = tr.querySelector('.fsp-gain'), t = tr.querySelector('.fsp-tax');
+      if (g) g.textContent = _fmt(gain);
+      if (t) t.textContent = _fmt(tax);
+    }
+    return { gain: gain, tax: tax };
+  }
+  function _fspRecalcTotal() {
+    var rows = _fspState(), rate = _fspCombinedRate(), gSum = 0, tSum = 0;
+    for (var i = 0; i < rows.length; i++) {
+      var sp = _fspParse(rows[i].salePrice), cb = _fspParse(rows[i].costBasis);
+      var gain = Math.max(0, sp - cb);
+      gSum += gain; tSum += Math.round(gain * rate.combined);
+    }
+    var gEl = document.querySelector('.fsp-total-gain'), tEl = document.querySelector('.fsp-total-tax');
+    if (gEl) gEl.textContent = _fmt(gSum);
+    if (tEl) tEl.textContent = _fmt(tSum);
+  }
+  function _renderFutureSalesPlanner() {
+    var rows = _fspState(), rate = _fspCombinedRate();
+    var gSum = 0, tSum = 0;
+    var body = rows.map(function (r, i) {
+      var sp = _fspParse(r.salePrice), cb = _fspParse(r.costBasis);
+      var gain = Math.max(0, sp - cb), tax = Math.round(gain * rate.combined);
+      gSum += gain; tSum += tax;
+      return '<tr class="fsp-row" data-fsp-row="' + i + '">' +
+        '<td><input type="date" class="fsp-input fsp-date" data-fsp-field="date" data-fsp-idx="' + i + '" value="' + (r.date || '') + '" autocomplete="off"></td>' +
+        '<td><input type="text" inputmode="numeric" class="fsp-input fsp-usd" data-fsp-field="salePrice" data-fsp-idx="' + i + '" value="' + (sp > 0 ? _fmt(sp) : '') + '" placeholder="$0"></td>' +
+        '<td><input type="text" inputmode="numeric" class="fsp-input fsp-usd" data-fsp-field="costBasis" data-fsp-idx="' + i + '" value="' + (cb > 0 ? _fmt(cb) : '') + '" placeholder="$0"></td>' +
+        '<td class="fsp-amt fsp-gain">' + _fmt(gain) + '</td>' +
+        '<td class="fsp-amt fsp-tax">' + _fmt(tax) + '</td>' +
+        '<td class="fsp-del-cell">' + (rows.length > 1 ? '<button type="button" class="fsp-del" data-fsp-del="' + i + '" title="Remove this row" aria-label="Remove this row">&times;</button>' : '') + '</td>' +
+      '</tr>';
+    }).join('');
+    var stPct = (rate.state * 100).toFixed(1).replace(/\.0$/, '');
+    var combPct = (rate.combined * 100).toFixed(1).replace(/\.0$/, '');
+    var stateNote = (rate.state > 0)
+      ? '23.8% federal + ' + rate.stateCode + ' state ≈ ' + stPct + '%'
+      : '23.8% federal (no state income tax)';
+    return '<div class="input-section fsp-section" id="future-sales-planner">' +
+      '<div class="section-heading"><h2>Future Sales Estimator</h2></div>' +
+      '<div class="section-body">' +
+        '<p class="fsp-desc">Ballpark the tax on future property sales. Long-term gains estimated at <strong>' + combPct + '%</strong> (' + stateNote + ').</p>' +
+        '<table class="fsp-table">' +
+          '<thead><tr>' +
+            '<th>Planned sale date</th><th>Sale price</th><th>Cost basis</th><th>Gain</th><th>Est. tax owed</th><th aria-hidden="true"></th>' +
+          '</tr></thead>' +
+          '<tbody>' + body + '</tbody>' +
+          '<tfoot><tr class="fsp-total-row">' +
+            '<td colspan="3">Total</td>' +
+            '<td class="fsp-amt fsp-total-gain">' + _fmt(gSum) + '</td>' +
+            '<td class="fsp-amt fsp-total-tax">' + _fmt(tSum) + '</td>' +
+            '<td aria-hidden="true"></td>' +
+          '</tr></tfoot>' +
+        '</table>' +
+        '<button type="button" class="fsp-add" data-fsp-add="1">+ Add another sale</button>' +
+      '</div>' +
+    '</div>';
+  }
+  function _fspRerender() {
+    var host = document.getElementById('future-sales-planner');
+    if (host) host.outerHTML = _renderFutureSalesPlanner();
+  }
+  if (typeof root !== 'undefined' && root.document && !root.__rettFspListenerWired) {
+    root.__rettFspListenerWired = true;
+    root.document.addEventListener('input', function (e) {
+      var el = e.target;
+      if (!el || !el.classList || !el.classList.contains('fsp-input')) return;
+      var idx = Number(el.getAttribute('data-fsp-idx')), field = el.getAttribute('data-fsp-field');
+      if (!Number.isFinite(idx) || !field) return;
+      var rows = _fspState(); if (!rows[idx]) return;
+      rows[idx][field] = (field === 'date') ? el.value : _fspParse(el.value);
+      _fspRecalcRow(idx); _fspRecalcTotal(); _fspPersist();
+    });
+    root.document.addEventListener('change', function (e) {
+      var el = e.target;
+      if (!el || !el.classList || !el.classList.contains('fsp-usd')) return;
+      var v = _fspParse(el.value);
+      el.value = v > 0 ? _fmt(v) : '';
+    });
+    root.document.addEventListener('click', function (e) {
+      var add = e.target && e.target.closest && e.target.closest('[data-fsp-add]');
+      var del = e.target && e.target.closest && e.target.closest('[data-fsp-del]');
+      if (add) {
+        _fspState().push({ date: '', salePrice: 0, costBasis: 0 });
+        _fspPersist(); _fspRerender();
+      } else if (del) {
+        var i = Number(del.getAttribute('data-fsp-del')), rows = _fspState();
+        if (rows.length > 1 && rows[i] != null) { rows.splice(i, 1); _fspPersist(); _fspRerender(); }
+      }
+    });
   }
 
   if (typeof root !== 'undefined' && root.document && !root.__rettGrowthListenerWired) {
