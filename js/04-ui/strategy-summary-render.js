@@ -477,32 +477,35 @@
     '</div>';
 
     // ============ Future Sales Estimator (standalone) ============
-    // Simple multi-row tax ballpark for the client's future property sales.
-    // Sits between Fees Baked In and Grow Your Net Benefit. Informational
-    // only — does not touch the engine or the net-benefit hero. Capture the
-    // chosen strategy's combo + deployed capital + current gain so the
-    // two-tier coverage model can project, per future sale, what the existing
-    // position absorbs for free vs. what a bit more deployment would wipe.
-    (function () {
-      var ci = {};
-      try { ci = (typeof root.collectInputs === 'function') ? (root.collectInputs() || {}) : {}; } catch (e) { ci = {}; }
-      var year0 = Number(ci.year1) || (new Date()).getFullYear();
-      var deployed = (entry && entry._partialDeploy && Number(entry._partialDeploy.deployed)) ||
-                     (entry && entry.cfg && Number(entry.cfg.availableCapital)) || 0;
-      var currentGain = Math.max(0, (Number(ci.salePrice) || 0) - (Number(ci.costBasis) || 0));
-      var currentCombo = (typeof root.findSchwabCombo === 'function')
-        ? root.findSchwabCombo('beta1', leverageLabel) : null;
-      _fspCoverage = (deployed > 0 && currentCombo)
-        ? { year0: year0, existingCapital: deployed, currentGain: currentGain, currentCombo: currentCombo }
-        : null;
-    })();
-    html += _renderFutureSalesPlanner();
-
-    // ============ Future Sale optimization callout ============
-    // Now AFTER fees-baked-in so it reads as a follow-on: "those were
-    // the fees on the current sale; here's what additional fees would
-    // buy on the future sale." Only renders when futureSale.enabled.
-    html += _renderFutureSaleOption(entry, opt, currentCfg);
+    // Shown ONLY when the client flagged a future large sale on Page 1
+    // (Section 04 yes/no). Two-tier coverage; informational — does not touch
+    // the engine or the hero (the optimizer hardcodes futureGain = 0, so the
+    // yes/no never moves the main numbers — see master-solver ~line 1029).
+    // This REPLACES the retired engine "offset your future sale" callout.
+    var _futureSaleYes = false;
+    try {
+      var _fyn = document.getElementById('future-sale-yes-no');
+      _futureSaleYes = !!(_fyn && _fyn.value === 'yes');
+    } catch (e) { _futureSaleYes = false; }
+    if (_futureSaleYes) {
+      // Capture the chosen strategy's combo + deployed capital + current gain
+      // so the two-tier model can project, per future sale, what the existing
+      // position absorbs for free vs. what a bit more deployment would wipe.
+      (function () {
+        var ci = {};
+        try { ci = (typeof root.collectInputs === 'function') ? (root.collectInputs() || {}) : {}; } catch (e) { ci = {}; }
+        var year0 = Number(ci.year1) || (new Date()).getFullYear();
+        var deployed = (entry && entry._partialDeploy && Number(entry._partialDeploy.deployed)) ||
+                       (entry && entry.cfg && Number(entry.cfg.availableCapital)) || 0;
+        var currentGain = Math.max(0, (Number(ci.salePrice) || 0) - (Number(ci.costBasis) || 0));
+        var currentCombo = (typeof root.findSchwabCombo === 'function')
+          ? root.findSchwabCombo('beta1', leverageLabel) : null;
+        _fspCoverage = (deployed > 0 && currentCombo)
+          ? { year0: year0, existingCapital: deployed, currentGain: currentGain, currentCombo: currentCombo }
+          : null;
+      })();
+      html += _renderFutureSalesPlanner();
+    }
 
     // ============ Grow-your-net-benefit projection ============
     // Sits at the very bottom — below the Future Sale callout when it
@@ -1604,6 +1607,7 @@
     return '<div class="input-section fsp-section" id="future-sales-planner">' +
       '<div class="section-heading"><h2>Future Sales Estimator</h2></div>' +
       '<div class="section-body">' +
+        '<p class="fsp-intro">Earlier you mentioned a possible large sale down the road — let’s map it out. List what you’re thinking of selling, and we’ll show what the plan you already have can cover.</p>' +
         '<p class="fsp-desc">Ballpark the tax on future property sales. Long-term gains estimated at <strong>' + combPct + '%</strong> (' + stateNote + ').' + coverNote + '</p>' +
         '<table class="fsp-table">' +
           '<thead><tr>' +

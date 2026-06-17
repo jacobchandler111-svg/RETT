@@ -2025,9 +2025,15 @@ function bindControls() {
   // — no more sale-basis-depr breakdown, no auto-compute listener.
   var futureYesNoEl   = document.getElementById('future-sale-yes-no');
   var futureGroupEl   = document.getElementById('future-sale-fields-group');
-  if (futureYesNoEl && futureGroupEl) {
+  var futureHintEl    = document.getElementById('future-sale-hint');
+  if (futureYesNoEl) {
     var syncFutureGroup = function () {
-      futureGroupEl.hidden = (futureYesNoEl.value !== 'yes');
+      var yes = (futureYesNoEl.value === 'yes');
+      // Detail (gain/date) now lives on the Strategy Summary estimator —
+      // keep this group hidden always; just show the hint on "yes" and let
+      // the estimator surface there (advisor 2026-06-17).
+      if (futureGroupEl) futureGroupEl.hidden = true;
+      if (futureHintEl)  futureHintEl.hidden = !yes;
     };
     futureYesNoEl.addEventListener('change', syncFutureGroup);
     futureYesNoEl.addEventListener('input',  syncFutureGroup);
