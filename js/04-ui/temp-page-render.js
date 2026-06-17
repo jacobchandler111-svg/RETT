@@ -593,6 +593,14 @@
     var _off1245  = Math.max(0, Math.round(Number(_split.r1245) || 0));
     var _off1250  = Math.max(0, Math.round(Number(_split.r1250) || 0));
     var _offTotal = _offOrd + _off1245 + _off1250;
+    // Capital-conversion side of the supp (Delphi): the long-term gain it ADDS,
+    // the qualified dividends it adds, and the short-term loss it generates.
+    // These make the "with strategy" result honest — without them the column
+    // showed Delphi's ordinary offset (a benefit) while hiding the gain it
+    // creates (a cost), so "tax saved" was overstated (advisor 2026-06-17).
+    var _ltAdd  = Math.max(0, Math.round(Number(_split.ltGainAdd) || 0));
+    var _stLoss = Math.max(0, Math.round(Number(_split.stLoss)    || 0));
+    var _qdAdd  = Math.max(0, Math.round(Number(_split.qdivAdd)   || 0));
     // Income RECOGNIZED under the strategy this year — show the income
     // that ACTUALLY hits the tax engine after EVERY activity item this
     // year has been applied. Two sources of reduction stack:
@@ -620,10 +628,13 @@
     var _incomes = null;
     if (baseline && baseline._incomes) {
       _incomes = baseline._incomes;
-      if (_offTotal > 0 || _btLt > 0 || _btOrd > 0 || _bt1250 > 0 || _btSt > 0) {
+      if (_offTotal > 0 || _btLt > 0 || _btOrd > 0 || _bt1250 > 0 || _btSt > 0 || _ltAdd > 0 || _qdAdd > 0) {
         _incomes = Object.assign({}, _incomes, {
           ordinary:       Math.max(0, Number(_incomes.ordinary       || 0) - _offOrd  - _btOrd),
-          longTermGain:   Math.max(0, Number(_incomes.longTermGain   || 0) - _btLt),
+          // Delphi adds _ltAdd of LT gain; its _stLoss short-term loss nets
+          // against that gain (capital losses offset capital gains, and the
+          // recompute floors shortTermGain at 0, so net it into LT here).
+          longTermGain:   Math.max(0, Number(_incomes.longTermGain   || 0) - _btLt + _ltAdd - _stLoss),
           shortTermGain:  Math.max(0, Number(_incomes.shortTermGain  || 0) - _btSt),
           recapture1245:  Math.max(0, Number(_incomes.recapture1245  || 0) - _off1245),
           recapture1250:  Math.max(0, Number(_incomes.recapture1250  || 0) - _off1250 - _bt1250),
@@ -647,7 +658,9 @@
         _status    = _ci.filingStatus || 'mfj';
         _stateCode = _ci.state || _ci.stateCode || _stateCode;
         _struct = {
-          qualifiedDividend: _ci.qualifiedDividend,
+          // Add Delphi's qualified dividends to the client's own — they're
+          // taxed at LT rates and are part of the gain Delphi creates.
+          qualifiedDividend: (Number(_ci.qualifiedDividend) || 0) + _qdAdd,
           wages:             _ci.wages,
           seIncome:          _ci.seIncome,
           itemized:          _ci.itemizedDeductions || _ci.itemized,
@@ -1464,11 +1477,20 @@
   // 401k unified shape, augusta, PTET) only absorb against ordinary
   // income — they don't reach recap. We default those to ord-only.
   function _computeSuppOrdOffsetForYear(displayedI, fundedSupps) {
-    var ZERO = { ord: 0, r1245: 0, r1250: 0, total: 0, oilGasOrd: 0 };
+    // ltGainAdd / stLoss / qdivAdd capture the CAPITAL-CONVERSION side of a
+    // supp that doesn't just deduct ordinary income but ALSO creates long-term
+    // gain + qualified dividends and an offsetting short-term loss (today:
+    // Delphi). They stay 0 for pure ordinary-deduction supps (O&G, Farm, PTET,
+    // Augusta, Equipment Leasing). The results column and the honest-benefit
+    // recompute add them back so the "with strategy" income + tax reflect the
+    // gain Delphi adds (not just the ordinary it offsets) — a true picture.
+    var ZERO = { ord: 0, r1245: 0, r1250: 0, total: 0, oilGasOrd: 0,
+                 ltGainAdd: 0, stLoss: 0, qdivAdd: 0 };
     if (!Array.isArray(fundedSupps)) return ZERO;
     // oilGasOrd = the Oil & Gas portion of the ordinary offset — IDC, which is
     // deducted for regular tax but added back for AMT (see amtIdcPreference).
-    var acc = { ord: 0, r1245: 0, r1250: 0, oilGasOrd: 0 };
+    var acc = { ord: 0, r1245: 0, r1250: 0, oilGasOrd: 0,
+                ltGainAdd: 0, stLoss: 0, qdivAdd: 0 };
     fundedSupps.forEach(function (s) {
       var extraSpec = (root.__rettSupplementalExtra && root.__rettSupplementalExtra[s.id]) || null;
       var coreSpec  = (root.__rettSupplemental      && root.__rettSupplemental[s.id])      || null;
@@ -1497,6 +1519,10 @@
           var c = (py.absorbed != null) ? Number(py.absorbed) : Number(py.deduction || 0);
           if (c > 0) { acc.ord += c * sc; if (s.id === 'oilGas') acc.oilGasOrd += c * sc; }
         }
+        // Capital-conversion side (Delphi per-year fields), same sat scale.
+        acc.ltGainAdd += Math.max(0, Number(py.ltGainAdd) || 0) * sc;
+        acc.stLoss    += Math.max(0, Number(py.stLossAmt) || 0) * sc;
+        acc.qdivAdd   += Math.max(0, Number(py.qdivAdd)   || 0) * sc;
         return;
       }
       var detail = last.detail || {};
@@ -1525,6 +1551,11 @@
         || 0
       ) || 0;
       if (ordKey > 0) acc.ord += ordKey * sc;
+      // Capital-conversion side (Delphi single-year Y0 allocations), same
+      // sat scale. Absent on ordinary-only supps → contributes 0.
+      acc.ltGainAdd += Math.max(0, Number(allocations.longTermGainAdded)  || 0) * sc;
+      acc.stLoss    += Math.max(0, Number(allocations.shortTermLoss)      || 0) * sc;
+      acc.qdivAdd   += Math.max(0, Number(allocations.qualifiedDividends) || 0) * sc;
     });
     acc.total = acc.ord + acc.r1245 + acc.r1250;
     return acc;
@@ -1855,7 +1886,11 @@
       var offOrd  = Math.max(0, Math.round(Number(split.ord)   || 0));
       var off1245 = Math.max(0, Math.round(Number(split.r1245) || 0));
       var off1250 = Math.max(0, Math.round(Number(split.r1250) || 0));
-      if (offOrd + off1245 + off1250 <= 0) return;  // no supp activity this year
+      // Capital-conversion side (Delphi adds LT gain + QD, generates ST loss).
+      var ltAdd  = Math.max(0, Math.round(Number(split.ltGainAdd) || 0));
+      var stLoss = Math.max(0, Math.round(Number(split.stLoss)    || 0));
+      var qdAdd  = Math.max(0, Math.round(Number(split.qdivAdd)   || 0));
+      if (offOrd + off1245 + off1250 + ltAdd + qdAdd <= 0) return;  // no supp activity this year
       var year = Number(row.year) || (year1 + i);
       // Brooklyn-only income (baseline less Brooklyn offsets).
       var brkInc = Object.assign({}, baseInc, {
@@ -1865,9 +1900,14 @@
         recapture1250: Math.max(0, Number(baseInc.recapture1250 || 0) - bt1250),
         recapture:     Math.max(0, Number(baseInc.recapture     || 0) - bt1250)
       });
-      // Brooklyn + supplemental income (also less the supp offsets).
+      // Brooklyn + supplemental income (also less the supp offsets). Delphi
+      // ADDS long-term gain (ltAdd) and generates a short-term loss (stLoss)
+      // that nets against that gain — _recomputePostStrategyTax floors ST at 0,
+      // so net the loss into LT here. Without these the supp side counted only
+      // the ordinary it offsets, ignoring the gain it creates → overstated.
       var suppInc = Object.assign({}, brkInc, {
         ordinary:      Math.max(0, Number(brkInc.ordinary      || 0) - offOrd),
+        longTermGain:  Math.max(0, Number(brkInc.longTermGain  || 0) + ltAdd - stLoss),
         recapture1245: Math.max(0, Number(brkInc.recapture1245 || 0) - off1245),
         recapture1250: Math.max(0, Number(brkInc.recapture1250 || 0) - off1250),
         recapture:     Math.max(0, Number(brkInc.recapture     || 0) - off1245 - off1250)
@@ -1879,6 +1919,9 @@
       // (brkTax) keeps the full SE base — capital losses don't reduce earned
       // income. (advisor 2026-06-10.)
       var suppStruct = Object.assign({}, struct, { seReduction: offOrd,
+        // Delphi's qualified dividends are added on the supp side (taxed at LT
+        // rates) — part of the gain it creates, absent on Brooklyn's side.
+        qualifiedDividend: (Number(struct.qualifiedDividend) || 0) + qdAdd,
         // O&G IDC added back to AMTI on the supp side (brkTax has no supp offset,
         // so its IDC preference is 0) — this is what trims the O&G supp's
         // incremental benefit when the IDC add-back triggers AMT.
