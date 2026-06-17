@@ -1630,7 +1630,7 @@
       ? '23.8% federal + ' + rate.stateCode + ' state ≈ ' + stPct + '%'
       : '23.8% federal (no state income tax)';
     var coverNote = haveModel
-      ? ' Coverage is shared across all the sales you list: your current plan keeps building losses each year, so we apply that growing pool in date order — sales bunched together share a smaller pool, sales spread out get more. &ldquo;Covered by current plan&rdquo; is the no-added-cost portion; &ldquo;we could save you&rdquo; deploys a bit more to wipe the rest, net of Brooklyn fees. There&rsquo;s a ceiling though: a dollar of capital only throws off so much loss in a given window (about 59&percnt;/yr at higher leverage, 32&percnt;/yr at lower), so a sale that&rsquo;s nearly all gain can&rsquo;t be fully wiped in a short timeframe — more lead time covers more. Estimates — worth a conversation.'
+      ? ' Two things offset each future sale: (1) the leftover losses your CURRENT sale&rsquo;s strategy keeps generating, which carry forward — that growing pool is shared across the sales in date order (earliest first), shown under &ldquo;covered by current sale&rdquo;; and (2) the future sale&rsquo;s OWN proceeds, redeployed into the strategy (200/100 if ≥ $3M, else 145/45) to offset its own tax. &ldquo;We could save you&rdquo; is the total of both, net of Brooklyn fees. A ceiling applies: a dollar of capital only throws off so much loss in a window (about 59&percnt;/yr at the higher leverage, 32&percnt;/yr at the lower), so a sale that&rsquo;s nearly all gain on a short fuse can&rsquo;t be fully wiped — more lead time covers more. Estimates — worth a conversation.'
       : '';
     return '<div class="input-section fsp-section" id="future-sales-planner">' +
       '<div class="section-heading"><h2>Future Sales Estimator</h2></div>' +
@@ -1639,7 +1639,7 @@
         '<p class="fsp-desc">Ballpark the tax on future property sales. Long-term gains estimated at <strong>' + combPct + '%</strong> (' + stateNote + ').' + coverNote + '</p>' +
         '<table class="fsp-table">' +
           '<thead><tr>' +
-            '<th>Planned sale date</th><th>Sale price</th><th>Cost basis</th><th>Gain</th><th>Est. tax owed</th><th>Covered by current plan</th><th>We could save you</th><th aria-hidden="true"></th>' +
+            '<th>Planned sale date</th><th>Sale price</th><th>Cost basis</th><th>Gain</th><th>Est. tax owed</th><th>Covered by current sale</th><th>We could save you</th><th aria-hidden="true"></th>' +
           '</tr></thead>' +
           '<tbody>' + body + '</tbody>' +
           '<tfoot><tr class="fsp-total-row">' +
