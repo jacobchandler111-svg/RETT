@@ -240,6 +240,22 @@
     });
     var savings = primarySavings + supplementalBenefit;
     var net = primaryNet + supplementalBenefit - appliedSetupFees;
+    // Supplemental fees the client actually pays on FUNDED supps — Delphi-style
+    // mgmtFeeDollars + the flat Brookhaven setup fee. Computed up here so the
+    // Return on Planning denominator below uses the SAME total the Fees Baked
+    // In section shows. (advisor 2026-06-17: ROP was dividing by Brooklyn +
+    // setup fees only, omitting the supp management fee, so it overstated —
+    // e.g. $340K net / $85K instead of / $140K total fees → 400% vs 243%.)
+    var fundedSuppFees = (solverOut && solverOut.supplementals ? solverOut.supplementals : [])
+      .filter(function (s) { return s.rivalry && s.rivalry.funded && (s.rivalry.granted || 0) > 0; })
+      .map(function (s) {
+        var mgmtFee  = Number(s.result && s.result.mgmtFeeDollars) || 0;
+        var setupFee = Math.max(0, Number(_suppSetupFeeMap[s.id]) || 0);
+        return { id: s.id, fee: mgmtFee + setupFee };
+      })
+      .filter(function (x) { return x.fee > 0; });
+    var suppFeesTotal = fundedSuppFees.reduce(function (sum, s) { return sum + s.fee; }, 0);
+    var totalFeesAll = fees + suppFeesTotal;   // all fees: Brooklyn + Brookhaven + supp mgmt + setup
     // Return on Planning expressed as a percentage of NET benefit over
     // fees ("for every $1 of fees, you get back $X of net benefit",
     // rendered as a percentage). Was a multiplier (× back); switched per
@@ -368,7 +384,7 @@
     // 2026-05-09 so the headline reads as an ROI figure ("828%") rather
     // than the abstract "8.3×". Uses NET benefit over fees (not gross
     // savings) — the numerator matches the hero number above.
-    var ropRatio = ((fees + appliedSetupFees) > 0 && net > 0) ? (net / (fees + appliedSetupFees)) : 0;
+    var ropRatio = (totalFeesAll > 0 && net > 0) ? (net / totalFeesAll) : 0;
     var ropPctNum = Math.round(ropRatio * 100);
     var ropDisplay = (ropRatio > 0)
       ? ropPctNum.toLocaleString('en-US') + '<span class="rop-x">%</span>'
@@ -434,30 +450,11 @@
     // first ("here's what you'd spend on the current sale"), then —
     // if there's a planned future sale — pivot to "if you size up,
     // here's what additional fees buy you." Tied chronologically.
-    // Capital-consuming supps that carry a management fee (Delphi-style
-    // mgmtFeeDollars in their result). Filter on rivalry.funded — not
-    // mere interest — so a supp the rivalry rejected (no actual dollars
-    // deployed) doesn't surface a fee the client never pays. Keeps the
-    // page consistent: a supp shows up either as a real contribution
-    // (with its fee in this section) or as $0 with a reason note in
-    // the Supplemental Strategies row above and the Implementation
-    // panel below.
-    var fundedSuppFees = (solverOut && solverOut.supplementals
-      ? solverOut.supplementals : [])
-      .filter(function (s) {
-        return s.rivalry && s.rivalry.funded && (s.rivalry.granted || 0) > 0;
-      })
-      .map(function (s) {
-        var mgmtFee  = Number(s.result && s.result.mgmtFeeDollars) || 0;
-        var setupFee = Math.max(0, Number(_suppSetupFeeMap[s.id]) || 0);
-        return { id: s.id, fee: mgmtFee + setupFee };
-      })
-      .filter(function (x) { return x.fee > 0; });
-    var suppFeesTotal = fundedSuppFees.reduce(function (sum, s) { return sum + s.fee; }, 0);
+    // fundedSuppFees / suppFeesTotal / totalFeesAll are computed up top (so the
+    // ROP denominator matches). The bullet for the supp fees lives here.
     var suppFeeBullet = suppFeesTotal > 0
       ? _bullet('Supplemental Strategy Fees', suppFeesTotal)
       : '';
-    var totalFeesAll = fees + suppFeesTotal;
 
     html += '<div class="input-section" id="fee-strategies-section">' +
       '<div class="section-heading">' +
