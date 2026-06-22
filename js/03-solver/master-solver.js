@@ -1019,13 +1019,10 @@
     // savings — net result was strategies showing LOWER nets when
     // __rettAbsorbFutureSale was set, the opposite of user intent.
     //
-    // Page 6 (strategy-summary-render.js _renderFutureSaleOption)
-    // computes the analytical "if you size Brooklyn up to also absorb
-    // the future sale, here's the additional fees + savings + net"
-    // independently. That callout is the authoritative source of
-    // truth for future-sale impact. The optimizer here stays focused
-    // on the current sale; the flag is preserved for callout framing
-    // (Apply vs Another Option) but no longer changes the cap.
+    // Future-sale impact is modeled separately on Page 6 (the multi-sale
+    // collective Net Benefit / Savings-by-Sale, driven by
+    // __rettFutureInstallmentBenefit). The optimizer here stays focused on the
+    // current sale, so futureGain is held at 0.
     var futureGain = 0;
     var absorbable = currentLT + currentRecap;
 

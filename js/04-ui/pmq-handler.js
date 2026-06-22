@@ -92,10 +92,6 @@
     el.hidden = false;
   }
 
-  function _clearStatus(hostId) {
-    var el = document.getElementById(hostId);
-    if (el) el.hidden = true;
-  }
 
   function _setDropzoneState(dropEl, state) {
     dropEl.classList.remove('pmq-drop-active', 'pmq-drop-loading', 'pmq-drop-done', 'pmq-drop-error');

@@ -26,17 +26,6 @@
     return '$' + Math.round(n).toLocaleString('en-US');
   }
 
-  function _readLeverageOptions() {
-    var sel = document.getElementById('leverage-cap-select');
-    if (!sel) return [];
-    var opts = [];
-    for (var i = 0; i < sel.options.length; i++) {
-      var o = sel.options[i];
-      if (!o.value) continue;
-      opts.push({ value: o.value, label: o.textContent.trim() });
-    }
-    return opts;
-  }
 
   function _readHorizonOptions() {
     var sel = document.getElementById('projection-years');

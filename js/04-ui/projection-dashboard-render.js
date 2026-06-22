@@ -1305,11 +1305,6 @@
     //   • horizon=3 — Strategy B (N=2 yearly payments)
     //   • horizon=4 — Strategy B (N=3) + Strategy C (36mo, Y1-Y3 recog)
     var horizons = [1, 2, 3, 4];
-    function _durationsForHorizon(hor) {
-      // Only 36mo offered. Returns [] when horizon can't fit it so
-      // auto-picker naturally skips Strategy C in those configs.
-      return (hor >= 4) ? [36] : [];
-    }
     var userDurationFallback = baseCfg.structuredSaleDurationMonths || 36;
     var best = null;
 
@@ -2684,10 +2679,6 @@
     return sum;
   }
 
-  function _interestedDetailRow(label, value, indent) {
-    var pad = indent ? 'style="padding-left:18px;color:var(--ink-soft)"' : '';
-    return '<li ' + pad + '><span>' + label + '</span><strong>' + _fmt(value) + '</strong></li>';
-  }
 
   // Format a YYYY-MM-DD string as "Mon DD, YYYY". Falls back to Jan 1 of
   // a known year, then to a literal en-dash.
