@@ -1512,12 +1512,82 @@
   // wipes the remaining gain. Net of 200/100 fees (1.31%/yr) on deployed
   // capital: p1 held 2yr, p2 held 1yr. Worst case (100% gain) ≈ 79% offset.
   // Pure estimate; does NOT touch the engine/optimizer.
+  // Cross-sale carryforward optimizer (advisor 2026-06-22). The future sales
+  // share ONE chronological loss pool: an early sale's 200/100 capital keeps
+  // generating loss that — because capital losses carry FORWARD only — can
+  // offset LATER sales' gains too. Each sale's 50/50 proceeds become two
+  // capital tranches (sale year + next); each tranche held `hold` years pays
+  // feeRate × cap × hold and contributes lossByYear[age] × cap to the pool each
+  // year it's open. We pick the hold-horizons that maximize Σoffset×rate − fees
+  // via two greedy passes from the max-hold start: (1) trim fee-years where
+  // total offset is preserved, (2) drop coverage where net strictly improves.
+  // Caller floors this at the independent per-sale result, so it can only help.
+  function _optimizeSharedPool(sales, rate, feeRate, lossByYear, year0) {
+    if (!sales || !sales.length) return null;
+    var last = lossByYear.length - 1;
+    function lossAt(age) { return age <= last ? lossByYear[age] : lossByYear[last]; }
+    var tranches = [], recog = {};
+    sales.forEach(function (f) {
+      var Y = (Number(year0) || 0) + (Number(f.years) || 0);
+      tranches.push({ d: Y, cap: f.projectedPrice * 0.5 });
+      tranches.push({ d: Y + 1, cap: f.projectedPrice * 0.5 });
+      recog[Y] = (recog[Y] || 0) + f.gain * 0.5;
+      recog[Y + 1] = (recog[Y + 1] || 0) + f.gain * 0.5;
+    });
+    var recogYears = Object.keys(recog).map(Number);
+    var maxR = Math.max.apply(null, recogYears);
+    var minY = Math.min.apply(null, tranches.map(function (t) { return t.d; }));
+    function simulate(holds) {
+      var pool = 0, offset = 0;
+      for (var y = minY; y <= maxR; y++) {
+        for (var i = 0; i < tranches.length; i++) {
+          var t = tranches[i];
+          if (t.d <= y && y <= holds[i]) pool += t.cap * lossAt(y - t.d);
+        }
+        var g = recog[y] || 0;
+        var o = Math.min(g, pool); pool -= o; offset += o;
+      }
+      var fees = 0;
+      for (var j = 0; j < tranches.length; j++) fees += tranches[j].cap * feeRate * (holds[j] - tranches[j].d + 1);
+      return { offset: offset, fees: fees, net: offset * rate - fees };
+    }
+    var holds = tranches.map(function () { return maxR; });
+    var base = simulate(holds);
+    // Pass 1 — trim fee-years that don't reduce offset.
+    var improved = true, guard = 0;
+    while (improved && guard++ < 4000) {
+      improved = false;
+      for (var k = 0; k < tranches.length; k++) {
+        while (holds[k] > tranches[k].d) {
+          var trial = holds.slice(); trial[k] = holds[k] - 1;
+          var r = simulate(trial);
+          if (r.offset >= base.offset - 1) { holds = trial; base = r; improved = true; }
+          else break;
+        }
+      }
+    }
+    // Pass 2 — drop coverage where shedding the fee beats the lost offset.
+    improved = true; guard = 0;
+    while (improved && guard++ < 4000) {
+      improved = false;
+      for (var k2 = 0; k2 < tranches.length; k2++) {
+        if (holds[k2] > tranches[k2].d) {
+          var trial2 = holds.slice(); trial2[k2] = holds[k2] - 1;
+          var r2 = simulate(trial2);
+          if (r2.net > base.net + 1) { holds = trial2; base = r2; improved = true; }
+        }
+      }
+    }
+    return { offset: base.offset, taxSaved: base.offset * rate, fees: base.fees, net: base.net };
+  }
+
   function _futureInstallmentBenefit() {
     var combined = _fspCombinedRate().combined || FSP_FED_RATE;
     var combo = (typeof root.getSchwabCombo === 'function') ? root.getSchwabCombo('beta1_200_100') : null;
     var L1 = _fspCumLoss(combo, 1), L2 = _fspCumLoss(combo, 2);
     var feeRate = _fspFeeRate(combo);
     var sales = _futureSalesProjected().filter(function (f) { return f.gain > 0; });
+    // ---- Independent per-sale baseline (each sale covers only its own gain) ----
     var totOffset = 0, totTaxSaved = 0, totFees = 0, perSale = [];
     sales.forEach(function (f) {
       var price = f.projectedPrice, G = f.gain;
@@ -1536,9 +1606,21 @@
         offsetPct: G > 0 ? offset / G : 0, taxSaved: taxSaved, fees: fees,
         net: taxSaved - fees });
     });
+    var indepNet = totTaxSaved - totFees;
+    // ---- Cross-sale optimizer, floored at the independent baseline ----
+    var year0;
+    try { year0 = Number((root.collectInputs() || {}).year1) || (new Date()).getFullYear(); }
+    catch (e) { year0 = (new Date()).getFullYear(); }
+    var opt = (combo && Array.isArray(combo.lossByYear))
+      ? _optimizeSharedPool(sales, combined, feeRate, combo.lossByYear, year0) : null;
+    var useOpt = !!(opt && opt.net > indepNet + 1);
+    var chosen = useOpt
+      ? { offset: opt.offset, taxSaved: opt.taxSaved, fees: opt.fees, net: opt.net }
+      : { offset: totOffset, taxSaved: totTaxSaved, fees: totFees, net: indepNet };
     return { combined: combined, L1: L1, L2: L2, feeRate: feeRate,
-      offset: totOffset, taxSaved: totTaxSaved, fees: totFees,
-      net: totTaxSaved - totFees, perSale: perSale };
+      offset: chosen.offset, taxSaved: chosen.taxSaved, fees: chosen.fees, net: chosen.net,
+      perSale: perSale, independentNet: indepNet, optimizedNet: opt ? opt.net : null,
+      usedOptimizer: useOpt };
   }
   root.__rettFutureInstallmentBenefit = _futureInstallmentBenefit;
   function _fspYearsUntil(dateStr, year0) {
