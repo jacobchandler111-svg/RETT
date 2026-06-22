@@ -158,6 +158,29 @@ function _bindCaseControls() {
   document.addEventListener('input',  debouncedAutoSave, true);
   document.addEventListener('change', debouncedAutoSave, true);
 
+  // Live-render the active COMPUTED page on any input/change. Baseline (Tab 2)
+  // already self-refreshes via its own document listener, but Strategy Summary
+  // (Tab 6) and Projection (Tab 4) previously only re-rendered on navigation —
+  // so editing a fundamental (e.g. state) while one of those pages was active
+  // left the numbers stale (advisor 2026-06-22: "I switched CA -> GA and the
+  // numbers didn't change"). Debounced; renders are idempotent + focus-guarded.
+  var debouncedLiveRender = _debounce(function () {
+    if (window.__rettSuppressAutoSave || window.__rettApplyingState) return;
+    var activeId = (document.querySelector('section.page.active') || {}).id;
+    try {
+      if (activeId === 'page-allocator') {
+        if (typeof runFullPipeline === 'function') runFullPipeline();
+        if (typeof renderStrategySummary === 'function') renderStrategySummary();
+      } else if (activeId === 'page-projection') {
+        if (typeof runFullPipeline === 'function') runFullPipeline();
+        if (typeof renderInterestedSnapshot === 'function') renderInterestedSnapshot();
+        if (typeof renderProjectionDashboard === 'function') renderProjectionDashboard();
+      }
+    } catch (e) { /* */ }
+  }, 250);
+  document.addEventListener('input',  debouncedLiveRender, true);
+  document.addEventListener('change', debouncedLiveRender, true);
+
   setTimeout(function () {
     window.__rettSuppressAutoSave = false;
     // Belt-and-suspenders re-render of the active page after boot
