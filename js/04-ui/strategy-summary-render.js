@@ -1668,7 +1668,48 @@
   function _fspRerender() {
     var host = document.getElementById('future-sales-planner');
     if (host) host.outerHTML = _renderFutureSalesPlanner();
+    // The Page-1 (Section 04) input table shares the same store — keep it
+    // in sync whenever rows are added/removed from either surface.
+    try { renderFutureSaleInputs(); } catch (e) { /* */ }
   }
+
+  // ---- Page-1 (Section 04) future-sale INPUT table -------------------
+  // Mirrors the estimator's data model — shares __rettFutureSalesPlanner and
+  // the fsp-* classes + data-fsp-* attrs, so the same delegated input/change/
+  // add/del listeners persist edits — but shows ONLY the inputs the client
+  // fills in: planned sale date, fair market value, cost basis. No gain / tax
+  // / coverage here; that math lives downstream (advisor 2026-06-22). The host
+  // is filled only when the Section-04 yes/no is "yes" (cleared otherwise).
+  function _renderFutureSaleInputsTable() {
+    var rows = _fspState();
+    var body = rows.map(function (r, i) {
+      var sp = _fspParse(r.salePrice), cb = _fspParse(r.costBasis);
+      return '<tr class="fsp-row" data-fsp-row="' + i + '">' +
+        '<td><input type="date" class="fsp-input fsp-date" data-fsp-field="date" data-fsp-idx="' + i + '" value="' + (r.date || '') + '" autocomplete="off"></td>' +
+        '<td><input type="text" inputmode="numeric" class="fsp-input fsp-usd" data-fsp-field="salePrice" data-fsp-idx="' + i + '" value="' + (sp > 0 ? _fmt(sp) : '') + '" placeholder="$0"></td>' +
+        '<td><input type="text" inputmode="numeric" class="fsp-input fsp-usd" data-fsp-field="costBasis" data-fsp-idx="' + i + '" value="' + (cb > 0 ? _fmt(cb) : '') + '" placeholder="$0"></td>' +
+        '<td class="fsp-del-cell">' + (rows.length > 1 ? '<button type="button" class="fsp-del" data-fsp-del="' + i + '" title="Remove this sale" aria-label="Remove this sale">&times;</button>' : '') + '</td>' +
+      '</tr>';
+    }).join('');
+    return '<table class="fsp-table fsp-input-table">' +
+      '<thead><tr>' +
+        '<th>When do you plan to sell?</th><th>Fair market value</th><th>What you paid (cost basis)</th><th aria-hidden="true"></th>' +
+      '</tr></thead>' +
+      '<tbody>' + body + '</tbody>' +
+    '</table>' +
+    '<button type="button" class="fsp-add" data-fsp-add="1">+ Add another sale</button>';
+  }
+  function renderFutureSaleInputs() {
+    var host = (typeof document !== 'undefined') ? document.getElementById('future-sale-inputs-host') : null;
+    if (!host) return;
+    var yes = false;
+    try {
+      var el = document.getElementById('future-sale-yes-no');
+      yes = !!(el && el.value === 'yes');
+    } catch (e) { yes = false; }
+    host.innerHTML = yes ? _renderFutureSaleInputsTable() : '';
+  }
+  root.renderFutureSaleInputs = renderFutureSaleInputs;
   if (typeof root !== 'undefined' && root.document && !root.__rettFspListenerWired) {
     root.__rettFspListenerWired = true;
     root.document.addEventListener('input', function (e) {
@@ -1682,10 +1723,14 @@
     });
     root.document.addEventListener('change', function (e) {
       var el = e.target;
+      // Section-04 yes/no toggles the Page-1 input table on/off.
+      if (el && el.id === 'future-sale-yes-no') { renderFutureSaleInputs(); return; }
       if (!el || !el.classList || !el.classList.contains('fsp-usd')) return;
       var v = _fspParse(el.value);
       el.value = v > 0 ? _fmt(v) : '';
     });
+    // Initial paint (the inputs page is already in the DOM at script load).
+    try { renderFutureSaleInputs(); } catch (e) { /* */ }
     root.document.addEventListener('click', function (e) {
       var add = e.target && e.target.closest && e.target.closest('[data-fsp-add]');
       var del = e.target && e.target.closest && e.target.closest('[data-fsp-del]');

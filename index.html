@@ -800,6 +800,13 @@
                 <option value="yes">Yes</option>
               </select>
             </div>
+            <!-- Future-sale INPUT table (advisor 2026-06-22). Appears only
+                 when the yes/no above is "Yes". Client enters planned sale
+                 date / fair market value / cost basis per future sale. No
+                 tax or coverage shown here - that math is downstream. Shares
+                 the __rettFutureSalesPlanner store with the Strategy Summary
+                 estimator. Rendered by renderFutureSaleInputs(). -->
+            <div id="future-sale-inputs-host" class="future-sale-inputs"></div>
             <!-- Just the yes/no here. The specifics (dates / prices /
                  estimated tax / coverage) live on the Strategy Summary's
                  Future Sales Estimator, which is gated on "Yes" (advisor
@@ -1493,13 +1500,13 @@
   <script src="js/04-ui/variable-leverage-ui.js?v=1780693289480"></script>
   <script src="js/04-ui/input-validation.js?v=1781299000000"></script>
   <script src="js/04-ui/inputs-collector.js?v=1780693289480"></script>
-  <script src="js/04-ui/controls.js?v=1781295000002"></script>
+  <script src="js/04-ui/controls.js?v=1781295000003"></script>
   <script src="js/04-ui/recommendation-render.js?v=1780693289480"></script>
   <script src="js/04-ui/projection-dashboard-render.js?v=1781298000001"></script>
   <script src="js/04-ui/savings-ribbon.js?v=1780693289480"></script>
   <script src="js/04-ui/cashflow-schedule-render.js?v=1780693289480"></script>
   <script src="js/04-ui/narrative-render.js?v=1780693289480"></script>
-  <script src="js/04-ui/strategy-summary-render.js?v=1781394800017"></script>
+  <script src="js/04-ui/strategy-summary-render.js?v=1781394800018"></script>
   <script src="js/04-ui/baseline-table.js?v=1781299000002"></script>
   <script src="js/04-ui/supplemental-render.js?v=1781393900002"></script>
   <script src="js/04-ui/supplemental-extra-render.js?v=1781393900000"></script>

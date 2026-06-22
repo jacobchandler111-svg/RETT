@@ -2029,6 +2029,12 @@ function bindControls() {
   // The yes/no itself needs no handler here — the estimator reads it on
   // render (advisor 2026-06-17).
   if (futureGroupEl) futureGroupEl.hidden = true;
+  // The Page-1 future-sale INPUT table (Section 04) appears only when the
+  // yes/no is "Yes". Repaint it here so init + saved-case restore (which set
+  // the select without firing a change event) show the right state.
+  if (typeof window.renderFutureSaleInputs === 'function') {
+    try { window.renderFutureSaleInputs(); } catch (e) { /* */ }
+  }
 
   // Strategy-selection page (between Inputs and Projection): three
   // cards, each with Interested / Not Interested. Currently NOT wired
