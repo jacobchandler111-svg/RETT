@@ -2840,21 +2840,33 @@
   // the next), using the growth-adjusted projected price. Replaces the single
   // current-sale §453 schedule on this string (advisor 2026-06-22). Empty
   // string when there are no dated/priced future sales.
-  function _buildFutureSalesReceiptScheduleHtml() {
-    if (typeof root.__rettFutureSalesProjected !== 'function') return '';
-    var year0;
-    try { year0 = Number((root.collectInputs() || {}).year1) || (new Date()).getFullYear(); }
-    catch (e) { year0 = (new Date()).getFullYear(); }
-    var sales = (root.__rettFutureSalesProjected() || []).filter(function (f) { return f.projectedPrice > 0; });
-    if (!sales.length) return '';
+  function _buildFutureSalesReceiptScheduleHtml(cfg) {
     var byYear = {};
-    sales.forEach(function (f) {
-      var saleYear = year0 + (Number(f.years) || 0);
-      var half = f.projectedPrice * 0.5;
-      byYear[saleYear] = (byYear[saleYear] || 0) + half;
-      byYear[saleYear + 1] = (byYear[saleYear + 1] || 0) + half;
-    });
+    // The ORIGINAL sale (modeled first) — its §453 installment receipts by
+    // year, from the same canonical schedule the single-sale view uses, so
+    // "All Sales" really means all of them, current sale included
+    // (advisor 2026-06-22).
+    try {
+      var cs = cfg ? _describeInstallmentSchedule(cfg) : null;
+      if (cs && cs.rows) cs.rows.forEach(function (r) {
+        var cash = Math.max(0, Number(r.cash) || 0);
+        if (cash > 0) byYear[r.year] = (byYear[r.year] || 0) + cash;
+      });
+    } catch (e) { /* */ }
+    // Future sales — 50/50 across each sale's year and the next.
+    if (typeof root.__rettFutureSalesProjected === 'function') {
+      var year0;
+      try { year0 = Number((root.collectInputs() || {}).year1) || (new Date()).getFullYear(); }
+      catch (e) { year0 = (new Date()).getFullYear(); }
+      (root.__rettFutureSalesProjected() || []).filter(function (f) { return f.projectedPrice > 0; }).forEach(function (f) {
+        var saleYear = year0 + (Number(f.years) || 0);
+        var half = f.projectedPrice * 0.5;
+        byYear[saleYear] = (byYear[saleYear] || 0) + half;
+        byYear[saleYear + 1] = (byYear[saleYear + 1] || 0) + half;
+      });
+    }
     var yrs = Object.keys(byYear).map(Number).sort(function (a, b) { return a - b; });
+    if (!yrs.length) return '';
     var rows = '', total = 0;
     yrs.forEach(function (y) {
       var cash = byYear[y];
@@ -3149,13 +3161,17 @@
     var _cashKeptEl = (typeof document !== 'undefined') ? document.getElementById('bt-cash-kept') : null;
     var _cashKept = (_cashKeptEl && typeof parseUSD === 'function')
       ? (parseUSD(_cashKeptEl.textContent) || 0) : 0;
-    var _netBen = Number(metrics.net) || 0;
+    // On the multi-sale string both halves are collective: bt-cash-kept is
+    // already the all-sales cash kept (Tab 2 collective view), so the net
+    // benefit added here must also be collective (this sale + future sales),
+    // not just the current sale (advisor 2026-06-22).
+    var _netBen = _showCollectiveNet ? (Number(metrics.net) + _futureNetCard) : (Number(metrics.net) || 0);
     var _newWalkAway = _cashKept + _netBen;
     var walkAwayHtml =
       '<div class="rett-interested-walkaway">' +
-        '<div class="rett-walkaway-label">New cash from sale</div>' +
+        '<div class="rett-walkaway-label">' + (_showCollectiveNet ? 'New cash from all sales' : 'New cash from sale') + '</div>' +
         '<div class="rett-walkaway-value">' + _fmt(_newWalkAway) + '</div>' +
-        '<div class="rett-walkaway-sub">Cash kept from sale ' + _fmt(_cashKept) +
+        '<div class="rett-walkaway-sub">Cash kept ' + _fmt(_cashKept) +
           ' + net benefit ' + _fmt(_netBen) + '</div>' +
       '</div>';
     // Payment schedule (B + C - per advisor 2026-05-26 B now has a
@@ -3669,7 +3685,7 @@
     var _multiSaleB = false;
     try { var _fyB = document.getElementById('future-sale-yes-no'); _multiSaleB = !!(_fyB && _fyB.value === 'yes'); } catch (e) { _multiSaleB = false; }
     var paymentsB = (mB && pickedB)
-      ? (_multiSaleB ? _buildFutureSalesReceiptScheduleHtml() : _buildBPaymentScheduleHtml(pickedB.cfg))
+      ? (_multiSaleB ? _buildFutureSalesReceiptScheduleHtml(pickedB.cfg) : _buildBPaymentScheduleHtml(pickedB.cfg))
       : '';
 
     var pickedC = _skipC ? null : _bestPickedCfgLocal('C');
