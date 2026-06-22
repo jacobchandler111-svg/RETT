@@ -2833,6 +2833,43 @@
     '</div>';
   }
 
+  // Multi-sale string: the installment payment-schedule drop-down shows the
+  // cash the seller RECEIVES each year across ALL their future sales — each
+  // modeled as a 50/50 two-year §453 installment (50% in the sale year, 50%
+  // the next), using the growth-adjusted projected price. Replaces the single
+  // current-sale §453 schedule on this string (advisor 2026-06-22). Empty
+  // string when there are no dated/priced future sales.
+  function _buildFutureSalesReceiptScheduleHtml() {
+    if (typeof root.__rettFutureSalesProjected !== 'function') return '';
+    var year0;
+    try { year0 = Number((root.collectInputs() || {}).year1) || (new Date()).getFullYear(); }
+    catch (e) { year0 = (new Date()).getFullYear(); }
+    var sales = (root.__rettFutureSalesProjected() || []).filter(function (f) { return f.projectedPrice > 0; });
+    if (!sales.length) return '';
+    var byYear = {};
+    sales.forEach(function (f) {
+      var saleYear = year0 + (Number(f.years) || 0);
+      var half = f.projectedPrice * 0.5;
+      byYear[saleYear] = (byYear[saleYear] || 0) + half;
+      byYear[saleYear + 1] = (byYear[saleYear + 1] || 0) + half;
+    });
+    var yrs = Object.keys(byYear).map(Number).sort(function (a, b) { return a - b; });
+    var rows = '', total = 0;
+    yrs.forEach(function (y) {
+      var cash = byYear[y];
+      total += cash;
+      rows += '<tr><td>' + y + '</td><td>' + _fmt(cash) + '</td></tr>';
+    });
+    rows += '<tr class="rett-payments-total"><td>Total received</td><td>' + _fmt(total) + '</td></tr>';
+    return '<div class="rett-interested-payments">' +
+      '<h4>Cash Received &mdash; All Sales</h4>' +
+      '<table class="rett-payments-table">' +
+        '<thead><tr><th>Year</th><th>Cash Received</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+      '</table>' +
+    '</div>';
+  }
+
   // -------------------------------------------------------------------
   // Sale-only donut chart. The pie's whole-circle quantity is the
   // GAIN FROM THE SALE alone — LT gain + recapture + ST gain. Ordinary
@@ -3048,6 +3085,8 @@
   }
 
   function _interestedCard(typeLabel, num, name, picked, metrics, lossSum, isRecommended, durationMonths, paymentScheduleHtml, visuals, currentCfg) {
+    var _multiSaleCard = false;
+    try { var _fyC = document.getElementById('future-sale-yes-no'); _multiSaleCard = !!(_fyC && _fyC.value === 'yes'); } catch (e) { _multiSaleCard = false; }
     // Lockup line replaces the old "Time horizon · Leverage" auto-pick
     // summary. Strategy choice is now described by how long the seller's
     // proceeds are tied up:
@@ -3127,10 +3166,15 @@
       '<div class="rett-interested-name">' + name + '</div>' +
       '<div class="rett-interested-net-label">Net Benefit</div>' +
       '<div class="rett-interested-net-value">' + _fmt(metrics.net) + '</div>' +
-      '<div class="rett-interested-lockup">' +
-        '<span class="rett-interested-lockup-label">Payment Period</span>' +
-        '<span class="rett-interested-lockup-value">' + lockupValue + '</span>' +
-      '</div>' +
+      // The single-sale "Payment Period · N months" lockup is about the one
+      // current sale, so it's suppressed on the multi-sale string — the
+      // payment cadence there lives in the future-sales receipt drop-down
+      // below (advisor 2026-06-22).
+      ((_multiSaleCard && typeLabel === 'B') ? '' :
+        '<div class="rett-interested-lockup">' +
+          '<span class="rett-interested-lockup-label">Payment Period</span>' +
+          '<span class="rett-interested-lockup-value">' + lockupValue + '</span>' +
+        '</div>') +
       '<details class="rett-interested-details">' +
         '<summary>Show details</summary>' +
         walkAwayHtml +
@@ -3605,7 +3649,14 @@
     var mB = (!_skipB && pickedB) ? _scenarioMetrics(pickedB.cfg) : null;
     var lossB = mB ? _scenarioLossSum(pickedB.cfg) : 0;
     var visualsB = mB ? _buildVisuals('B', mB, pickedB.cfg, null) : null;
-    var paymentsB = (mB && pickedB) ? _buildBPaymentScheduleHtml(pickedB.cfg) : '';
+    // Multi-sale string: the installment card's drop-down shows the future
+    // sales' year-by-year cash receipts (50/50 §453) instead of the single
+    // current-sale §453 schedule (advisor 2026-06-22).
+    var _multiSaleB = false;
+    try { var _fyB = document.getElementById('future-sale-yes-no'); _multiSaleB = !!(_fyB && _fyB.value === 'yes'); } catch (e) { _multiSaleB = false; }
+    var paymentsB = (mB && pickedB)
+      ? (_multiSaleB ? _buildFutureSalesReceiptScheduleHtml() : _buildBPaymentScheduleHtml(pickedB.cfg))
+      : '';
 
     var pickedC = _skipC ? null : _bestPickedCfgLocal('C');
     var mC = (!_skipC && pickedC) ? _scenarioMetrics(pickedC.cfg) : null;

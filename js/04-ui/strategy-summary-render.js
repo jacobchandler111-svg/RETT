@@ -1809,11 +1809,16 @@
               root.localStorage.setItem('_chosenStrategy', 'B');
             }
           } catch (e) { /* */ }
-          ['_refreshStrategyPickCards', 'renderInterestedSnapshot', 'renderSupplementalPage',
-           'renderProjectionDashboard', 'renderStrategySummary'].forEach(function (fn) {
-            if (typeof root[fn] === 'function') { try { root[fn](); } catch (e) { /* */ } }
-          });
         }
+        // Refresh in BOTH directions so the multi-sale presentation (Page-3
+        // featuring, Projection collective tile, the B card's future-sales
+        // receipt schedule + suppressed lockup) appears on Yes and fully
+        // reverts on No. renderInterestedSnapshot drives the B card; the
+        // dashboard drives the collective KPI tile — both must re-run.
+        ['_refreshStrategyPickCards', 'renderInterestedSnapshot', 'renderSupplementalPage',
+         'renderProjectionDashboard', 'renderStrategySummary'].forEach(function (fn) {
+          if (typeof root[fn] === 'function') { try { root[fn](); } catch (e) { /* */ } }
+        });
         return;
       }
       if (!el || !el.classList || !el.classList.contains('fsp-input')) return;
@@ -1821,12 +1826,13 @@
         var v = _fspParse(el.value);
         el.value = v > 0 ? _fmt(v) : '';
       }
-      // A future-sale edit changes the Projection collective net benefit —
-      // refresh it so it sums ALL sales, not just whatever was there when the
-      // page last rendered (advisor 2026-06-22).
-      if (typeof root.renderProjectionDashboard === 'function') {
-        try { root.renderProjectionDashboard(); } catch (e2) { /* */ }
-      }
+      // A future-sale edit changes the Projection collective net benefit AND
+      // the installment card's future-sales receipt schedule — refresh both
+      // so they reflect ALL sales, not just whatever was there when the page
+      // last rendered (advisor 2026-06-22).
+      ['renderProjectionDashboard', 'renderInterestedSnapshot'].forEach(function (fn) {
+        if (typeof root[fn] === 'function') { try { root[fn](); } catch (e2) { /* */ } }
+      });
     });
     // Initial paint (the inputs page is already in the DOM at script load).
     try { renderFutureSaleInputs(); } catch (e) { /* */ }
@@ -1842,10 +1848,11 @@
       } else {
         return;
       }
-      // Adding/removing a sale changes the Projection collective net benefit.
-      if (typeof root.renderProjectionDashboard === 'function') {
-        try { root.renderProjectionDashboard(); } catch (e2) { /* */ }
-      }
+      // Adding/removing a sale changes the Projection collective net benefit
+      // AND the installment card's future-sales receipt schedule.
+      ['renderProjectionDashboard', 'renderInterestedSnapshot'].forEach(function (fn) {
+        if (typeof root[fn] === 'function') { try { root[fn](); } catch (e2) { /* */ } }
+      });
     });
   }
 
