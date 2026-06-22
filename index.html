@@ -719,7 +719,11 @@
              flipped on (additional-funds-toggle), this amount becomes
              additional available capital for Brooklyn / other strategies
              (engine wiring TBD). -->
-        <div class="input-section">
+        <!-- Additional Funds HIDDEN for now (advisor 2026-06-22): the feature
+             drove an ~8-build candidate sweep (~6s). Inputs kept in the DOM so
+             collectInputs wiring is undisturbed; the collector's _AF_ENABLED
+             flag keeps it inert. Remove `hidden` + flip _AF_ENABLED to restore. -->
+        <div class="input-section" hidden>
           <div class="section-heading">
             <h2>Additional Funds</h2>
             <span class="num">SECTION 03</span>
@@ -1167,7 +1171,9 @@
            Wired: collectInputs folds the funds into availableCapital /
            investment, and controls.js re-runs the pipeline on toggle.
            Kept small + inline with the headline per advisor. -->
-      <label class="proj-addfunds-toggle" for="additional-funds-toggle" title="Include the Additional Funds contribution from Client Inputs as extra available capital">
+      <!-- Additional Funds toggle HIDDEN for now (advisor 2026-06-22) — see
+           Tab 1 Section 03 + the collector's _AF_ENABLED flag. -->
+      <label class="proj-addfunds-toggle" for="additional-funds-toggle" title="Include the Additional Funds contribution from Client Inputs as extra available capital" hidden>
         <input type="checkbox" id="additional-funds-toggle">
         <span>Include additional funds</span>
       </label>
@@ -1499,7 +1505,7 @@
   <script src="js/04-ui/pill-toggles.js?v=1780693289481"></script>
   <script src="js/04-ui/variable-leverage-ui.js?v=1780693289480"></script>
   <script src="js/04-ui/input-validation.js?v=1781299000000"></script>
-  <script src="js/04-ui/inputs-collector.js?v=1780693289480"></script>
+  <script src="js/04-ui/inputs-collector.js?v=1780693289481"></script>
   <script src="js/04-ui/controls.js?v=1781295000007"></script>
   <script src="js/04-ui/recommendation-render.js?v=1780693289480"></script>
   <script src="js/04-ui/projection-dashboard-render.js?v=1781298000011"></script>

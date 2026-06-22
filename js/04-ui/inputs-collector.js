@@ -576,11 +576,18 @@ function collectInputs() {
       // it can measure each strategy's net at a candidate amount (0 = decline,
       // a tier gap, or the entered amount) regardless of the toggle/DOM value.
       // A finite override wins over the toggle; override 0 ⇒ no fold.
+      // Additional Funds HIDDEN/DISABLED for now (advisor 2026-06-22). The UI
+      // (Tab 1 Section 03 + the Projection toggle) is hidden, and this flag
+      // keeps the feature fully inert — collectInputs never folds the funds, so
+      // the expensive per-candidate AF amount sweep in buildInterestedSummary
+      // (which fired ~8 full builds → ~6s) can never trigger. Flip _AF_ENABLED
+      // back to true (and unhide the UI in index.html) to restore it.
+      var _AF_ENABLED  = false;
       var _afOverride  = (typeof window !== 'undefined') ? window.__rettAdditionalFundsOverride : undefined;
       var _hasAfOver   = (typeof _afOverride === 'number' && isFinite(_afOverride) && _afOverride >= 0);
       var _addFundsToggle = document.getElementById('additional-funds-toggle');
-      var _doAddFunds  = _hasAfOver ? (_afOverride > 0)
-                                    : !!(_addFundsToggle && _addFundsToggle.checked);
+      var _doAddFunds  = _AF_ENABLED && (_hasAfOver ? (_afOverride > 0)
+                                    : !!(_addFundsToggle && _addFundsToggle.checked));
       if (_doAddFunds) {
             var _addFunds = _hasAfOver ? _afOverride : (parseUSD(_val('additional-funds')) || 0);
             var _acctVal  = parseUSD(_val('additional-account-value')) || 0;
