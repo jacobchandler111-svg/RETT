@@ -4741,6 +4741,15 @@ body { font-size: 16px; }
     letter-spacing: -0.01em;
     margin-bottom: 14px;
 }
+/* Multi-sale string: small breakdown under the collective Net Benefit
+   ("This sale $X · future sales $Y"). */
+.rett-interested-net-sub {
+    margin-top: -8px;
+    margin-bottom: 14px;
+    text-align: center;
+    font-size: 0.82em;
+    color: var(--muted);
+}
 
 /* Additional Funds — proportional realized-gain breakdown + suggested
    amount button (Tab 1 Section 03). */

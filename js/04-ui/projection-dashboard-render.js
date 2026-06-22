@@ -226,30 +226,31 @@
       ? _kpiTile('Brookhaven Fees', _fmt(brookhavenFees), 'Setup + quarterly retainer', '')
       : '';
 
-    // Multi-sale string: surface the COLLECTIVE net benefit = this sale's net
-    // PLUS the estimated net from the client's future sales (each modeled as a
-    // 50/50 two-year §453 installment at 200/100, net of 200/100 fees —
-    // advisor 2026-06-22). Display-only; the engine net above is untouched.
-    var collectiveTile = '';
+    // Multi-sale string: the headline Net Benefit becomes the COLLECTIVE across
+    // all the client's sales = this sale's net PLUS the future sales' estimated
+    // installment net (50/50 two-year §453 at 200/100, net of fees — advisor
+    // 2026-06-22). Display-only; the engine net is untouched. The single-sale
+    // figure read as too low next to the >$1M collective tax liability.
+    var _multiKpi = false, _futKpi = 0;
     try {
       var _fyKpi = document.getElementById('future-sale-yes-no');
-      if (_fyKpi && _fyKpi.value === 'yes' && typeof window.__rettFutureInstallmentBenefit === 'function') {
-        var _fb = window.__rettFutureInstallmentBenefit();
-        if (_fb && _fb.net > 0) {
-          var _collective = net + _fb.net;
-          collectiveTile = _kpiTile('Collective Net Benefit', _fmt(_collective),
-            'This sale + future sales est. ' + _fmt(_fb.net),
-            _collective > 0 ? 'positive' : '');
-        }
+      _multiKpi = !!(_fyKpi && _fyKpi.value === 'yes');
+      if (_multiKpi && typeof window.__rettFutureInstallmentBenefit === 'function') {
+        _futKpi = Number(window.__rettFutureInstallmentBenefit().net) || 0;
       }
-    } catch (e) { /* */ }
+    } catch (e) { _multiKpi = false; }
+    var _netShown = (_multiKpi && _futKpi > 0) ? (net + _futKpi) : net;
+    var _netLabel = (_multiKpi && _futKpi > 0) ? 'Net Benefit — All Sales' : 'Net Benefit';
+    var _netSub = (_multiKpi && _futKpi > 0)
+      ? ('This sale ' + _fmt(net) + ' + future ' + _fmt(_futKpi))
+      : 'Savings minus all fees';
+    var _netShownKind = _netShown > 0 ? 'positive' : (_netShown < 0 ? 'negative' : '');
 
     return '<div class="rett-kpi-row">' +
       _kpiTile('Total Tax Saved', _fmt(totalSave), pctReduce + ' over ' + years.length + ' yrs', savedKind) +
       _kpiTile('Brooklyn Fees', _fmt(cumFees), 'Strategy fees (mgmt + financing)', '') +
       brookhavenTile +
-      _kpiTile('Net Benefit', _fmt(net), 'Savings minus all fees', netKind) +
-      collectiveTile +
+      _kpiTile(_netLabel, _fmt(_netShown), _netSub, _netShownKind) +
       _kpiTile('Return on Planning', roiTxt, 'Net benefit / fees', roiKind) +
       '</div>';
   }
@@ -3087,6 +3088,16 @@
   function _interestedCard(typeLabel, num, name, picked, metrics, lossSum, isRecommended, durationMonths, paymentScheduleHtml, visuals, currentCfg) {
     var _multiSaleCard = false;
     try { var _fyC = document.getElementById('future-sale-yes-no'); _multiSaleCard = !!(_fyC && _fyC.value === 'yes'); } catch (e) { _multiSaleCard = false; }
+    // On the multi-sale string the installment card's headline Net Benefit is
+    // the COLLECTIVE across all the client's sales (this sale's engine net +
+    // the future sales' installment net), not just the current sale — the
+    // single-sale figure read as too low next to the collective tax liability
+    // (advisor 2026-06-22).
+    var _futureNetCard = 0;
+    if (_multiSaleCard && typeLabel === 'B' && typeof root.__rettFutureInstallmentBenefit === 'function') {
+      try { _futureNetCard = Number(root.__rettFutureInstallmentBenefit().net) || 0; } catch (e) { _futureNetCard = 0; }
+    }
+    var _showCollectiveNet = (_multiSaleCard && typeLabel === 'B' && _futureNetCard > 0);
     // Lockup line replaces the old "Time horizon · Leverage" auto-pick
     // summary. Strategy choice is now described by how long the seller's
     // proceeds are tied up:
@@ -3164,8 +3175,11 @@
         '<span class="rett-interested-num">STRATEGY <span class="rett-interested-num-big">' + num + '</span></span>' +
       '</div>' +
       '<div class="rett-interested-name">' + name + '</div>' +
-      '<div class="rett-interested-net-label">Net Benefit</div>' +
-      '<div class="rett-interested-net-value">' + _fmt(metrics.net) + '</div>' +
+      '<div class="rett-interested-net-label">' + (_showCollectiveNet ? 'Net Benefit &mdash; All Sales' : 'Net Benefit') + '</div>' +
+      '<div class="rett-interested-net-value">' + _fmt(_showCollectiveNet ? (Number(metrics.net) + _futureNetCard) : metrics.net) + '</div>' +
+      (_showCollectiveNet
+        ? '<div class="rett-interested-net-sub">This sale ' + _fmt(Number(metrics.net)) + ' &middot; future sales ' + _fmt(_futureNetCard) + '</div>'
+        : '') +
       // The single-sale "Payment Period · N months" lockup is about the one
       // current sale, so it's suppressed on the multi-sale string — the
       // payment cadence there lives in the future-sales receipt drop-down
