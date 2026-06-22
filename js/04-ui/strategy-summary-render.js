@@ -506,44 +506,6 @@
       html += _renderPerSaleSavingsTable(_curGain, net, _fbSummary);
     }
 
-    // ============ Future Sales Estimator (standalone) ============
-    // Shown ONLY when the client flagged a future large sale on Page 1
-    // (Section 04 yes/no). Two-tier coverage; informational — does not touch
-    // the engine or the hero (the optimizer hardcodes futureGain = 0, so the
-    // yes/no never moves the main numbers — see master-solver ~line 1029).
-    // This REPLACES the retired engine "offset your future sale" callout.
-    var _futureSaleYes = false;
-    try {
-      var _fyn = document.getElementById('future-sale-yes-no');
-      _futureSaleYes = !!(_fyn && _fyn.value === 'yes');
-    } catch (e) { _futureSaleYes = false; }
-    // Hidden for now (advisor 2026-06-22): the Future Sales Estimator will
-    // return gated on the planned multiple-sales logic, not this single
-    // yes/no. Grow Your Net Benefit takes this slot meanwhile.
-    if (false && _futureSaleYes) {
-      // Capture the chosen strategy's combo + capital + current gain so the
-      // two-tier model can project, per future sale, what the existing position
-      // carries forward vs. what the sale's own proceeds wipe.
-      (function () {
-        var ci = {};
-        try { ci = (typeof root.collectInputs === 'function') ? (root.collectInputs() || {}) : {}; } catch (e) { ci = {}; }
-        var year0 = Number(ci.year1) || (new Date()).getFullYear();
-        // Use the FULL available capital, not the optimizer's dialed-back
-        // deployment (advisor 2026-06-17): project as if the client fully
-        // invested everything — any side capital is assumed deployed alongside
-        // the initial investment — so the carryforward reflects it all working.
-        var fullCapital = (entry && entry.cfg && Number(entry.cfg.availableCapital)) ||
-                          (entry && entry._partialDeploy && Number(entry._partialDeploy.deployed)) || 0;
-        var currentGain = Math.max(0, (Number(ci.salePrice) || 0) - (Number(ci.costBasis) || 0));
-        var currentCombo = (typeof root.findSchwabCombo === 'function')
-          ? root.findSchwabCombo('beta1', leverageLabel) : null;
-        _fspCoverage = (fullCapital > 0 && currentCombo)
-          ? { year0: year0, existingCapital: fullCapital, currentGain: currentGain, currentCombo: currentCombo }
-          : null;
-      })();
-      html += _renderFutureSalesPlanner();
-    }
-
     // ============ Grow-your-net-benefit projection ============
     // Sits at the very bottom — below the Future Sale callout when it
     // renders, takes that slot when it's hidden. Empty inputs by
@@ -1562,11 +1524,6 @@
   // Exposed so the Tax Implications page (baseline-table.js) taxes future
   // sales at the SAME 23.8% LTCG+NIIT + state rate the estimator uses.
   root.__rettFspCombinedRate = _fspCombinedRate;
-  // ── Future-sale coverage model (two-tier, advisor 2026-06-17) ──────────
-  // Captured at render time from the chosen strategy: the combo it runs, the
-  // capital already deployed, and the current sale's gain. null → coverage
-  // columns show "—".
-  var _fspCoverage = null;
   // Cumulative loss-as-fraction-of-capital a combo generates over its first N
   // years (declining per-year curve in schwab-strategies.js, summed). Beyond
   // the 10-year curve, reuse the last year's factor.
@@ -1575,15 +1532,6 @@
     var lb = combo.lossByYear, last = lb.length - 1, s = 0;
     for (var i = 0; i < N; i++) s += (i <= last) ? lb[i] : lb[last];
     return s;
-  }
-  // Pick the leverage combo by the capital available: 200/100 needs $3M and
-  // harvests far more loss per dollar (so it covers a gain with less capital);
-  // otherwise 145/45 ($1M min). Mirrors "$2M → 145/45, $3M+ → 200/100".
-  function _fspPickCombo(capital) {
-    var c200 = (typeof root.getSchwabCombo === 'function') ? root.getSchwabCombo('beta1_200_100') : null;
-    var c145 = (typeof root.getSchwabCombo === 'function') ? root.getSchwabCombo('beta1_145_45') : null;
-    if (c200 && capital >= c200.minInvestment) return c200;
-    return c145 || c200 || null;
   }
   function _fspFeeRate(combo) {
     if (!combo || typeof root.brooklynFeeRateFor !== 'function') return 0;
@@ -1710,177 +1658,8 @@
       usedOptimizer: useOpt };
   }
   root.__rettFutureInstallmentBenefit = _futureInstallmentBenefit;
-  function _fspYearsUntil(dateStr, year0) {
-    if (!dateStr) return null;
-    var y = Number(String(dateStr).slice(0, 4));
-    if (!y) return null;
-    return Math.max(1, y - (Number(year0) || y));
-  }
-  // Portfolio coverage (advisor 2026-06-17). The future sales SHARE ONE finite
-  // pool of carryforward loss that the existing position keeps building each
-  // year. We allocate it CHRONOLOGICALLY: the current sale draws first, then
-  // each future sale in date order takes what's left of the pool AS OF its own
-  // year — poolByYear(N) = deployedCapital × cumLoss(combo, N). So sales bunched
-  // close together compete for a smaller pool, while sales spread further out
-  // see a bigger pool (but only what earlier sales left behind). Free coverage
-  // (tier 1) carries NO new fee; the shortfall (tier 2) is wiped with additional
-  // capital charged the combo's mgmt fee × years (no new Brookhaven setup). The
-  // %-of-tax we save therefore falls as the total gain outgrows the pool —
-  // more of it spills into the fee-bearing tier. Returns an index→entry map.
-  function _fspComputePortfolio(rows, combinedRate) {
-    var cov = _fspCoverage, byIdx = {};
-    var entries = rows.map(function (r, idx) {
-      var sp = _fspParse(r.salePrice), cb = _fspParse(r.costBasis);
-      return { idx: idx, sp: sp, gain: Math.max(0, sp - cb),
-               N: cov ? _fspYearsUntil(r.date, cov.year0) : null };
-    });
-    if (!cov) {
-      entries.forEach(function (e) {
-        byIdx[e.idx] = { computable: false, zero: e.gain <= 0, free: 0,
-          netSaved: e.gain > 0 ? Math.round(e.gain * combinedRate) : 0, fullyFree: false };
-      });
-      return byIdx;
-    }
-    var dated = entries.filter(function (e) { return e.gain > 0 && e.N != null; })
-                       .sort(function (a, b) { return (a.N - b.N) || (a.idx - b.idx); });
-    // PASS 1 — each sale self-covers from its OWN proceeds first. Those
-    // proceeds don't exist until the sale happens, so they only work the SALE
-    // YEAR — one year of loss (~59% of capital at 200/100, ~32% at 145/45),
-    // capped at the proceeds. Combo qualifies on the proceeds (≥$3M → 200/100,
-    // else 145/45). This is a dedicated, per-sale resource.
-    dated.forEach(function (e) {
-      e.combo = _fspPickCombo(e.sp);
-      e.Lown = _fspCumLoss(e.combo, 1);
-      e.selfCover = Math.min(e.gain, Math.max(0, e.sp * e.Lown));
-      e.shortfall = Math.max(0, e.gain - e.selfCover);
-    });
-    // The current sale's carryforward pool, generated by year N (net of the
-    // current sale's own gain). Grows with lead time.
-    function _poolAt(N) {
-      return Math.max(0, cov.existingCapital * _fspCumLoss(cov.currentCombo, N) - cov.currentGain);
-    }
-    var cfConsumed = 0;
-    // PASS 2 — carryforward fills SHORTFALLS first: sales that can't self-cover
-    // get it, chronologically, so it funnels to where it's actually needed
-    // (a small sale right after a big self-covering one). This ADDS coverage.
-    dated.forEach(function (e) {
-      e.cfShort = Math.min(e.shortfall, Math.max(0, _poolAt(e.N) - cfConsumed));
-      cfConsumed += e.cfShort;
-    });
-    // PASS 3 — never waste it: any LEFTOVER carryforward "rides" on the sales
-    // that already self-cover, displacing the proceeds they'd deploy so they
-    // invest (and pay fees on) less. Doesn't change coverage, just trims fees
-    // (advisor 2026-06-17). Chronological; capped by each sale's own-year pool.
-    dated.forEach(function (e) {
-      e.cfDisplace = Math.min(e.selfCover, Math.max(0, _poolAt(e.N) - cfConsumed));
-      cfConsumed += e.cfDisplace;
-    });
-    dated.forEach(function (e) {
-      var cfApplied = (e.cfShort || 0) + (e.cfDisplace || 0);    // carryforward applied to this sale
-      var coveredTotal = e.selfCover + (e.cfShort || 0);         // gain actually covered (≤ gain)
-      var proceedsDeployed = Math.max(0, e.selfCover - (e.cfDisplace || 0));  // own money still in
-      var addlCapital = (e.Lown > 0) ? (proceedsDeployed / e.Lown) : 0;
-      var addlFees = addlCapital * _fspFeeRate(e.combo) * 1;     // carryforward is free; fee only on deployed proceeds
-      var netSaved = Math.max(0, coveredTotal * combinedRate - addlFees);
-      byIdx[e.idx] = {
-        computable: true, free: Math.round(cfApplied), self: Math.round(e.selfCover),
-        covered: Math.round(coveredTotal), uncovered: Math.round(Math.max(0, e.gain - coveredTotal)),
-        addlCapital: Math.round(addlCapital), addlFees: Math.round(addlFees),
-        netSaved: Math.round(netSaved), fullyFree: cfApplied >= e.gain - 0.5,
-        fullyCovered: coveredTotal >= e.gain - 0.5
-      };
-    });
-    entries.forEach(function (e) {
-      if (byIdx[e.idx]) return;
-      byIdx[e.idx] = (e.gain <= 0)
-        ? { computable: false, zero: true, free: 0, netSaved: 0 }
-        : { computable: false, needsDate: true, free: 0, netSaved: 0 };
-    });
-    return byIdx;
-  }
-  // Format one portfolio entry into the two cell strings.
-  function _fspCellsFromEntry(p) {
-    if (!p || p.zero) return { covered: '—', saving: '—', covered$: 0, saving$: 0, fullyFree: false };
-    if (p.needsDate) return { covered: 'add a date', saving: '—', covered$: 0, saving$: 0, fullyFree: false };
-    if (!p.computable) return { covered: '—', saving: _fmt(p.netSaved || 0), covered$: 0, saving$: p.netSaved || 0, fullyFree: false };
-    var coveredTxt = p.fullyFree ? '✓ Fully covered' : (p.free > 0 ? _fmt(p.free) : '—');
-    return { covered: coveredTxt, saving: _fmt(p.netSaved), covered$: p.free, saving$: p.netSaved, fullyFree: p.fullyFree };
-  }
-  // The sales are interconnected (shared pool), so any edit re-allocates the
-  // whole table — recompute every row + the totals together.
-  function _fspRecalcAll() {
-    var rows = _fspState(), rate = _fspCombinedRate();
-    var port = _fspComputePortfolio(rows, rate.combined);
-    var gSum = 0, tSum = 0, cvSum = 0, svSum = 0;
-    rows.forEach(function (r, idx) {
-      var sp = _fspParse(r.salePrice), cb = _fspParse(r.costBasis);
-      var gain = Math.max(0, sp - cb), tax = Math.round(gain * rate.combined);
-      var cells = _fspCellsFromEntry(port[idx]);
-      gSum += gain; tSum += tax; cvSum += (cells.covered$ || 0); svSum += (cells.saving$ || 0);
-      var tr = document.querySelector('[data-fsp-row="' + idx + '"]');
-      if (tr) {
-        var g = tr.querySelector('.fsp-gain'), t = tr.querySelector('.fsp-tax'),
-            cvd = tr.querySelector('.fsp-covered'), sv = tr.querySelector('.fsp-saving');
-        if (g) g.textContent = _fmt(gain);
-        if (t) t.textContent = _fmt(tax);
-        if (cvd) { cvd.textContent = cells.covered; cvd.classList.toggle('fsp-covered-full', !!cells.fullyFree); }
-        if (sv) sv.textContent = cells.saving;
-      }
-    });
-    var gEl = document.querySelector('.fsp-total-gain'), tEl = document.querySelector('.fsp-total-tax'),
-        cvEl = document.querySelector('.fsp-total-covered'), svEl = document.querySelector('.fsp-total-saving');
-    if (gEl) gEl.textContent = _fmt(gSum);
-    if (tEl) tEl.textContent = _fmt(tSum);
-    if (cvEl) cvEl.textContent = _fmt(cvSum);
-    if (svEl) svEl.textContent = _fmt(svSum);
-  }
-  function _renderFutureSalesPlanner() {
-    var rows = _fspState(), rate = _fspCombinedRate();
-    var port = _fspComputePortfolio(rows, rate.combined);
-    var gSum = 0, tSum = 0, cvSum = 0, svSum = 0;
-    var body = rows.map(function (r, i) {
-      var sp = _fspParse(r.salePrice), cb = _fspParse(r.costBasis);
-      var gain = Math.max(0, sp - cb), tax = Math.round(gain * rate.combined);
-      var cells = _fspCellsFromEntry(port[i]);
-      gSum += gain; tSum += tax; cvSum += (cells.covered$ || 0); svSum += (cells.saving$ || 0);
-      var coveredCls = cells.fullyFree ? ' fsp-covered-full' : '';
-      return '<tr class="fsp-row" data-fsp-row="' + i + '">' +
-        '<td><input type="date" class="fsp-input fsp-date" data-fsp-field="date" data-fsp-idx="' + i + '" value="' + (r.date || '') + '" autocomplete="off"></td>' +
-        '<td><input type="text" inputmode="numeric" class="fsp-input fsp-usd" data-fsp-field="salePrice" data-fsp-idx="' + i + '" value="' + (sp > 0 ? _fmt(sp) : '') + '" placeholder="$0"></td>' +
-        '<td><input type="text" inputmode="numeric" class="fsp-input fsp-usd" data-fsp-field="costBasis" data-fsp-idx="' + i + '" value="' + (cb > 0 ? _fmt(cb) : '') + '" placeholder="$0"></td>' +
-        '<td class="fsp-amt fsp-gain">' + _fmt(gain) + '</td>' +
-        '<td class="fsp-amt fsp-tax">' + _fmt(tax) + '</td>' +
-        '<td class="fsp-amt fsp-covered' + coveredCls + '">' + cells.covered + '</td>' +
-        '<td class="fsp-amt fsp-saving">' + cells.saving + '</td>' +
-        '<td class="fsp-del-cell">' + (rows.length > 1 ? '<button type="button" class="fsp-del" data-fsp-del="' + i + '" title="Remove this row" aria-label="Remove this row">&times;</button>' : '') + '</td>' +
-      '</tr>';
-    }).join('');
-    return '<div class="input-section fsp-section" id="future-sales-planner">' +
-      '<div class="section-heading"><h2>Future Sales Estimator</h2></div>' +
-      '<div class="section-body">' +
-        '<table class="fsp-table">' +
-          '<thead><tr>' +
-            '<th>Planned sale date</th><th>Sale price</th><th>Cost basis</th><th>Gain</th><th>Est. tax owed</th><th>Covered by current sale</th><th>We could save you</th><th aria-hidden="true"></th>' +
-          '</tr></thead>' +
-          '<tbody>' + body + '</tbody>' +
-          '<tfoot><tr class="fsp-total-row">' +
-            '<td colspan="3">Total</td>' +
-            '<td class="fsp-amt fsp-total-gain">' + _fmt(gSum) + '</td>' +
-            '<td class="fsp-amt fsp-total-tax">' + _fmt(tSum) + '</td>' +
-            '<td class="fsp-amt fsp-total-covered">' + _fmt(cvSum) + '</td>' +
-            '<td class="fsp-amt fsp-total-saving">' + _fmt(svSum) + '</td>' +
-            '<td aria-hidden="true"></td>' +
-          '</tr></tfoot>' +
-        '</table>' +
-        '<button type="button" class="fsp-add" data-fsp-add="1">+ Add another sale</button>' +
-      '</div>' +
-    '</div>';
-  }
   function _fspRerender() {
-    var host = document.getElementById('future-sales-planner');
-    if (host) host.outerHTML = _renderFutureSalesPlanner();
-    // The Page-1 (Section 04) input table shares the same store — keep it
-    // in sync whenever rows are added/removed from either surface.
+    // Re-paint the Page-1 (Section 04) input table after rows are added/removed.
     try { renderFutureSaleInputs(); } catch (e) { /* */ }
   }
 
@@ -1968,7 +1747,7 @@
       if (!Number.isFinite(idx) || !field) return;
       var rows = _fspState(); if (!rows[idx]) return;
       rows[idx][field] = (field === 'date') ? el.value : _fspParse(el.value);
-      _fspRecalcAll(); _fspPersist();
+      _fspPersist();   // downstream renders fire on blur (change) / add / remove
     });
     root.document.addEventListener('change', function (e) {
       var el = e.target;
