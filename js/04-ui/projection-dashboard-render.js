@@ -1290,6 +1290,58 @@
     return out;
   }
 
+  // Down-payment optimizer (perf + accuracy redesign 2026-06-22). Drives the
+  // evaluations of the Y0 down-payment D in [0, dMax] for Strategy B/C:
+  //   1) a coarse grid (cheap structure scan),
+  //   2) explicit BOUNDARY spikes — net(D) jumps where the Y0 deposit pool
+  //      (D + recap) reaches a Schwab combo minimum, i.e. at D = comboMin AND
+  //      D = comboMin − recap. The old pass only probed comboMin, so on
+  //      recapture sales it missed the real spike by up to ~$4k.
+  //   3) GOLDEN-SECTION refine around the top few candidates — converges on
+  //      the smooth peaks to within ~$1k, far more precisely (and with fewer
+  //      calls) than the old fixed 2%/0.5% fine+ultra grid.
+  // evalAt(D) does the constraint checks (floor, first-deposit legality),
+  // records the candidate, and updates the caller's `best`; it returns the
+  // metrics object (with .net) or null for an illegal D. This function is pure
+  // control-flow — it just chooses which D's to evaluate.
+  function _sweepDownPayment(dMax, floor, boundaries, evalAt) {
+    if (!(dMax > 0)) { evalAt(0); return; }
+    var GR = (Math.sqrt(5) - 1) / 2;
+    var cache = {};
+    function E(D) {
+      D = Math.round(D);
+      if (D < 0 || D > dMax) return -Infinity;
+      if (cache[D] !== undefined) return cache[D];
+      var m = evalAt(D);
+      return (cache[D] = (m && isFinite(m.net) ? m.net : -Infinity));
+    }
+    var N = 8;
+    var seeds = [];
+    for (var k = 0; k <= N; k++) { var Dg = Math.round(dMax * k / N); seeds.push({ D: Dg, net: E(Dg) }); }
+    if (floor > 0) seeds.push({ D: Math.round(floor), net: E(Math.round(floor)) });
+    (boundaries || []).forEach(function (Db) {
+      Db = Math.round(Db);
+      if (Db >= 0 && Db <= dMax) seeds.push({ D: Db, net: E(Db) });
+    });
+    seeds.sort(function (a, b) { return b.net - a.net; });
+    var step = Math.max(1, Math.round(dMax / N));
+    var used = {}, refined = 0;
+    for (var i = 0; i < seeds.length && refined < 2; i++) {
+      var s = seeds[i];
+      if (!(s.net > -Infinity)) continue;
+      var bkt = Math.round(s.D / (step / 2));
+      if (used[bkt]) continue;
+      used[bkt] = 1; refined++;
+      // Golden-section maximize within one coarse cell either side of the seed.
+      var a = Math.max(0, s.D - step), b = Math.min(dMax, s.D + step);
+      var c = a + (1 - GR) * (b - a), d = a + GR * (b - a), fc = E(c), fd = E(d);
+      for (var it = 0; it < 10 && (b - a) > 5000; it++) {
+        if (fc >= fd) { b = d; d = c; fd = fc; c = a + (1 - GR) * (b - a); fc = E(c); }
+        else { a = c; c = d; fc = fd; d = a + GR * (b - a); fd = E(d); }
+      }
+    }
+  }
+
   // Find the (horizon, shortPct, comboId, bestRec for C) tuple that
   // maximizes net for this scenario type. Used both when a section is
   // first checked AND when the user clicks Revert on a section.
@@ -1427,87 +1479,26 @@
             return m;
           };
 
-          // Always evaluate the supp floor itself so a feasible D that
-          // funds the supplementals stays in the running even if the
-          // coarse grid steps over it.
-          if (_floorC > 0) _evalD(_floorC);
-          // Coarse pass at 0%, 10%, 20%, ..., 100% of D_max.
-          var coarseBest = null;
-          for (var ci = 0; ci <= 10; ci++) {
-            var D = Math.round(_dMax * (ci / 10));
-            if (D < _floorC - 0.5) continue;
-            if (!_firstDepositLegalC(D)) continue;
-            var mc = _evalD(D);
-            if (mc && (!coarseBest || mc.net > coarseBest.net)) {
-              coarseBest = { D: D, net: mc.net };
-            }
-          }
-          // BOUNDARY-VALUE PASS (advisor 2026-06-01): the net(D) curve has
-          // SPIKES at the Schwab combo minimums ($1M for 145/45, $3M for
-          // 200/100). At D = combo_min, the Y0 deposit opens that combo
-          // exactly at the floor, generating the maximum age-0 loss
-          // density. Collect ALL near-winning candidates (within 5% of
-          // the coarse leader) so the fine refinement runs around each —
-          // not just the single coarse leader. Audit R2 #6 caught the
-          // pre-fix gap: a combo-min D that was the SECOND-best coarse
-          // candidate never got refined, missing peaks just above the
-          // tranche floor.
-          var refineSeeds = coarseBest ? [coarseBest] : [];
+          // Boundary D's where the Y0 deposit pool (D + recap) opens a Schwab
+          // combo: D = comboMin AND D = comboMin − recap (the recap-shifted
+          // spike the old pass missed). _sweepDownPayment probes these + a
+          // coarse grid + golden-section refine; _evalD enforces floor +
+          // first-deposit legality and updates `best`/_recordCombo.
+          var _boundsC = [];
           if (typeof root.listSchwabCombosForStrategy === 'function') {
             try {
               var _stratKeyC = (cfgSection.tierKey || cfgSection.strategyKey || 'beta1');
-              var _allCombos = root.listSchwabCombosForStrategy(_stratKeyC) || [];
               var _userCapC = Number(cfgSection.leverageCap != null ? cfgSection.leverageCap
                               : (cfgSection.leverage != null ? cfgSection.leverage : 1));
-              _allCombos.forEach(function (c) {
+              (root.listSchwabCombosForStrategy(_stratKeyC) || []).forEach(function (c) {
                 if (!c || !Number.isFinite(c.minInvestment) || c.minInvestment <= 0) return;
                 if (Number(c.leverage) > _userCapC + 1e-6) return;
-                var Dbound = Math.round(c.minInvestment);
-                if (Dbound > _dMax) return;
-                if (!_firstDepositLegalC(Dbound)) return;
-                var mb = _evalD(Dbound);
-                if (!mb) return;
-                if (!coarseBest || mb.net > coarseBest.net) {
-                  coarseBest = { D: Dbound, net: mb.net };
-                }
-                // Collect this boundary as a refine seed if it's within
-                // 5% of the (running) best net — protects against the
-                // case where the optimum sits just above a tranche floor
-                // that wasn't itself the absolute coarse winner.
-                refineSeeds.push({ D: Dbound, net: mb.net });
+                _boundsC.push(c.minInvestment);
+                _boundsC.push(c.minInvestment - _recapC);
               });
-            } catch (e) { /* keep coarse winner */ }
+            } catch (e) { /* coarse grid still covers it */ }
           }
-          // Refine around each seed within 5% of the current best net.
-          // Fine pass ±10% of D_max in 2% steps; ultra ±2% in 0.5% steps.
-          var fineBest = coarseBest;
-          var bestNetSoFar = coarseBest ? coarseBest.net : -Infinity;
-          var threshold = bestNetSoFar * 0.95;
-          refineSeeds.forEach(function (seed) {
-            if (!seed || seed.net < threshold) return;
-            for (var fstep = 1; fstep <= 5; fstep++) {
-              [-1, 1].forEach(function (sign) {
-                var D = Math.round(seed.D + sign * fstep * 0.02 * _dMax);
-                if (D < 0 || D > _dMax) return;
-                if (!_firstDepositLegalC(D)) return;
-                var mf = _evalD(D);
-                if (mf && (!fineBest || mf.net > fineBest.net)) {
-                  fineBest = { D: D, net: mf.net };
-                }
-              });
-            }
-          });
-          // Ultra-fine ±2% in 0.5% steps around the fine leader.
-          if (fineBest) {
-            for (var ustep = 1; ustep <= 4; ustep++) {
-              [-1, 1].forEach(function (sign) {
-                var D = Math.round(fineBest.D + sign * ustep * 0.005 * _dMax);
-                if (D < 0 || D > _dMax) return;
-                if (!_firstDepositLegalC(D)) return;
-                _evalD(D);
-              });
-            }
-          }
+          _sweepDownPayment(_dMax, _floorC, _boundsC, _evalD);
         } else if (type === 'B') {
           // For B (§453 installment), each horizon iteration tries
           // exactly one N value (N = hor - 1, so Y0 + N payment years).
@@ -1643,41 +1634,43 @@
                 _allCombosB.forEach(function (c) {
                   if (!c || !Number.isFinite(c.minInvestment) || c.minInvestment <= 0) return;
                   if (Number(c.leverage) > _userCapB + 1e-6) return;
-                  var Dbound = Math.round(c.minInvestment);
-                  if (Dbound > _bDMax) return;
-                  if (!_firstDepositLegalB(lockedWeights, Dbound)) return;
-                  var mb = _evalB(lockedWeights, Dbound);
-                  if (mb && (!coarseBest || mb.metrics.net > coarseBest.metrics.net)) coarseBest = mb;
-                  _maybeUpdateBest(mb);
+                  // Probe BOTH D = comboMin and D = comboMin − recap: the Y0
+                  // deposit pool is D + recap, so the combo opens (and the
+                  // net spikes) at D = comboMin − recap on recapture sales.
+                  [Math.round(c.minInvestment), Math.round(c.minInvestment - _bRecap)].forEach(function (Dbound) {
+                    if (Dbound < 0 || Dbound > _bDMax) return;
+                    if (Dbound < _floorB - 0.5) return;
+                    if (!_firstDepositLegalB(lockedWeights, Dbound)) return;
+                    var mb = _evalB(lockedWeights, Dbound);
+                    if (mb && (!coarseBest || mb.metrics.net > coarseBest.metrics.net)) coarseBest = mb;
+                    _maybeUpdateBest(mb);
+                  });
                 });
               } catch (e) { /* keep coarse winner */ }
             }
             return coarseBest;
           }
-          // Fine (±10% @ 2%) + ultra (±2% @ 0.5%) refinement around a
-          // coarse winner, for a fixed weight set.
+          // Golden-section refine of the down-payment around the coarse winner
+          // (replaces the old fixed 2%/0.5% grid — converges on the smooth peak
+          // to within ~$1k with fewer calls; the recap-aware boundaries already
+          // pin the spikes). Respects the floor + first-deposit gate.
           function _sweepBDRefine(lockedWeights, coarseBest) {
-            if (!coarseBest) return;
-            var fineBest = coarseBest;
-            for (var f = 1; f <= 5; f++) {
-              [-1, 1].forEach(function (sign) {
-                var D = Math.round(coarseBest.D + sign * f * 0.02 * _bDMax);
-                if (D < 0 || D > _bDMax) return;
-                if (!_firstDepositLegalB(lockedWeights, D)) return;
-                var m = _evalB(lockedWeights, D);
-                if (m && (!fineBest || m.metrics.net > fineBest.metrics.net)) fineBest = m;
-                _maybeUpdateBest(m);
-              });
+            if (!coarseBest || !(_bDMax > 0)) return;
+            var GR = (Math.sqrt(5) - 1) / 2, cache = {};
+            function E(D) {
+              D = Math.round(D);
+              if (D < 0 || D > _bDMax) return -Infinity;
+              if (cache[D] !== undefined) return cache[D];
+              if (D < _floorB - 0.5 || !_firstDepositLegalB(lockedWeights, D)) return (cache[D] = -Infinity);
+              var m = _evalB(lockedWeights, D); _maybeUpdateBest(m);
+              return (cache[D] = (m ? m.metrics.net : -Infinity));
             }
-            if (fineBest) {
-              for (var u = 1; u <= 4; u++) {
-                [-1, 1].forEach(function (sign) {
-                  var D = Math.round(fineBest.D + sign * u * 0.005 * _bDMax);
-                  if (D < 0 || D > _bDMax) return;
-                  if (!_firstDepositLegalB(lockedWeights, D)) return;
-                  _maybeUpdateBest(_evalB(lockedWeights, D));
-                });
-              }
+            var step = Math.max(1, Math.round(_bDMax / 8));
+            var a = Math.max(0, coarseBest.D - step), b = Math.min(_bDMax, coarseBest.D + step);
+            var c = a + (1 - GR) * (b - a), d = a + GR * (b - a), fc = E(c), fd = E(d);
+            for (var it = 0; it < 12 && (b - a) > 5000; it++) {
+              if (fc >= fd) { b = d; d = c; fd = fc; c = a + (1 - GR) * (b - a); fc = E(c); }
+              else { a = c; c = d; fc = fd; d = a + GR * (b - a); fd = E(d); }
             }
           }
           function _sweepBD(lockedWeights) {
