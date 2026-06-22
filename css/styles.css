@@ -4771,10 +4771,12 @@ body { font-size: 16px; }
 .savings-amt {
     text-align: right;
     font-family: var(--font-display);
-    font-size: 2.1em;
-    font-weight: 600;
+    font-style: italic;
+    font-weight: 500;
+    font-size: 1.5em;            /* match the Oil & Gas supplemental amount */
     color: var(--green);
-    letter-spacing: -0.015em;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
     white-space: nowrap;
 }
 .savings-total-row td {
@@ -4782,8 +4784,8 @@ body { font-size: 16px; }
     border-bottom: none;
     padding-top: 18px;
 }
-.savings-total-row .savings-sale-label { font-size: 1.3em; }
-.savings-total-row .savings-amt { font-size: 2.8em; }
+.savings-total-row .savings-sale-label { font-size: 1.25em; }
+.savings-total-row .savings-amt { font-size: 1.85em; }
 
 /* Multi-sale string: small breakdown under the collective Net Benefit
    ("This sale $X · future sales $Y"). */

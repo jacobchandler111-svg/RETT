@@ -1136,11 +1136,15 @@
         '<td class="savings-amt">' + _fmt(amt) + '</td>' +
       '</tr>';
     }
+    // Future rows ordered chronologically by sale year (current sale is now,
+    // so it stays first). Pro-rated net carried per row.
+    var futures = perSale.map(function (p, i) {
+      return { saleYear: proj[i] ? proj[i].saleYear : null, net: shareNet(p) };
+    }).sort(function (a, b) { return (a.saleYear || 0) - (b.saleYear || 0); });
     var body = _saleRow('Current Sale', currentNet);
-    perSale.forEach(function (p, i) {
-      var yr = (proj[i] && proj[i].date) ? String(proj[i].date).slice(0, 4) : '';
-      var label = 'Future Sale' + (yr ? ' &middot; ' + yr : ' ' + (i + 1));
-      body += _saleRow(label, shareNet(p));
+    futures.forEach(function (f, i) {
+      var label = 'Future Sale' + (f.saleYear ? ' &middot; ' + f.saleYear : ' ' + (i + 1));
+      body += _saleRow(label, f.net);
     });
     var totalSaved = currentNet + target;
     return '<div class="input-section savings-by-sale-section">' +
@@ -1515,9 +1519,9 @@
         if (Array.isArray(s)) init = s;
       } catch (e) { /* ignore */ }
       root.__rettFutureSalesPlanner = init || [
-        { date: '', salePrice: 0, costBasis: 0, growth: 0 },
-        { date: '', salePrice: 0, costBasis: 0, growth: 0 },
-        { date: '', salePrice: 0, costBasis: 0, growth: 0 }
+        { yearsUntil: 0, salePrice: 0, costBasis: 0, growth: 0 },
+        { yearsUntil: 0, salePrice: 0, costBasis: 0, growth: 0 },
+        { yearsUntil: 0, salePrice: 0, costBasis: 0, growth: 0 }
       ];
     }
     return root.__rettFutureSalesPlanner;
@@ -1884,9 +1888,9 @@
   function _renderFutureSaleInputsTable() {
     var rows = _fspState();
     var body = rows.map(function (r, i) {
-      var sp = _fspParse(r.salePrice), cb = _fspParse(r.costBasis), g = _fspParse(r.growth);
+      var sp = _fspParse(r.salePrice), cb = _fspParse(r.costBasis), g = _fspParse(r.growth), yu = _fspParse(r.yearsUntil);
       return '<tr class="fsp-row" data-fsp-row="' + i + '">' +
-        '<td><input type="date" class="fsp-input fsp-date" data-fsp-field="date" data-fsp-idx="' + i + '" value="' + (r.date || '') + '" autocomplete="off"></td>' +
+        '<td><input type="text" inputmode="numeric" class="fsp-input fsp-years" data-fsp-field="yearsUntil" data-fsp-idx="' + i + '" value="' + (yu > 0 ? yu : '') + '" placeholder="0" autocomplete="off"></td>' +
         '<td><input type="text" inputmode="numeric" class="fsp-input fsp-usd" data-fsp-field="salePrice" data-fsp-idx="' + i + '" value="' + (sp > 0 ? _fmt(sp) : '') + '" placeholder="$0"></td>' +
         '<td><input type="text" inputmode="numeric" class="fsp-input fsp-usd" data-fsp-field="costBasis" data-fsp-idx="' + i + '" value="' + (cb > 0 ? _fmt(cb) : '') + '" placeholder="$0"></td>' +
         '<td><input type="text" inputmode="decimal" class="fsp-input fsp-pct" data-fsp-field="growth" data-fsp-idx="' + i + '" value="' + (g > 0 ? g : '') + '" placeholder="0"></td>' +
@@ -1895,7 +1899,7 @@
     }).join('');
     return '<table class="fsp-table fsp-input-table">' +
       '<thead><tr>' +
-        '<th>When do you plan to sell?</th><th>Fair market value</th><th>What you paid (cost basis)</th><th>Growth rate (%/yr)</th><th aria-hidden="true"></th>' +
+        '<th>Years until sale</th><th>Fair market value</th><th>What you paid (cost basis)</th><th>Growth rate (%/yr)</th><th aria-hidden="true"></th>' +
       '</tr></thead>' +
       '<tbody>' + body + '</tbody>' +
     '</table>' +
@@ -1927,11 +1931,23 @@
     catch (e) { year0 = (new Date()).getFullYear(); }
     return rows.map(function (r) {
       var fmv = _fspParse(r.salePrice), cb = _fspParse(r.costBasis), g = _fspParse(r.growth);
-      var saleYear = r.date ? Number(String(r.date).slice(0, 4)) : 0;
-      var years = (saleYear > year0) ? (saleYear - year0) : 0;
+      // "Years until sale" is the canonical input now (advisor 2026-06-22) —
+      // clients think in "X years away", not a calendar date. Legacy rows that
+      // still carry a `date` fall back to deriving years from it.
+      var yu = _fspParse(r.yearsUntil);
+      var years;
+      if (yu > 0) {
+        years = Math.round(yu);
+      } else if (r.date) {
+        var sy = Number(String(r.date).slice(0, 4));
+        years = (sy > year0) ? (sy - year0) : 0;
+      } else {
+        years = 0;
+      }
+      var saleYear = year0 + years;
       var projectedPrice = fmv * Math.pow(1 + g / 100, years);
       return {
-        date: r.date || '', fmv: fmv, costBasis: cb, growth: g, years: years,
+        yearsUntil: years, fmv: fmv, costBasis: cb, growth: g, years: years, saleYear: saleYear,
         projectedPrice: projectedPrice, gain: Math.max(0, projectedPrice - cb)
       };
     });
@@ -2007,7 +2023,7 @@
       var add = e.target && e.target.closest && e.target.closest('[data-fsp-add]');
       var del = e.target && e.target.closest && e.target.closest('[data-fsp-del]');
       if (add) {
-        _fspState().push({ date: '', salePrice: 0, costBasis: 0, growth: 0 });
+        _fspState().push({ yearsUntil: 0, salePrice: 0, costBasis: 0, growth: 0 });
         _fspPersist(); _fspRerender();
       } else if (del) {
         var i = Number(del.getAttribute('data-fsp-del')), rows = _fspState();
