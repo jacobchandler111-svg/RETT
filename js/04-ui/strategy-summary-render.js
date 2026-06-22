@@ -1130,21 +1130,26 @@
       if (gainTotal > 0) return target * ((Number(p.gain) || 0) / gainTotal);
       return 0;
     }
-    var body = '<tr><td>This sale</td><td>' + _fmt(currentGain) + '</td><td>' + _fmt(currentNet) + '</td></tr>';
+    function _saleRow(label, amt, cls) {
+      return '<tr class="savings-row' + (cls ? ' ' + cls : '') + '">' +
+        '<td class="savings-sale-label">' + label + '</td>' +
+        '<td class="savings-amt">' + _fmt(amt) + '</td>' +
+      '</tr>';
+    }
+    var body = _saleRow('Current Sale', currentNet);
     perSale.forEach(function (p, i) {
       var yr = (proj[i] && proj[i].date) ? String(proj[i].date).slice(0, 4) : '';
-      var label = 'Future sale' + (yr ? ' &middot; ' + yr : ' ' + (i + 1));
-      body += '<tr><td>' + label + '</td><td>' + _fmt(p.gain) + '</td><td>' + _fmt(shareNet(p)) + '</td></tr>';
+      var label = 'Future Sale' + (yr ? ' &middot; ' + yr : ' ' + (i + 1));
+      body += _saleRow(label, shareNet(p));
     });
-    var totalGain = currentGain + gainTotal;
     var totalSaved = currentNet + target;
-    return '<div class="input-section fsp-section">' +
+    return '<div class="input-section savings-by-sale-section">' +
       '<div class="section-heading"><h2>Savings by Sale</h2></div>' +
       '<div class="section-body">' +
-        '<table class="fsp-table">' +
-          '<thead><tr><th>Sale</th><th>Gain</th><th>We saved you</th></tr></thead>' +
+        '<table class="savings-table">' +
+          '<thead><tr><th>Sale</th><th class="savings-amt-head">We Saved You</th></tr></thead>' +
           '<tbody>' + body + '</tbody>' +
-          '<tfoot><tr class="fsp-total-row"><td>Total</td><td>' + _fmt(totalGain) + '</td><td>' + _fmt(totalSaved) + '</td></tr></tfoot>' +
+          '<tfoot>' + _saleRow('Total Saved', totalSaved, 'savings-total-row') + '</tfoot>' +
         '</table>' +
       '</div>' +
     '</div>';

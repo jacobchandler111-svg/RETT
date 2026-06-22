@@ -4741,6 +4741,50 @@ body { font-size: 16px; }
     letter-spacing: -0.01em;
     margin-bottom: 14px;
 }
+/* Savings by Sale table (Strategy Summary, multi-sale string). Big, bold,
+   green amounts so the per-sale savings have real pop. */
+.savings-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.savings-table thead th {
+    font-family: var(--font-mono);
+    font-size: 0.72em;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+    text-align: left;
+    padding: 0 6px 10px;
+}
+.savings-table thead th.savings-amt-head { text-align: right; }
+.savings-table td {
+    padding: 16px 6px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: middle;
+}
+.savings-sale-label {
+    font-size: 1.15em;
+    font-weight: 600;
+    color: var(--ink);
+}
+.savings-amt {
+    text-align: right;
+    font-family: var(--font-display);
+    font-size: 2.1em;
+    font-weight: 600;
+    color: var(--green);
+    letter-spacing: -0.015em;
+    white-space: nowrap;
+}
+.savings-total-row td {
+    border-top: 2px solid var(--ink);
+    border-bottom: none;
+    padding-top: 18px;
+}
+.savings-total-row .savings-sale-label { font-size: 1.3em; }
+.savings-total-row .savings-amt { font-size: 2.8em; }
+
 /* Multi-sale string: small breakdown under the collective Net Benefit
    ("This sale $X · future sales $Y"). */
 .rett-interested-net-sub {
