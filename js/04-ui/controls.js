@@ -534,6 +534,13 @@ function _refreshStrategyPickCards() {
     if (!card) return;
     card.classList.toggle('is-interested', interest[key] === true);
     card.classList.toggle('is-not-interested', interest[key] === false);
+    // Multi-sale string: feature (lit border, NOT clicked) the installment
+    // card B as the one we plan to show — unless the user actually picked it.
+    if (key === 'B') {
+      var _fy = document.getElementById('future-sale-yes-no');
+      var _multi = !!(_fy && _fy.value === 'yes');
+      card.classList.toggle('is-featured', _multi && interest[key] !== true);
+    }
     // Mark the active button.
     card.querySelectorAll('.strategy-pick-btn').forEach(function (btn) {
       var action = btn.getAttribute('data-pick-action');
@@ -659,6 +666,17 @@ function _refreshCard3Visibility() {
   // so the only reason to show C is the MetLife default-protection
   // wrapper the advisor explicitly elects via the toggle.
   var card3Visible = defaultRiskYes;
+
+  // Multi-sale string (future-sale = Yes): show ALL three cards regardless
+  // of the per-strategy net math, so the advisor can walk the client through
+  // every option (installment is featured via is-featured in
+  // _refreshStrategyPickCards). Overrides the negative-net / B>A hide rules.
+  var _fyCard = document.getElementById('future-sale-yes-no');
+  if (_fyCard && _fyCard.value === 'yes') {
+    card1Visible = true;
+    card2Visible = true;
+    card3Visible = true;
+  }
 
   if (c1) c1.hidden = !card1Visible;
   c2.hidden = !card2Visible;

@@ -4167,6 +4167,14 @@ body { font-size: 16px; }
     border-color: var(--rett-amber);
     box-shadow: 0 0 0 2px rgba(224,123,42,0.20), var(--shadow);
 }
+.strategy-pick-card.is-featured:not(.is-interested):not(.is-recommended) {
+    /* Multi-sale string (future-sale = Yes): the installment card is the
+       one we plan to show, so its border is "lit up" — BrookHaven blue with
+       a soft glow — to draw the eye WITHOUT marking it Interested (no click
+       is implied; the advisor still walks all three). */
+    border-color: var(--bh-blue-deep);
+    box-shadow: 0 0 0 3px rgba(43,108,176,0.14), 0 0 16px 2px rgba(43,108,176,0.40), var(--shadow);
+}
 .strategy-pick-card.is-not-interested {
     opacity: 0.6;
     background: var(--rett-blue-light);
