@@ -1792,10 +1792,41 @@
     root.document.addEventListener('change', function (e) {
       var el = e.target;
       // Section-04 yes/no toggles the Page-1 input table on/off.
-      if (el && el.id === 'future-sale-yes-no') { renderFutureSaleInputs(); return; }
-      if (!el || !el.classList || !el.classList.contains('fsp-usd')) return;
-      var v = _fspParse(el.value);
-      el.value = v > 0 ? _fmt(v) : '';
+      if (el && el.id === 'future-sale-yes-no') {
+        renderFutureSaleInputs();
+        if (el.value === 'yes') {
+          // Multi-sale string: the installment sale (B) is THE strategy we
+          // show, so mark it interested (and only it) — the Projection
+          // collective net benefit renders off the interested strategy
+          // (advisor 2026-06-22). Switching back to "no" leaves the original
+          // single-sale flow untouched; we don't undo here so a deliberate
+          // pick isn't wiped.
+          try {
+            root.__rettStrategyInterest = { A: null, B: true, C: null };
+            root.__rettChosenStrategy = 'B';
+            if (root.localStorage) {
+              root.localStorage.setItem('_strategyInterest', JSON.stringify(root.__rettStrategyInterest));
+              root.localStorage.setItem('_chosenStrategy', 'B');
+            }
+          } catch (e) { /* */ }
+          ['_refreshStrategyPickCards', 'renderInterestedSnapshot', 'renderSupplementalPage',
+           'renderProjectionDashboard', 'renderStrategySummary'].forEach(function (fn) {
+            if (typeof root[fn] === 'function') { try { root[fn](); } catch (e) { /* */ } }
+          });
+        }
+        return;
+      }
+      if (!el || !el.classList || !el.classList.contains('fsp-input')) return;
+      if (el.classList.contains('fsp-usd')) {
+        var v = _fspParse(el.value);
+        el.value = v > 0 ? _fmt(v) : '';
+      }
+      // A future-sale edit changes the Projection collective net benefit —
+      // refresh it so it sums ALL sales, not just whatever was there when the
+      // page last rendered (advisor 2026-06-22).
+      if (typeof root.renderProjectionDashboard === 'function') {
+        try { root.renderProjectionDashboard(); } catch (e2) { /* */ }
+      }
     });
     // Initial paint (the inputs page is already in the DOM at script load).
     try { renderFutureSaleInputs(); } catch (e) { /* */ }
@@ -1808,6 +1839,12 @@
       } else if (del) {
         var i = Number(del.getAttribute('data-fsp-del')), rows = _fspState();
         if (rows.length > 1 && rows[i] != null) { rows.splice(i, 1); _fspPersist(); _fspRerender(); }
+      } else {
+        return;
+      }
+      // Adding/removing a sale changes the Projection collective net benefit.
+      if (typeof root.renderProjectionDashboard === 'function') {
+        try { root.renderProjectionDashboard(); } catch (e2) { /* */ }
       }
     });
   }

@@ -4175,6 +4175,13 @@ body { font-size: 16px; }
     border-color: var(--bh-blue-deep);
     box-shadow: 0 0 0 3px rgba(43,108,176,0.14), 0 0 16px 2px rgba(43,108,176,0.40), var(--shadow);
 }
+/* Multi-sale string: the default-risk question is moot (we already show all
+   three strategies), so hide it on Page 3. visibility:hidden (not display)
+   keeps the row's height so the three cards stay aligned with the A/C
+   spacer rows. (advisor 2026-06-22.) */
+#strategy-pick-list.is-multi-sale .strategy-default-risk-row {
+    visibility: hidden;
+}
 .strategy-pick-card.is-not-interested {
     opacity: 0.6;
     background: var(--rett-blue-light);

@@ -672,11 +672,14 @@ function _refreshCard3Visibility() {
   // every option (installment is featured via is-featured in
   // _refreshStrategyPickCards). Overrides the negative-net / B>A hide rules.
   var _fyCard = document.getElementById('future-sale-yes-no');
-  if (_fyCard && _fyCard.value === 'yes') {
+  var _multiSale = !!(_fyCard && _fyCard.value === 'yes');
+  if (_multiSale) {
     card1Visible = true;
     card2Visible = true;
     card3Visible = true;
   }
+  // Hide the default-risk question on the multi-sale string (see styles.css).
+  grid.classList.toggle('is-multi-sale', _multiSale);
 
   if (c1) c1.hidden = !card1Visible;
   c2.hidden = !card2Visible;
