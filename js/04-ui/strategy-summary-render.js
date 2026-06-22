@@ -1438,9 +1438,9 @@
         if (Array.isArray(s)) init = s;
       } catch (e) { /* ignore */ }
       root.__rettFutureSalesPlanner = init || [
-        { date: '', salePrice: 0, costBasis: 0 },
-        { date: '', salePrice: 0, costBasis: 0 },
-        { date: '', salePrice: 0, costBasis: 0 }
+        { date: '', salePrice: 0, costBasis: 0, growth: 0 },
+        { date: '', salePrice: 0, costBasis: 0, growth: 0 },
+        { date: '', salePrice: 0, costBasis: 0, growth: 0 }
       ];
     }
     return root.__rettFutureSalesPlanner;
@@ -1683,17 +1683,18 @@
   function _renderFutureSaleInputsTable() {
     var rows = _fspState();
     var body = rows.map(function (r, i) {
-      var sp = _fspParse(r.salePrice), cb = _fspParse(r.costBasis);
+      var sp = _fspParse(r.salePrice), cb = _fspParse(r.costBasis), g = _fspParse(r.growth);
       return '<tr class="fsp-row" data-fsp-row="' + i + '">' +
         '<td><input type="date" class="fsp-input fsp-date" data-fsp-field="date" data-fsp-idx="' + i + '" value="' + (r.date || '') + '" autocomplete="off"></td>' +
         '<td><input type="text" inputmode="numeric" class="fsp-input fsp-usd" data-fsp-field="salePrice" data-fsp-idx="' + i + '" value="' + (sp > 0 ? _fmt(sp) : '') + '" placeholder="$0"></td>' +
         '<td><input type="text" inputmode="numeric" class="fsp-input fsp-usd" data-fsp-field="costBasis" data-fsp-idx="' + i + '" value="' + (cb > 0 ? _fmt(cb) : '') + '" placeholder="$0"></td>' +
+        '<td><input type="text" inputmode="decimal" class="fsp-input fsp-pct" data-fsp-field="growth" data-fsp-idx="' + i + '" value="' + (g > 0 ? g : '') + '" placeholder="0"></td>' +
         '<td class="fsp-del-cell">' + (rows.length > 1 ? '<button type="button" class="fsp-del" data-fsp-del="' + i + '" title="Remove this sale" aria-label="Remove this sale">&times;</button>' : '') + '</td>' +
       '</tr>';
     }).join('');
     return '<table class="fsp-table fsp-input-table">' +
       '<thead><tr>' +
-        '<th>When do you plan to sell?</th><th>Fair market value</th><th>What you paid (cost basis)</th><th aria-hidden="true"></th>' +
+        '<th>When do you plan to sell?</th><th>Fair market value</th><th>What you paid (cost basis)</th><th>Growth rate (%/yr)</th><th aria-hidden="true"></th>' +
       '</tr></thead>' +
       '<tbody>' + body + '</tbody>' +
     '</table>' +
@@ -1710,6 +1711,31 @@
     host.innerHTML = yes ? _renderFutureSaleInputsTable() : '';
   }
   root.renderFutureSaleInputs = renderFutureSaleInputs;
+
+  // Canonical projected future-sale data (advisor 2026-06-22). Each row's fair
+  // market value is grown by its year-over-year growth rate over the years
+  // from the tax year to the planned sale date, yielding the projected sale
+  // price + gain that downstream pages (Tax Implications, etc.) consume — one
+  // source of truth so every surface agrees. Future-sale gain is taxed at
+  // FSP_FED_RATE (23.8% LTCG+NIIT) + the client's state rate, baseline LT gain
+  // only (no recapture detail for these). years = 0 when no date → no growth.
+  function _futureSalesProjected() {
+    var rows = _fspState();
+    var year0;
+    try { year0 = Number((root.collectInputs() || {}).year1) || (new Date()).getFullYear(); }
+    catch (e) { year0 = (new Date()).getFullYear(); }
+    return rows.map(function (r) {
+      var fmv = _fspParse(r.salePrice), cb = _fspParse(r.costBasis), g = _fspParse(r.growth);
+      var saleYear = r.date ? Number(String(r.date).slice(0, 4)) : 0;
+      var years = (saleYear > year0) ? (saleYear - year0) : 0;
+      var projectedPrice = fmv * Math.pow(1 + g / 100, years);
+      return {
+        date: r.date || '', fmv: fmv, costBasis: cb, growth: g, years: years,
+        projectedPrice: projectedPrice, gain: Math.max(0, projectedPrice - cb)
+      };
+    });
+  }
+  root.__rettFutureSalesProjected = _futureSalesProjected;
   if (typeof root !== 'undefined' && root.document && !root.__rettFspListenerWired) {
     root.__rettFspListenerWired = true;
     root.document.addEventListener('input', function (e) {
@@ -1735,7 +1761,7 @@
       var add = e.target && e.target.closest && e.target.closest('[data-fsp-add]');
       var del = e.target && e.target.closest && e.target.closest('[data-fsp-del]');
       if (add) {
-        _fspState().push({ date: '', salePrice: 0, costBasis: 0 });
+        _fspState().push({ date: '', salePrice: 0, costBasis: 0, growth: 0 });
         _fspPersist(); _fspRerender();
       } else if (del) {
         var i = Number(del.getAttribute('data-fsp-del')), rows = _fspState();
