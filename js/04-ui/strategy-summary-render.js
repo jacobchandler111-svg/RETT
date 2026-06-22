@@ -1897,8 +1897,16 @@
         // receipt schedule + suppressed lockup) appears on Yes and fully
         // reverts on No. renderInterestedSnapshot drives the B card; the
         // dashboard drives the collective KPI tile — both must re-run.
-        ['_refreshStrategyPickCards', 'renderInterestedSnapshot', 'renderSupplementalPage',
-         'renderProjectionDashboard', 'renderStrategySummary'].forEach(function (fn) {
+        // _refreshCard3Visibility owns the Page-3 multi-sale layout (all three
+        // cards shown, default-risk hidden, grid .is-multi-sale) — it MUST run
+        // here or toggling Yes leaves Page 3 in its stale single-sale layout.
+        // renderBaselineTable (Tab 2) MUST run before renderInterestedSnapshot:
+        // the projection card's walk-away reads bt-cash-kept from Tab 2's DOM,
+        // so Tab 2 has to hold the fresh COLLECTIVE cash-kept first or the card
+        // captures a stale value (advisor 2026-06-22).
+        ['_refreshCard3Visibility', '_refreshStrategyPickCards', 'renderBaselineTable',
+         'renderInterestedSnapshot', 'renderSupplementalPage', 'renderProjectionDashboard',
+         'renderStrategySummary'].forEach(function (fn) {
           if (typeof root[fn] === 'function') { try { root[fn](); } catch (e) { /* */ } }
         });
         return;
@@ -1908,11 +1916,11 @@
         var v = _fspParse(el.value);
         el.value = v > 0 ? _fmt(v) : '';
       }
-      // A future-sale edit changes the Projection collective net benefit AND
-      // the installment card's future-sales receipt schedule — refresh both
-      // so they reflect ALL sales, not just whatever was there when the page
-      // last rendered (advisor 2026-06-22).
-      ['renderProjectionDashboard', 'renderInterestedSnapshot'].forEach(function (fn) {
+      // A future-sale edit changes Tab 2's collective figures, the Projection
+      // collective net benefit AND the installment card's receipt schedule.
+      // renderBaselineTable first so the card's walk-away reads a fresh
+      // collective bt-cash-kept (advisor 2026-06-22).
+      ['renderBaselineTable', 'renderProjectionDashboard', 'renderInterestedSnapshot'].forEach(function (fn) {
         if (typeof root[fn] === 'function') { try { root[fn](); } catch (e2) { /* */ } }
       });
     });
@@ -1930,9 +1938,10 @@
       } else {
         return;
       }
-      // Adding/removing a sale changes the Projection collective net benefit
-      // AND the installment card's future-sales receipt schedule.
-      ['renderProjectionDashboard', 'renderInterestedSnapshot'].forEach(function (fn) {
+      // Adding/removing a sale changes Tab 2, the Projection collective net
+      // benefit AND the receipt schedule. Tab 2 first (walk-away reads its
+      // bt-cash-kept).
+      ['renderBaselineTable', 'renderProjectionDashboard', 'renderInterestedSnapshot'].forEach(function (fn) {
         if (typeof root[fn] === 'function') { try { root[fn](); } catch (e2) { /* */ } }
       });
     });
