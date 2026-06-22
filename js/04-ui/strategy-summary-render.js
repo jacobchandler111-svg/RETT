@@ -1472,6 +1472,9 @@
     var stateRate = BIG > 0 ? (st / BIG) : 0;
     return { fed: FSP_FED_RATE, state: stateRate, combined: FSP_FED_RATE + stateRate, stateCode: state };
   }
+  // Exposed so the Tax Implications page (baseline-table.js) taxes future
+  // sales at the SAME 23.8% LTCG+NIIT + state rate the estimator uses.
+  root.__rettFspCombinedRate = _fspCombinedRate;
   // ── Future-sale coverage model (two-tier, advisor 2026-06-17) ──────────
   // Captured at render time from the chosen strategy: the combo it runs, the
   // capital already deployed, and the current sale's gain. null → coverage

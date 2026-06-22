@@ -64,6 +64,33 @@
       ? window.__rettShortTermPropertyGain()
       : 0;
 
+    // ---- Future sales (multi-sale mode) ------------------------------
+    // When the client flagged future sales (Page 1 Section 04 = Yes), this
+    // page shows the COLLECTIVE picture: the current granular sale PLUS each
+    // future sale at baseline LT treatment — gain taxed at 23.8% LTCG+NIIT +
+    // state, no recapture detail (advisor 2026-06-22). The engine still runs
+    // for the current sale exactly as before; we only ADD the future figures
+    // on top for THIS page's proceeds bar + tiles + pie. Future gains use the
+    // projected (growth-adjusted) price from __rettFutureSalesProjected().
+    var _futureSaleYes = false;
+    try {
+      var _fyn = document.getElementById('future-sale-yes-no');
+      _futureSaleYes = !!(_fyn && _fyn.value === 'yes');
+    } catch (e) { _futureSaleYes = false; }
+    var futProj = 0, futBasis = 0, futGain = 0, futTax = 0;
+    if (_futureSaleYes && typeof window.__rettFutureSalesProjected === 'function') {
+      var _fCombined = (typeof window.__rettFspCombinedRate === 'function')
+        ? (Number(window.__rettFspCombinedRate().combined) || 0.238) : 0.238;
+      (window.__rettFutureSalesProjected() || []).forEach(function (f) {
+        if (!f || !(f.fmv > 0)) return;
+        futProj  += f.projectedPrice;
+        futBasis += f.costBasis;
+        futGain  += f.gain;
+      });
+      futTax = futGain * _fCombined;
+    }
+    var isMulti = _futureSaleYes && futProj > 0;
+
     var ordTotal, stGain, ltGain, qualDiv, wages, seInc, nIIT_base, recap;
     if (snap) {
       // Use the engine snapshot. Pulls in §86 taxable SS (already in
@@ -227,13 +254,19 @@
     //                  recap1245 + recap1250).
     // Hidden when there's no sale, sale ≤ adjusted basis, or basis = 0
     // (loss on sale — bar makes no visual sense in that case).
+    // In multi-sale mode the bar spans the collective picture: future
+    // projected prices add to the sale total and future cost bases add to
+    // the return-of-basis bracket; recap stays current-sale-only (futures
+    // are baseline), so the identity routes each future gain into the
+    // Long-Term Gain segment automatically.
     _renderProceedsBar({
-      sale:       sale,
-      basis:      basis,
+      sale:       isMulti ? (sale + futProj) : sale,
+      basis:      isMulti ? (basis + futBasis) : basis,
       depr:       depr,
       recap1245:  recap1245,
       recap1250:  recap1250,
-      ltGain:     ltGain
+      ltGain:     ltGain,
+      collective: isMulti
     });
 
     // -----------------------------------------------------------------
@@ -314,11 +347,22 @@
     var delta_amt      = amt - amt_nosale;
     var delta_fedOrd   = fedOrd - fedOrd_nosale;        // §1211 offset can shift this
 
+    // Collective tax due = the engine's current-sale delta PLUS the future
+    // sales' baseline tax (futGain × 23.8%+state). Only the displayed tiles
+    // + pie go collective; the hidden bt-without / bt-total spans stay
+    // current-sale engine values.
+    var taxDueDisplay = isMulti ? (delta_total + futTax) : delta_total;
+
     // Three-tile display.
     _set('bt-without',  _fmt(total_nosale));
-    _set('bt-delta',    _fmt(delta_total));
+    _set('bt-delta',    _fmt(taxDueDisplay));
     _set('bt-total',    _fmt(total));
     _set('baseline-year-sub', 'Year ' + year);
+    // Tile labels reflect the collective scope in multi-sale mode.
+    var _labDelta = document.querySelector('.baseline-tile--hero .baseline-tile-label');
+    if (_labDelta) _labDelta.textContent = isMulti ? 'Tax Due from All Sales' : 'Tax Due from the Sale';
+    var _labCash = document.querySelector('.baseline-tile--cash-kept .baseline-tile-label');
+    if (_labCash) _labCash.textContent = isMulti ? 'Cash Kept from All Sales' : 'Cash Kept from Sale';
 
     // Without-sale subline: federal + state.
     _set('bt-without-sub',
@@ -334,16 +378,19 @@
     if (Math.abs(delta_state)    > 0.5) deltaParts.push('State ' + _fmt(delta_state));
     if (Math.abs(delta_amt)      > 0.5) deltaParts.push('AMT ' + _fmt(delta_amt));
     if (Math.abs(delta_fedOrd)   > 0.5) deltaParts.push('Ord ' + _fmt(delta_fedOrd));
+    if (isMulti && futTax > 0.5)        deltaParts.push('Future sales ' + _fmt(futTax));
     _set('bt-delta-sub', deltaParts.length ? deltaParts.join(' · ') : 'No sale entered');
 
     // 2026-05-27: middle "Cash Kept from Sale" tile = salePrice − tax.
     // Donut denominator switched from salePrice to GAIN (sale − basis)
     // so the % LOST in the donut center answers "how much of your
     // economic gain is going to tax?"
-    var cashKept = Math.max(0, sale - delta_total);
+    var collectiveSale = isMulti ? (sale + futProj) : sale;
+    var collectiveBasis = isMulti ? (basis + futBasis) : basis;
+    var cashKept = Math.max(0, collectiveSale - taxDueDisplay);
     _set('bt-cash-kept', _fmt(cashKept));
-    var gainEconomic = Math.max(0, sale - basis);
-    _renderPieChart(gainEconomic, delta_total);
+    var gainEconomic = Math.max(0, collectiveSale - collectiveBasis);
+    _renderPieChart(gainEconomic, taxDueDisplay);
 
     // -----------------------------------------------------------------
     // Q3: Per-property tax breakdown (double-click middle tile reveals).
@@ -574,18 +621,20 @@
     }, 0);
     var topEl    = document.getElementById('baseline-bracket-top');
     var bottomEl = document.getElementById('baseline-bracket-bottom');
+    var topLabel    = d.collective ? 'Fair Market Value of Properties' : 'Sale Price';
+    var bottomLabel = d.collective ? 'Total Cost Basis' : 'Original Purchase Price';
     if (topEl) {
       topEl.innerHTML =
         '<div class="bk" style="left:0;width:100%"></div>' +
         '<div class="bk-label" style="left:0;width:100%">' +
-          'Sale Price · ' + _fmt(sale) +
+          topLabel + ' · ' + _fmt(sale) +
         '</div>';
     }
     if (bottomEl) {
       bottomEl.innerHTML =
         '<div class="bk" style="left:0;width:' + basisPct.toFixed(3) + '%"></div>' +
         '<div class="bk-label" style="left:0;width:' + basisPct.toFixed(3) + '%">' +
-          'Original Purchase Price · ' + _fmt(basisTotal) +
+          bottomLabel + ' · ' + _fmt(basisTotal) +
         '</div>';
     }
 
