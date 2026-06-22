@@ -1111,13 +1111,12 @@
   }
 
   // Per-sale savings table for the multi-sale string (advisor 2026-06-22):
-  // "here's all your sales, here's how much we saved you per sale." Each sale
-  // shows its STANDALONE net — current sale = its engine net (incl.
-  // supplementals); each future sale = its own independent installment net.
-  // The extra net the optimizer captures by carrying an early sale's excess
-  // losses into later sales is a separate "Cross-sale optimization" line, so
-  // every per-sale figure stays honest. Total = currentNet + fb.net (the
-  // collective hero).
+  // "here's all your sales, here's how much we saved you per sale." Current
+  // sale = its engine net (incl. supplementals); future sales = the installment
+  // estimate, pro-rated so the rows sum to the collective net the hero shows
+  // (the optimizer pools cross-sale carryforward, so per-sale is an allocation,
+  // not a standalone figure). Falls back to gain-weighting if the independent
+  // per-sale nets are non-positive. Total reconciles to currentNet + fb.net.
   function _renderPerSaleSavingsTable(currentGain, currentNet, fb) {
     var perSale = (fb && fb.perSale) || [];
     if (!perSale.length) return '';
@@ -1126,19 +1125,17 @@
     var indepTotal = perSale.reduce(function (s, p) { return s + (Number(p.net) || 0); }, 0);
     var gainTotal = perSale.reduce(function (s, p) { return s + (Number(p.gain) || 0); }, 0);
     var target = Number(fb.net) || 0;
+    function shareNet(p) {
+      if (indepTotal > 0) return (Number(p.net) || 0) * (target / indepTotal);
+      if (gainTotal > 0) return target * ((Number(p.gain) || 0) / gainTotal);
+      return 0;
+    }
     var body = '<tr><td>This sale</td><td>' + _fmt(currentGain) + '</td><td>' + _fmt(currentNet) + '</td></tr>';
     perSale.forEach(function (p, i) {
       var yr = (proj[i] && proj[i].date) ? String(proj[i].date).slice(0, 4) : '';
       var label = 'Future sale' + (yr ? ' &middot; ' + yr : ' ' + (i + 1));
-      body += '<tr><td>' + label + '</td><td>' + _fmt(p.gain) + '</td><td>' + _fmt(Number(p.net) || 0) + '</td></tr>';
+      body += '<tr><td>' + label + '</td><td>' + _fmt(p.gain) + '</td><td>' + _fmt(shareNet(p)) + '</td></tr>';
     });
-    // Cross-sale optimization — the extra net from carrying an early sale's
-    // excess losses into later sales (only when the optimizer beats the
-    // standalone sum). Its own line so the per-sale figures above stay honest.
-    var bonus = target - indepTotal;
-    if (bonus > 1) {
-      body += '<tr><td>Cross-sale optimization</td><td>&mdash;</td><td>' + _fmt(bonus) + '</td></tr>';
-    }
     var totalGain = currentGain + gainTotal;
     var totalSaved = currentNet + target;
     return '<div class="input-section fsp-section">' +
