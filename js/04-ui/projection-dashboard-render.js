@@ -225,11 +225,31 @@
     var brookhavenTile = brookhavenFees > 0
       ? _kpiTile('Brookhaven Fees', _fmt(brookhavenFees), 'Setup + quarterly retainer', '')
       : '';
+
+    // Multi-sale string: surface the COLLECTIVE net benefit = this sale's net
+    // PLUS the estimated net from the client's future sales (each modeled as a
+    // 50/50 two-year §453 installment at 200/100, net of 200/100 fees —
+    // advisor 2026-06-22). Display-only; the engine net above is untouched.
+    var collectiveTile = '';
+    try {
+      var _fyKpi = document.getElementById('future-sale-yes-no');
+      if (_fyKpi && _fyKpi.value === 'yes' && typeof window.__rettFutureInstallmentBenefit === 'function') {
+        var _fb = window.__rettFutureInstallmentBenefit();
+        if (_fb && _fb.net > 0) {
+          var _collective = net + _fb.net;
+          collectiveTile = _kpiTile('Collective Net Benefit', _fmt(_collective),
+            'This sale + future sales est. ' + _fmt(_fb.net),
+            _collective > 0 ? 'positive' : '');
+        }
+      }
+    } catch (e) { /* */ }
+
     return '<div class="rett-kpi-row">' +
       _kpiTile('Total Tax Saved', _fmt(totalSave), pctReduce + ' over ' + years.length + ' yrs', savedKind) +
       _kpiTile('Brooklyn Fees', _fmt(cumFees), 'Strategy fees (mgmt + financing)', '') +
       brookhavenTile +
       _kpiTile('Net Benefit', _fmt(net), 'Savings minus all fees', netKind) +
+      collectiveTile +
       _kpiTile('Return on Planning', roiTxt, 'Net benefit / fees', roiKind) +
       '</div>';
   }

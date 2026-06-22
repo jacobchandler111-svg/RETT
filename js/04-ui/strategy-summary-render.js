@@ -1502,6 +1502,45 @@
     if (!combo || typeof root.brooklynFeeRateFor !== 'function') return 0;
     return Number(root.brooklynFeeRateFor(combo.longPct, combo.shortPct)) || 0;
   }
+
+  // Collective future-sale benefit under the multi-sale installment model
+  // (advisor 2026-06-22, 50/50 net-of-fees). Each future sale is taken as a
+  // 50/50 two-January §453 installment with proceeds deployed at 200/100.
+  // §453 recognizes half the gain each year; the year-1 loss (59% of that
+  // year's capital) offsets year-1 gain, then the year-1 capital compounds
+  // (cumLoss 108% by yr2) and — with the year-2 payment's own loss — typically
+  // wipes the remaining gain. Net of 200/100 fees (1.31%/yr) on deployed
+  // capital: p1 held 2yr, p2 held 1yr. Worst case (100% gain) ≈ 79% offset.
+  // Pure estimate; does NOT touch the engine/optimizer.
+  function _futureInstallmentBenefit() {
+    var combined = _fspCombinedRate().combined || FSP_FED_RATE;
+    var combo = (typeof root.getSchwabCombo === 'function') ? root.getSchwabCombo('beta1_200_100') : null;
+    var L1 = _fspCumLoss(combo, 1), L2 = _fspCumLoss(combo, 2);
+    var feeRate = _fspFeeRate(combo);
+    var sales = _futureSalesProjected().filter(function (f) { return f.gain > 0; });
+    var totOffset = 0, totTaxSaved = 0, totFees = 0, perSale = [];
+    sales.forEach(function (f) {
+      var price = f.projectedPrice, G = f.gain;
+      var p1 = price * 0.5, p2 = price * 0.5;   // 50/50 proceeds = deployed capital
+      var g1 = G * 0.5, g2 = G * 0.5;           // §453 gain recognized per year
+      var pool1 = p1 * L1;
+      var used1 = Math.min(g1, pool1);
+      var carry = pool1 - used1;                // unused year-1 loss carries forward
+      var pool2 = carry + (p1 * (L2 - L1) + p2 * L1);
+      var used2 = Math.min(g2, pool2);
+      var offset = Math.min(G, used1 + used2);
+      var fees = p1 * feeRate * 2 + p2 * feeRate * 1;
+      var taxSaved = offset * combined;
+      totOffset += offset; totTaxSaved += taxSaved; totFees += fees;
+      perSale.push({ price: price, gain: G, offset: offset,
+        offsetPct: G > 0 ? offset / G : 0, taxSaved: taxSaved, fees: fees,
+        net: taxSaved - fees });
+    });
+    return { combined: combined, L1: L1, L2: L2, feeRate: feeRate,
+      offset: totOffset, taxSaved: totTaxSaved, fees: totFees,
+      net: totTaxSaved - totFees, perSale: perSale };
+  }
+  root.__rettFutureInstallmentBenefit = _futureInstallmentBenefit;
   function _fspYearsUntil(dateStr, year0) {
     if (!dateStr) return null;
     var y = Number(String(dateStr).slice(0, 4));
