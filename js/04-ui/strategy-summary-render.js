@@ -88,8 +88,14 @@
     // of its fields is focused loses nothing; it renders normally once focus
     // leaves. Single-point guard so EVERY re-render source is covered.
     // (advisor 2026-06-17.)
+    // Only skip when the focused fsp-input is INSIDE this host (would be
+    // destroyed by the re-render). The future-sale inputs now live on Page 1
+    // (#future-sale-inputs-host), a different host — re-rendering Tab 6 while
+    // one of those is focused is harmless, and blocking it left the summary
+    // stale after future-sale edits (advisor 2026-06-22). host.contains scopes
+    // the guard back to its original intent.
     var _ae = (typeof document !== 'undefined') ? document.activeElement : null;
-    if (_ae && _ae.classList && _ae.classList.contains('fsp-input')) return;
+    if (_ae && _ae.classList && _ae.classList.contains('fsp-input') && host.contains(_ae)) return;
     if (typeof root.buildInterestedSummary !== 'function') {
       host.innerHTML = _renderNoChoiceHtml();
       return;
@@ -2010,10 +2016,12 @@
         el.value = v > 0 ? _fmt(v) : '';
       }
       // A future-sale edit changes Tab 2's collective figures, the Projection
-      // collective net benefit AND the installment card's receipt schedule.
-      // renderBaselineTable first so the card's walk-away reads a fresh
-      // collective bt-cash-kept (advisor 2026-06-22).
-      ['renderBaselineTable', 'renderProjectionDashboard', 'renderInterestedSnapshot'].forEach(function (fn) {
+      // collective net benefit, the installment card's receipt schedule AND the
+      // Strategy Summary collective hero / Savings-by-Sale table. renderBaseline
+      // first so the card's walk-away reads a fresh collective bt-cash-kept
+      // (advisor 2026-06-22).
+      ['renderBaselineTable', 'renderProjectionDashboard', 'renderInterestedSnapshot',
+       'renderStrategySummary'].forEach(function (fn) {
         if (typeof root[fn] === 'function') { try { root[fn](); } catch (e2) { /* */ } }
       });
     });
@@ -2032,9 +2040,10 @@
         return;
       }
       // Adding/removing a sale changes Tab 2, the Projection collective net
-      // benefit AND the receipt schedule. Tab 2 first (walk-away reads its
-      // bt-cash-kept).
-      ['renderBaselineTable', 'renderProjectionDashboard', 'renderInterestedSnapshot'].forEach(function (fn) {
+      // benefit, the receipt schedule AND the Strategy Summary. Tab 2 first
+      // (walk-away reads its bt-cash-kept).
+      ['renderBaselineTable', 'renderProjectionDashboard', 'renderInterestedSnapshot',
+       'renderStrategySummary'].forEach(function (fn) {
         if (typeof root[fn] === 'function') { try { root[fn](); } catch (e2) { /* */ } }
       });
     });
