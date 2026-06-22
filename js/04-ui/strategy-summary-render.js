@@ -256,6 +256,24 @@
       .filter(function (x) { return x.fee > 0; });
     var suppFeesTotal = fundedSuppFees.reduce(function (sum, s) { return sum + s.fee; }, 0);
     var totalFeesAll = fees + suppFeesTotal;   // all fees: Brooklyn + Brookhaven + supp mgmt + setup
+
+    // ---- Multi-sale string: layer the future sales onto the summary ----
+    // (advisor 2026-06-22) When the client flagged future sales, the Strategy
+    // Summary reflects ALL their sales: the Net Benefit hero, Return on
+    // Planning, the No/With-Planning walk-aways, and Fees Baked In all become
+    // collective = this sale (engine net, incl. supplementals) + the
+    // future-sales installment estimate. Supplementals stay tied to the
+    // current/granular sale. Single-sale string is untouched (futures = 0).
+    var _summaryMultiSale = false;
+    try { var _fyS = document.getElementById('future-sale-yes-no'); _summaryMultiSale = !!(_fyS && _fyS.value === 'yes'); } catch (e) { _summaryMultiSale = false; }
+    var _fbSummary = (_summaryMultiSale && typeof root.__rettFutureInstallmentBenefit === 'function')
+      ? root.__rettFutureInstallmentBenefit() : null;
+    var futureNet = _fbSummary ? (Number(_fbSummary.net) || 0) : 0;
+    var futureFees = _fbSummary ? (Number(_fbSummary.fees) || 0) : 0;
+    var futureTaxSaved = _fbSummary ? (Number(_fbSummary.taxSaved) || 0) : 0;
+    var isMultiSummary = _summaryMultiSale && (futureNet > 0 || futureFees > 0);
+    var displayNet = net + futureNet;            // collective net when multi, = net otherwise
+    var displayFees = totalFeesAll + futureFees;  // collective fees when multi
     // Return on Planning expressed as a percentage of NET benefit over
     // fees ("for every $1 of fees, you get back $X of net benefit",
     // rendered as a percentage). Was a multiplier (× back); switched per
@@ -354,14 +372,14 @@
     var _cashKeptFromSale = (_cashKeptEl && typeof parseUSD === 'function' && _cashKeptEl.textContent)
       ? (parseUSD(_cashKeptEl.textContent) || 0)
       : (salePrice - (m.doNothing || 0));   // fallback if Tab 2 hasn't rendered yet
-    var walkawayNoPlanning   = _cashKeptFromSale;
-    var walkawayWithPlanning = _cashKeptFromSale + net;
+    var walkawayNoPlanning   = _cashKeptFromSale;   // collective cash-kept on the multi-sale string (Tab 2 already collective)
+    var walkawayWithPlanning = _cashKeptFromSale + displayNet;
     // Return on Planning rendered as a percentage = (net / fees) × 100.
     // Was a multiplier (× back) earlier; switched to percent per advisor
     // 2026-05-09 so the headline reads as an ROI figure ("828%") rather
     // than the abstract "8.3×". Uses NET benefit over fees (not gross
     // savings) — the numerator matches the hero number above.
-    var ropRatio = (totalFeesAll > 0 && net > 0) ? (net / totalFeesAll) : 0;
+    var ropRatio = (displayFees > 0 && displayNet > 0) ? (displayNet / displayFees) : 0;
     var ropPctNum = Math.round(ropRatio * 100);
     var ropDisplay = (ropRatio > 0)
       ? ropPctNum.toLocaleString('en-US') + '<span class="rop-x">%</span>'
@@ -403,15 +421,15 @@
           '</div>' +
         '</div>' +
         '<div class="forward-net-hero" data-net-hero title="Double-click to see how this benefit breaks down">' +
-          '<div class="net-hero-label">Net Benefit</div>' +
-          '<div class="net-hero-amt"><span class="currency">$</span>' + Math.round(net).toLocaleString('en-US') + '</div>' +
+          '<div class="net-hero-label">' + (isMultiSummary ? 'Net Benefit &mdash; All Sales' : 'Net Benefit') + '</div>' +
+          '<div class="net-hero-amt"><span class="currency">$</span>' + Math.round(displayNet).toLocaleString('en-US') + '</div>' +
           // 3-part breakdown of the net benefit, hidden by default;
           // double-clicking the hero toggles .is-expanded and reveals
           // it. Cash / charity / asset categorization comes from the
           // master-solver supplementals' incomeBucket field (mapped
           // from spec.bucket at registration time). Brooklyn's primary
           // net is always 'cash'.
-          _renderNetBenefitBreakdown(primaryNet, solverOut) +
+          _renderNetBenefitBreakdown(primaryNet, solverOut, futureNet) +
         '</div>' +
       '</div>' +
       '<div class="forward-rop-square">' +
@@ -465,13 +483,22 @@
         _bullet('Asset Manager fees', effectiveBrooklynFees) +
         suppFeeBullet +
         _bullet('Brookhaven fees', m.brookhavenFees || 0) +
+        (isMultiSummary ? _bullet('Future sales fees', futureFees) : '') +
         '<div class="fee-summary-row">' +
           '<div class="fee-summary-label">Total Fees</div>' +
-          '<div class="fee-summary-amt">' + _fmt(totalFeesAll) + '</div>' +
+          '<div class="fee-summary-amt">' + _fmt(displayFees) + '</div>' +
         '</div>' +
         _renderReconciliationPanel(entry, currentCfg, solverOut, fundedSupplements) +
       '</div>' +
     '</div>';
+
+    // ============ Savings by Sale (multi-sale string) ============
+    // Per-sale net benefit across the current sale + each future sale; sums to
+    // the collective Net Benefit hero (advisor 2026-06-22).
+    if (isMultiSummary) {
+      var _curGain = Math.max(0, salePrice - ((currentCfg && Number(currentCfg.costBasis)) || 0));
+      html += _renderPerSaleSavingsTable(_curGain, net, _fbSummary);
+    }
 
     // ============ Future Sales Estimator (standalone) ============
     // Shown ONLY when the client flagged a future large sale on Page 1
@@ -522,7 +549,7 @@
     // when horizon is unknown so the chart still renders sensibly.
     var growthStartYear = (Number(year1) || (new Date()).getFullYear())
       + (Number(horizon) || 5);
-    html += _renderGrowthProjection(net, growthStartYear);
+    html += _renderGrowthProjection(displayNet, growthStartYear);
 
     // Engagement Notes section removed per advisor spec — the
     // information lives in the Implementation panel (audit) and on
@@ -552,7 +579,7 @@
       brookhavenFees: m.brookhavenFees || 0,
       fees:           fees,
       savings:        savings,
-      net:            net,
+      net:            displayNet,
       roi:            roi,
       // Return on Planning — use the SAME ratio the on-screen ROP square
       // shows (net / (fees + setup fees)) so the printout and the screen
@@ -1011,7 +1038,7 @@
   // (registry maps it from spec.bucket). 'charity' → charity bucket,
   // 'asset' → physical-asset bucket, anything else → cash bucket.
   // Brooklyn's primary net is always cash.
-  function _renderNetBenefitBreakdown(primaryNet, solverOut) {
+  function _renderNetBenefitBreakdown(primaryNet, solverOut, futureNet) {
     var cashNet = Number(primaryNet) || 0;
     var charityNet = 0;
     var assetNet = 0;
@@ -1042,10 +1069,11 @@
         }
       });
     }
-    var totalNet = cashNet + charityNet + assetNet;
+    var _futNet = Number(futureNet) || 0;
+    var totalNet = cashNet + charityNet + assetNet + _futNet;
     if (totalNet === 0) return '';
     var rows = [
-      { label: 'Cash savings', value: cashNet, sub: 'Tax-only strategies + Brooklyn position' }
+      { label: _futNet > 0 ? 'This sale' : 'Cash savings', value: cashNet, sub: 'Tax-only strategies + Brooklyn position' }
     ];
     if (charityNet > 0 || charitySpend > 0) {
       rows.push({
@@ -1065,6 +1093,10 @@
           : 'Depreciation tax savings on asset purchases'
       });
     }
+    if (_futNet > 0) {
+      rows.push({ label: 'Future sales', value: _futNet,
+        sub: 'Installment offset across your planned sales' });
+    }
     var html = '<div class="net-hero-breakdown" hidden>';
     rows.forEach(function (r) {
       html += '<div class="net-hero-breakdown-row">' +
@@ -1076,6 +1108,46 @@
     });
     html += '</div>';
     return html;
+  }
+
+  // Per-sale savings table for the multi-sale string (advisor 2026-06-22):
+  // "here's all your sales, here's how much we saved you per sale." Current
+  // sale = its engine net (incl. supplementals); future sales = the installment
+  // estimate, pro-rated so the rows sum to the collective net the hero shows
+  // (the optimizer pools cross-sale carryforward, so per-sale is an allocation,
+  // not a standalone figure). Falls back to gain-weighting if the independent
+  // per-sale nets are non-positive. Total reconciles to currentNet + fb.net.
+  function _renderPerSaleSavingsTable(currentGain, currentNet, fb) {
+    var perSale = (fb && fb.perSale) || [];
+    if (!perSale.length) return '';
+    var proj = (typeof root.__rettFutureSalesProjected === 'function')
+      ? root.__rettFutureSalesProjected().filter(function (f) { return f.gain > 0; }) : [];
+    var indepTotal = perSale.reduce(function (s, p) { return s + (Number(p.net) || 0); }, 0);
+    var gainTotal = perSale.reduce(function (s, p) { return s + (Number(p.gain) || 0); }, 0);
+    var target = Number(fb.net) || 0;
+    function shareNet(p) {
+      if (indepTotal > 0) return (Number(p.net) || 0) * (target / indepTotal);
+      if (gainTotal > 0) return target * ((Number(p.gain) || 0) / gainTotal);
+      return 0;
+    }
+    var body = '<tr><td>This sale</td><td>' + _fmt(currentGain) + '</td><td>' + _fmt(currentNet) + '</td></tr>';
+    perSale.forEach(function (p, i) {
+      var yr = (proj[i] && proj[i].date) ? String(proj[i].date).slice(0, 4) : '';
+      var label = 'Future sale' + (yr ? ' &middot; ' + yr : ' ' + (i + 1));
+      body += '<tr><td>' + label + '</td><td>' + _fmt(p.gain) + '</td><td>' + _fmt(shareNet(p)) + '</td></tr>';
+    });
+    var totalGain = currentGain + gainTotal;
+    var totalSaved = currentNet + target;
+    return '<div class="input-section fsp-section">' +
+      '<div class="section-heading"><h2>Savings by Sale</h2></div>' +
+      '<div class="section-body">' +
+        '<table class="fsp-table">' +
+          '<thead><tr><th>Sale</th><th>Gain</th><th>We saved you</th></tr></thead>' +
+          '<tbody>' + body + '</tbody>' +
+          '<tfoot><tr class="fsp-total-row"><td>Total</td><td>' + _fmt(totalGain) + '</td><td>' + _fmt(totalSaved) + '</td></tr></tfoot>' +
+        '</table>' +
+      '</div>' +
+    '</div>';
   }
 
   function _renderSupplementalLeftColumn(solverOut) {
