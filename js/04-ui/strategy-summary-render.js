@@ -324,32 +324,9 @@
           : (Number(currentCfg.leverage) || 1) * 100);
     var longPct = (currentCfg.tierKey === 'beta0') ? shortPct : 100 + shortPct;
     var leverageLabel = Math.round(longPct) + '/' + Math.round(shortPct);
-    // Selected Strategy + Supplemental Strategies — ONE full-width block
-    // (advisor 2026-06-17). Was two separated side-by-side cards; now a
-    // single section matching the width of Fees Baked In / Future Sales.
-    // Strategy name + Asset Manager leverage sit on top; the supplemental
-    // on/off toggle rows sit below, in the same block.
-    html += '<div class="input-section forward-strategy-block">' +
-      '<div class="section-heading">' +
-        '<h2>Selected Strategy</h2>' +
-        '<span class="num">STRATEGY ' + _stratNum(entry.type) + '</span>' +
-      '</div>' +
-      '<div class="section-body">' +
-        '<div class="forward-strategy-body">' +
-          '<div class="input-row forward-strategy-row">' +
-            '<div class="label">Strategy<span class="sub">' + _strategyDescriptor(entry.type) + '</span></div>' +
-            '<div class="forward-fee-display forward-strategy-name">' +
-              _stratName(entry.type) +
-            '</div>' +
-          '</div>' +
-          '<div class="input-row forward-strategy-row">' +
-            '<div class="label">Asset Manager<span class="sub">long &percnt; / short &percnt;</span></div>' +
-            '<div class="forward-balance forward-strategy-leverage">' + leverageLabel + '</div>' +
-          '</div>' +
-        '</div>' +
-        _renderSupplementalLeftColumn(solverOut) +
-      '</div>' +
-    '</div>';
+    // Selected Strategy + Supplementals block moved BELOW the value block
+    // (advisor 2026-06-22) — rendered after the Net Benefit / Return on
+    // Planning hero. See its new location below.
 
     // ============ Return on Planning — left: walk-away + compare; right: ROP square ============
     // The big-picture question for the client: "what do I actually walk
@@ -444,6 +421,29 @@
       '</div>' +
     '</div>';
 
+    // ============ Selected Strategy + Supplemental Strategies ============
+    // Sits BELOW the Net Benefit / Return on Planning value block (advisor
+    // 2026-06-22): the client lands on the value first, then we name the
+    // strategy + supplementals. Asset Manager leverage row removed per the
+    // same spec — just the strategy name, supplementals directly under it.
+    html += '<div class="input-section forward-strategy-block">' +
+      '<div class="section-heading">' +
+        '<h2>Selected Strategy</h2>' +
+        '<span class="num">STRATEGY ' + _stratNum(entry.type) + '</span>' +
+      '</div>' +
+      '<div class="section-body">' +
+        '<div class="forward-strategy-body">' +
+          '<div class="input-row forward-strategy-row">' +
+            '<div class="label">Strategy<span class="sub">' + _strategyDescriptor(entry.type) + '</span></div>' +
+            '<div class="forward-fee-display forward-strategy-name">' +
+              _stratName(entry.type) +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        _renderSupplementalLeftColumn(solverOut) +
+      '</div>' +
+    '</div>';
+
     // ============ Fees Baked In — Asset Manager + Brookhaven breakdown ============
     // This sits BEFORE the Future Sale Option callout per advisor spec.
     // Logic: walk the client through the existing engagement's fees
@@ -484,7 +484,10 @@
       var _fyn = document.getElementById('future-sale-yes-no');
       _futureSaleYes = !!(_fyn && _fyn.value === 'yes');
     } catch (e) { _futureSaleYes = false; }
-    if (_futureSaleYes) {
+    // Hidden for now (advisor 2026-06-22): the Future Sales Estimator will
+    // return gated on the planned multiple-sales logic, not this single
+    // yes/no. Grow Your Net Benefit takes this slot meanwhile.
+    if (false && _futureSaleYes) {
       // Capture the chosen strategy's combo + capital + current gain so the
       // two-tier model can project, per future sale, what the existing position
       // carries forward vs. what the sale's own proceeds wipe.
