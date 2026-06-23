@@ -1954,5 +1954,15 @@
   }
   root.__rettHonestSuppBenefit = _honestSuppBenefitForComp;
 
+  // Expose the source-of-truth resolver so other surfaces (e.g. the admin
+  // Key Points export) can read the SAME chosen-strategy comp + funded-supp
+  // set this page uses — applying the optimizer's partial-deploy dial-back —
+  // instead of re-deriving the fiddly dial-back logic and risking divergence.
+  // Returns { entry, comp, chosen, fundedSupps, solverOut } or null.
+  root.__rettResolveChosen = _resolveChosen;
+  // Per-year saturation scale for a funded supp (Y0 vs Y1+), shared so the
+  // export scales realized supp benefit exactly as Tab 7 does.
+  root.__rettSuppSatScale = _suppSatScale;
+
   root.renderTempPage = render;
 })(window);

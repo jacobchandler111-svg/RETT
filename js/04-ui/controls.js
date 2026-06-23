@@ -980,6 +980,13 @@ function showPage(id) {
   } catch (e) {
     if (typeof console !== 'undefined') console.warn('Admin math panel render failed:', e);
   }
+
+  // Keep the admin-only "Export Key Points" buttons (Tab 6 + Tab 7) wired up
+  // and visibility-synced on every navigation (Tab 7's row is created lazily
+  // here since its content is rendered dynamically).
+  if (typeof window.__rettRefreshKeyPointsButtons === 'function') {
+    try { window.__rettRefreshKeyPointsButtons(); } catch (e) { /* */ }
+  }
 }
 
 // --- Custodian wiring ---------------------------------------------------

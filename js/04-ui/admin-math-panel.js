@@ -138,6 +138,11 @@
   function _refreshBadge() {
     var badge = document.getElementById('rett-admin-badge');
     if (badge) badge.hidden = !root.__rettAdmin;
+    // Keep the admin-only "Export Key Points" buttons (Tab 6 + Tab 7) in sync
+    // with admin state — this fires on both unlock (_afterUnlock) and lock.
+    if (typeof root.__rettRefreshKeyPointsButtons === 'function') {
+      try { root.__rettRefreshKeyPointsButtons(); } catch (e) { /* */ }
+    }
   }
 
   // First unlock prompts to set a passcode; subsequent unlocks verify
