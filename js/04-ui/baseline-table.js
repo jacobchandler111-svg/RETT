@@ -390,7 +390,7 @@
     var cashKept = Math.max(0, collectiveSale - taxDueDisplay);
     _set('bt-cash-kept', _fmt(cashKept));
     var gainEconomic = Math.max(0, collectiveSale - collectiveBasis);
-    _renderPieChart(gainEconomic, taxDueDisplay);
+    _renderPieChart(gainEconomic, taxDueDisplay, collectiveBasis);
 
     // -----------------------------------------------------------------
     // Q3: Per-property tax breakdown (double-click middle tile reveals).
@@ -693,7 +693,7 @@
   // Center text = % LOST in red. When tax > gain (recap-heavy
   // scenarios) the slice clips at 100% red and the leader carries the
   // true uncapped dollar + percent.
-  function _renderPieChart(gain, taxDueFromSale) {
+  function _renderPieChart(gain, taxDueFromSale, basis) {
     var slicesEl = document.getElementById('bt-pie-slices');
     var leadersEl = document.getElementById('bt-pie-leaders');
     if (!slicesEl) return;
@@ -701,11 +701,17 @@
     var tax = Math.max(0, Number(taxDueFromSale) || 0);
     var taxBounded = Math.min(tax, g);
     var keep = Math.max(0, g - taxBounded);
-    var keepPct = g > 0 ? (keep / g) : 0;
-    var taxPct  = g > 0 ? (taxBounded / g) : 0;
-    // Real (uncapped) percents for the labels — what the advisor wants
-    // to see even when tax > gain.
-    var keepPctReal = g > 0 ? (keep / g) : 0;
+    // Show the WHOLE sale proportionally: return of basis (your capital back)
+    // + gain kept + tax. Denominator = sale price so the tax slice reads in
+    // proportion to the full transaction, not just the gain (advisor 2026-06-23).
+    var basisAmt = Math.max(0, Number(basis) || 0);
+    var sale = basisAmt + g;
+    var denom = sale > 0 ? sale : 1;
+    var basisPct = basisAmt / denom;
+    var keepPct  = keep / denom;
+    var taxPct   = taxBounded / denom;
+    // Center stat stays "% of the GAIN going to tax" — the advisor's chosen
+    // headline metric — even though the ring is now denominated by the sale.
     var lostPctReal = g > 0 ? (tax / g) : 0;
 
     // viewBox: -160 -10 520 240. Donut center (110, 110).
@@ -736,11 +742,13 @@
     }
 
     var start = -Math.PI / 2;
-    var keepSweep = keepPct * Math.PI * 2;
-    var taxSweep  = taxPct * Math.PI * 2;
+    var basisSweep = basisPct * Math.PI * 2;
+    var keepSweep  = keepPct * Math.PI * 2;
+    var taxSweep   = taxPct * Math.PI * 2;
     var svg = '';
-    svg += _arc(start, keepSweep, '#5ba9ff');             // cyan (kept — matches §1250)
-    svg += _arc(start + keepSweep, taxSweep, '#dc2626');  // red (lost)
+    svg += _arc(start, basisSweep, '#c2ccd9');                         // slate (return of basis)
+    svg += _arc(start + basisSweep, keepSweep, '#5ba9ff');             // cyan (gain kept)
+    svg += _arc(start + basisSweep + keepSweep, taxSweep, '#dc2626');  // red (tax)
     slicesEl.innerHTML = svg;
 
     // Leader lines + labels (SVG). Title on top line, dollar amount
@@ -769,13 +777,17 @@
                dollarStr + '</text>';
     }
     var leaders = '';
-    if (g > 0) {
+    if (sale > 0) {
+      if (basisSweep > 0.10) {
+        var basisMid = start + basisSweep / 2;
+        leaders += _leader(basisMid, '#7c8aa0', 'Return of Basis', _fmt(basisAmt));
+      }
       if (keepSweep > 0.10) {
-        var keepMid = start + keepSweep / 2;
-        leaders += _leader(keepMid, '#5ba9ff', 'Gain Kept', _fmt(keep));
+        var keepMid = start + basisSweep + keepSweep / 2;
+        leaders += _leader(keepMid, '#2e7bb6', 'Gain Kept', _fmt(keep));
       }
       if (taxSweep > 0.10) {
-        var lostMid = start + keepSweep + taxSweep / 2;
+        var lostMid = start + basisSweep + keepSweep + taxSweep / 2;
         leaders += _leader(lostMid, '#b91c1c', 'Gain Lost', _fmt(tax));
       }
     }
