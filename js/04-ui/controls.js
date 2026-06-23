@@ -176,6 +176,16 @@ function _bindCaseControls() {
         if (typeof renderInterestedSnapshot === 'function') renderInterestedSnapshot();
         if (typeof renderProjectionDashboard === 'function') renderProjectionDashboard();
       }
+      // This live rebuild just refreshed the active computed tab for the
+      // current inputs, so record its signature: the showPage heavy-render
+      // gate compares against this, letting a later nav away + back skip the
+      // redundant rebuild. Only the tab we actually rebuilt is recorded;
+      // other tabs' stored signatures are now stale (inputs changed) and will
+      // correctly rebuild on their next visit.
+      if ((activeId === 'page-allocator' || activeId === 'page-projection')
+          && typeof _computeStateSignature === 'function') {
+        try { _rettLastSigByTab[activeId] = _computeStateSignature(); } catch (e) { /* */ }
+      }
     } catch (e) { /* */ }
   }, 250);
   document.addEventListener('input',  debouncedLiveRender, true);
@@ -777,6 +787,61 @@ function _debounce(fn, ms) {
   };
 }
 
+// --- Heavy-render gate (advisor 2026-06-23) ----------------------------
+// The ~600ms buildInterestedSummary pipeline only feeds the computed tabs
+// (Projection / Strategy Summary / Strategies / Temp). Navigating BETWEEN
+// tabs used to re-run it on every entry even when nothing the build depends
+// on had changed (measured: ~8k engine calls / ~550ms per redundant
+// Projection re-entry; ~27k / ~2.1s for Strategies). This gate skips the
+// rebuild on a no-change re-entry and reuses the DOM already on screen.
+//
+// _computeStateSignature() captures everything the build consumes:
+//   1. collectInputs()  — canonical engine view (sale/basis/income/state/
+//      filing/leverage/tier/combo/horizon/custodian/futureSale/...).
+//   2. a sweep of user-input form controls — catches inputs NOT folded into
+//      collectInputs (default-risk, future-sale estimator fields, supp
+//      amounts). Excludes #page-projection (auto-pick writes pills there).
+//   3. the non-form state globals (strategy/supp interest, chosen strategy,
+//      Brooklyn override, PMQ, future-sale absorb).
+// Validated live 2026-06-23: every result-affecting input flips this
+// signature, and running the full pipeline mutates none of it (no
+// oscillation across 92 user-surface controls). Keyed PER TAB because each
+// computed tab renders a distinct view — a shared key would skip a tab's
+// very first render. The live-edit path (debouncedLiveRender) is separate
+// and always renders fresh while you are editing a computed tab.
+var _rettLastSigByTab = {};
+function _computeStateSignature() {
+  try {
+    var parts = [];
+    parts.push(JSON.stringify(collectInputs()));
+    var sel = '#page-pmq input, #page-pmq select, '
+            + '#page-inputs input, #page-inputs select, #page-inputs textarea, '
+            + '#page-strategies input, #page-strategies select, '
+            + '#page-supplemental input, #page-supplemental select, #page-supplemental textarea';
+    var ctrls = document.querySelectorAll(sel), cs = [];
+    for (var i = 0; i < ctrls.length; i++) {
+      var el = ctrls[i], k = el.id || el.name;
+      if (!k) continue;
+      cs.push(k + '' + (el.type === 'checkbox' || el.type === 'radio' ? (el.checked ? 1 : 0) : el.value));
+    }
+    parts.push(cs.join(''));
+    var bk = window.__rettBrooklynInvestmentOverride;
+    parts.push(JSON.stringify({
+      interest:  window.__rettStrategyInterest || null,
+      chosen:    window.__rettChosenStrategy || null,
+      supp:      window.__rettSupplementalInterest || null,
+      suppX:     window.__rettSupplementalExtraInterest || null,
+      suppExtra: window.__rettSupplementalExtra || null,
+      bkOver:    (typeof bk === 'number' && isFinite(bk)) ? bk : 'none',
+      pmq:       window.__rettPMQAnswers || null,
+      absorbFut: window.__rettAbsorbFutureSale || null
+    }));
+    return parts.join('');
+  } catch (e) {
+    return null;  // signature error => caller forces a rebuild (fail safe, never stale)
+  }
+}
+
 function showPage(id) {
   // Persist the active page id so a refresh lands the user back
   // where they were instead of bouncing to PMQ. Only writes for
@@ -800,7 +865,29 @@ function showPage(id) {
       tab.setAttribute('aria-selected', p === id ? 'true' : 'false');
     }
   });
-  if (id === 'page-allocator') {
+
+  // Heavy-render gate: skip the rebuild when navigating back to a computed
+  // tab whose build inputs are unchanged since IT last rendered (the DOM on
+  // screen is still correct). Forced fresh on first visit to a tab, on any
+  // real input change, on a signature error, or while a state-restore is in
+  // flight. Light tabs (Inputs / Tax Implications) are cheap and stay ungated.
+  var _recompute = true;
+  var _HEAVY_TABS = { 'page-projection': 1, 'page-allocator': 1, 'page-strategies': 1, 'page-temp': 1 };
+  if (_HEAVY_TABS[id]) {
+    if (window.__rettApplyingState || window.__rettSuppressAutoSave) {
+      _recompute = true;                       // never trust the signature mid-restore / mid-boot
+    } else {
+      var _sig = _computeStateSignature();
+      if (_sig !== null && _rettLastSigByTab[id] === _sig) {
+        _recompute = false;                    // nothing the build depends on changed since this tab rendered
+      } else {
+        _rettLastSigByTab[id] = _sig;          // null on error stays !== next sig => recomputes next time too
+        _recompute = true;
+      }
+    }
+  }
+
+  if (_recompute && id === 'page-allocator') {
     try {
       // Run the full engine pipeline FIRST so renderStrategySummary
       // reads fresh entry.metrics / sout.totalSupplementalBenefit.
@@ -815,7 +902,7 @@ function showPage(id) {
       if (typeof renderStrategySummary === 'function') renderStrategySummary();
     } catch(e) { (window.reportFailure || console.warn)('Strategy Summary render failed', e); }
   }
-  if (id === 'page-temp') {
+  if (_recompute && id === 'page-temp') {
     try {
       if (typeof window.renderTempPage === 'function') window.renderTempPage();
     } catch(e) { (window.reportFailure || console.warn)('Temporary page render failed', e); }
@@ -838,7 +925,7 @@ function showPage(id) {
     } catch (e) { (window.reportFailure || console.warn)('Baseline render failed', e); }
   }
 
-  if (id === 'page-strategies') {
+  if (_recompute && id === 'page-strategies') {
     // Run the recommendation pipeline silently so the recommended-card
     // border and any future per-card preview numbers are populated by
     // the time the page paints. Same engine that drives Page-Projection;
@@ -859,7 +946,7 @@ function showPage(id) {
     }
   }
 
-  if (id === 'page-projection') {
+  if (_recompute && id === 'page-projection') {
     try {
       // Auto-pick the (leverage, horizon, recognition) combination that
       // maximizes net savings on first entry, then build the visual pill
