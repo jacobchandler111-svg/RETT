@@ -195,6 +195,15 @@
       };
     });
 
+    // Leverage label: derive from the ACTUAL combo (cfg.comboId) — cfg.leverageLabel
+    // can be stale (e.g. shows "200/100" while the auto-pick dropped to 145/45
+    // because the deposit is under the $3M 200/100 minimum). getSchwabCombo is
+    // the source of truth for the label that matches the loss rate the engine ran.
+    var _combo = (typeof root.getSchwabCombo === 'function' && cfg.comboId)
+      ? root.getSchwabCombo(cfg.comboId) : null;
+    var _leverageLabel = (_combo && _combo.leverageLabel) || cfg.leverageLabel ||
+      (cfg.leverage ? (Math.round(cfg.leverage * 100) + '%') : '');
+
     var subParts = [];
     if (cfg.year1) subParts.push('Tax Year ' + cfg.year1);
     var st = cfg.state || cfg.stateCode;
@@ -208,8 +217,7 @@
       strategy: {
         type: ctx.chosen,
         name: entry.name || _stratLabel(ctx.chosen),
-        leverageLabel: cfg.leverageLabel ||
-          (cfg.leverage ? (Math.round(cfg.leverage * 100) + '%') : ''),
+        leverageLabel: _leverageLabel,
         horizon: cfg.horizonYears,
         installments: cfg.installmentPayments
       },
@@ -279,8 +287,10 @@
 '.kp-none{color:#6b7280;font-style:italic;font-size:12.5px;}' +
 '.kp-bottom{display:flex;gap:0;border-radius:5px;overflow:hidden;margin:4px 0 0 0;}' +
 '.kp-bottom .kp-bl{flex:1;padding:14px 16px;color:#fff;}' +
-'.kp-bottom .kp-bl-net{background:#14233f;}' +
-'.kp-bottom .kp-bl-sav{background:#7a1620;}' +
+'.kp-bottom .kp-bl-net{background-color:#1850b8;' +
+  'background-image:linear-gradient(135deg,#1f6feb 0%,#0b1b3a 100%);}' +
+'.kp-bottom .kp-bl-sav{background-color:#1a7a44;' +
+  'background-image:linear-gradient(135deg,#22a85a 0%,#0f5132 100%);}' +
 '.kp-bl .kp-bl-lbl{font-family:Arial,Helvetica,sans-serif;font-size:10.5px;letter-spacing:1px;' +
   'text-transform:uppercase;opacity:.8;margin:0 0 3px 0;}' +
 '.kp-bl .kp-bl-val{font-size:22px;font-weight:700;}' +
