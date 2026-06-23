@@ -4360,4 +4360,10 @@
   }
 
   root.renderInterestedSnapshot = renderInterestedSnapshot;
+  // Expose the cfg-derived §453 payment schedule (down payment + recap at
+  // closing, then installments) so the admin Key Points export can show the
+  // SAME proceeds schedule the cards/Tab 7 display — no re-derivation drift.
+  // Returns { gpRatio, totalLT, downPayment, debtPayoff, payments, rows:[{
+  // year, cash, ltGain, recap, atClosing }] } or null for immediate (A).
+  root.__rettDescribeInstallmentSchedule = _describeInstallmentSchedule;
 })(window);

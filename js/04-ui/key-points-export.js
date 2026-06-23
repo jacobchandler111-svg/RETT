@@ -93,12 +93,34 @@
       var newInv = Math.max(0, cum - prevCum); prevCum = cum;
       return {
         year: r.year,
+        proceeds: 0,
         invested: newInv,
         loss: Number(r.lossGenerated) || Number(r.lossApplied) || 0,
         gainRecognized: Number(r.gainRecognized) || 0,
         fee: Number(r.fee) || 0
       };
     });
+
+    // Sale proceeds RECEIVED each year — the payment schedule. Reuses the
+    // engine's cfg-derived §453 schedule (down payment + debt payoff + recap
+    // at closing, then installments; Σ cash === salePrice). For the immediate
+    // strategy (A) the schedule fn returns null → all proceeds land at the
+    // sale year. Merged onto perYear by year; total = salePrice.
+    var sched = (typeof root.__rettDescribeInstallmentSchedule === 'function')
+      ? root.__rettDescribeInstallmentSchedule(cfg) : null;
+    var proceedsByYear = {};
+    if (sched && Array.isArray(sched.rows) && sched.rows.length) {
+      sched.rows.forEach(function (r) {
+        proceedsByYear[r.year] = (proceedsByYear[r.year] || 0) + (Number(r.cash) || 0);
+      });
+    } else {
+      var saleYr = (perYear[0] && perYear[0].year) || cfg.year1;
+      proceedsByYear[saleYr] = Number(cfg.salePrice) || 0;
+    }
+    perYear.forEach(function (r) { r.proceeds = Number(proceedsByYear[r.year]) || 0; });
+    var proceedsTotal = Object.keys(proceedsByYear).reduce(function (a, k) {
+      return a + (Number(proceedsByYear[k]) || 0);
+    }, 0);
 
     // Funded supplementals — per-year invested + realized benefit (scaled by
     // the SAME saturation scale Tab 7 applies, so it ties to the displays).
@@ -146,6 +168,7 @@
         total: Number(m.fees) || 0
       },
       totals: {
+        proceeds: proceedsTotal,
         invested: perYear.reduce(function (a, r) { return a + r.invested; }, 0),
         loss: perYear.reduce(function (a, r) { return a + r.loss; }, 0),
         fee: perYear.reduce(function (a, r) { return a + r.fee; }, 0)
@@ -232,14 +255,17 @@
     if (s.horizon) stratPills.push(_esc(s.horizon) + '-year horizon');
     if (s.type === 'B' && s.installments) stratPills.push(_esc(s.installments) + ' installment payment' + (s.installments > 1 ? 's' : ''));
 
-    // Brooklyn per-year table
+    // Year-by-year table: sale proceeds received (payment schedule) alongside
+    // the Brooklyn capital invested, expected loss, and fees.
     var pyBody = d.perYear.map(function (r) {
       return '<tr><td class="kp-l kp-year">' + _esc(r.year) + '</td>' +
+        '<td>' + (r.proceeds > 0 ? _usd(r.proceeds) : '&mdash;') + '</td>' +
         '<td>' + _usd(r.invested) + '</td>' +
         '<td>' + _usd(r.loss) + '</td>' +
         '<td>' + _usd(r.fee) + '</td></tr>';
     }).join('');
     var pyTotal = '<tr class="kp-total"><td class="kp-l">Total</td>' +
+      '<td>' + _usd(d.totals.proceeds) + '</td>' +
       '<td>' + _usd(d.totals.invested) + '</td>' +
       '<td>' + _usd(d.totals.loss) + '</td>' +
       '<td>' + _usd(d.totals.fee) + '</td></tr>';
@@ -268,9 +294,9 @@
           '<div class="kp-strat"><span class="kp-strat-name">' + _esc(s.name) + '</span>' +
           stratPills.map(function (p) { return '<span class="kp-pill">' + p + '</span>'; }).join('') +
           '</div></div>' +
-        '<div class="kp-sec"><h2>Brooklyn &mdash; Year by Year</h2>' +
+        '<div class="kp-sec"><h2>Year-by-Year Schedule</h2>' +
           '<table class="kp-tbl"><thead><tr>' +
-          '<th class="kp-l">Year</th><th>Capital Invested</th><th>Expected Loss</th><th>Fees</th>' +
+          '<th class="kp-l">Year</th><th>Sale Proceeds</th><th>Capital Invested</th><th>Expected Loss</th><th>Fees</th>' +
           '</tr></thead><tbody>' + pyBody + pyTotal + '</tbody></table></div>' +
         '<div class="kp-sec"><h2>Projected Fees</h2>' +
           '<div class="kp-fees">' +
