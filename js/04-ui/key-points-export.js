@@ -122,23 +122,75 @@
       return a + (Number(proceedsByYear[k]) || 0);
     }, 0);
 
-    // Funded supplementals — per-year invested + realized benefit (scaled by
-    // the SAME saturation scale Tab 7 applies, so it ties to the displays).
-    var supps = (ctx.fundedSupps || []).map(function (s) {
+    // ---- Combined supplemental + fee reconciliation — EXACTLY as Tab 6 ----
+    // CRITICAL: the Strategy Summary hero caps each funded supp's benefit at
+    // the tax remaining AFTER the chosen Brooklyn strategy (residual cap), so
+    // supps can't double-claim tax Brooklyn already eliminated. We MUST mirror
+    // that here using __rettResidualCapForEntry — NOT _resolveChosen's looser
+    // Σ-withStrategy.total cap, which over-credited supps (e.g. Delphi showed
+    // +$101K of benefit Brooklyn had already captured) and omitted supp fees.
+    // (advisor 2026-06-23.) net = primaryNet + cappedSuppBenefit − setupFees;
+    // totalFees = Brooklyn + Brookhaven + supp mgmt + supp setup.
+    if (typeof root.__rettRunAllSuppMath === 'function') {
+      try { root.__rettRunAllSuppMath(); } catch (e) { /* */ }
+    }
+    var primaryNet = Number(m.net) || 0;
+    var primarySavings = Number(m.savings) || 0;
+    var _ppCap = (typeof root.__rettResidualCapForEntry === 'function')
+      ? root.__rettResidualCapForEntry(entry) : null;
+    var solverOut = (typeof root.runMasterSolver === 'function')
+      ? root.runMasterSolver(primaryNet, (_ppCap != null ? { postPrimaryTaxRemaining: _ppCap } : undefined))
+      : null;
+    var _solverSupp = (solverOut && isFinite(solverOut.totalSupplementalBenefit))
+      ? Number(solverOut.totalSupplementalBenefit) : 0;
+    var supplementalBenefit = _solverSupp;
+    if (typeof root.__rettHonestSuppBenefitForEntry === 'function') {
+      try {
+        var _honest = root.__rettHonestSuppBenefitForEntry(entry, solverOut);
+        if (isFinite(_honest)) supplementalBenefit = Math.min(_solverSupp, _honest);
+      } catch (e) { /* keep solver value */ }
+    }
+    var _setupMap = (window.__rettSuppSetupFees && typeof window.__rettSuppSetupFees === 'object')
+      ? window.__rettSuppSetupFees : {};
+    var fundedSupps = (solverOut && Array.isArray(solverOut.supplementals))
+      ? solverOut.supplementals.filter(function (s) {
+          return s.enabled && s.available && s.rivalry && s.rivalry.funded;
+        })
+      : [];
+    var appliedSetupFees = 0;
+    fundedSupps.forEach(function (s) {
+      if ((s.rivalry.granted || 0) > 0) appliedSetupFees += Math.max(0, Number(_setupMap[s.id]) || 0);
+    });
+    var suppFeesTotal = fundedSupps
+      .filter(function (s) { return (s.rivalry.granted || 0) > 0; })
+      .reduce(function (a, s) {
+        return a + ((Number(s.result && s.result.mgmtFeeDollars) || 0) + Math.max(0, Number(_setupMap[s.id]) || 0));
+      }, 0);
+    var combinedNet = primaryNet + supplementalBenefit - appliedSetupFees;
+    var combinedSavings = primarySavings + supplementalBenefit;
+    var totalFeesAll = (Number(m.fees) || 0) + suppFeesTotal;
+
+    // Per funded supp: realized benefit (residual-capped, net of its setup fee
+    // — matching Tab 6's per-supp rows) + per-year invested/benefit. perYear
+    // `year` is derived from the Brooklyn schedule (Delphi's rows omit it).
+    var _y1 = (perYear[0] && perYear[0].year) || cfg.year1 || (new Date()).getFullYear();
+    var supps = fundedSupps.map(function (s) {
       var last = _suppLast(s);
       var py = (last && Array.isArray(last.perYear)) ? last.perYear : [];
       var rows = py.map(function (p, i) {
         var sc = (typeof root.__rettSuppSatScale === 'function') ? root.__rettSuppSatScale(s, i) : 1;
         return {
-          year: p.year,
+          year: p.year || (_y1 + i),
           invested: Number(p.investment) || 0,
           benefit: Math.max(0, Number(p.totalSaved) || 0) * sc
         };
       }).filter(function (r) { return r.invested > 0 || r.benefit > 0; });
+      var setup = ((s.rivalry.granted || 0) > 0) ? Math.max(0, Number(_setupMap[s.id]) || 0) : 0;
       return {
         id: s.id,
         name: s.name || s.shortName || s.id,
-        realized: Number(s.realizedNetBenefit) || 0,
+        realized: (Number(s.realizedNetBenefit) || 0) - setup,
+        fee: (Number(s.result && s.result.mgmtFeeDollars) || 0) + setup,
         perYear: rows
       };
     });
@@ -165,7 +217,8 @@
       fees: {
         brooklyn: Number(m.brooklynFees) || 0,
         brookhaven: Number(m.brookhavenFees) || 0,
-        total: Number(m.fees) || 0
+        supp: suppFeesTotal,
+        total: totalFeesAll
       },
       totals: {
         proceeds: proceedsTotal,
@@ -174,9 +227,9 @@
         fee: perYear.reduce(function (a, r) { return a + r.fee; }, 0)
       },
       supps: supps,
-      totalSuppBenefit: ctx.solverOut ? (Number(ctx.solverOut.totalSupplementalBenefit) || 0) : 0,
-      net: Number(m.net) || 0,
-      savings: Number(m.savings) || 0
+      totalSuppBenefit: supplementalBenefit,
+      net: combinedNet,
+      savings: combinedSavings
     };
   }
 
@@ -301,6 +354,9 @@
         '<div class="kp-sec"><h2>Projected Fees</h2>' +
           '<div class="kp-fees">' +
             '<div class="kp-fee"><p class="kp-fee-lbl">Brooklyn (AM)</p><p class="kp-fee-val">' + _usd(d.fees.brooklyn) + '</p></div>' +
+            ((Number(d.fees.supp) || 0) > 0
+              ? '<div class="kp-fee"><p class="kp-fee-lbl">Supplemental Strategies</p><p class="kp-fee-val">' + _usd(d.fees.supp) + '</p></div>'
+              : '') +
             '<div class="kp-fee"><p class="kp-fee-lbl">Brookhaven</p><p class="kp-fee-val">' + _usd(d.fees.brookhaven) + '</p></div>' +
             '<div class="kp-fee"><p class="kp-fee-lbl">Total Fees</p><p class="kp-fee-val">' + _usd(d.fees.total) + '</p></div>' +
           '</div></div>' +
