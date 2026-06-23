@@ -280,7 +280,15 @@
     var isMultiSummary = _summaryMultiSale && (futureNet > 0 || futureFees > 0);
     var displayNet = net + futureNet;            // collective net when multi, = net otherwise
     var displayFees = totalFeesAll + futureFees;  // collective fees when multi
-    var displaySavings = savings + futureTaxSaved; // collective tax saved when multi (= savings single-sale)
+    // GROSS tax saved, defined as net + all fees, so the leave-behind
+    // reconciles PENNY-PERFECT: You Save - Total Fees = Net Benefit exactly.
+    // (A net-of-mgmt savings double-counted each funded supp's management fee —
+    // it's netted into supplementalBenefit AND disclosed in the fee total — and
+    // the honest-supp cap left a small residual on top, so a simple add-back
+    // didn't tie out. Defining savings = net + fees ties out by construction
+    // and is the true gross benefit before fees.) Rounded before summing so the
+    // displayed figures subtract exactly. (advisor 2026-06-23 "make it reconcile".)
+    var displaySavings = Math.round(displayNet) + Math.round(displayFees);
     // Return on Planning expressed as a percentage of NET benefit over
     // fees ("for every $1 of fees, you get back $X of net benefit",
     // rendered as a percentage). Was a multiplier (× back); switched per

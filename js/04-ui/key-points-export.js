@@ -167,8 +167,11 @@
         return a + ((Number(s.result && s.result.mgmtFeeDollars) || 0) + Math.max(0, Number(_setupMap[s.id]) || 0));
       }, 0);
     var combinedNet = primaryNet + supplementalBenefit - appliedSetupFees;
-    var combinedSavings = primarySavings + supplementalBenefit;
     var totalFeesAll = (Number(m.fees) || 0) + suppFeesTotal;
+    // GROSS tax saved = net + fees, so Total Tax Saved - Total Fees = Net
+    // Benefit penny-perfect (matches the Strategy Summary's displaySavings).
+    // (advisor 2026-06-23 "make it reconcile".)
+    var combinedSavings = Math.round(combinedNet) + Math.round(totalFeesAll);
 
     // Per funded supp: realized benefit (residual-capped, net of its setup fee
     // — matching Tab 6's per-supp rows) + per-year invested/benefit. perYear
@@ -408,7 +411,9 @@
       // Strategy Summary's collective "Net Benefit — All Sales" (current + future).
       // Purely additive — the current-sale Bottom Line above is unchanged.
       var allNet = (Number(d.net) || 0) + (Number(fs.net) || 0);
-      var allSaved = (Number(d.savings) || 0) + (Number(fs.taxSaved) || 0);
+      // Gross all-sales tax saved = all-sales net + all-sales fees (matches the
+      // Strategy Summary's collective You Save, ties out).
+      var allSaved = Math.round(allNet) + Math.round((Number(d.fees.total) || 0) + (Number(fs.fees) || 0));
       futureSalesHtml =
         '<div class="kp-sec"><h2>Future Sales &mdash; Projected</h2>' +
           '<p class="kp-note">Projected from the future-sale inputs (years until sale + growth) as &sect;453 installment sales' +
