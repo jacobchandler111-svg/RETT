@@ -363,7 +363,7 @@
           '</tr></thead><tbody>' + pyBody + pyTotal + '</tbody></table></div>' +
         '<div class="kp-sec"><h2>Projected Fees</h2>' +
           '<div class="kp-fees">' +
-            '<div class="kp-fee"><p class="kp-fee-lbl">Brooklyn (AM)</p><p class="kp-fee-val">' + _usd(d.fees.brooklyn) + '</p></div>' +
+            '<div class="kp-fee"><p class="kp-fee-lbl">Asset Manager</p><p class="kp-fee-val">' + _usd(d.fees.brooklyn) + '</p></div>' +
             ((Number(d.fees.supp) || 0) > 0
               ? '<div class="kp-fee"><p class="kp-fee-lbl">Supplemental Strategies</p><p class="kp-fee-val">' + _usd(d.fees.supp) + '</p></div>'
               : '') +
