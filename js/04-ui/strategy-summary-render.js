@@ -280,6 +280,7 @@
     var isMultiSummary = _summaryMultiSale && (futureNet > 0 || futureFees > 0);
     var displayNet = net + futureNet;            // collective net when multi, = net otherwise
     var displayFees = totalFeesAll + futureFees;  // collective fees when multi
+    var displaySavings = savings + futureTaxSaved; // collective tax saved when multi (= savings single-sale)
     // Return on Planning expressed as a percentage of NET benefit over
     // fees ("for every $1 of fees, you get back $X of net benefit",
     // rendered as a percentage). Was a multiplier (× back); switched per
@@ -546,8 +547,14 @@
       effectiveBkFees: effectiveBrooklynFees,
       brookhavenFees: m.brookhavenFees || 0,
       fees:           fees,
-      savings:        savings,
+      // Collective when multi-sale (= current single-sale): the leave-behind's
+      // You Save + Total fees must be on the SAME (all-sales) basis as its Net
+      // Benefit so the print matches the on-screen summary and ties out
+      // (net = savings - fees). Single-sale: futures are 0, so these are
+      // identical to the prior current-only values (no change). (advisor 2026-06-23)
+      savings:        displaySavings,
       net:            displayNet,
+      futureFees:     futureFees,
       roi:            roi,
       // Return on Planning — use the SAME ratio the on-screen ROP square
       // shows (net / (fees + setup fees)) so the printout and the screen
@@ -564,7 +571,7 @@
       supplementalBenefit: supplementalBenefit,
       // Fee roll-up for the "Fees" block at the bottom of the leave-behind.
       suppFeesTotal:  suppFeesTotal,
-      totalFeesAll:   totalFeesAll,
+      totalFeesAll:   displayFees,
       suppSetupFeeMap: _suppSetupFeeMap
     });
 
@@ -772,6 +779,9 @@
           ? '<tr><td>Supplemental strategy fees</td><td class="print-num">' + _fmt(d.suppFeesTotal) + '</td></tr>'
           : '') +
         '<tr><td>Brookhaven planning &amp; advisory</td><td class="print-num">' + _fmt(d.brookhavenFees || 0) + '</td></tr>' +
+        (Number(d.futureFees) > 0
+          ? '<tr><td>Future sales fees</td><td class="print-num">' + _fmt(d.futureFees) + '</td></tr>'
+          : '') +
         '<tr class="print-total-row"><td><strong>Total fees</strong></td><td class="print-num"><strong>' + _fmt(d.totalFeesAll) + '</strong></td></tr>' +
       '</tbody></table>' +
     '</div>';

@@ -404,6 +404,11 @@
       }).join('');
       var fsTotal = '<tr class="kp-total"><td class="kp-l">Total</td><td>&mdash;</td><td>&mdash;</td>' +
         '<td>' + _usd(fs.net) + '</td></tr>';
+      // Combined "All Sales" total so the Key Points has a headline matching the
+      // Strategy Summary's collective "Net Benefit — All Sales" (current + future).
+      // Purely additive — the current-sale Bottom Line above is unchanged.
+      var allNet = (Number(d.net) || 0) + (Number(fs.net) || 0);
+      var allSaved = (Number(d.savings) || 0) + (Number(fs.taxSaved) || 0);
       futureSalesHtml =
         '<div class="kp-sec"><h2>Future Sales &mdash; Projected</h2>' +
           '<p class="kp-note">Projected from the future-sale inputs (years until sale + growth) as &sect;453 installment sales' +
@@ -411,7 +416,12 @@
           '. Estimated tax saved ' + _usd(fs.taxSaved) + ' across ' + _usd(fs.fees) + ' in fees.</p>' +
           '<table class="kp-tbl"><thead><tr>' +
           '<th class="kp-l">Sale Year</th><th>Projected Value</th><th>Projected Gain</th><th>Est. Net Benefit</th>' +
-          '</tr></thead><tbody>' + fsRows + fsTotal + '</tbody></table></div>';
+          '</tr></thead><tbody>' + fsRows + fsTotal + '</tbody></table>' +
+          '<div class="kp-bottom" style="margin-top:12px;">' +
+            '<div class="kp-bl kp-bl-net"><p class="kp-bl-lbl">Net Benefit &mdash; All Sales</p><p class="kp-bl-val">' + _usd(allNet) + '</p></div>' +
+            '<div class="kp-bl kp-bl-sav"><p class="kp-bl-lbl">Total Tax Saved &mdash; All Sales</p><p class="kp-bl-val">' + _usd(allSaved) + '</p></div>' +
+          '</div>' +
+        '</div>';
     }
 
     return '<div class="kp-doc"><style>' + _styles() + '</style>' +
