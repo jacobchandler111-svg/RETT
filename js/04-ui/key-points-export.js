@@ -320,19 +320,21 @@
     return base + '-Key-Points.pdf';
   }
 
-  // ---- export action ------------------------------------------------------
-  function exportKeyPoints() {
-    var d = buildKeyPointsData();
-    if (!d) {
-      try { alert('Pick a strategy on the Projection tab first, then export.'); } catch (e) {}
-      return;
-    }
-    var holder = doc.createElement('div');
-    holder.setAttribute('aria-hidden', 'true');
-    holder.style.cssText = 'position:fixed;left:-99999px;top:0;width:760px;background:#fff;';
-    holder.innerHTML = buildKeyPointsHTML(d);
-    doc.body.appendChild(holder);
-    var el = holder.querySelector('.kp-doc');
+  // ---- export action: on-screen preview modal + reliable PDF download -----
+  // The report MUST be rendered on-screen (visible, in the viewport) when
+  // html2canvas captures it. A node parked off-screen at left:-99999px renders
+  // a blank PDF in some browsers (the "totally blank" report). The modal also
+  // doubles as the preview the advisor wanted ("shows us the info"), and the
+  // Download button captures the visible node — reliable everywhere.
+  function _kpEsc(e) { if (e.key === 'Escape') _closeKpModal(); }
+  function _closeKpModal() {
+    var ov = doc.getElementById('kp-modal-overlay');
+    if (ov) ov.remove();
+    doc.removeEventListener('keydown', _kpEsc, true);
+  }
+
+  function _kpDownload(el, d, btn) {
+    if (!el) return;
     var opt = {
       margin: [8, 8, 8, 8],
       filename: _fname(d),
@@ -341,19 +343,85 @@
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
       pagebreak: { mode: ['css', 'legacy'] }
     };
-    function cleanup() { try { holder.remove(); } catch (e) {} }
     if (typeof root.html2pdf === 'function') {
-      try {
-        root.html2pdf().set(opt).from(el).save().then(cleanup, cleanup);
-      } catch (e) { cleanup(); }
+      var prev = btn ? btn.textContent : '';
+      var done = function () { if (btn) { btn.textContent = prev; btn.disabled = false; } };
+      if (btn) { btn.textContent = 'Generating…'; btn.disabled = true; }
+      try { root.html2pdf().set(opt).from(el).save().then(done, done); }
+      catch (e) { done(); }
     } else {
-      // html2pdf not loaded yet — fall back to a print of the node.
+      // Fallback (html2pdf missing): print just the report via a hidden iframe
+      // — not a popup, so it can't be blocked. User picks "Save as PDF".
       try {
-        var w = root.open('', '_blank');
-        if (w) { w.document.write(buildKeyPointsHTML(d)); w.document.close(); w.focus(); w.print(); }
+        var ifr = doc.createElement('iframe');
+        ifr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+        doc.body.appendChild(ifr);
+        var idoc = ifr.contentWindow.document;
+        idoc.open();
+        idoc.write('<!doctype html><html><head><title>' + _esc(_fname(d).replace('.pdf', '')) +
+          '</title></head><body style="margin:0">' + el.outerHTML + '</body></html>');
+        idoc.close();
+        setTimeout(function () {
+          try { ifr.contentWindow.focus(); ifr.contentWindow.print(); } catch (e) {}
+          setTimeout(function () { try { ifr.remove(); } catch (e) {} }, 1500);
+        }, 300);
       } catch (e) {}
-      cleanup();
     }
+  }
+
+  function exportKeyPoints() {
+    _closeKpModal();
+    var d = buildKeyPointsData();
+
+    var overlay = doc.createElement('div');
+    overlay.id = 'kp-modal-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483600;background:rgba(15,23,42,.55);' +
+      'display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:24px 16px;';
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) _closeKpModal(); });
+
+    var panel = doc.createElement('div');
+    panel.style.cssText = 'background:#fff;border-radius:8px;max-width:812px;width:100%;margin:auto;' +
+      'box-shadow:0 12px 48px rgba(0,0,0,.35);overflow:hidden;';
+
+    var bar = doc.createElement('div');
+    bar.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px;' +
+      'padding:11px 16px;border-bottom:1px solid #e6ebf3;background:#f7f9fc;';
+    var title = doc.createElement('strong');
+    title.style.cssText = 'font-family:Arial,Helvetica,sans-serif;font-size:13px;letter-spacing:.5px;color:#14233f;';
+    title.textContent = 'Strategy Key Points';
+    bar.appendChild(title);
+
+    var actions = doc.createElement('div');
+    var dl = null;
+    if (d) {
+      dl = doc.createElement('button');
+      dl.type = 'button'; dl.className = 'cta-btn'; dl.textContent = 'Download PDF';
+      dl.style.cssText = 'margin-right:8px;';
+      actions.appendChild(dl);
+    }
+    var cl = doc.createElement('button');
+    cl.type = 'button'; cl.className = 'cta-btn cta-btn-secondary'; cl.textContent = 'Close';
+    cl.addEventListener('click', _closeKpModal);
+    actions.appendChild(cl);
+    bar.appendChild(actions);
+
+    var body = doc.createElement('div');
+    body.style.cssText = 'max-height:74vh;overflow:auto;padding:18px;background:#eef1f5;display:flex;justify-content:center;';
+    if (d) {
+      var sheet = doc.createElement('div');
+      sheet.innerHTML = buildKeyPointsHTML(d);
+      body.appendChild(sheet);
+      dl.addEventListener('click', function () { _kpDownload(sheet.querySelector('.kp-doc'), d, dl); });
+    } else {
+      body.innerHTML = '<p style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#5b6573;' +
+        'padding:28px;text-align:center;">Pick a strategy on the Projection tab first, then export.</p>';
+    }
+
+    panel.appendChild(bar);
+    panel.appendChild(body);
+    overlay.appendChild(panel);
+    doc.body.appendChild(overlay);
+    doc.addEventListener('keydown', _kpEsc, true);
   }
 
   // ---- admin-only button wiring -------------------------------------------
