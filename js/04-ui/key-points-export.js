@@ -204,6 +204,50 @@
     var _leverageLabel = (_combo && _combo.leverageLabel) || cfg.leverageLabel ||
       (cfg.leverage ? (Math.round(cfg.leverage * 100) + '%') : '');
 
+    // ---- Future sales ("second string") — ONLY when future-sale = yes -------
+    // ADDITIVE: stays null for a normal/granular single sale, so the original
+    // report (above) is byte-identical. When the advisor flagged future sales,
+    // pull the SAME collective installment estimate Tab 6 layers on
+    // (__rettFutureInstallmentBenefit) + the per-sale projection
+    // (__rettFutureSalesProjected), so the export reflects all their sales.
+    var futureSales = null;
+    try {
+      var _fyEl = doc.getElementById('future-sale-yes-no');
+      var _isMulti = !!(_fyEl && _fyEl.value === 'yes');
+      if (_isMulti && typeof root.__rettFutureInstallmentBenefit === 'function') {
+        var _fb = root.__rettFutureInstallmentBenefit();
+        var _proj = (typeof root.__rettFutureSalesProjected === 'function')
+          ? root.__rettFutureSalesProjected().filter(function (f) { return f.gain > 0; }) : [];
+        var _per = (_fb && Array.isArray(_fb.perSale)) ? _fb.perSale : [];
+        if (_fb && _per.length && ((Number(_fb.net) || 0) > 0 || (Number(_fb.fees) || 0) > 0)) {
+          var _indepNetTotal = _per.reduce(function (a, p) { return a + (Number(p.net) || 0); }, 0);
+          var _targetNet = Number(_fb.net) || 0;
+          var _sales = _per.map(function (p, i) {
+            var pr = _proj[i] || {};
+            // Pro-rate each sale's net to the OPTIMIZED collective (mirrors Tab 6's
+            // "Savings by Sale") so the rows sum to the collective total even when
+            // the cross-sale carryforward optimizer beats the independent per-sale sum.
+            var indep = Number(p.net) || 0;
+            var netShare = (_indepNetTotal > 0) ? indep * (_targetNet / _indepNetTotal) : 0;
+            return {
+              saleYear: pr.saleYear || null,
+              yearsUntil: (pr.yearsUntil != null) ? pr.yearsUntil : null,
+              projectedValue: Number(p.price) || Number(pr.projectedPrice) || 0,
+              gain: Number(p.gain) || 0,
+              net: netShare
+            };
+          }).sort(function (a, b) { return (a.saleYear || 0) - (b.saleYear || 0); });
+          futureSales = {
+            sales: _sales,
+            taxSaved: Number(_fb.taxSaved) || 0,
+            fees: Number(_fb.fees) || 0,
+            net: Number(_fb.net) || 0,
+            usedOptimizer: !!_fb.usedOptimizer
+          };
+        }
+      }
+    } catch (e) { futureSales = null; }
+
     var subParts = [];
     if (cfg.year1) subParts.push('Tax Year ' + cfg.year1);
     var st = cfg.state || cfg.stateCode;
@@ -237,7 +281,8 @@
       supps: supps,
       totalSuppBenefit: supplementalBenefit,
       net: combinedNet,
-      savings: combinedSavings
+      savings: combinedSavings,
+      futureSales: futureSales
     };
   }
 
@@ -285,6 +330,7 @@
 '.kp-supp .kp-supp-ben{font-size:15px;font-weight:700;color:#1f7a3d;}' +
 '.kp-supp table.kp-tbl td,.kp-supp table.kp-tbl th{padding:4px 8px;font-size:11.5px;}' +
 '.kp-none{color:#6b7280;font-style:italic;font-size:12.5px;}' +
+'.kp-note{font-family:Arial,Helvetica,sans-serif;font-size:10.5px;color:#6b7280;margin:0 0 9px 0;}' +
 '.kp-bottom{display:flex;gap:0;border-radius:5px;overflow:hidden;margin:4px 0 0 0;}' +
 '.kp-bottom .kp-bl{flex:1;padding:14px 16px;color:#fff;}' +
 '.kp-bottom .kp-bl-net{background-color:#1850b8;' +
@@ -345,6 +391,29 @@
       suppsHtml = '<p class="kp-none">No supplemental strategies funded for this plan.</p>';
     }
 
+    // Future-sales section — rendered ONLY when d.futureSales is present (multi-
+    // sale). For a single/granular sale this is '' and the report is unchanged.
+    var futureSalesHtml = '';
+    if (d.futureSales && d.futureSales.sales && d.futureSales.sales.length) {
+      var fs = d.futureSales;
+      var fsRows = fs.sales.map(function (sale) {
+        return '<tr><td class="kp-l kp-year">' + (sale.saleYear ? _esc(sale.saleYear) : '&mdash;') + '</td>' +
+          '<td>' + _usd(sale.projectedValue) + '</td>' +
+          '<td>' + _usd(sale.gain) + '</td>' +
+          '<td>' + _usd(sale.net) + '</td></tr>';
+      }).join('');
+      var fsTotal = '<tr class="kp-total"><td class="kp-l">Total</td><td>&mdash;</td><td>&mdash;</td>' +
+        '<td>' + _usd(fs.net) + '</td></tr>';
+      futureSalesHtml =
+        '<div class="kp-sec"><h2>Future Sales &mdash; Projected</h2>' +
+          '<p class="kp-note">Projected from the future-sale inputs (years until sale + growth) as &sect;453 installment sales' +
+          (fs.usedOptimizer ? ' with cross-sale carryforward optimization' : '') +
+          '. Estimated tax saved ' + _usd(fs.taxSaved) + ' across ' + _usd(fs.fees) + ' in fees.</p>' +
+          '<table class="kp-tbl"><thead><tr>' +
+          '<th class="kp-l">Sale Year</th><th>Projected Value</th><th>Projected Gain</th><th>Est. Net Benefit</th>' +
+          '</tr></thead><tbody>' + fsRows + fsTotal + '</tbody></table></div>';
+    }
+
     return '<div class="kp-doc"><style>' + _styles() + '</style>' +
       '<div class="kp-head">' +
         '<p class="kp-brand">BrookHaven &middot; Strategy Key Points</p>' +
@@ -376,6 +445,7 @@
             '<div class="kp-bl kp-bl-net"><p class="kp-bl-lbl">Net Benefit</p><p class="kp-bl-val">' + _usd(d.net) + '</p></div>' +
             '<div class="kp-bl kp-bl-sav"><p class="kp-bl-lbl">Total Tax Saved</p><p class="kp-bl-val">' + _usd(d.savings) + '</p></div>' +
           '</div></div>' +
+        futureSalesHtml +
       '</div>' +
       '<div class="kp-foot">Prepared by BrookHaven for planning discussion. Figures are projections based on the inputs provided and current tax law; they are estimates, not a guarantee of results, and do not constitute tax or legal advice. Confirm with your CPA before acting.</div>' +
     '</div>';
