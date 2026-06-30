@@ -1031,7 +1031,19 @@ function unifiedTaxComparison(cfg, opts) {
       // so the cash deploys with the first qualifying deposit).
       var _y0RollToFirstInstallment = 0;
       if (_isInstallment) {
-            var _y0Pool = _y0DownPayment + Math.max(0, recapture);
+            // Cap the Y0 Brooklyn cash pool at the DEBT-REDUCED available
+            // capital (_availTotal = sale − debt − personal-use). Without
+            // this, _y0DownPayment is only capped at the contract price
+            // (salePrice − recap, line 994), so a leveraged seller deploys the
+            // FULL proceeds — including the cash that must retire the mortgage —
+            // harvesting Brooklyn losses on money they don't actually have
+            // (e.g. $5M sale / $3M debt → deploys $5M instead of $2M, offsetting
+            // ~99% of tax). The §453 gain recognition is unaffected (it still
+            // uses the full _y0DownPayment for the gross-profit ratio). The
+            // immediate (A) and structured (C) paths already cap deployment at
+            // _availTotal; this brings the installment path in line so debt
+            // correctly lowers the net (advisor 2026-06-30).
+            var _y0Pool = Math.min(_availTotal, _y0DownPayment + Math.max(0, recapture));
             // Supplementals (Oil & Gas, etc.) deploy their Year-0 investment
             // out of the SAME Year-0 cash pool (down payment + recapture).
             // Reserve their share BEFORE sizing Brooklyn's Y0 tranche, so the
