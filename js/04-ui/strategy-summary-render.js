@@ -274,9 +274,17 @@
     try { var _fyS = document.getElementById('future-sale-yes-no'); _summaryMultiSale = !!(_fyS && _fyS.value === 'yes'); } catch (e) { _summaryMultiSale = false; }
     var _fbSummary = (_summaryMultiSale && typeof root.__rettFutureInstallmentBenefit === 'function')
       ? root.__rettFutureInstallmentBenefit() : null;
-    var futureNet = _fbSummary ? (Number(_fbSummary.net) || 0) : 0;
-    var futureFees = _fbSummary ? (Number(_fbSummary.fees) || 0) : 0;
-    var futureTaxSaved = _fbSummary ? (Number(_fbSummary.taxSaved) || 0) : 0;
+    // Apply the CHOSEN strategy's future-sale discount factor (Traditional 0.70,
+    // Structured 0.85, Installment 1.00) so the Tab-6 collective — hero, ROP,
+    // walk-away, Savings-by-Sale — ties to the projection card for the SAME
+    // strategy (advisor 2026-06-30). _fbSummary models the flexible installment
+    // route; the factor discounts it for Traditional/Structured. Shared source:
+    // root.__rettFutureSaleFactor (projection-dashboard-render.js).
+    var _futFactorS = (root.__rettFutureSaleFactor && entry && root.__rettFutureSaleFactor[entry.type] != null)
+      ? root.__rettFutureSaleFactor[entry.type] : 1;
+    var futureNet = _fbSummary ? Math.round((Number(_fbSummary.net) || 0) * _futFactorS) : 0;
+    var futureFees = _fbSummary ? Math.round((Number(_fbSummary.fees) || 0) * _futFactorS) : 0;
+    var futureTaxSaved = _fbSummary ? Math.round((Number(_fbSummary.taxSaved) || 0) * _futFactorS) : 0;
     var isMultiSummary = _summaryMultiSale && (futureNet > 0 || futureFees > 0);
     var displayNet = net + futureNet;            // collective net when multi, = net otherwise
     var displayFees = totalFeesAll + futureFees;  // collective fees when multi
@@ -512,7 +520,7 @@
     // the collective Net Benefit hero (advisor 2026-06-22).
     if (isMultiSummary) {
       var _curGain = Math.max(0, salePrice - ((currentCfg && Number(currentCfg.costBasis)) || 0));
-      html += _renderPerSaleSavingsTable(_curGain, net, _fbSummary);
+      html += _renderPerSaleSavingsTable(_curGain, net, _fbSummary, futureNet);
     }
 
     // ============ Grow-your-net-benefit projection ============
@@ -1103,14 +1111,17 @@
   // (the optimizer pools cross-sale carryforward, so per-sale is an allocation,
   // not a standalone figure). Falls back to gain-weighting if the independent
   // per-sale nets are non-positive. Total reconciles to currentNet + fb.net.
-  function _renderPerSaleSavingsTable(currentGain, currentNet, fb) {
+  function _renderPerSaleSavingsTable(currentGain, currentNet, fb, targetNet) {
     var perSale = (fb && fb.perSale) || [];
     if (!perSale.length) return '';
     var proj = (typeof root.__rettFutureSalesProjected === 'function')
       ? root.__rettFutureSalesProjected().filter(function (f) { return f.gain > 0; }) : [];
     var indepTotal = perSale.reduce(function (s, p) { return s + (Number(p.net) || 0); }, 0);
     var gainTotal = perSale.reduce(function (s, p) { return s + (Number(p.gain) || 0); }, 0);
-    var target = Number(fb.net) || 0;
+    // target = the chosen strategy's DISCOUNTED collective future net (passed
+    // in) so each per-sale row pro-rates to the SAME total the hero shows;
+    // falls back to the raw installment net if not provided (advisor 2026-06-30).
+    var target = (targetNet != null) ? (Number(targetNet) || 0) : (Number(fb.net) || 0);
     function shareNet(p) {
       if (indepTotal > 0) return (Number(p.net) || 0) * (target / indepTotal);
       if (gainTotal > 0) return target * ((Number(p.gain) || 0) / gainTotal);

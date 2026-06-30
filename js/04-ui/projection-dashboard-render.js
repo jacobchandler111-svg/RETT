@@ -3110,29 +3110,33 @@
     return { donut: _saleOnlyDonutSvg(cfg, metrics, 'B') };
   }
 
+  // Future-sale per-strategy discount factors — the SINGLE SOURCE OF TRUTH for
+  // the projection cards, the Net Benefit KPI, and the Strategy Summary (Tab 6)
+  // so the collective net ties together across every surface for the SAME
+  // chosen strategy. The future-sale benefit is modeled only for the flexible
+  // installment route (__rettFutureInstallmentBenefit); Traditional and
+  // Structured are blanket discounts off it (Monte-Carlo over the engine,
+  // advisor 2026-06-30): Traditional ~30% less, Structured ~15% less, never
+  // above installment.
+  root.__rettFutureSaleFactor = { A: 0.70, B: 1.00, C: 0.85 };
+  function _futureSaleNetFor(type) {
+    var f = root.__rettFutureSaleFactor[type];
+    if (f == null || typeof root.__rettFutureInstallmentBenefit !== 'function') return 0;
+    try { return Math.round((Number(root.__rettFutureInstallmentBenefit().net) || 0) * f); }
+    catch (e) { return 0; }
+  }
+  root.__rettFutureSaleNetFor = _futureSaleNetFor;
+
   function _interestedCard(typeLabel, num, name, picked, metrics, lossSum, isRecommended, durationMonths, paymentScheduleHtml, visuals, currentCfg) {
     var _multiSaleCard = false;
     try { var _fyC = document.getElementById('future-sale-yes-no'); _multiSaleCard = !!(_fyC && _fyC.value === 'yes'); } catch (e) { _multiSaleCard = false; }
     // On the multi-sale string EVERY card's headline Net Benefit is the
     // COLLECTIVE across all the client's sales (this sale's engine net + the
-    // future sales' net for THAT strategy), not just the current sale — the
-    // single-sale figure read as too low next to the collective tax liability
-    // (advisor 2026-06-22). The future-sale benefit is modeled only for the
-    // flexible installment route (__rettFutureInstallmentBenefit); Traditional
-    // and Structured are shown on the future sales as blanket discounts off it
-    // (advisor 2026-06-30, Monte-Carlo over the engine across realistic sales):
-    //   • Traditional ≈ 70% — not taking the flexible route costs ~30% of the
-    //     future-sale net (no deferral; ~30% less in the high-gain regime where
-    //     installment is the right call).
-    //   • Structured ≈ 85% — the rigid 40/40/20 route costs ~15% (closer to
-    //     installment than Traditional, but never above it — invariant B ≥ C).
-    // Installment is therefore always the best of the three on the future
-    // sales, reinforcing why we steer the client there.
-    var _FUTURE_FACTOR = { A: 0.70, B: 1.00, C: 0.85 };
-    var _futureNetCard = 0;
-    if (_multiSaleCard && _FUTURE_FACTOR[typeLabel] != null && typeof root.__rettFutureInstallmentBenefit === 'function') {
-      try { _futureNetCard = Math.round((Number(root.__rettFutureInstallmentBenefit().net) || 0) * _FUTURE_FACTOR[typeLabel]); } catch (e) { _futureNetCard = 0; }
-    }
+    // future sales' net for THAT strategy). The per-strategy future-sale net
+    // (installment estimate × discount factor) comes from the shared
+    // _futureSaleNetFor() so the cards, the KPI, and the Strategy Summary all
+    // tie together for the same chosen strategy (advisor 2026-06-22 / 06-30).
+    var _futureNetCard = _multiSaleCard ? _futureSaleNetFor(typeLabel) : 0;
     var _showCollectiveNet = (_multiSaleCard && _futureNetCard > 0);
     // Lockup line replaces the old "Time horizon · Leverage" auto-pick
     // summary. Strategy choice is now described by how long the seller's
