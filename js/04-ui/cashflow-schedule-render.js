@@ -277,6 +277,34 @@
     if (!host) return;
     var result = window.__lastResult;
     var comp = window.__lastComparison;
+    // When the advisor has CHOSEN a strategy ("Use This Strategy"), the
+    // payment/cashflow schedule must reflect THAT strategy — not the
+    // projection page's interactive Brooklyn scenario, which defaults to
+    // immediate (lump-sum). Without this, a structured Strategy C renders
+    // "no structured sale needed / full proceeds at close" because
+    // __lastComparison is the immediate scenario, contradicting the actual
+    // 40/40/20 gain recognition (advisor 2026-06-30). Fail-safe: any error
+    // or absence of a chosen strategy falls back to the last scenario.
+    try {
+      if (typeof window.__rettResolveChosen === 'function' &&
+          typeof window.unifiedTaxComparison === 'function' &&
+          typeof ProjectionEngine !== 'undefined' && ProjectionEngine.run) {
+        var _ch = window.__rettResolveChosen();
+        var _chCfg = _ch && _ch.entry && _ch.entry.cfg;
+        if (_chCfg) {
+          var _ec = {};
+          for (var _k in _chCfg) { _ec[_k] = _chCfg[_k]; }
+          if (_ec.strategyKey == null) _ec.strategyKey = _ec.tierKey;
+          if (_ec.investedCapital == null) _ec.investedCapital = _ec.investment;
+          var _chComp = _ch.comp || window.unifiedTaxComparison(_chCfg);
+          var _chResult = ProjectionEngine.run(_ec);
+          if (_chComp && _chResult && _chResult.years && _chResult.years.length) {
+            comp = _chComp;
+            result = { years: _chResult.years, totals: _chResult.totals, config: _chCfg };
+          }
+        }
+      }
+    } catch (e) { /* fall back to __lastResult / __lastComparison */ }
     if (!result || !result.years || !result.years.length || !comp) {
       host.innerHTML = '';
       return;

@@ -566,6 +566,15 @@
         doNothing += (r.doNothingBaseline ? r.doNothingBaseline.total
                        : (r.baseline ? r.baseline.total : 0));
       });
+      // Post-horizon catch-up tax: gain recognized past the projection
+      // window is taxed in a synthetic year-(horizon+1). The unified engine
+      // already bakes it into def.totalWithStrategy, so this row-by-row
+      // re-derivation must add it too — otherwise a deferred strategy whose
+      // gain spills past the horizon would have its net OVERSTATED. Latent
+      // today (recognition clamps to the horizon, so this is $0), but kept
+      // as a guard so the metric can never diverge from the engine total
+      // (advisor 2026-06-30).
+      tax += (def.postHorizonTax || 0);
       brooklynFees = def.totalFees || 0;
       brookhavenTotal = def.totalBrookhavenFees || 0;
     } else {
