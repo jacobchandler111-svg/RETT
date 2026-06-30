@@ -1404,10 +1404,18 @@
     // ~$17K in a $5M/$1M case where 145/45 won at full). Track each combo's
     // best-FULL candidate here, then re-score them at their dial-back
     // optimum after the sweep (see below) and pick the genuinely net-best.
-    var _bestPerComboFull = {};   // comboId -> { picked, fullNet }
+    // Keyed by combo+HORIZON, not combo alone (horizon-dip fix 2026-06-30).
+    // A/B sweep multiple horizons that all share ONE comboId; keying by
+    // comboId collapsed them to the single best-FULL horizon, so the
+    // dial-back refinement below never saw the lower horizon whose DIALED
+    // net is far higher. A horizon that wins at full deployment but dials
+    // back to ~46% (the rendered card showed B at $317K vs its true ~$695K)
+    // would silently win. Including the horizon in the key keeps every
+    // horizon as a distinct dial-back candidate.
+    var _bestPerComboFull = {};   // comboId|horizon -> { picked, fullNet }
     function _recordCombo(pk, fullNet) {
       if (!pk || !pk.comboId || !isFinite(fullNet)) return;
-      var k = pk.comboId;
+      var k = pk.comboId + '|h' + (pk.horizon || 0);
       if (!_bestPerComboFull[k] || fullNet > _bestPerComboFull[k].fullNet) {
         _bestPerComboFull[k] = { picked: pk, fullNet: fullNet };
       }
@@ -1883,10 +1891,18 @@
           if (!(avail > 0)) return m.net;
           var scale = _netMaxDeployFraction(cfg);
           if (scale >= 1) return m.net;
-          if (scale <= 0) return Math.max(0, m.net);   // no-engage floor
+          // Mirror the RENDER's dial-back display exactly (horizon-dip fix
+          // 2026-06-30). The card overwrites net with the dialed-back value
+          // UNCONDITIONALLY when scale<1 (line ~3804, the `m2.net > _fullNet`
+          // gate was deliberately removed), and shows net=0 at no-engage.
+          // The picker must rank on that SAME number — the old `max(full,
+          // dialed)` here over-rated a high-horizon pick at its full net
+          // (~$818K) while the render showed its true dialed net (~$359K),
+          // so the picker locked the horizon that DISPLAYED worst.
+          if (scale <= 0) return 0;   // no-engage: render shows $0 net
           var redCap = Math.round(avail * scale);
           var m2 = _scenarioMetrics(Object.assign({}, cfg, { availableCapital: redCap, investment: redCap, investedCapital: redCap }));
-          return (m2 && m2.net > m.net) ? m2.net : m.net;
+          return (m2 && Number.isFinite(m2.net)) ? m2.net : m.net;
         };
         var _bestDialed = null;
         _comboKeys.forEach(function (k) {
@@ -1894,9 +1910,13 @@
           var dn = _dialedNetForPick(pk);
           if (!_bestDialed || dn > _bestDialed.dn) _bestDialed = { pk: pk, dn: dn };
         });
-        // Only switch if the dial-back winner genuinely beats the current
-        // pick's dialed net (avoids churn on ties).
-        if (_bestDialed && _bestDialed.pk && _bestDialed.pk.comboId !== best.comboId) {
+        // Switch whenever the dial-back winner genuinely beats the current
+        // (full-net) pick's DIALED net — including a different HORIZON of the
+        // SAME combo (horizon-dip fix 2026-06-30; the old `comboId !==
+        // best.comboId` gate blocked exactly that case, leaving A/B locked on
+        // a high-horizon pick that dialed back far below a lower horizon).
+        // The +250 threshold still avoids churn on ties.
+        if (_bestDialed && _bestDialed.pk && _bestDialed.pk !== best) {
           var _curDialed = _dialedNetForPick(best);
           if (_bestDialed.dn > _curDialed + 250) best = _bestDialed.pk;
         }
