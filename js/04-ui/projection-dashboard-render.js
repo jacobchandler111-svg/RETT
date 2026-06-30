@@ -3113,16 +3113,27 @@
   function _interestedCard(typeLabel, num, name, picked, metrics, lossSum, isRecommended, durationMonths, paymentScheduleHtml, visuals, currentCfg) {
     var _multiSaleCard = false;
     try { var _fyC = document.getElementById('future-sale-yes-no'); _multiSaleCard = !!(_fyC && _fyC.value === 'yes'); } catch (e) { _multiSaleCard = false; }
-    // On the multi-sale string the installment card's headline Net Benefit is
-    // the COLLECTIVE across all the client's sales (this sale's engine net +
-    // the future sales' installment net), not just the current sale — the
+    // On the multi-sale string EVERY card's headline Net Benefit is the
+    // COLLECTIVE across all the client's sales (this sale's engine net + the
+    // future sales' net for THAT strategy), not just the current sale — the
     // single-sale figure read as too low next to the collective tax liability
-    // (advisor 2026-06-22).
+    // (advisor 2026-06-22). The future-sale benefit is modeled only for the
+    // flexible installment route (__rettFutureInstallmentBenefit); Traditional
+    // and Structured are shown on the future sales as blanket discounts off it
+    // (advisor 2026-06-30, Monte-Carlo over the engine across realistic sales):
+    //   • Traditional ≈ 70% — not taking the flexible route costs ~30% of the
+    //     future-sale net (no deferral; ~30% less in the high-gain regime where
+    //     installment is the right call).
+    //   • Structured ≈ 85% — the rigid 40/40/20 route costs ~15% (closer to
+    //     installment than Traditional, but never above it — invariant B ≥ C).
+    // Installment is therefore always the best of the three on the future
+    // sales, reinforcing why we steer the client there.
+    var _FUTURE_FACTOR = { A: 0.70, B: 1.00, C: 0.85 };
     var _futureNetCard = 0;
-    if (_multiSaleCard && typeLabel === 'B' && typeof root.__rettFutureInstallmentBenefit === 'function') {
-      try { _futureNetCard = Number(root.__rettFutureInstallmentBenefit().net) || 0; } catch (e) { _futureNetCard = 0; }
+    if (_multiSaleCard && _FUTURE_FACTOR[typeLabel] != null && typeof root.__rettFutureInstallmentBenefit === 'function') {
+      try { _futureNetCard = Math.round((Number(root.__rettFutureInstallmentBenefit().net) || 0) * _FUTURE_FACTOR[typeLabel]); } catch (e) { _futureNetCard = 0; }
     }
-    var _showCollectiveNet = (_multiSaleCard && typeLabel === 'B' && _futureNetCard > 0);
+    var _showCollectiveNet = (_multiSaleCard && _futureNetCard > 0);
     // Lockup line replaces the old "Time horizon · Leverage" auto-pick
     // summary. Strategy choice is now described by how long the seller's
     // proceeds are tied up:
@@ -4353,9 +4364,20 @@
       return interest[t] === false;
     });
     var nothingClicked = !anyInterested && !anyNotInterested;
-    var filtered = anyInterested
-      ? entries.filter(function (e) { return interest[e.type] === true; })
-      : entries.filter(function (e) { return interest[e.type] !== false; });
+    // Multi-sale string: show ALL THREE cards so the client sees the future-
+    // sale comparison side by side — Installment (best) next to Traditional
+    // and Structured, each carrying its own (discounted) future-sale net.
+    // Otherwise the auto-marked-Interested installment card renders alone and
+    // the future-sale net for Traditional/Structured never shows at all
+    // (advisor 2026-06-30: "it's not showing the net benefit for those future
+    // sales for this chain of thoughts").
+    var _multiSaleSnap = false;
+    try { var _fySnap = document.getElementById('future-sale-yes-no'); _multiSaleSnap = !!(_fySnap && _fySnap.value === 'yes'); } catch (e) { _multiSaleSnap = false; }
+    var filtered = _multiSaleSnap
+      ? entries.slice()
+      : (anyInterested
+        ? entries.filter(function (e) { return interest[e.type] === true; })
+        : entries.filter(function (e) { return interest[e.type] !== false; }));
 
     // The legacy "Mark Interested / Not Interested on the Strategies
     // page to filter this view ..." hint was removed — the cards
@@ -4363,7 +4385,7 @@
     // grid during presentations.
     var hint = '';
 
-    if (nothingClicked || !filtered.length) {
+    if ((nothingClicked && !_multiSaleSnap) || !filtered.length) {
       // Empty state — either user landed on Projections without
       // making a selection, or every strategy was clicked Not
       // Interested. Either way, surface a polite CTA back to Page 3.
